@@ -11,13 +11,12 @@ import (
 	"sync/atomic"
 	"time"
 
+	"kando/apps/kando/desktop"
 	"kando/apps/kando/films"
 	"kando/apps/kando/locales"
 	"kando/apps/kando/shelf"
 	"kando/packages/core"
 	"kando/packages/media"
-
-	"github.com/egoist/mygo"
 )
 
 // jobQueue is the job being made and the jobs being run. The link field and the line under it, and the job the page follows, are the job being made; removed is the jobs removed while they ran. The queue runs the shelf's jobs one at a time, oldest first. The shelf (a.library) is the truth about each job's stage; the queue only keeps the order jobs were asked for and the one running now.
@@ -48,7 +47,7 @@ type jobQueue struct {
 	ytdlp ytdlpState
 	// linkFocus asks the link field above the library for the keyboard focus once, as 换个链接 does.
 	linkFocus bool
-	// keepAwake is mygo.Power.KeepAwake once the window is ready (queueHooks), and nil before and in tests, which must not hold the machine awake; awake gives back the hold it took while a job runs, nil while there is none (queueKeepAwake).
+	// keepAwake is desktop.KeepAwake once the window is ready (queueHooks), and nil before and in tests, which must not hold the machine awake; awake gives back the hold it took while a job runs, nil while there is none (queueKeepAwake).
 	keepAwake func(reason string, display bool) (release func())
 	awake     func()
 	// sys is what the queue tells the system outside the window: notifications, and the badge and progress bar on the app's icon (queue_desktop.go).
@@ -93,7 +92,7 @@ func (a *app) queueHooks() areaHooks {
 		save:    a.saveQueue,
 		restore: a.restoreQueue,
 		ready: func() {
-			a.queue.keepAwake = mygo.Power.KeepAwake
+			a.queue.keepAwake = desktop.KeepAwake
 			a.queueDesktopReady()
 			a.pump()
 			a.queueKeepAwake()

@@ -267,7 +267,7 @@ func usePlatform(t *testing.T, p breeze.Platform) {
 	t.Cleanup(func() { breeze.SetPlatform(breeze.Auto) })
 }
 
-// fakeAwake stands in for mygo.Power.KeepAwake, which needs a running app: it records each hold taken and how many are still held.
+// fakeAwake stands in for desktop.KeepAwake, which needs a running app: it records each hold taken and how many are still held.
 type fakeAwake struct {
 	holds []awakeHold
 	held  int

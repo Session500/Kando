@@ -11,13 +11,12 @@ import (
 	"time"
 
 	"kando/apps/kando/brand"
+	"kando/apps/kando/desktop"
 	"kando/apps/kando/films"
 	"kando/apps/kando/locales"
 	"kando/apps/kando/shelf"
 	"kando/packages/core"
 	"kando/packages/media"
-
-	"github.com/egoist/mygo"
 )
 
 // The shelf: which library folders the app knows, which one is open, and following them when they are renamed in Finder. The shelf's state is the nodra session in state.go.
@@ -800,10 +799,10 @@ func shelfSaveErr(err error, failed func(error string) string) string {
 // revealInFolder shows path in the system file manager. Tests replace it.
 var revealInFolder = revealPath
 
-// showItemInFolder is MyGo's reveal: Finder selecting the item on macOS, File Explorer selecting it on Windows, and on Linux the file manager's org.freedesktop.FileManager1 ShowItems, which selects it too, falling back to opening its folder when no file manager answers. Tests replace it.
-var showItemInFolder = mygo.Shell.ShowItemInFolder
+// showItemInFolder shows path selected in the file manager (desktop.Reveal). Tests replace it.
+var showItemInFolder = desktop.Reveal
 
-// revealPath shows path selected in the system file manager. MyGo reports no failure (each system's reveal either shows the item or falls back on its own), so it returns nil; reveal has already checked that path is there.
+// revealPath shows path selected in the system file manager. desktop.Reveal reports no failure (each system's reveal either shows the item or falls back on its own), so it returns nil; reveal has already checked that path is there.
 func revealPath(path string) error {
 	showItemInFolder(path)
 	return nil

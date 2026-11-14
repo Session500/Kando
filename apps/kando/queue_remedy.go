@@ -6,12 +6,11 @@ import (
 	"path/filepath"
 	"strings"
 
+	"kando/apps/kando/desktop"
 	"kando/apps/kando/films"
 	"kando/apps/kando/locales"
 	"kando/packages/core"
 	"kando/packages/media"
-
-	"github.com/egoist/mygo"
 )
 
 // What a failed download's card offers, by why it failed (core.FailKind), in the prototype's words: the remedies a card can run, and the yt-dlp update 更新并重试 runs.
@@ -47,7 +46,7 @@ const (
 var installedBrowsers = media.InstalledBrowsers
 
 // openExternal opens a URL with the system, as the Full Disk Access pane of System Settings. Tests replace it.
-var openExternal = mygo.Shell.OpenExternal
+var openExternal = desktop.OpenURL
 
 // fullDiskAccess is the pane of System Settings that lets an app read Safari's cookies.
 const fullDiskAccess = "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles"

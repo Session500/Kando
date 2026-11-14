@@ -61,7 +61,7 @@ type playerUI struct {
 	// inactive is set while the app is not the active one, and windowHidden while the main window is put away (state_window.go): either keeps the picture out of sight while the sound plays on (playerSight).
 	inactive     bool
 	windowHidden bool
-	// keepAwake is mygo.Power.KeepAwake once the window is ready (playerReady), and nil before and in tests, which must not hold the machine awake; wake gives back the hold it took while the open film plays, nil while there is none; windowAway is set while the window is minimized or hidden (player_awake.go).
+	// keepAwake is desktop.KeepAwake once the window is ready (playerReady), and nil before and in tests, which must not hold the machine awake; wake gives back the hold it took while the open film plays, nil while there is none; windowAway is set while the window is minimized or hidden (player_awake.go).
 	keepAwake  func(reason string, display bool) (release func())
 	wake       func()
 	windowAway bool
