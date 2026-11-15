@@ -2,6 +2,12 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.13.0 - 2026-11-15
+
+### Features
+
+- Move Kando from MyGo to NSGo (#117)
+
 ## 0.12.1 - 2026-11-14
 
 ### Fixes
