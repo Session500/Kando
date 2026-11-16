@@ -2,6 +2,12 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.18.0 - 2026-11-17
+
+### Features
+
+- Serve the libraries to paired phones on the local network (#182)
+
 ## 0.17.0 - 2026-11-16
 
 ### Features
