@@ -84,16 +84,12 @@ func (f footer) Render(cx *core.Scope) core.Node {
 			Style: core.Style{FlexShrink: 0}})
 	}
 	buttons = append(buttons, gear)
-	// The hairline is a ring outside the edge that takes no room, as the prototype's box-shadow.
+	// The status sits on the sidebar itself, the last of its rows, with no card of its own.
 	// A group named 状态, as MyGo's labeled row was: assistive technology reads the name before the dot's and the message's.
 	return core.View{
 		Role:      core.RoleGroup,
 		LabelFunc: func() string { return locales.SidebarStatus(cx) },
-		Style: core.Style{FlexShrink: 0, Margin: core.Edges{Top: 8, Right: insetEnd, Bottom: 8, Left: insetStart}, Padding: core.Symmetric(10, 12), Gap: 8,
-			CornerRadius: 11},
-		StyleFunc: func() core.Style {
-			return core.Style{Background: k.Card().Faded(0.55), Shadows: []core.BoxShadow{{Spread: 0.5, Color: k.Shade(0.06)}}}
-		},
+		Style:     core.Style{FlexShrink: 0, Margin: core.Edges{Top: 8, Right: insetEnd, Bottom: 8, Left: insetStart}, Padding: core.Symmetric(10, 12), Gap: 8},
 		Children: []core.Node{
 			jobsLine{a},
 			core.View{Style: core.Style{Direction: core.Row, Gap: 10, AlignItems: core.AlignCenter}, Children: buttons},

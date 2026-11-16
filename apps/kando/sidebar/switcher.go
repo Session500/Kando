@@ -14,7 +14,7 @@ import (
 	"github.com/nsgo-dev/nsgo/ui"
 )
 
-// The pill is the theme's card color, translucent, pressed in its shade, its hairline the shade (theme.Of).
+// The switcher's own colors; its row is shaded from the theme (theme.Of).
 var (
 	// The folder tile's blue, from light at the top left to dark at the bottom right.
 	tileFrom = core.RGB(0x2F8BFF)
@@ -57,7 +57,7 @@ func (s switcher) Render(cx *core.Scope) core.Node {
 		Style: core.Style{FontSize: 11, LineHeight: 16.5, FontWeight: ui.Bold, LetterSpacing: 0.2}, StyleFunc: ui.Colored(colors.Muted)}
 	title := core.Text{ContentFunc: name, MaxLines: 1, EllipsizeMode: core.EllipsizeTail,
 		Style: core.Style{FontSize: 13, LineHeight: 16, FontWeight: ui.Semibold}, StyleFunc: ui.Colored(colors.Text)}
-	// The hairline is a ring inside the edge that takes no room, as the prototype's inset box-shadow.
+	// A plain row on the sidebar, as the source rows under it: no card of its own, shaded only under the pointer and while its menu is open.
 	button := base.Button{
 		TestID:    "sidebar-switcher",
 		LabelFunc: func() string { return locales.SidebarSwitcherLabel(cx, name()) },
@@ -66,11 +66,10 @@ func (s switcher) Render(cx *core.Scope) core.Node {
 		Style: core.Style{Direction: core.Row, FlexGrow: 1, Height: core.Pt(40), AlignItems: core.AlignCenter, Gap: 9, Padding: core.Symmetric(0, 10), CornerRadius: 10,
 			Cursor: core.CursorDefault},
 		StyleFunc: func() core.Style {
-			hairline := []core.BoxShadow{{Spread: 0.5, Color: k.Shade(0.06), Inset: true}}
 			if open.Get() {
-				return core.Style{Background: k.Shade(0.07), Shadows: hairline}
+				return core.Style{Background: k.Shade(0.07)}
 			}
-			return core.Style{Background: k.Card().Faded(0.6), Shadows: hairline, Active: &core.Style{Background: k.Shade(0.07)}}
+			return core.Style{Hover: &core.Style{Background: k.Shade(0.05)}, Active: &core.Style{Background: k.Shade(0.07)}}
 		},
 		Children: []core.Node{
 			tile,
