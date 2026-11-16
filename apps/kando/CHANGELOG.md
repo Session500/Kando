@@ -2,6 +2,13 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.19.0 - 2026-11-17
+
+### Features
+
+- Move a film to another library (#180)
+- Password-protect a library as an app lock (#181)
+
 ## 0.18.0 - 2026-11-17
 
 ### Features
