@@ -2,6 +2,26 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.15.0 - 2026-11-16
+
+### Features
+
+- Put Download Video and + buttons into the pages of video sites (#154)
+- Browser extension that adds videos to Kando through native messaging (#160)
+
+### Fixes
+
+- Upload to http endpoints, without a 30-minute cap, and say why an upload failed (#150)
+- Study tools act on the line just heard, export whole notes for Anki, and answer in the film's language (#151)
+- Stop jobs overwriting subtitles and misreporting a failed Process Again (#152)
+- Library and sidebar filters, focus and screen reader labels (#157)
+- Tell the CLI and MCP how a job really ended, and let them add folders and open films being processed (#156)
+- Windows and Linux platform gaps (console windows, tool sources, poster URL, AppImage CLI, GStreamer plug-ins, paths) (#153)
+- AI presets with chat models, per-service keys, custom endpoints in any order, and a one-click hf-mirror.com download (#155)
+- Close the dark-mode gaps in Settings › AI, saved lines, sidebar, library and player (#159)
+- Translate original-only films in bulk and stop describing translations they don't have (#161)
+- Platform-neutral wording, Explain Line strings, Chinese language names, playlists in the guide, save errors and dead keys (#164)
+
 ## 0.14.1 - 2026-11-16
 
 ### Fixes
