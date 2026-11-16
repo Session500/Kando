@@ -130,11 +130,11 @@ func (f *fakeApp) Retranslate()                         { f.call("retranslate") 
 func (f *fakeApp) TranslateMissing(item Film)           { f.call("translate-missing", item.Key) }
 func (f *fakeApp) Remove(id string)                     { f.call("remove", id) }
 func (f *fakeApp) Retry(id string)                      { f.call("retry", id) }
-func (f *fakeApp) Failures() (int, int)                 { return f.retryable, f.failed }
+func (f *fakeApp) Failures(string) (int, int)           { return f.retryable, f.failed }
 func (f *fakeApp) FailureDetail(item Film) string       { return f.details[item.JobID] }
 func (f *fakeApp) ReportFailure(id string)              { f.call("report", id) }
-func (f *fakeApp) RetryAll()                            { f.call("retry-all") }
-func (f *fakeApp) RemoveFailed()                        { f.call("remove-failed") }
+func (f *fakeApp) RetryAll(string)                      { f.call("retry-all") }
+func (f *fakeApp) RemoveFailed(string)                  { f.call("remove-failed") }
 func (f *fakeApp) Withdraw(id string)                   { f.call("withdraw", id) }
 func (f *fakeApp) FailureHint(item Film) (string, string) {
 	return f.hints[item.JobID], ""
@@ -295,6 +295,10 @@ func TestHeroIsTheFilmBeingWatched(t *testing.T) {
 	})
 	if hero() != rivers.Name || !app.Exists(whole(msgs.FilmsHeroKickerContinueBilingual(msgs.SettingsLanguageSimplifiedChinese()))) {
 		t.Fatalf("the hero is %q: %q", hero(), app.Texts())
+	}
+	// The hero is named by its film and gives no hint of its own that could say 最近完成 over a kicker that says 继续观看.
+	if d := app.Find("id:films-hero").Props.Hint; d != "" {
+		t.Fatalf("the hero's hint is %q", d)
 	}
 	// With nothing to continue, the newest finished film never played is the hero, ahead of one watched to the end.
 	change(app, a, func() {
