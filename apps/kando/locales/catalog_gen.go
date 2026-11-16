@@ -3364,7 +3364,7 @@ var textsEn = i18n.NewTexts(""+
 	"library location Finder File Explorer file manager interface language version components yt-dlp ffmpeg whisper-cli detect again command line terminal kando install MCP Claude Code Cursor copy config update notifications notify"+
 	"subtitles display bilingual original only translation only order translation original dim blank make room preview preset font size color bold"+
 	"keyboard keys commands"+
-	"whisper models download recognition transcription HuggingFace Vimpo hyperframes"+
+	"whisper models download recognition transcription HuggingFace Hugging Face Vimpo hyperframes spoken language download source mirror hf-mirror.com model file ggml"+
 	"target language smart translation context prompt restore default"+
 	"Arabic"+
 	"Dutch"+
@@ -4228,7 +4228,7 @@ var textsEn = i18n.NewTexts(""+
 		226,
 		141,
 		22,
-		79,
+		161,
 		64,
 		6,
 		5,
@@ -5095,7 +5095,7 @@ var textsJa = i18n.NewTexts(""+
 	"ライブラリ 場所 Finder エクスプローラー ファイルマネージャー 表示言語 バージョン コンポーネント yt-dlp ffmpeg whisper-cli 再検出 コマンドライン ターミナル kando インストール MCP Claude Code Cursor 設定をコピー アップデート 通知"+
 	"字幕 表示方法 二言語 原文のみ 訳文のみ 順序 訳文 原文 薄く 空白 移動 プレビュー プリセット フォント サイズ 色 太字"+
 	"キーボード キー コマンド"+
-	"whisper モデル ダウンロード 認識 文字起こし HuggingFace Vimpo hyperframes"+
+	"whisper モデル ダウンロード 認識 文字起こし HuggingFace Hugging Face Vimpo hyperframes 認識する言語 話されている言語 ダウンロード元 ミラー hf-mirror.com モデルファイル ggml"+
 	"翻訳先の言語 スマート翻訳 文脈 プロンプト デフォルトに戻す"+
 	"アラビア語"+
 	"オランダ語"+
@@ -5959,7 +5959,7 @@ var textsJa = i18n.NewTexts(""+
 		303,
 		163,
 		35,
-		89,
+		219,
 		85,
 		15,
 		15,
@@ -6826,7 +6826,7 @@ var textsKo = i18n.NewTexts(""+
 	"라이브러리 위치 Finder 파일 탐색기 파일 관리자 인터페이스 언어 버전 구성 요소 yt-dlp ffmpeg whisper-cli 다시 감지 명령줄 터미널 kando 설치 MCP Claude Code Cursor 설정 복사 업데이트 알림"+
 	"자막 표시 방식 이중 언어 원문만 번역만 순서 번역 원문 흐리게 비워 두기 이동 미리 보기 프리셋 서체 크기 색상 굵게"+
 	"키보드 키 명령"+
-	"whisper 모델 다운로드 인식 전사 HuggingFace Vimpo hyperframes"+
+	"whisper 모델 다운로드 인식 전사 HuggingFace Hugging Face Vimpo hyperframes 인식 언어 다운로드 소스 미러 hf-mirror.com 모델 파일 ggml"+
 	"대상 언어 스마트 번역 문맥 프롬프트 기본값 복원"+
 	"아랍어"+
 	"네덜란드어"+
@@ -7690,7 +7690,7 @@ var textsKo = i18n.NewTexts(""+
 		237,
 		158,
 		20,
-		71,
+		158,
 		67,
 		9,
 		15,
@@ -8557,7 +8557,7 @@ var textsZhHans = i18n.NewTexts(""+
 	"资料库 位置 访达 文件资源管理器 文件管理器 界面语言 版本 组件 yt-dlp ffmpeg whisper-cli 重新检测 命令行 终端 kando 安装 MCP Claude Code Cursor 拷贝配置 更新 通知"+
 	"字幕 显示方式 双语 仅原文 仅译文 顺序 译文 原文 弱化 留空 让位 预览 预设 字体 字号 颜色 粗体"+
 	"键盘 按键 命令"+
-	"whisper 模型 下载 识别 HuggingFace Vimpo hyperframes"+
+	"whisper 模型 下载 识别 HuggingFace Hugging Face Vimpo hyperframes 识别语言 下载源 镜像 hf-mirror.com 模型文件 ggml"+
 	"目标语言 智能翻译 上下文 提示词 恢复默认"+
 	"العربية"+
 	"Nederlands"+
@@ -9421,7 +9421,7 @@ var textsZhHans = i18n.NewTexts(""+
 		207,
 		130,
 		20,
-		58,
+		133,
 		58,
 		14,
 		10,
@@ -10288,7 +10288,7 @@ var textsZhHant = i18n.NewTexts(""+
 	"資料庫 位置 Finder 檔案總管 檔案管理員 介面語言 版本 元件 yt-dlp ffmpeg whisper-cli 重新偵測 命令列 終端機 kando 安裝 MCP Claude Code Cursor 拷貝設定 更新 通知"+
 	"字幕 顯示方式 雙語 僅原文 僅譯文 順序 譯文 原文 淡化 留空 讓位 預覽 預設 字體 字級 顏色 粗體"+
 	"鍵盤 按鍵 指令"+
-	"whisper 模型 下載 辨識 HuggingFace Vimpo hyperframes"+
+	"whisper 模型 下載 辨識 HuggingFace Hugging Face Vimpo hyperframes 辨識語言 下載來源 鏡像 hf-mirror.com 模型檔案 ggml"+
 	"目標語言 智慧翻譯 上下文 提示詞 恢復預設"+
 	"العربية"+
 	"Nederlands"+
@@ -11152,7 +11152,7 @@ var textsZhHant = i18n.NewTexts(""+
 		201,
 		130,
 		20,
-		58,
+		136,
 		58,
 		14,
 		10,
@@ -26116,7 +26116,7 @@ func (msgs Messages) SettingsKeywordsShortcuts() string {
 	return msgs.text(textSettingsKeywordsShortcuts)
 }
 
-// SettingsKeywordsSpeech says "whisper models download recognition transcription HuggingFace Vimpo hyperframes"
+// SettingsKeywordsSpeech says "whisper models download recognition transcription HuggingFace Hugging Face Vimpo hyperframes spoken language download source mirror hf-mirror.com model file ggml"
 // in the language the app shows under cx.
 //
 // Search keywords of the Speech Recognition settings section, separated by spaces, besides its title. Not shown.

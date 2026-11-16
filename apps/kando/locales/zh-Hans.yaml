@@ -915,7 +915,7 @@ settingsKeywordsAccount: "Google 登录 退出 对象存储 上传 R2 S3 OSS COS
 settingsKeywordsGeneral: "资料库 位置 访达 文件资源管理器 文件管理器 界面语言 版本 组件 yt-dlp ffmpeg whisper-cli 重新检测 命令行 终端 kando 安装 MCP Claude Code Cursor 拷贝配置 更新 通知"
 settingsKeywordsLook: "字幕 显示方式 双语 仅原文 仅译文 顺序 译文 原文 弱化 留空 让位 预览 预设 字体 字号 颜色 粗体"
 settingsKeywordsShortcuts: "键盘 按键 命令"
-settingsKeywordsSpeech: "whisper 模型 下载 识别 HuggingFace Vimpo hyperframes"
+settingsKeywordsSpeech: "whisper 模型 下载 识别 HuggingFace Hugging Face Vimpo hyperframes 识别语言 下载源 镜像 hf-mirror.com 模型文件 ggml"
 settingsKeywordsTranslate: "目标语言 智能翻译 上下文 提示词 恢复默认"
 settingsLanguageArabic: "العربية"
 settingsLanguageDutch: "Nederlands"

@@ -915,7 +915,7 @@ settingsKeywordsAccount: "Google ログイン ログアウト オブジェクト
 settingsKeywordsGeneral: "ライブラリ 場所 Finder エクスプローラー ファイルマネージャー 表示言語 バージョン コンポーネント yt-dlp ffmpeg whisper-cli 再検出 コマンドライン ターミナル kando インストール MCP Claude Code Cursor 設定をコピー アップデート 通知"
 settingsKeywordsLook: "字幕 表示方法 二言語 原文のみ 訳文のみ 順序 訳文 原文 薄く 空白 移動 プレビュー プリセット フォント サイズ 色 太字"
 settingsKeywordsShortcuts: "キーボード キー コマンド"
-settingsKeywordsSpeech: "whisper モデル ダウンロード 認識 文字起こし HuggingFace Vimpo hyperframes"
+settingsKeywordsSpeech: "whisper モデル ダウンロード 認識 文字起こし HuggingFace Hugging Face Vimpo hyperframes 認識する言語 話されている言語 ダウンロード元 ミラー hf-mirror.com モデルファイル ggml"
 settingsKeywordsTranslate: "翻訳先の言語 スマート翻訳 文脈 プロンプト デフォルトに戻す"
 settingsLanguageArabic: "アラビア語"
 settingsLanguageDutch: "オランダ語"

@@ -915,7 +915,7 @@ settingsKeywordsAccount: "Google 登入 登出 物件儲存 上傳 R2 S3 OSS COS
 settingsKeywordsGeneral: "資料庫 位置 Finder 檔案總管 檔案管理員 介面語言 版本 元件 yt-dlp ffmpeg whisper-cli 重新偵測 命令列 終端機 kando 安裝 MCP Claude Code Cursor 拷貝設定 更新 通知"
 settingsKeywordsLook: "字幕 顯示方式 雙語 僅原文 僅譯文 順序 譯文 原文 淡化 留空 讓位 預覽 預設 字體 字級 顏色 粗體"
 settingsKeywordsShortcuts: "鍵盤 按鍵 指令"
-settingsKeywordsSpeech: "whisper 模型 下載 辨識 HuggingFace Vimpo hyperframes"
+settingsKeywordsSpeech: "whisper 模型 下載 辨識 HuggingFace Hugging Face Vimpo hyperframes 辨識語言 下載來源 鏡像 hf-mirror.com 模型檔案 ggml"
 settingsKeywordsTranslate: "目標語言 智慧翻譯 上下文 提示詞 恢復預設"
 settingsLanguageArabic: "العربية"
 settingsLanguageDutch: "Nederlands"

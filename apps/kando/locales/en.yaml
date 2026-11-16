@@ -3232,7 +3232,7 @@ settingsKeywordsShortcuts:
   message: "keyboard keys commands"
   description: "Search keywords of the Keyboard Shortcuts settings section, separated by spaces, besides its title. Not shown."
 settingsKeywordsSpeech:
-  message: "whisper models download recognition transcription HuggingFace Vimpo hyperframes"
+  message: "whisper models download recognition transcription HuggingFace Hugging Face Vimpo hyperframes spoken language download source mirror hf-mirror.com model file ggml"
   description: "Search keywords of the Speech Recognition settings section, separated by spaces, besides its title. Not shown."
 settingsKeywordsTranslate:
   message: "target language smart translation context prompt restore default"
