@@ -2,6 +2,12 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.13.3 - 2026-11-16
+
+### Fixes
+
+- Use NSGo's windows and one instance on Windows and Linux, and check pixels on a platform (#122)
+
 ## 0.13.2 - 2026-11-15
 
 No changes to the app worth listing: this version only carries maintenance.
