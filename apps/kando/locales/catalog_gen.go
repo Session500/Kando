@@ -1168,6 +1168,7 @@ const (
 	textFilmUnprocessed
 	textFilmUploadCancel
 	textFilmVolume
+	textFilmsBrowseSites
 	textFilmsCancel
 	textFilmsChange
 	textFilmsCloseNotice
@@ -2045,6 +2046,7 @@ var keyOfText = [numTexts]string{
 	"filmUnprocessed",
 	"filmUploadCancel",
 	"filmVolume",
+	"filmsBrowseSites",
 	"filmsCancel",
 	"filmsChange",
 	"filmsCloseNotice",
@@ -2920,6 +2922,7 @@ var textsEn = i18n.NewTexts(""+
 	"Not Processed"+
 	"Cancel"+
 	"Volume"+
+	"Browse Sites"+
 	"Cancel"+
 	"Change…"+
 	"Close Message"+
@@ -3792,6 +3795,7 @@ var textsEn = i18n.NewTexts(""+
 		13,
 		6,
 		6,
+		12,
 		6,
 		9,
 		13,
@@ -4667,6 +4671,7 @@ var textsJa = i18n.NewTexts(""+
 	"未処理"+
 	"キャンセル"+
 	"音量"+
+	"サイトを閲覧"+
 	"キャンセル"+
 	"変更…"+
 	"メッセージを閉じる"+
@@ -5539,6 +5544,7 @@ var textsJa = i18n.NewTexts(""+
 		9,
 		15,
 		6,
+		18,
 		15,
 		9,
 		27,
@@ -6414,6 +6420,7 @@ var textsKo = i18n.NewTexts(""+
 	"처리 안 됨"+
 	"취소"+
 	"음량"+
+	"사이트 둘러보기"+
 	"취소"+
 	"변경…"+
 	"메시지 닫기"+
@@ -7286,6 +7293,7 @@ var textsKo = i18n.NewTexts(""+
 		14,
 		6,
 		6,
+		22,
 		6,
 		9,
 		16,
@@ -8161,6 +8169,7 @@ var textsZhHans = i18n.NewTexts(""+
 	"未处理"+
 	"取消"+
 	"音量"+
+	"浏览网站"+
 	"取消"+
 	"更改…"+
 	"关闭提示"+
@@ -9033,6 +9042,7 @@ var textsZhHans = i18n.NewTexts(""+
 		9,
 		6,
 		6,
+		12,
 		6,
 		9,
 		12,
@@ -9908,6 +9918,7 @@ var textsZhHant = i18n.NewTexts(""+
 	"未處理"+
 	"取消"+
 	"音量"+
+	"瀏覽網站"+
 	"取消"+
 	"更改…"+
 	"關閉提示"+
@@ -10780,6 +10791,7 @@ var textsZhHant = i18n.NewTexts(""+
 		9,
 		6,
 		6,
+		12,
 		6,
 		9,
 		12,
@@ -15841,6 +15853,15 @@ func FilmVolume(cx *core.Scope) string { return For(cx).FilmVolume() }
 
 // FilmVolume is the package's FilmVolume in the language of msgs.
 func (msgs Messages) FilmVolume() string { return msgs.text(textFilmVolume) }
+
+// FilmsBrowseSites says "Browse Sites"
+// in the language the app shows under cx.
+//
+// Button beside the library's link field, and on the page of an empty library, that opens the built-in browser (Browse) to find a video in.
+func FilmsBrowseSites(cx *core.Scope) string { return For(cx).FilmsBrowseSites() }
+
+// FilmsBrowseSites is the package's FilmsBrowseSites in the language of msgs.
+func (msgs Messages) FilmsBrowseSites() string { return msgs.text(textFilmsBrowseSites) }
 
 // FilmsCancel says "Cancel"
 // in the language the app shows under cx.
