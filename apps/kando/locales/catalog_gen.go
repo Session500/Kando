@@ -1075,6 +1075,7 @@ const (
 	textCheatsheetSpeed
 	textCheatsheetSubtitlesDelay
 	textCheatsheetSubtitlesMode
+	textCheatsheetSubtitlesPosition
 	textCheatsheetSubtitlesShowHide
 	textCheatsheetTitle
 	textCheatsheetVolume
@@ -1209,6 +1210,7 @@ const (
 	textFilmStyleReset
 	textFilmStyleShow
 	textFilmStyleSize
+	textFilmSubtitleTip
 	textFilmSubtitles
 	textFilmSubtitlesEmpty
 	textFilmTabClips
@@ -1466,6 +1468,9 @@ const (
 	textPlayerKeySearch
 	textPlayerKeySlower
 	textPlayerKeySmaller
+	textPlayerKeySubtitlesDown
+	textPlayerKeySubtitlesReset
+	textPlayerKeySubtitlesUp
 	textPlayerKeyToggleSidebar
 	textPlayerKeyToggleSubtitles
 	textPlayerKeyVolumeDown
@@ -1986,6 +1991,7 @@ var keyOfText = [numTexts]string{
 	"cheatsheetSpeed",
 	"cheatsheetSubtitlesDelay",
 	"cheatsheetSubtitlesMode",
+	"cheatsheetSubtitlesPosition",
 	"cheatsheetSubtitlesShowHide",
 	"cheatsheetTitle",
 	"cheatsheetVolume",
@@ -2120,6 +2126,7 @@ var keyOfText = [numTexts]string{
 	"filmStyleReset",
 	"filmStyleShow",
 	"filmStyleSize",
+	"filmSubtitleTip",
 	"filmSubtitles",
 	"filmSubtitlesEmpty",
 	"filmTabClips",
@@ -2377,6 +2384,9 @@ var keyOfText = [numTexts]string{
 	"playerKeySearch",
 	"playerKeySlower",
 	"playerKeySmaller",
+	"playerKeySubtitlesDown",
+	"playerKeySubtitlesReset",
+	"playerKeySubtitlesUp",
 	"playerKeyToggleSidebar",
 	"playerKeyToggleSubtitles",
 	"playerKeyVolumeDown",
@@ -2895,6 +2905,7 @@ var textsEn = i18n.NewTexts(""+
 	"Slower / Faster"+
 	"Subtitle Delay −/+ 0.1 s"+
 	"Switch Display Mode"+
+	"Subtitles Up / Down"+
 	"Show / Hide"+
 	"Keyboard Shortcuts"+
 	"Volume Up / Down"+
@@ -3029,6 +3040,7 @@ var textsEn = i18n.NewTexts(""+
 	"Restore Default Style"+
 	"Show Subtitles"+
 	"Size"+
+	"Drag the subtitles to move them. Double-click to put them back."+
 	"Subtitles"+
 	"These subtitles are empty."+
 	"Clips"+
@@ -3286,6 +3298,9 @@ var textsEn = i18n.NewTexts(""+
 	"Search Subtitles"+
 	"Slower"+
 	"Smaller Subtitles"+
+	"Move Subtitles Down"+
+	"Reset Subtitle Position"+
+	"Move Subtitles Up"+
 	"Show/Hide Sidebar"+
 	"Show/Hide Subtitles"+
 	"Volume Down"+
@@ -3801,6 +3816,7 @@ var textsEn = i18n.NewTexts(""+
 		15,
 		26,
 		19,
+		19,
 		11,
 		18,
 		16,
@@ -3935,6 +3951,7 @@ var textsEn = i18n.NewTexts(""+
 		21,
 		14,
 		4,
+		63,
 		9,
 		26,
 		5,
@@ -4191,6 +4208,9 @@ var textsEn = i18n.NewTexts(""+
 		11,
 		16,
 		6,
+		17,
+		19,
+		23,
 		17,
 		17,
 		19,
@@ -4710,6 +4730,7 @@ var textsJa = i18n.NewTexts(""+
 	"遅く / 速く"+
 	"字幕の遅延 −/+ 0.1 秒"+
 	"表示方法を切り替え"+
+	"字幕を上へ / 下へ"+
 	"表示 / 非表示"+
 	"キーボードショートカット"+
 	"音量を上げる / 下げる"+
@@ -4844,6 +4865,7 @@ var textsJa = i18n.NewTexts(""+
 	"デフォルトのスタイルに戻す"+
 	"字幕を表示"+
 	"サイズ"+
+	"字幕はドラッグで動かせます。ダブルクリックで元の位置に戻ります。"+
 	"字幕"+
 	"この字幕は空です。"+
 	"クリップ"+
@@ -5101,6 +5123,9 @@ var textsJa = i18n.NewTexts(""+
 	"字幕を検索"+
 	"再生速度を下げる"+
 	"字幕を小さく"+
+	"字幕を下へ移動"+
+	"字幕の位置をリセット"+
+	"字幕を上へ移動"+
 	"サイドバーを表示/隠す"+
 	"字幕を表示/隠す"+
 	"音量を下げる"+
@@ -5616,6 +5641,7 @@ var textsJa = i18n.NewTexts(""+
 		15,
 		29,
 		27,
+		24,
 		18,
 		36,
 		30,
@@ -5750,6 +5776,7 @@ var textsJa = i18n.NewTexts(""+
 		39,
 		15,
 		9,
+		96,
 		6,
 		27,
 		12,
@@ -6007,6 +6034,9 @@ var textsJa = i18n.NewTexts(""+
 		15,
 		24,
 		18,
+		21,
+		30,
+		21,
 		31,
 		22,
 		18,
@@ -6525,6 +6555,7 @@ var textsKo = i18n.NewTexts(""+
 	"느리게 / 빠르게"+
 	"자막 지연 −/+ 0.1초"+
 	"표시 방식 전환"+
+	"자막 위로 / 아래로"+
 	"보기 / 가리기"+
 	"단축키"+
 	"음량 높이기 / 낮추기"+
@@ -6659,6 +6690,7 @@ var textsKo = i18n.NewTexts(""+
 	"기본 스타일로 복원"+
 	"자막 표시"+
 	"크기"+
+	"자막을 드래그해 옮길 수 있습니다. 더블클릭하면 제자리로 돌아갑니다."+
 	"자막"+
 	"이 자막은 비어 있습니다."+
 	"클립"+
@@ -6916,6 +6948,9 @@ var textsKo = i18n.NewTexts(""+
 	"자막 검색"+
 	"재생 속도 낮추기"+
 	"자막 작게"+
+	"자막 아래로 이동"+
+	"자막 위치 초기화"+
+	"자막 위로 이동"+
 	"사이드바 보기/숨기기"+
 	"자막 보기/숨기기"+
 	"음량 낮추기"+
@@ -7431,6 +7466,7 @@ var textsKo = i18n.NewTexts(""+
 		21,
 		26,
 		20,
+		25,
 		18,
 		9,
 		28,
@@ -7565,6 +7601,7 @@ var textsKo = i18n.NewTexts(""+
 		26,
 		13,
 		6,
+		96,
 		6,
 		34,
 		6,
@@ -7822,6 +7859,9 @@ var textsKo = i18n.NewTexts(""+
 		13,
 		23,
 		13,
+		23,
+		23,
+		20,
 		29,
 		23,
 		16,
@@ -8340,6 +8380,7 @@ var textsZhHans = i18n.NewTexts(""+
 	"减速 / 加速"+
 	"字幕延迟 −/+ 0.1 秒"+
 	"切换显示方式"+
+	"字幕上移 / 下移"+
 	"显示 / 隐藏"+
 	"快捷键"+
 	"音量加大 / 减小"+
@@ -8474,6 +8515,7 @@ var textsZhHans = i18n.NewTexts(""+
 	"恢复默认样式"+
 	"显示字幕"+
 	"字号"+
+	"拖动字幕可移动位置，双击放回原处。"+
 	"字幕"+
 	"这份字幕是空的。"+
 	"片段"+
@@ -8731,6 +8773,9 @@ var textsZhHans = i18n.NewTexts(""+
 	"搜索字幕"+
 	"减速播放"+
 	"缩小字幕"+
+	"字幕下移"+
+	"字幕放回原位"+
+	"字幕上移"+
 	"显示/隐藏侧栏"+
 	"显示/隐藏字幕"+
 	"音量减小"+
@@ -9246,6 +9291,7 @@ var textsZhHans = i18n.NewTexts(""+
 		15,
 		26,
 		18,
+		21,
 		15,
 		9,
 		21,
@@ -9380,6 +9426,7 @@ var textsZhHans = i18n.NewTexts(""+
 		18,
 		12,
 		6,
+		51,
 		6,
 		24,
 		6,
@@ -9636,6 +9683,9 @@ var textsZhHans = i18n.NewTexts(""+
 		12,
 		12,
 		12,
+		12,
+		12,
+		18,
 		12,
 		19,
 		19,
@@ -10155,6 +10205,7 @@ var textsZhHant = i18n.NewTexts(""+
 	"減速 / 加速"+
 	"字幕延遲 −/+ 0.1 秒"+
 	"切換顯示方式"+
+	"字幕上移 / 下移"+
 	"顯示 / 隱藏"+
 	"快速鍵"+
 	"音量加大 / 減小"+
@@ -10289,6 +10340,7 @@ var textsZhHant = i18n.NewTexts(""+
 	"恢復預設樣式"+
 	"顯示字幕"+
 	"字級"+
+	"拖曳字幕可移動位置，按兩下放回原處。"+
 	"字幕"+
 	"這份字幕是空的。"+
 	"片段"+
@@ -10546,6 +10598,9 @@ var textsZhHant = i18n.NewTexts(""+
 	"搜尋字幕"+
 	"減速播放"+
 	"縮小字幕"+
+	"字幕下移"+
+	"字幕放回原位"+
+	"字幕上移"+
 	"顯示/隱藏側邊欄"+
 	"顯示/隱藏字幕"+
 	"調低音量"+
@@ -11061,6 +11116,7 @@ var textsZhHant = i18n.NewTexts(""+
 		15,
 		26,
 		18,
+		21,
 		15,
 		9,
 		21,
@@ -11195,6 +11251,7 @@ var textsZhHant = i18n.NewTexts(""+
 		18,
 		12,
 		6,
+		54,
 		6,
 		24,
 		6,
@@ -11451,6 +11508,9 @@ var textsZhHant = i18n.NewTexts(""+
 		12,
 		12,
 		12,
+		12,
+		12,
+		18,
 		12,
 		22,
 		19,
@@ -14128,6 +14188,17 @@ func CheatsheetSubtitlesMode(cx *core.Scope) string { return For(cx).CheatsheetS
 // CheatsheetSubtitlesMode is the package's CheatsheetSubtitlesMode in the language of msgs.
 func (msgs Messages) CheatsheetSubtitlesMode() string { return msgs.text(textCheatsheetSubtitlesMode) }
 
+// CheatsheetSubtitlesPosition says "Subtitles Up / Down"
+// in the language the app shows under cx.
+//
+// Cheat sheet line, under Subtitles, for the Option-Up and Option-Down keys that move the subtitles up or down over the picture.
+func CheatsheetSubtitlesPosition(cx *core.Scope) string { return For(cx).CheatsheetSubtitlesPosition() }
+
+// CheatsheetSubtitlesPosition is the package's CheatsheetSubtitlesPosition in the language of msgs.
+func (msgs Messages) CheatsheetSubtitlesPosition() string {
+	return msgs.text(textCheatsheetSubtitlesPosition)
+}
+
 // CheatsheetSubtitlesShowHide says "Show / Hide"
 // in the language the app shows under cx.
 //
@@ -16338,6 +16409,15 @@ func FilmStyleSize(cx *core.Scope) string { return For(cx).FilmStyleSize() }
 
 // FilmStyleSize is the package's FilmStyleSize in the language of msgs.
 func (msgs Messages) FilmStyleSize() string { return msgs.text(textFilmStyleSize) }
+
+// FilmSubtitleTip says "Drag the subtitles to move them. Double-click to put them back."
+// in the language the app shows under cx.
+//
+// Tip shown once over the subtitles, the first time a film plays with them: they can be dragged up or down, and a double click puts them back where the subtitle style places them.
+func FilmSubtitleTip(cx *core.Scope) string { return For(cx).FilmSubtitleTip() }
+
+// FilmSubtitleTip is the package's FilmSubtitleTip in the language of msgs.
+func (msgs Messages) FilmSubtitleTip() string { return msgs.text(textFilmSubtitleTip) }
 
 // FilmSubtitles says "Subtitles"
 // in the language the app shows under cx.
@@ -22076,6 +22156,33 @@ func PlayerKeySmaller(cx *core.Scope) string { return For(cx).PlayerKeySmaller()
 
 // PlayerKeySmaller is the package's PlayerKeySmaller in the language of msgs.
 func (msgs Messages) PlayerKeySmaller() string { return msgs.text(textPlayerKeySmaller) }
+
+// PlayerKeySubtitlesDown says "Move Subtitles Down"
+// in the language the app shows under cx.
+//
+// Shortcut row and menu item: move the open film's subtitles a little lower over the picture.
+func PlayerKeySubtitlesDown(cx *core.Scope) string { return For(cx).PlayerKeySubtitlesDown() }
+
+// PlayerKeySubtitlesDown is the package's PlayerKeySubtitlesDown in the language of msgs.
+func (msgs Messages) PlayerKeySubtitlesDown() string { return msgs.text(textPlayerKeySubtitlesDown) }
+
+// PlayerKeySubtitlesReset says "Reset Subtitle Position"
+// in the language the app shows under cx.
+//
+// Shortcut row and menu item: put the open film's subtitles back where the subtitle style places them.
+func PlayerKeySubtitlesReset(cx *core.Scope) string { return For(cx).PlayerKeySubtitlesReset() }
+
+// PlayerKeySubtitlesReset is the package's PlayerKeySubtitlesReset in the language of msgs.
+func (msgs Messages) PlayerKeySubtitlesReset() string { return msgs.text(textPlayerKeySubtitlesReset) }
+
+// PlayerKeySubtitlesUp says "Move Subtitles Up"
+// in the language the app shows under cx.
+//
+// Shortcut row and menu item: move the open film's subtitles a little higher over the picture.
+func PlayerKeySubtitlesUp(cx *core.Scope) string { return For(cx).PlayerKeySubtitlesUp() }
+
+// PlayerKeySubtitlesUp is the package's PlayerKeySubtitlesUp in the language of msgs.
+func (msgs Messages) PlayerKeySubtitlesUp() string { return msgs.text(textPlayerKeySubtitlesUp) }
 
 // PlayerKeyToggleSidebar says "Show/Hide Sidebar"
 // in the language the app shows under cx.
