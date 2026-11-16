@@ -3,6 +3,7 @@ package saved
 import (
 	"context"
 	"encoding/csv"
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -11,6 +12,53 @@ import (
 	"testing"
 	"time"
 )
+
+// The stand-in for ffmpeg is this test binary under the name ffmpeg (standInFFmpeg), so it runs on Windows too, which starts no shell script. Started under that name, it adds its arguments as a line to the file args beside it and writes "sound" to the file its last argument names, as ffmpeg writes the clip there.
+func init() {
+	if strings.TrimSuffix(filepath.Base(os.Args[0]), ".exe") != "ffmpeg" {
+		return
+	}
+	args, err := os.OpenFile(filepath.Join(filepath.Dir(os.Args[0]), "args"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		os.Exit(1)
+	}
+	_, err = args.WriteString(strings.Join(os.Args[1:], " ") + "\n")
+	if err = errors.Join(err, args.Close()); err != nil {
+		os.Exit(1)
+	}
+	if err := os.WriteFile(os.Args[len(os.Args)-1], []byte("sound\n"), 0o644); err != nil {
+		os.Exit(1)
+	}
+	os.Exit(0)
+}
+
+// standInFFmpeg puts the stand-in for ffmpeg in dir and returns its path: a link to this test binary named ffmpeg, ffmpeg.exe on Windows, which runs a file as a program only by that name and makes symbolic links only in developer mode, so there it is a hard link, or a copy where dir is on another volume.
+func standInFFmpeg(t *testing.T, dir string) string {
+	t.Helper()
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "ffmpeg")
+	if runtime.GOOS != "windows" {
+		if err := os.Symlink(exe, path); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+	path += ".exe"
+	if os.Link(exe, path) == nil {
+		return path
+	}
+	data, err := os.ReadFile(exe)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, data, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
 
 // TestWriteNotesIsAnAnkiTextFile writes notes whose lines hold quotes, tabs, line breaks and a leading #, and reads them back as Anki's text import does (rslib's csv reader: a tab between fields, " quoting with "" for a quote, # starting a comment line, and no column names, so the fields go into Basic's Front and Back in order): every note is one record of two fields, front the original and back the translation, the sound and where the line is, each as it was.
 func TestWriteNotesIsAnAnkiTextFile(t *testing.T) {
@@ -67,11 +115,8 @@ func TestClipSpanPadsTheLine(t *testing.T) {
 	}
 }
 
-// TestExportWritesNotesAndSounds exports through a stand-in for ffmpeg that writes the file it is asked for: each line whose video is there gets its sound, a line whose video is gone is a note without one, and progress counts every line.
+// TestExportWritesNotesAndSounds exports through the stand-in for ffmpeg, which writes the file it is asked for: each line whose video is there gets its sound, a line whose video is gone is a note without one, and progress counts every line.
 func TestExportWritesNotesAndSounds(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("the stand-in for ffmpeg is a shell script")
-	}
 	lib := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(lib, "Talk"), 0o755); err != nil {
 		t.Fatal(err)
@@ -79,12 +124,8 @@ func TestExportWritesNotesAndSounds(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(lib, "Talk", "video.mp4"), []byte("video"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	ffmpeg := filepath.Join(t.TempDir(), "ffmpeg")
-	args := filepath.Join(t.TempDir(), "args")
-	script := "#!/bin/sh\necho \"$@\" >> " + args + "\nfor last; do :; done\necho sound > \"$last\"\n"
-	if err := os.WriteFile(ffmpeg, []byte(script), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	ffmpeg := standInFFmpeg(t, t.TempDir())
+	args := filepath.Join(filepath.Dir(ffmpeg), "args")
 	b, _ := Load(lib)
 	b.Toggle(Line{Video: "Gone/video.mp4", Start: time.Second, Original: "Gone"})
 	b.Toggle(Line{Video: "Talk/video.mp4", Start: 2 * time.Second, End: 3 * time.Second, Original: "Hello.", Translation: "你好。", Film: "Talk"})

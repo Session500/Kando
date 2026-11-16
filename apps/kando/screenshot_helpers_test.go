@@ -234,9 +234,29 @@ func (f *screenshotFixture) shootSize(t *testing.T, name string, width, height n
 		a.setResumePositions(watched)
 		a.refreshLibrary()
 		t.Cleanup(a.stopPlayback)
+		// A scene can start the queue's next job, as opening another library starts the prototype's queued j6 (queueHooks' libraryChanged), and the fake yt-dlp downloads it into the fixture's home. The job is stopped as a quit stops it, and waited for, before the scene ends, so it does not write into the home while the test removes it.
+		t.Cleanup(func() {
+			done := a.queue.done
+			a.queueQuit()
+			if done == nil {
+				return
+			}
+			select {
+			case <-done:
+			case <-time.After(10 * time.Second):
+				t.Error("the job the scene left running did not stop")
+			}
+		})
 		env := screenshotEnvironment()
 		env.TitleBar = ns.Edges{Top: 28, Left: 80}
 		tt := nsgotest.Start(t, a.testView, nsgotest.Size(width, height), nsgotest.Environment(env))
+		// TODO(nsgo#380): drop this cleanup once a disposed nsgotest App closes the menu it leaves open https://github.com/nsgo-dev/nsgo/issues/380
+		// A scene that opens the system's menu, as ⋯ on a poster, the library switcher or a right click on a line do, leaves it open for its picture. On a platform that menu tracks the pointer and the keyboard in a loop of its own, which outlives the scene's window: the next scene's first click or key in the same process would only close it, so 视频链接 took no focus and ⇧⌘C did nothing. The menu closes as the scene ends, after its picture, even when the scene failed.
+		t.Cleanup(func() {
+			if tt.PopupMenu != nil {
+				tt.ClosePopup()
+			}
+		})
 		screenshotWait(t, tt, a, updates, "posters", func() bool { return len(a.lib.posterBusy) == 0 })
 		steps(a, tt, updates)
 		refresh(tt, a)
@@ -272,8 +292,12 @@ func screenshotOpen(t *testing.T, a *app, tt *nsgotest.App, updates chan func(),
 		t.Fatalf("film %s is not on the open library's shelf", id)
 	}
 	onEngine(a, func() {
-		a.player.playFrom = at
 		a.Open(item)
+		// Open holds a film where it stopped last time (films.ResumeFrom), as the prototype's j1 did at 1:40 (protoFilm.Watched); the scene holds it at at instead, where startPlayback would have opened it from playFrom.
+		a.player.opening = at
+		if p := a.player.play; p != nil {
+			p.head = at
+		}
 		if p := a.player.play; p != nil && nsgotest.Target() != "" {
 			// TODO(nsgo#107): hand the system's player the film's video once Kando plays what ffmpeg decodes; the system's player on a platform cannot open the fake ffmpeg's placeholder and would say so a moment later, after the remuxes the fake ffmpeg cannot make, leaving the scene to show whichever of opening or 无法播放 it caught, so on a platform the scenes give it nothing to play and report its load and progress themselves (screenshotLoad, screenshotProgress) https://github.com/nsgo-dev/nsgo/issues/107
 			p.source = ""
