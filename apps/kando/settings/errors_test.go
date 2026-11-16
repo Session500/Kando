@@ -40,7 +40,7 @@ func TestKitsErrorSaysWhy(t *testing.T) {
 	}
 }
 
-// TestSpeechDownloadErrorSaysWhy checks the words for why a speech model's download failed, in the interface's language: a stall and a dropped connection say that downloading again continues, an HTTP status names it, and anything else shows as it is.
+// TestSpeechDownloadErrorSaysWhy checks the words for why a speech model's download failed, in the interface's language: a stall and a dropped connection say that downloading again continues, an HTTP status names it, Hugging Face's suggesting hf-mirror.com, and anything else shows as it is.
 func TestSpeechDownloadErrorSaysWhy(t *testing.T) {
 	for _, tc := range []struct {
 		err  error
@@ -54,7 +54,8 @@ func TestSpeechDownloadErrorSaysWhy(t *testing.T) {
 		{errors.New("no space left on device"), "no space left on device"},
 		{DownloadError{Source: media.SpeechSourceMirror, Err: fmt.Errorf("%w: unexpected EOF", media.ErrDisconnected)}, "连接断了。检查网络后再下载一次。"},
 		{DownloadError{Source: media.SpeechSourceMirror, Err: media.ErrStalled}, "下载停住了，一直收不到数据。重新下载会从断开的地方接着下。"},
-		{DownloadError{Err: rejected(503)}, "服务器返回 HTTP 503，请稍后再试。"},
+		{DownloadError{Err: rejected(503)}, "Hugging Face 返回 HTTP 503。请稍后再试，或从 hf-mirror.com 下载。"},
+		{DownloadError{Source: media.SpeechSourceMirror, Err: rejected(503)}, "服务器返回 HTTP 503，请稍后再试。"},
 	} {
 		if got := SpeechDownloadError(testlocale.Messages(), tc.err); got != tc.want {
 			t.Errorf("SpeechDownloadError(%v) = %q, want %q", tc.err, got, tc.want)
@@ -175,7 +176,7 @@ func TestCloudPresetsNameAChatModel(t *testing.T) {
 	}
 }
 
-// TestSpeechDownloadErrorSuggestsTheMirror checks that a download from Hugging Face whose connection failed or stalled suggests hf-mirror.com, and that one which failed the checksum, from either source, says the file was deleted.
+// TestSpeechDownloadErrorSuggestsTheMirror checks that a download from Hugging Face whose connection failed or stalled, or that Hugging Face refused, suggests hf-mirror.com, offering to download the model from there (MirrorHelps), and that one which failed the checksum, from either source, says the file was deleted.
 func TestSpeechDownloadErrorSuggestsTheMirror(t *testing.T) {
 	m := testlocale.Messages()
 	for _, tc := range []struct {
@@ -186,9 +187,28 @@ func TestSpeechDownloadErrorSuggestsTheMirror(t *testing.T) {
 		{DownloadError{Err: media.ErrStalled}, m.SettingsSpeechDownloadStalledMirror()},
 		{DownloadError{Err: fmt.Errorf("%w: ggml-tiny.bin has checksum 00, want ff", media.ErrSpeechModelMismatch)}, m.SettingsSpeechDownloadMismatch()},
 		{DownloadError{Source: media.SpeechSourceMirror, Err: fmt.Errorf("%w: ggml-tiny.bin is 5 bytes, want 9", media.ErrSpeechModelMismatch)}, m.SettingsSpeechDownloadMismatch()},
+		{DownloadError{Err: rejected(451)}, m.SettingsSpeechDownloadFailedStatusMirror(451)},
+		{DownloadError{Source: media.SpeechSourceMirror, Err: rejected(503)}, m.SettingsSpeechDownloadFailedStatus(503)},
 	} {
 		if got := SpeechDownloadError(m, tc.err); got != tc.want {
 			t.Errorf("SpeechDownloadError(%v) = %q, want %q", tc.err, got, tc.want)
+		}
+	}
+	for _, tc := range []struct {
+		err  error
+		id   string
+		want bool
+	}{
+		{DownloadError{ID: "tiny", Err: fmt.Errorf("%w: dial tcp: i/o timeout", media.ErrDisconnected)}, "tiny", true},
+		{DownloadError{ID: "base", Err: media.ErrStalled}, "base", true},
+		{DownloadError{ID: "small", Err: rejected(403)}, "small", true},
+		{DownloadError{ID: "tiny", Source: media.SpeechSourceMirror, Err: media.ErrStalled}, "", false},
+		{DownloadError{ID: "tiny", Err: fmt.Errorf("%w: checksum", media.ErrSpeechModelMismatch)}, "", false},
+		{TrashError{ID: "tiny"}, "", false},
+		{nil, "", false},
+	} {
+		if id, ok := MirrorHelps(tc.err); id != tc.id || ok != tc.want {
+			t.Errorf("MirrorHelps(%v) = %q, %v, want %q, %v", tc.err, id, ok, tc.id, tc.want)
 		}
 	}
 	if got := SpeechDownloadError(m, DownloadError{Err: media.ErrStalled}); !strings.Contains(got, "hf-mirror.com") {

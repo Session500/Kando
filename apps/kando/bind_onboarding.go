@@ -63,6 +63,12 @@ func (a *app) OnboardingModels(cx *ns.Scope) []onboarding.Model { return a.onboa
 
 func (a *app) OnboardingDownload(id string) { a.onboardingDownload(id) }
 
+// OnboardingDownloadFromMirror downloads model id again from hf-mirror.com, which becomes the download source, as the button by a failed download from Hugging Face does.
+func (a *app) OnboardingDownloadFromMirror(id string) {
+	a.onb.lastDownload = id
+	a.speechDownloadFromMirror(id)
+}
+
 func (a *app) OnboardingCancelDownload() { a.cancelDownload() }
 
 // OnboardingUseModel makes the downloaded model id the one speech recognition uses, as 使用 in 设置 › 语音识别 does.

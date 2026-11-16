@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -8,6 +9,7 @@ import (
 	"image"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -530,4 +532,25 @@ func serveSpeechModels(t *testing.T, url string, data []byte, sources *[]string)
 		return model, ok
 	}
 	t.Cleanup(func() { whisperModelBaseURL, speechModelFor = oldURL, oldModel })
+}
+
+// mirrorOnlyServer is Hugging Face where it cannot be reached and hf-mirror.com where it can: a download from Hugging Face is refused with 451, one from the mirror gets data. It points the whisper model downloads at itself, and records the download source of every download in sources.
+func mirrorOnlyServer(t *testing.T, data []byte, sources *[]string) {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasPrefix(r.URL.Path, "/mirror/") {
+			http.Error(w, "unavailable for legal reasons", http.StatusUnavailableForLegalReasons)
+			return
+		}
+		http.ServeContent(w, r, "ggml-tiny.bin", time.Time{}, bytes.NewReader(data))
+	}))
+	t.Cleanup(srv.Close)
+	serveSpeechModels(t, srv.URL, data, sources)
+	whisperModelBaseURL = func(source string) string {
+		*sources = append(*sources, source)
+		if source == media.SpeechSourceMirror {
+			return srv.URL + "/mirror"
+		}
+		return srv.URL + "/huggingface"
+	}
 }

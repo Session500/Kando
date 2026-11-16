@@ -414,6 +414,33 @@ func TestOnboardingCancelsTheDownload(t *testing.T) {
 	wantText(t, tt, "下载并继续")
 }
 
+// TestOnboardingDownloadsFromTheMirrorAfterAFailure checks that a model Hugging Face refused to send offers 从 hf-mirror.com 下载 in the guide, which has no download source of its own, and that it makes hf-mirror.com the download source and puts the model from there to use.
+func TestOnboardingDownloadsFromTheMirrorAfterAFailure(t *testing.T) {
+	data := []byte(strings.Repeat("ggml", 256))
+	var sources []string
+	mirrorOnlyServer(t, data, &sources)
+	a, tt, updates, _ := newFirstRunApp(t, toolsInstalled)
+	tt.Press("继续")
+	a.OnboardingDownload("small")
+	waitUntil(t, tt, a, updates, func() bool { return !a.OnboardingDownloading() })
+	refresh(tt, a)
+	msgs := testlocale.Messages()
+	wantText(t, tt, msgs.OnboardingModelFailed(msgs.SettingsSpeechDownloadFailedStatusMirror(451)))
+	tt.Press("id:onboarding-mirror-small")
+	waitUntil(t, tt, a, updates, func() bool { return !a.OnboardingDownloading() })
+	refresh(tt, a)
+	want := filepath.Join(a.prefs.modelsDir, "ggml-small.bin")
+	if !slices.Equal(sources, []string{"", media.SpeechSourceMirror}) || a.pipeline.(media.Tools).WhisperModel != want {
+		t.Fatalf("downloaded from %q, model in use %q", sources, a.pipeline.(media.Tools).WhisperModel)
+	}
+	if saved := loadSavedSettings(a.settingsPath); saved.SpeechSource != media.SpeechSourceMirror {
+		t.Fatalf("saved source %q", saved.SpeechSource)
+	}
+	if tt.Exists("id:onboarding-mirror-small") {
+		t.Fatal("the mirror is still offered once the model is in use")
+	}
+}
+
 // TestOnboardingSettingsPartIsItsOwn checks that the guide keeps its settings in its own part of settings.json.
 func TestOnboardingSettingsPartIsItsOwn(t *testing.T) {
 	var saved savedSettings

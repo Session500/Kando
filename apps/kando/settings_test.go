@@ -137,7 +137,7 @@ func TestSpeechDownloadResumesAfterADrop(t *testing.T) {
 	a.DownloadModel("tiny")
 	waitUntil(t, tt, a, updates, func() bool { return a.Downloading() == "" })
 	tt = settingsOpenAt(a, tt, settings.SectionSpeech)
-	wantText(t, tt, "连接 Hugging Face 失败。检查网络，或在「设置 › 语音识别」里把下载源换成 hf-mirror.com，再下载一次。")
+	wantText(t, tt, testlocale.Messages().SettingsSpeechDownloadDisconnectedMirror())
 	if info, err := os.Stat(filepath.Join(a.prefs.modelsDir, "ggml-tiny.bin.partial")); err != nil || info.Size() != 1000 {
 		t.Fatalf("the dropped download kept %v, err %v", info, err)
 	}
@@ -156,6 +156,47 @@ func TestSpeechDownloadResumesAfterADrop(t *testing.T) {
 	}
 	if a.pipeline.(media.Tools).WhisperModel != model || a.DownloadErr() != "" {
 		t.Fatalf("model in use %q, error %q", a.pipeline.(media.Tools).WhisperModel, a.DownloadErr())
+	}
+}
+
+// TestSpeechDownloadFromTheMirrorAfterAFailure checks that a download Hugging Face refused says so and offers 从 hf-mirror.com 下载 next to the error, which makes hf-mirror.com the download source, saves it, and downloads the model from there into use; and that choosing another download source drops the hint of the failure before.
+func TestSpeechDownloadFromTheMirrorAfterAFailure(t *testing.T) {
+	data := []byte(strings.Repeat("ggml", 256))
+	var sources []string
+	mirrorOnlyServer(t, data, &sources)
+	a, tt, updates := newTestApp(t, media.Tools{})
+	a.prefs.modelsDir = t.TempDir()
+	a.settingsPath = filepath.Join(t.TempDir(), "settings.json")
+	msgs := testlocale.Messages()
+
+	a.DownloadModel("tiny")
+	waitUntil(t, tt, a, updates, func() bool { return a.Downloading() == "" })
+	tt = settingsOpenAt(a, tt, settings.SectionSpeech)
+	tt.Resize(880, 1600)
+	wantText(t, tt, msgs.SettingsSpeechDownloadFailedStatusMirror(451))
+	tt.Press("id:settings-download-mirror")
+	if a.prefs.speechSource != media.SpeechSourceMirror || loadSavedSettings(a.settingsPath).SpeechSource != media.SpeechSourceMirror {
+		t.Fatalf("source %q, saved %q", a.prefs.speechSource, loadSavedSettings(a.settingsPath).SpeechSource)
+	}
+	waitUntil(t, tt, a, updates, func() bool { return a.Downloading() == "" })
+	model := filepath.Join(a.prefs.modelsDir, "ggml-tiny.bin")
+	if !slices.Equal(sources, []string{"", media.SpeechSourceMirror}) || a.DownloadErr() != "" || a.pipeline.(media.Tools).WhisperModel != model {
+		t.Fatalf("downloaded from %q, error %q, model in use %q", sources, a.DownloadErr(), a.pipeline.(media.Tools).WhisperModel)
+	}
+	if tt.Exists("id:settings-download-mirror") {
+		t.Fatal("the mirror is still offered after the download from it")
+	}
+
+	a.SetSpeechSource("")
+	a.DownloadModel("base")
+	waitUntil(t, tt, a, updates, func() bool { return a.Downloading() == "" })
+	if !a.DownloadMirror() {
+		t.Fatalf("no mirror offered for %q", a.DownloadErr())
+	}
+	tt.Press("id:settings-speech-source")
+	tt.Press("role:option hf-mirror.com")
+	if a.DownloadErr() != "" || tt.Exists("id:settings-download-mirror") {
+		t.Fatalf("after choosing hf-mirror.com the page still says %q", a.DownloadErr())
 	}
 }
 
