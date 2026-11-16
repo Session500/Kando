@@ -49,6 +49,11 @@ type jobInput struct {
 	ID string `json:"id" jsonschema:"The job's id, as kando_list_jobs or kando_add_videos reports it."`
 }
 
+type moveFilmInput struct {
+	ID string `json:"id" jsonschema:"The film's id, as kando_list_films reports it."`
+	To string `json:"to" jsonschema:"The library to move the film to: its name or its folder's path, as kando_status lists the libraries."`
+}
+
 type removeJobOutput struct {
 	Removed string `json:"removed" jsonschema:"The id of the job that was removed."`
 }
@@ -343,6 +348,18 @@ func addTools(server *mcp.Server, a *app) {
 		}
 		text := fmt.Sprintf("Job %s was removed.", in.ID)
 		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: text}}}, removeJobOutput{Removed: in.ID}, nil
+	})
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "kando_move_film",
+		Description: "Move a done film of the open library to another library Kando knows, by the film's id, as the app's Move to Library does: its video, subtitles and folder move into the other library's folder, and its job, where it stopped playing, its subtitle delay and place, its title and its saved lines go with it. A film whose video is kept outside the library moves without its files. A move to another drive copies the film first, which can take minutes. Returns the film's id in the library it is in now, the same job id for a film with a job, and that library. A film still being processed is refused, and so is a library whose drive is not connected. Call it only when the user asked to move the film.",
+		Annotations: &mcp.ToolAnnotations{Title: "Move a Kando film to another library", ReadOnlyHint: false, DestructiveHint: boolPtr(false), IdempotentHint: false, OpenWorldHint: boolPtr(false)},
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, in moveFilmInput) (*mcp.CallToolResult, remote.Moved, error) {
+		var moved remote.Moved
+		if err := a.call(ctx, remote.MethodMove, remote.MoveParams{ID: in.ID, To: in.To}, &moved); err != nil {
+			return nil, remote.Moved{}, err
+		}
+		return nil, moved, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{

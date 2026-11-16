@@ -17,7 +17,7 @@ import (
 	"github.com/nsgo-dev/nsgo/nsgotest"
 )
 
-// TestScreenshotsLibrary renders the library page from the prototype's library (screenshot_helpers_test.go) to PNG files in the directory named by KANDO_SCREENSHOTS, in the states the prototype's library screenshots show: the first screen with the message bar the prototype shows after its onboarding and 浏览网站 beside the link field, scrolled to 处理中 and to the grid as far as the prototype scrolls, ⋯ on the first poster, a YouTube link typed into the field, and a new empty library, whose page offers 浏览网站 too. It also renders the grid with a film whose translation left a line untranslated, which offers to translate it, and with two films made without a translation once an AI service is set up, which the message bar and the grid's heading offer to translate. Besides those it renders the grid ordered by title, a query in the sidebar's search field and one that matches no film, the whole page, the page before there is a library, the new-library sheet, the 从资料库移除 confirmation for a film alone in its folder and for one whose folder holds another folder, the 重命名… dialog and the poster it renamed, a video dropped over an open film, and a library copied without its job records whose videos show the subtitles exported beside them. The prototype's drag-over state is rendered by TestScreenshotDropZone in the films package, because the tester cannot hold files over the window without dropping them. It is skipped when the variable is unset.
+// TestScreenshotsLibrary renders the library page from the prototype's library (screenshot_helpers_test.go) to PNG files in the directory named by KANDO_SCREENSHOTS, in the states the prototype's library screenshots show: the first screen with the message bar the prototype shows after its onboarding and 浏览网站 beside the link field, scrolled to 处理中 and to the grid as far as the prototype scrolls, ⋯ on the first poster, a YouTube link typed into the field, and a new empty library, whose page offers 浏览网站 too. It also renders the grid with a film whose translation left a line untranslated, which offers to translate it, and with two films made without a translation once an AI service is set up, which the message bar and the grid's heading offer to translate. Besides those it renders the grid ordered by title, a query in the sidebar's search field and one that matches no film, the whole page, the page before there is a library, the new-library sheet, the 从资料库移除 confirmation for a film alone in its folder and for one whose folder holds another folder, the 重命名… dialog and the poster it renamed, ⋯ with 移到资料库 and the message bar after a film was moved to another library, a video dropped over an open film, and a library copied without its job records whose videos show the subtitles exported beside them. The prototype's drag-over state is rendered by TestScreenshotDropZone in the films package, because the tester cannot hold files over the window without dropping them. It is skipped when the variable is unset.
 func TestScreenshotsLibrary(t *testing.T) {
 	f := newScreenshotFixture(t)
 	// onboarding is the message bar the prototype shows once its onboarding is skipped.
@@ -59,6 +59,39 @@ func TestScreenshotsLibrary(t *testing.T) {
 		tt.Press("id:film-more >> nth=0")
 		if len(tt.PopupMenu) == 0 {
 			t.Fatal("⋯ opened no menu")
+		}
+	})
+	// ⋯ on a card with Kando knowing a second library, 英语听力: the menu, which the tester lists rather than draws, has 移到资料库 with that library in it.
+	f.shoot(t, "library-move-menu", func(t *testing.T, a *app, tt *nsgotest.App, _ chan func()) {
+		onboarding(a)
+		refresh(tt, a)
+		scrollTo(t, a, tt, "8 部", 315)
+		tt.Press("id:film-more >> nth=0")
+		other := films.LibraryName(f.libs["listening"])
+		for _, it := range tt.PopupMenu {
+			if it.Label == testlocale.Messages().FilmsMoveToLibrary() && len(it.Items) == 1 && it.Items[0].Label == other && !it.Items[0].Disabled {
+				return
+			}
+		}
+		t.Fatalf("⋯ has no 移到资料库 with %s: %+v", other, tt.PopupMenu)
+	})
+	// Linear Algebra, Lecture 1 just moved to 英语听力: it left the grid, and the message bar says where it went, with 打开 英语听力 and Undo. The scene moves it back as it ends, so the scenes after it find it where it was.
+	f.shoot(t, "library-moved", func(t *testing.T, a *app, tt *nsgotest.App, _ chan func()) {
+		item, ok := films.Find(a.films(), "j3")
+		if !ok {
+			t.Fatal("no j3 on the shelf")
+		}
+		video := item.VideoPath
+		onEngine(a, func() { a.MoveFilm(item, f.libs["listening"]) })
+		t.Cleanup(func() {
+			onEngine(a, a.UndoMove)
+			if _, err := os.Stat(video); err != nil {
+				t.Errorf("Undo did not put the film back: %v", err)
+			}
+		})
+		refresh(tt, a)
+		if !tt.Exists("id:notice-undo") || !tt.Exists("id:notice-library") {
+			t.Fatalf("no message bar of the move: %q", tt.Texts())
 		}
 	})
 	// Linear Algebra, Lecture 1 as its translation left a line untranslated: the note under its title and the button that translates that line.

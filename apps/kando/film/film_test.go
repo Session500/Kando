@@ -18,6 +18,7 @@ import (
 	"kando/packages/media"
 
 	ns "github.com/nsgo-dev/nsgo/core"
+	nsdesktop "github.com/nsgo-dev/nsgo/desktop"
 	"github.com/nsgo-dev/nsgo/nsgotest"
 )
 
@@ -102,24 +103,25 @@ func newFakeApp() *fakeApp {
 	}
 }
 
-func (f *fakeApp) call(s string)                               { f.calls = append(f.calls, s) }
-func (f *fakeApp) OpenKey() string                             { return f.item.Key }
-func (f *fakeApp) SetOpenKey(key string)                       { f.call("open " + key); f.item.Key = key }
-func (f *fakeApp) StopPlayback()                               { f.call("stop") }
-func (f *fakeApp) Reveal(path string)                          { f.call("reveal " + path) }
-func (f *fakeApp) Cancel(id string)                            { f.call("cancel " + id) }
-func (f *fakeApp) RunningJob() string                          { return "" }
-func (f *fakeApp) ProcessFilm()                                { f.call("process") }
-func (f *fakeApp) Remove(id string)                            { f.call("remove " + id) }
-func (f *fakeApp) RetryOpen(id string)                         { f.call("retry " + id) }
-func (f *fakeApp) ReprocessFilm()                              { f.call("reprocess") }
-func (f *fakeApp) TranslateFilmAgain(language string)          { f.call("translate again " + language) }
-func (f *fakeApp) TargetLanguage() string                      { return "简体中文" }
-func (f *fakeApp) TranslateFilmMissing()                       { f.call("translate missing") }
-func (f *fakeApp) StageLabel(_ *ns.Scope, s core.Stage) string { return string(s) }
-func (f *fakeApp) JobStatus(*ns.Scope) string                  { return f.jobStatus }
-func (f *fakeApp) RedoFailure(*ns.Scope) (string, string)      { return "", "" }
-func (f *fakeApp) FillsWindow() bool                           { return f.fills }
+func (f *fakeApp) call(s string)                                   { f.calls = append(f.calls, s) }
+func (f *fakeApp) OpenKey() string                                 { return f.item.Key }
+func (f *fakeApp) SetOpenKey(key string)                           { f.call("open " + key); f.item.Key = key }
+func (f *fakeApp) StopPlayback()                                   { f.call("stop") }
+func (f *fakeApp) Reveal(path string)                              { f.call("reveal " + path) }
+func (f *fakeApp) Cancel(id string)                                { f.call("cancel " + id) }
+func (f *fakeApp) RunningJob() string                              { return "" }
+func (f *fakeApp) ProcessFilm()                                    { f.call("process") }
+func (f *fakeApp) Remove(id string)                                { f.call("remove " + id) }
+func (f *fakeApp) RetryOpen(id string)                             { f.call("retry " + id) }
+func (f *fakeApp) ReprocessFilm()                                  { f.call("reprocess") }
+func (f *fakeApp) TranslateFilmAgain(language string)              { f.call("translate again " + language) }
+func (f *fakeApp) TargetLanguage() string                          { return "简体中文" }
+func (f *fakeApp) TranslateFilmMissing()                           { f.call("translate missing") }
+func (f *fakeApp) MoveOpenFilmMenu(*ns.Scope) []nsdesktop.MenuItem { return nil }
+func (f *fakeApp) StageLabel(_ *ns.Scope, s core.Stage) string     { return string(s) }
+func (f *fakeApp) JobStatus(*ns.Scope) string                      { return f.jobStatus }
+func (f *fakeApp) RedoFailure(*ns.Scope) (string, string)          { return "", "" }
+func (f *fakeApp) FillsWindow() bool                               { return f.fills }
 func (f *fakeApp) Play() Player {
 	if f.play == nil {
 		return nil

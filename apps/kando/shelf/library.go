@@ -132,6 +132,9 @@ func Load(path string) (Library, error) {
 	return lib, nil
 }
 
+// Unread is why Load could not read the file in full while Save does not write it (ErrUnread), nil once it may.
+func (l Library) Unread() error { return l.unread }
+
 // AllowSave lets Save write over a file Load could not read in full, once the caller has kept a copy of it.
 func (l *Library) AllowSave() { l.unread = nil }
 

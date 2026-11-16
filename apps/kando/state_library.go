@@ -68,6 +68,8 @@ type libraryUI struct {
 	openedPosted bool
 	// sort is the order the done grid shows its films in, one of films.Sorts, kept in settings.json (savedLibrary).
 	sort string
+	// move is 移到资料库's state (library_move.go).
+	move libraryMoving
 	// translateOffered is set once the message bar has offered to translate the films that have no translation, or there was nothing to offer, since an AI service was last set up; it is cleared while none is, so setting one up offers it again (libraryOfferTranslate). libraryHooks' ready sets it when the app starts with a service set up, so a launch offers nothing.
 	translateOffered bool
 }
@@ -87,7 +89,7 @@ type savedLibrary struct {
 // clean reads an order Kando does not know, such as one another version saved, as the default.
 func (s *savedLibrary) clean() { s.LibrarySort = films.ValidSort(s.LibrarySort) }
 
-// libraryHooks: the grid's order is saved and restored with the settings. The shelf's posters, video lengths and hero line are loaded whenever its films change, the hero line also when a film played, as the film played last may be the hero now, and all are held back until the window exists, because the posters report through it. Files the system asked Kando to open before the window existed are held back with them and added to the queue once it does, after every area's ready. After each change the library lets go of an open film it no longer has, and its dialogs hold or give back the window's modal flag.
+// libraryHooks: the grid's order is saved and restored with the settings. The shelf's posters, video lengths and hero line are loaded whenever its films change, the hero line also when a film played, as the film played last may be the hero now, and all are held back until the window exists, because the posters report through it. Files the system asked Kando to open before the window existed are held back with them and added to the queue once it does, after every area's ready. After each change the library lets go of an open film it no longer has, and its dialogs hold or give back the window's modal flag. Which libraries' folders are there, for 移到资料库, is read once the window exists, when another library opens and when the app comes to the front; a film still being copied to another library as the app quits stops, its files where they were.
 func (a *app) libraryHooks() areaHooks {
 	return areaHooks{
 		save: func(saved *savedSettings) { saved.savedLibrary = savedLibrary{LibrarySort: a.lib.sort} },
@@ -102,10 +104,16 @@ func (a *app) libraryHooks() areaHooks {
 			a.loadExtras()
 			a.lib.holdOpened = false
 			a.libraryPostOpened()
+			a.libraryMoveLook()
 		},
-		afterChange:    a.libraryAfterChange,
-		shelfChanged:   a.loadExtras,
-		libraryChanged: a.libraryDropNotice,
+		afterChange:  a.libraryAfterChange,
+		shelfChanged: a.loadExtras,
+		libraryChanged: func() {
+			a.libraryDropNotice()
+			a.libraryMoveLook()
+		},
+		becameActive: a.libraryMoveLook,
+		quitting:     a.libraryMoveQuit,
 		// The hero shows the film played last, so a film that played may be the hero now.
 		positionsChanged: a.libraryHeroQuote,
 		llmChanged:       a.libraryOfferTranslate,

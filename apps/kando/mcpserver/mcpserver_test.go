@@ -124,6 +124,15 @@ func (f *fakeApp) handle(method string, params json.RawMessage) (any, error) {
 			return nil, err
 		}
 		return remote.Job{ID: "j0", Source: "https://youtu.be/x", Stage: "queued", Language: "简体中文", FilmID: p.ID}, nil
+	case remote.MethodMove:
+		p, err := remote.Params[remote.MoveParams](params)
+		if err != nil {
+			return nil, err
+		}
+		if p.ID != "f1" {
+			return nil, remote.Errorf(remote.CodeNotFound, "no film %s", p.ID)
+		}
+		return remote.Moved{ID: "f1", Library: "/Movies/English.kando", Name: "English"}, nil
 	case remote.MethodSites:
 		return []remote.Site{{Name: "Vimeo", Domain: "vimeo.com"}}, nil
 	case remote.MethodShow:
@@ -285,6 +294,7 @@ func TestListTools(t *testing.T) {
 		"kando_retry_job":        {destructive: true, openWorld: true},
 		"kando_translate_film":   {openWorld: true},
 		"kando_remove_job":       {destructive: true, idempotent: true},
+		"kando_move_film":        {},
 		"kando_search_sites":     {readOnly: true, idempotent: true},
 		"kando_open":             {idempotent: true},
 	}
@@ -466,6 +476,17 @@ func TestChangingTools(t *testing.T) {
 	}
 	if res := call(t, cs, "kando_remove_job", map[string]any{"id": "j7"}); !res.IsError || !strings.Contains(text(t, res), "no job j7") {
 		t.Errorf("remove of an unknown job = %v %q", res.IsError, text(t, res))
+	}
+
+	moved := structured[remote.Moved](t, call(t, cs, "kando_move_film", map[string]any{"id": "f1", "to": "English"}))
+	if moved.ID != "f1" || moved.Library != "/Movies/English.kando" || moved.Name != "English" {
+		t.Errorf("moved = %+v", moved)
+	}
+	if got := string(f.lastParams(remote.MethodMove)); got != `{"id":"f1","to":"English"}` {
+		t.Errorf("move params = %s", got)
+	}
+	if res := call(t, cs, "kando_move_film", map[string]any{"id": "f7", "to": "English"}); !res.IsError || !strings.Contains(text(t, res), "no film f7") {
+		t.Errorf("move of an unknown film = %v %q", res.IsError, text(t, res))
 	}
 
 	res = call(t, cs, "kando_open", map[string]any{"id": "f1"})
@@ -683,6 +704,10 @@ func TestLostAddAnswer(t *testing.T) {
 	if !res.IsError || !strings.Contains(text(t, res), "check kando_list_jobs before retrying it again") {
 		t.Errorf("retry with a lost answer = %v %q", res.IsError, text(t, res))
 	}
+	res = call(t, cs, "kando_move_film", map[string]any{"id": "f1", "to": "English"})
+	if !res.IsError || !strings.Contains(text(t, res), "check kando_list_films before moving it again") {
+		t.Errorf("move with a lost answer = %v %q", res.IsError, text(t, res))
+	}
 	res = call(t, cs, "kando_list_jobs", nil)
 	if out := structured[listJobsOutput](t, res); len(out.Jobs) != 0 {
 		t.Errorf("jobs = %+v", out)
@@ -693,8 +718,8 @@ func TestLostAddAnswer(t *testing.T) {
 	}
 	mu.Lock()
 	defer mu.Unlock()
-	if got[remote.MethodAdd] != 1 || got[remote.MethodRetry] != 1 || got[remote.MethodRemove] != 2 || got[remote.MethodJobs] != 2 {
-		t.Errorf("requests = %v, want the add and the retry once and the remove and the jobs twice", got)
+	if got[remote.MethodAdd] != 1 || got[remote.MethodRetry] != 1 || got[remote.MethodMove] != 1 || got[remote.MethodRemove] != 2 || got[remote.MethodJobs] != 2 {
+		t.Errorf("requests = %v, want the add, the retry and the move once and the remove and the jobs twice", got)
 	}
 }
 

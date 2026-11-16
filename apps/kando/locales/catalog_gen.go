@@ -485,6 +485,7 @@ var Parameters = map[string][]string{
 	"FilmsMoreActions":                         {"film"},
 	"FilmsNewLibraryNote":                      {"platform"},
 	"FilmsNoLibraryDescription":                {"platform"},
+	"FilmsNoticeOpenLibrary":                   {"library"},
 	"FilmsPosterBilingual":                     {"language"},
 	"FilmsPosterLanguages":                     {"spoken", "target"},
 	"FilmsQueueAboutMinutes":                   {"count"},
@@ -516,7 +517,18 @@ var Parameters = map[string][]string{
 	"KitsDownloadFailedStatus":                 {"status"},
 	"LibraryAddedSome":                         {"count", "error_"},
 	"LibraryAddedStarting":                     {"count"},
+	"LibraryMoveFailed":                        {"name", "library", "error_"},
+	"LibraryMoveLinesUnread":                   {"library"},
+	"LibraryMoveNoVideo":                       {"name"},
 	"LibraryMoveOutFailed":                     {"error_"},
+	"LibraryMoveProcessing":                    {"name"},
+	"LibraryMoveSame":                          {"name", "library"},
+	"LibraryMoveStopped":                       {"name"},
+	"LibraryMoveUnknown":                       {"path"},
+	"LibraryMoveUnreachable":                   {"library"},
+	"LibraryMoved":                             {"name", "library"},
+	"LibraryMovedLeft":                         {"name", "library", "from"},
+	"LibraryMoving":                            {"name", "library", "percent"},
 	"LibraryRemoved":                           {"name"},
 	"LibrarySaveFailed":                        {"error_"},
 	"LibraryShelfDamaged":                      {"error_"},
@@ -774,6 +786,7 @@ type Translation struct {
 	FilmsMoreActions                         func(film string) string
 	FilmsNewLibraryNote                      func(platform string) string
 	FilmsNoLibraryDescription                func(platform string) string
+	FilmsNoticeOpenLibrary                   func(library string) string
 	FilmsPosterBilingual                     func(language string) string
 	FilmsPosterLanguages                     func(spoken string, target string) string
 	FilmsQueueAboutMinutes                   func(count int) string
@@ -805,7 +818,18 @@ type Translation struct {
 	KitsDownloadFailedStatus                 func(status int) string
 	LibraryAddedSome                         func(count int, error_ string) string
 	LibraryAddedStarting                     func(count int) string
+	LibraryMoveFailed                        func(name string, library string, error_ string) string
+	LibraryMoveLinesUnread                   func(library string) string
+	LibraryMoveNoVideo                       func(name string) string
 	LibraryMoveOutFailed                     func(error_ string) string
+	LibraryMoveProcessing                    func(name string) string
+	LibraryMoveSame                          func(name string, library string) string
+	LibraryMoveStopped                       func(name string) string
+	LibraryMoveUnknown                       func(path string) string
+	LibraryMoveUnreachable                   func(library string) string
+	LibraryMoved                             func(name string, library string) string
+	LibraryMovedLeft                         func(name string, library string, from string) string
+	LibraryMoving                            func(name string, library string, percent int) string
 	LibraryRemoved                           func(name string) string
 	LibrarySaveFailed                        func(error_ string) string
 	LibraryShelfDamaged                      func(error_ string) string
@@ -1254,6 +1278,7 @@ const (
 	textFilmsLinkPlaceholder
 	textFilmsLocalVideo
 	textFilmsMakeSubtitles
+	textFilmsMoveToLibrary
 	textFilmsNewLibraryEllipsis
 	textFilmsNewLibraryName
 	textFilmsNewLibraryPlace
@@ -1262,6 +1287,8 @@ const (
 	textFilmsNoSubtitles
 	textFilmsNoTranslation
 	textFilmsNoticeOpen
+	textFilmsNoticeStop
+	textFilmsNoticeUndo
 	textFilmsOpenLibraryEllipsis
 	textFilmsOpenSettings
 	textFilmsPathNotSet
@@ -1323,6 +1350,8 @@ const (
 	textLibraryFileTaken
 	textLibraryImportButton
 	textLibraryImportTitle
+	textLibraryMoveBusy
+	textLibraryMoveGone
 	textLibraryNameEmpty
 	textLibraryNameHasPath
 	textLibraryNameNotAllowed
@@ -2186,6 +2215,7 @@ var keyOfText = [numTexts]string{
 	"filmsLinkPlaceholder",
 	"filmsLocalVideo",
 	"filmsMakeSubtitles",
+	"filmsMoveToLibrary",
 	"filmsNewLibraryEllipsis",
 	"filmsNewLibraryName",
 	"filmsNewLibraryPlace",
@@ -2194,6 +2224,8 @@ var keyOfText = [numTexts]string{
 	"filmsNoSubtitles",
 	"filmsNoTranslation",
 	"filmsNoticeOpen",
+	"filmsNoticeStop",
+	"filmsNoticeUndo",
 	"filmsOpenLibraryEllipsis",
 	"filmsOpenSettings",
 	"filmsPathNotSet",
@@ -2255,6 +2287,8 @@ var keyOfText = [numTexts]string{
 	"libraryFileTaken",
 	"libraryImportButton",
 	"libraryImportTitle",
+	"libraryMoveBusy",
+	"libraryMoveGone",
 	"libraryNameEmpty",
 	"libraryNameHasPath",
 	"libraryNameNotAllowed",
@@ -3116,6 +3150,7 @@ var textsEn = i18n.NewTexts(""+
 	"Paste a video link from YouTube, Bilibili and more"+
 	"Local Video"+
 	"Make Subtitles"+
+	"Move to Library"+
 	"New Library…"+
 	"Name"+
 	"Location"+
@@ -3124,6 +3159,8 @@ var textsEn = i18n.NewTexts(""+
 	"No subtitles yet"+
 	"No translation"+
 	"Open"+
+	"Cancel"+
+	"Undo"+
 	"Open Existing Library…"+
 	"Open Settings"+
 	"Not Set"+
@@ -3185,6 +3222,8 @@ var textsEn = i18n.NewTexts(""+
 	"A file with this name already exists in this location."+
 	"Import"+
 	"Import Library"+
+	"Another film is being moved. Try again once it's done."+
+	"The film is no longer there, so it can't be moved back."+
 	"Enter a name for the library."+
 	"A library name can't contain a path."+
 	"Windows doesn't allow this name. Leave out < > : \" | ? * and don't use a name Windows reserves, such as CON or NUL."+
@@ -4043,6 +4082,7 @@ var textsEn = i18n.NewTexts(""+
 		50,
 		11,
 		14,
+		15,
 		14,
 		4,
 		8,
@@ -4050,6 +4090,8 @@ var textsEn = i18n.NewTexts(""+
 		14,
 		16,
 		14,
+		4,
+		6,
 		4,
 		24,
 		13,
@@ -4112,6 +4154,8 @@ var textsEn = i18n.NewTexts(""+
 		54,
 		6,
 		14,
+		54,
+		55,
 		29,
 		36,
 		115,
@@ -4973,6 +5017,7 @@ var textsJa = i18n.NewTexts(""+
 	"YouTube や bilibili などの動画リンクを貼り付け"+
 	"ローカル動画"+
 	"字幕を作成"+
+	"ライブラリへ移動"+
 	"新規ライブラリ…"+
 	"名前"+
 	"場所"+
@@ -4981,6 +5026,8 @@ var textsJa = i18n.NewTexts(""+
 	"字幕はまだありません"+
 	"翻訳なし"+
 	"開く"+
+	"キャンセル"+
+	"取り消す"+
 	"既存のライブラリを開く…"+
 	"設定を開く"+
 	"未設定"+
@@ -5042,6 +5089,8 @@ var textsJa = i18n.NewTexts(""+
 	"この場所には同じ名前のファイルがすでにあります"+
 	"読み込む"+
 	"ライブラリを読み込む"+
+	"別の動画を移動中です。終わってからもう一度お試しください。"+
+	"動画がもう見つからないため、元に戻せません。"+
 	"ライブラリの名前を入力してください"+
 	"ライブラリの名前にはパスを含められません"+
 	"Windows ではこの名前を使えません。< > : \" | ? * を含めず、CON や NUL など Windows が予約している名前も避けてください。"+
@@ -5901,6 +5950,7 @@ var textsJa = i18n.NewTexts(""+
 		18,
 		15,
 		24,
+		24,
 		6,
 		6,
 		21,
@@ -5908,6 +5958,8 @@ var textsJa = i18n.NewTexts(""+
 		30,
 		12,
 		6,
+		15,
+		12,
 		36,
 		15,
 		9,
@@ -5969,6 +6021,8 @@ var textsJa = i18n.NewTexts(""+
 		69,
 		12,
 		30,
+		87,
+		66,
 		51,
 		60,
 		157,
@@ -6830,6 +6884,7 @@ var textsKo = i18n.NewTexts(""+
 	"YouTube, Bilibili 등의 동영상 링크 붙여넣기"+
 	"로컬 동영상"+
 	"자막 만들기"+
+	"라이브러리로 이동"+
 	"새로운 라이브러리…"+
 	"이름"+
 	"위치"+
@@ -6838,6 +6893,8 @@ var textsKo = i18n.NewTexts(""+
 	"아직 자막 없음"+
 	"번역 없음"+
 	"열기"+
+	"취소"+
+	"실행 취소"+
 	"기존 라이브러리 열기…"+
 	"설정 열기"+
 	"설정 안 됨"+
@@ -6899,6 +6956,8 @@ var textsKo = i18n.NewTexts(""+
 	"이 위치에 같은 이름의 파일이 이미 있습니다"+
 	"가져오기"+
 	"라이브러리 가져오기"+
+	"다른 동영상을 옮기는 중입니다. 끝난 뒤 다시 시도하세요."+
+	"동영상이 더 이상 없어 되돌릴 수 없습니다."+
 	"라이브러리 이름을 입력하세요"+
 	"라이브러리 이름에는 경로를 포함할 수 없습니다"+
 	"Windows에서는 이 이름을 사용할 수 없습니다. < > : \" | ? *를 빼고, CON이나 NUL처럼 Windows가 예약한 이름도 쓰지 마십시오."+
@@ -7757,6 +7816,7 @@ var textsKo = i18n.NewTexts(""+
 		54,
 		16,
 		16,
+		25,
 		28,
 		6,
 		6,
@@ -7765,6 +7825,8 @@ var textsKo = i18n.NewTexts(""+
 		20,
 		13,
 		6,
+		6,
+		13,
 		32,
 		13,
 		14,
@@ -7826,6 +7888,8 @@ var textsKo = i18n.NewTexts(""+
 		60,
 		12,
 		28,
+		78,
+		58,
 		41,
 		65,
 		155,
@@ -8687,6 +8751,7 @@ var textsZhHans = i18n.NewTexts(""+
 	"粘贴 YouTube、哔哩哔哩等视频链接"+
 	"本地视频"+
 	"生成字幕"+
+	"移到资料库"+
 	"新建资料库…"+
 	"名称"+
 	"位置"+
@@ -8695,6 +8760,8 @@ var textsZhHans = i18n.NewTexts(""+
 	"还没有字幕"+
 	"未翻译"+
 	"打开"+
+	"取消"+
+	"撤销"+
 	"打开已有资料库…"+
 	"打开设置"+
 	"未设置"+
@@ -8756,6 +8823,8 @@ var textsZhHans = i18n.NewTexts(""+
 	"这个位置已经有同名文件"+
 	"导入"+
 	"导入资料库"+
+	"另一部影片正在移动，等它完成后再试。"+
+	"影片已经不在那里了，无法移回。"+
 	"先写资料库的名称"+
 	"资料库名称不能包含路径"+
 	"Windows 不允许这个名称。请不要使用 < > : \" | ? *，也不要使用 CON、NUL 等 Windows 保留的名称。"+
@@ -9614,6 +9683,7 @@ var textsZhHans = i18n.NewTexts(""+
 		44,
 		12,
 		12,
+		15,
 		18,
 		6,
 		6,
@@ -9621,6 +9691,8 @@ var textsZhHans = i18n.NewTexts(""+
 		18,
 		15,
 		9,
+		6,
+		6,
 		6,
 		24,
 		12,
@@ -9683,6 +9755,8 @@ var textsZhHans = i18n.NewTexts(""+
 		33,
 		6,
 		15,
+		54,
+		45,
 		24,
 		33,
 		120,
@@ -10544,6 +10618,7 @@ var textsZhHant = i18n.NewTexts(""+
 	"貼上 YouTube、嗶哩嗶哩等影片連結"+
 	"本機影片"+
 	"產生字幕"+
+	"移到資料庫"+
 	"新增資料庫…"+
 	"名稱"+
 	"位置"+
@@ -10552,6 +10627,8 @@ var textsZhHant = i18n.NewTexts(""+
 	"還沒有字幕"+
 	"未翻譯"+
 	"打開"+
+	"取消"+
+	"還原"+
 	"打開現有資料庫…"+
 	"打開設定"+
 	"未設定"+
@@ -10613,6 +10690,8 @@ var textsZhHant = i18n.NewTexts(""+
 	"這個位置已經有同名檔案"+
 	"匯入"+
 	"匯入資料庫"+
+	"另一部影片正在移動，等它完成後再試。"+
+	"影片已經不在那裡了，無法移回。"+
 	"請先輸入資料庫的名稱"+
 	"資料庫名稱不能包含路徑"+
 	"Windows 不允許這個名稱。請不要使用 < > : \" | ? *，也不要使用 CON、NUL 等 Windows 保留的名稱。"+
@@ -11471,6 +11550,7 @@ var textsZhHant = i18n.NewTexts(""+
 		44,
 		12,
 		12,
+		15,
 		18,
 		6,
 		6,
@@ -11478,6 +11558,8 @@ var textsZhHant = i18n.NewTexts(""+
 		18,
 		15,
 		9,
+		6,
+		6,
 		6,
 		24,
 		12,
@@ -11540,6 +11622,8 @@ var textsZhHant = i18n.NewTexts(""+
 		33,
 		6,
 		15,
+		54,
+		45,
 		30,
 		33,
 		120,
@@ -12386,6 +12470,9 @@ func Supply(lang string, t Translation) {
 	if t.FilmsNoLibraryDescription != nil {
 		s.FilmsNoLibraryDescription = t.FilmsNoLibraryDescription
 	}
+	if t.FilmsNoticeOpenLibrary != nil {
+		s.FilmsNoticeOpenLibrary = t.FilmsNoticeOpenLibrary
+	}
 	if t.FilmsPosterBilingual != nil {
 		s.FilmsPosterBilingual = t.FilmsPosterBilingual
 	}
@@ -12479,8 +12566,41 @@ func Supply(lang string, t Translation) {
 	if t.LibraryAddedStarting != nil {
 		s.LibraryAddedStarting = t.LibraryAddedStarting
 	}
+	if t.LibraryMoveFailed != nil {
+		s.LibraryMoveFailed = t.LibraryMoveFailed
+	}
+	if t.LibraryMoveLinesUnread != nil {
+		s.LibraryMoveLinesUnread = t.LibraryMoveLinesUnread
+	}
+	if t.LibraryMoveNoVideo != nil {
+		s.LibraryMoveNoVideo = t.LibraryMoveNoVideo
+	}
 	if t.LibraryMoveOutFailed != nil {
 		s.LibraryMoveOutFailed = t.LibraryMoveOutFailed
+	}
+	if t.LibraryMoveProcessing != nil {
+		s.LibraryMoveProcessing = t.LibraryMoveProcessing
+	}
+	if t.LibraryMoveSame != nil {
+		s.LibraryMoveSame = t.LibraryMoveSame
+	}
+	if t.LibraryMoveStopped != nil {
+		s.LibraryMoveStopped = t.LibraryMoveStopped
+	}
+	if t.LibraryMoveUnknown != nil {
+		s.LibraryMoveUnknown = t.LibraryMoveUnknown
+	}
+	if t.LibraryMoveUnreachable != nil {
+		s.LibraryMoveUnreachable = t.LibraryMoveUnreachable
+	}
+	if t.LibraryMoved != nil {
+		s.LibraryMoved = t.LibraryMoved
+	}
+	if t.LibraryMovedLeft != nil {
+		s.LibraryMovedLeft = t.LibraryMovedLeft
+	}
+	if t.LibraryMoving != nil {
+		s.LibraryMoving = t.LibraryMoving
 	}
 	if t.LibraryRemoved != nil {
 		s.LibraryRemoved = t.LibraryRemoved
@@ -17286,6 +17406,15 @@ func (msgs Messages) FilmsMoreActions(film string) string {
 	}
 }
 
+// FilmsMoveToLibrary says "Move to Library"
+// in the language the app shows under cx.
+//
+// Submenu of a film's ⋯ menu and of the File menu that moves the film to another library; it lists the other libraries Kando knows.
+func FilmsMoveToLibrary(cx *core.Scope) string { return For(cx).FilmsMoveToLibrary() }
+
+// FilmsMoveToLibrary is the package's FilmsMoveToLibrary in the language of msgs.
+func (msgs Messages) FilmsMoveToLibrary() string { return msgs.text(textFilmsMoveToLibrary) }
+
 // FilmsNewLibraryEllipsis says "New Library…"
 // in the language the app shows under cx.
 //
@@ -17501,6 +17630,56 @@ func FilmsNoticeOpen(cx *core.Scope) string { return For(cx).FilmsNoticeOpen() }
 
 // FilmsNoticeOpen is the package's FilmsNoticeOpen in the language of msgs.
 func (msgs Messages) FilmsNoticeOpen() string { return msgs.text(textFilmsNoticeOpen) }
+
+// FilmsNoticeOpenLibrary says "Open {library}"
+// in the language the app shows under cx.
+//
+// Button in the message bar after a film was moved to another library; it opens that library. library is its name.
+func FilmsNoticeOpenLibrary(cx *core.Scope, library string) string {
+	return For(cx).FilmsNoticeOpenLibrary(library)
+}
+
+// FilmsNoticeOpenLibrary is the package's FilmsNoticeOpenLibrary in the language of msgs.
+func (msgs Messages) FilmsNoticeOpenLibrary(library string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.FilmsNoticeOpenLibrary(library))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].FilmsNoticeOpenLibrary; f != nil {
+			return f(library)
+		}
+		switch lang {
+		case "", "en":
+			return "Open " + msgs.arg(library)
+		case "ja":
+			return "「" + library + "」を開く"
+		case "ko":
+			return "‘" + library + "’ 열기"
+		case "zh-Hans":
+			return "打开「" + library + "」"
+		case "zh-Hant":
+			return "打開「" + library + "」"
+		}
+	}
+}
+
+// FilmsNoticeStop says "Cancel"
+// in the language the app shows under cx.
+//
+// Button in the message bar while a film is being copied to a library on another drive; it stops the copy and leaves the film where it was.
+func FilmsNoticeStop(cx *core.Scope) string { return For(cx).FilmsNoticeStop() }
+
+// FilmsNoticeStop is the package's FilmsNoticeStop in the language of msgs.
+func (msgs Messages) FilmsNoticeStop() string { return msgs.text(textFilmsNoticeStop) }
+
+// FilmsNoticeUndo says "Undo"
+// in the language the app shows under cx.
+//
+// Button in the message bar after a film was moved to another library; it moves the film back.
+func FilmsNoticeUndo(cx *core.Scope) string { return For(cx).FilmsNoticeUndo() }
+
+// FilmsNoticeUndo is the package's FilmsNoticeUndo in the language of msgs.
+func (msgs Messages) FilmsNoticeUndo() string { return msgs.text(textFilmsNoticeUndo) }
 
 // FilmsOpenLibraryEllipsis says "Open Existing Library…"
 // in the language the app shows under cx.
@@ -19168,6 +19347,118 @@ func LibraryImportTitle(cx *core.Scope) string { return For(cx).LibraryImportTit
 // LibraryImportTitle is the package's LibraryImportTitle in the language of msgs.
 func (msgs Messages) LibraryImportTitle() string { return msgs.text(textLibraryImportTitle) }
 
+// LibraryMoveBusy says "Another film is being moved. Try again once it's done."
+// in the language the app shows under cx.
+//
+// Message bar when a film is to be moved to another library while another one is still being copied to a library on another drive.
+func LibraryMoveBusy(cx *core.Scope) string { return For(cx).LibraryMoveBusy() }
+
+// LibraryMoveBusy is the package's LibraryMoveBusy in the language of msgs.
+func (msgs Messages) LibraryMoveBusy() string { return msgs.text(textLibraryMoveBusy) }
+
+// LibraryMoveFailed says "Couldn't move “{name}” to {library}: {error}. Its files are where they were."
+// in the language the app shows under cx.
+//
+// Message bar when a film could not be moved to another library; nothing moved. error is the system's reason.
+func LibraryMoveFailed(cx *core.Scope, name string, library string, error_ string) string {
+	return For(cx).LibraryMoveFailed(name, library, error_)
+}
+
+// LibraryMoveFailed is the package's LibraryMoveFailed in the language of msgs.
+func (msgs Messages) LibraryMoveFailed(name string, library string, error_ string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.LibraryMoveFailed(name, library, error_))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].LibraryMoveFailed; f != nil {
+			return f(name, library, error_)
+		}
+		switch lang {
+		case "", "en":
+			return "Couldn't move “" + msgs.arg(name) + "” to " + msgs.arg(library) + ": " + msgs.arg(error_) + ". Its files are where they were."
+		case "ja":
+			return "「" + name + "」を「" + library + "」に移動できませんでした：" + error_ + "。ファイルは元の場所に残っています。"
+		case "ko":
+			return "‘" + name + "’을(를) ‘" + library + "’(으)로 옮기지 못했습니다: " + error_ + ". 파일은 그대로 있습니다."
+		case "zh-Hans":
+			return "没能把「" + name + "」移到「" + library + "」：" + error_ + "。文件都留在原处。"
+		case "zh-Hant":
+			return "無法將「" + name + "」移到「" + library + "」：" + error_ + "。檔案都留在原處。"
+		}
+	}
+}
+
+// LibraryMoveGone says "The film is no longer there, so it can't be moved back."
+// in the language the app shows under cx.
+//
+// Message bar when Undo after a move finds the film gone from the library it was moved to.
+func LibraryMoveGone(cx *core.Scope) string { return For(cx).LibraryMoveGone() }
+
+// LibraryMoveGone is the package's LibraryMoveGone in the language of msgs.
+func (msgs Messages) LibraryMoveGone() string { return msgs.text(textLibraryMoveGone) }
+
+// LibraryMoveLinesUnread says "Couldn't read the saved lines of {library}, so nothing was moved."
+// in the language the app shows under cx.
+//
+// Message bar when a film is to be moved between libraries but one library's saved-lines file cannot be read; writing it would lose what is in it, so Kando moves nothing.
+func LibraryMoveLinesUnread(cx *core.Scope, library string) string {
+	return For(cx).LibraryMoveLinesUnread(library)
+}
+
+// LibraryMoveLinesUnread is the package's LibraryMoveLinesUnread in the language of msgs.
+func (msgs Messages) LibraryMoveLinesUnread(library string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.LibraryMoveLinesUnread(library))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].LibraryMoveLinesUnread; f != nil {
+			return f(library)
+		}
+		switch lang {
+		case "", "en":
+			return "Couldn't read the saved lines of " + msgs.arg(library) + ", so nothing was moved."
+		case "ja":
+			return "「" + library + "」の保存したセリフを読み込めなかったため、何も移動していません。"
+		case "ko":
+			return "‘" + library + "’의 저장한 대사를 읽지 못해 아무것도 옮기지 않았습니다."
+		case "zh-Hans":
+			return "无法读取「" + library + "」收藏的句子，所以什么都没有移动。"
+		case "zh-Hant":
+			return "無法讀取「" + library + "」收藏的句子，所以什麼都沒有移動。"
+		}
+	}
+}
+
+// LibraryMoveNoVideo says "“{name}” has no video to move yet."
+// in the language the app shows under cx.
+//
+// Error when a film whose video has not been downloaded yet is to be moved to another library.
+func LibraryMoveNoVideo(cx *core.Scope, name string) string { return For(cx).LibraryMoveNoVideo(name) }
+
+// LibraryMoveNoVideo is the package's LibraryMoveNoVideo in the language of msgs.
+func (msgs Messages) LibraryMoveNoVideo(name string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.LibraryMoveNoVideo(name))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].LibraryMoveNoVideo; f != nil {
+			return f(name)
+		}
+		switch lang {
+		case "", "en":
+			return "“" + msgs.arg(name) + "” has no video to move yet."
+		case "ja":
+			return "「" + name + "」にはまだ移動できる動画がありません。"
+		case "ko":
+			return "‘" + name + "’에는 아직 옮길 동영상이 없습니다."
+		case "zh-Hans":
+			return "「" + name + "」还没有可移动的视频。"
+		case "zh-Hant":
+			return "「" + name + "」還沒有可移動的影片。"
+		}
+	}
+}
+
 // LibraryMoveOutFailed says "Couldn't move the library to its new folder: {error}"
 // in the language the app shows under cx.
 //
@@ -19196,6 +19487,258 @@ func (msgs Messages) LibraryMoveOutFailed(error_ string) string {
 			return "资料库无法搬出：" + error_
 		case "zh-Hant":
 			return "無法搬出資料庫：" + error_
+		}
+	}
+}
+
+// LibraryMoveProcessing says "“{name}” is still being processed. Move it once it's done."
+// in the language the app shows under cx.
+//
+// Message bar when a film that is waiting or being processed is to be moved to another library; Kando does not move it.
+func LibraryMoveProcessing(cx *core.Scope, name string) string {
+	return For(cx).LibraryMoveProcessing(name)
+}
+
+// LibraryMoveProcessing is the package's LibraryMoveProcessing in the language of msgs.
+func (msgs Messages) LibraryMoveProcessing(name string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.LibraryMoveProcessing(name))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].LibraryMoveProcessing; f != nil {
+			return f(name)
+		}
+		switch lang {
+		case "", "en":
+			return "“" + msgs.arg(name) + "” is still being processed. Move it once it's done."
+		case "ja":
+			return "「" + name + "」はまだ処理中です。終わってから移動してください。"
+		case "ko":
+			return "‘" + name + "’은(는) 아직 처리 중입니다. 끝난 뒤 옮기세요."
+		case "zh-Hans":
+			return "「" + name + "」还在处理中，处理完再移动。"
+		case "zh-Hant":
+			return "「" + name + "」還在處理中，處理完再移動。"
+		}
+	}
+}
+
+// LibraryMoveSame says "“{name}” is already in {library}."
+// in the language the app shows under cx.
+//
+// Error when a film is to be moved to the library it is in already.
+func LibraryMoveSame(cx *core.Scope, name string, library string) string {
+	return For(cx).LibraryMoveSame(name, library)
+}
+
+// LibraryMoveSame is the package's LibraryMoveSame in the language of msgs.
+func (msgs Messages) LibraryMoveSame(name string, library string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.LibraryMoveSame(name, library))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].LibraryMoveSame; f != nil {
+			return f(name, library)
+		}
+		switch lang {
+		case "", "en":
+			return "“" + msgs.arg(name) + "” is already in " + msgs.arg(library) + "."
+		case "ja":
+			return "「" + name + "」はすでに「" + library + "」にあります。"
+		case "ko":
+			return "‘" + name + "’은(는) 이미 ‘" + library + "’에 있습니다."
+		case "zh-Hans":
+			return "「" + name + "」已经在「" + library + "」里了。"
+		case "zh-Hant":
+			return "「" + name + "」已經在「" + library + "」裡了。"
+		}
+	}
+}
+
+// LibraryMoveStopped says "Stopped moving “{name}”. Its files are where they were."
+// in the language the app shows under cx.
+//
+// Message bar after the copy of a film to a library on another drive was cancelled; nothing moved.
+func LibraryMoveStopped(cx *core.Scope, name string) string { return For(cx).LibraryMoveStopped(name) }
+
+// LibraryMoveStopped is the package's LibraryMoveStopped in the language of msgs.
+func (msgs Messages) LibraryMoveStopped(name string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.LibraryMoveStopped(name))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].LibraryMoveStopped; f != nil {
+			return f(name)
+		}
+		switch lang {
+		case "", "en":
+			return "Stopped moving “" + msgs.arg(name) + "”. Its files are where they were."
+		case "ja":
+			return "「" + name + "」の移動を中止しました。ファイルは元の場所に残っています。"
+		case "ko":
+			return "‘" + name + "’ 옮기기를 중지했습니다. 파일은 그대로 있습니다."
+		case "zh-Hans":
+			return "已停止移动「" + name + "」，文件都留在原处。"
+		case "zh-Hant":
+			return "已停止移動「" + name + "」，檔案都留在原處。"
+		}
+	}
+}
+
+// LibraryMoveUnknown says "Kando doesn't know a library at {path}."
+// in the language the app shows under cx.
+//
+// Error when a film is to be moved to a folder that is not one of the libraries Kando knows. path is the folder.
+func LibraryMoveUnknown(cx *core.Scope, path string) string { return For(cx).LibraryMoveUnknown(path) }
+
+// LibraryMoveUnknown is the package's LibraryMoveUnknown in the language of msgs.
+func (msgs Messages) LibraryMoveUnknown(path string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.LibraryMoveUnknown(path))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].LibraryMoveUnknown; f != nil {
+			return f(path)
+		}
+		switch lang {
+		case "", "en":
+			return "Kando doesn't know a library at " + msgs.arg(path) + "."
+		case "ja":
+			return "Kando は " + path + " のライブラリを知りません。"
+		case "ko":
+			return "Kando가 " + path + "의 라이브러리를 알지 못합니다."
+		case "zh-Hans":
+			return "看懂不知道 " + path + " 这个资料库。"
+		case "zh-Hant":
+			return "看懂不知道 " + path + " 這個資料庫。"
+		}
+	}
+}
+
+// LibraryMoveUnreachable says "{library} isn't available. Connect the drive it's on, then try again."
+// in the language the app shows under cx.
+//
+// Message bar when the folder of the library a film is to be moved to cannot be found, as on a drive that is not plugged in.
+func LibraryMoveUnreachable(cx *core.Scope, library string) string {
+	return For(cx).LibraryMoveUnreachable(library)
+}
+
+// LibraryMoveUnreachable is the package's LibraryMoveUnreachable in the language of msgs.
+func (msgs Messages) LibraryMoveUnreachable(library string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.LibraryMoveUnreachable(library))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].LibraryMoveUnreachable; f != nil {
+			return f(library)
+		}
+		switch lang {
+		case "", "en":
+			return msgs.arg(library) + " isn't available. Connect the drive it's on, then try again."
+		case "ja":
+			return "「" + library + "」が見つかりません。保存先のドライブを接続してからもう一度お試しください。"
+		case "ko":
+			return "‘" + library + "’을(를) 찾을 수 없습니다. 해당 드라이브를 연결한 뒤 다시 시도하세요."
+		case "zh-Hans":
+			return "找不到「" + library + "」。连接它所在的磁盘后再试。"
+		case "zh-Hant":
+			return "找不到「" + library + "」。連接它所在的磁碟後再試。"
+		}
+	}
+}
+
+// LibraryMoved says "Moved “{name}” to {library}"
+// in the language the app shows under cx.
+//
+// Message bar after a film was moved to another library.
+func LibraryMoved(cx *core.Scope, name string, library string) string {
+	return For(cx).LibraryMoved(name, library)
+}
+
+// LibraryMoved is the package's LibraryMoved in the language of msgs.
+func (msgs Messages) LibraryMoved(name string, library string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.LibraryMoved(name, library))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].LibraryMoved; f != nil {
+			return f(name, library)
+		}
+		switch lang {
+		case "", "en":
+			return "Moved “" + msgs.arg(name) + "” to " + msgs.arg(library)
+		case "ja":
+			return "「" + name + "」を「" + library + "」に移動しました"
+		case "ko":
+			return "‘" + name + "’을(를) ‘" + library + "’(으)로 옮겼습니다"
+		case "zh-Hans":
+			return "已把「" + name + "」移到「" + library + "」"
+		case "zh-Hant":
+			return "已將「" + name + "」移到「" + library + "」"
+		}
+	}
+}
+
+// LibraryMovedLeft says "Moved “{name}” to {library}, but some of its files couldn't be removed from {from}."
+// in the language the app shows under cx.
+//
+// Message bar after a film was copied to a library on another drive but some of its files could not be deleted from the library it came from.
+func LibraryMovedLeft(cx *core.Scope, name string, library string, from string) string {
+	return For(cx).LibraryMovedLeft(name, library, from)
+}
+
+// LibraryMovedLeft is the package's LibraryMovedLeft in the language of msgs.
+func (msgs Messages) LibraryMovedLeft(name string, library string, from string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.LibraryMovedLeft(name, library, from))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].LibraryMovedLeft; f != nil {
+			return f(name, library, from)
+		}
+		switch lang {
+		case "", "en":
+			return "Moved “" + msgs.arg(name) + "” to " + msgs.arg(library) + ", but some of its files couldn't be removed from " + msgs.arg(from) + "."
+		case "ja":
+			return "「" + name + "」を「" + library + "」に移動しましたが、一部のファイルを「" + from + "」から削除できませんでした。"
+		case "ko":
+			return "‘" + name + "’을(를) ‘" + library + "’(으)로 옮겼지만 일부 파일을 ‘" + from + "’에서 지우지 못했습니다."
+		case "zh-Hans":
+			return "已把「" + name + "」移到「" + library + "」，但有些文件没能从「" + from + "」删除。"
+		case "zh-Hant":
+			return "已將「" + name + "」移到「" + library + "」，但有些檔案無法從「" + from + "」刪除。"
+		}
+	}
+}
+
+// LibraryMoving says "Moving “{name}” to {library}… {percent}%"
+// in the language the app shows under cx.
+//
+// Message bar while a film is being copied to a library on another drive, with how much is copied.
+func LibraryMoving(cx *core.Scope, name string, library string, percent int) string {
+	return For(cx).LibraryMoving(name, library, percent)
+}
+
+// LibraryMoving is the package's LibraryMoving in the language of msgs.
+func (msgs Messages) LibraryMoving(name string, library string, percent int) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.LibraryMoving(name, library, percent))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].LibraryMoving; f != nil {
+			return f(name, library, percent)
+		}
+		switch lang {
+		case "", "en":
+			return "Moving “" + msgs.arg(name) + "” to " + msgs.arg(library) + "… " + msgs.arg(i18n.FormatNumber("en", float64(percent))) + "%"
+		case "ja":
+			return "「" + name + "」を「" + library + "」に移動中… " + i18n.FormatNumber("ja", float64(percent)) + "%"
+		case "ko":
+			return "‘" + name + "’을(를) ‘" + library + "’(으)로 옮기는 중… " + i18n.FormatNumber("ko", float64(percent)) + "%"
+		case "zh-Hans":
+			return "正在把「" + name + "」移到「" + library + "」… " + i18n.FormatNumber("zh-Hans", float64(percent)) + "%"
+		case "zh-Hant":
+			return "正在將「" + name + "」移到「" + library + "」… " + i18n.FormatNumber("zh-Hant", float64(percent)) + "%"
 		}
 	}
 }

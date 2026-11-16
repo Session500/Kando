@@ -260,13 +260,13 @@ func TestMenuBarTakesCommandShortcuts(t *testing.T) {
 	}
 }
 
-// TestShortcutsAreUnique checks that no two rows of the table have one label in one menu, and that rows share a key only when they take turns: each has a When, and in none of the window's states (a library page with films, a film open over it) do two of them hold at once, so the key runs one row at most, as the library's ⌘F and the player's do.
+// TestShortcutsAreUnique checks that each row runs something or is a submenu without a key, that no two rows of the table have one label in one menu, and that rows share a key only when they take turns: each has a When, and in none of the window's states (a library page with films, a film open over it) do two of them hold at once, so the key runs one row at most, as the library's ⌘F and the player's do.
 func TestShortcutsAreUnique(t *testing.T) {
 	a, _, _ := libraryWith(t, "Talk")
 	ids := map[string]bool{}
 	keyed := map[string][]shortcut{}
 	for _, s := range a.shortcuts(a.cx) {
-		if s.Group == "" || s.Label == "" || s.Run == nil {
+		if s.Group == "" || s.Label == "" || (s.Run == nil) == (s.Items == nil) || (s.Items != nil && s.Key != "") {
 			t.Fatalf("incomplete shortcut %+v", s)
 		}
 		if ids[menuRowID(s)] {

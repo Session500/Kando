@@ -11,6 +11,7 @@ import (
 	"kando/packages/core"
 
 	ns "github.com/nsgo-dev/nsgo/core"
+	nsdesktop "github.com/nsgo-dev/nsgo/desktop"
 )
 
 // App is the open film the player page reads and the clicks it reports. The page reads it inside its bindings through live.Func and calls its actions through live.Do and live.On, so what they change shows at once (package live).
@@ -155,6 +156,8 @@ type App interface {
 	ToggleMute()
 	// FeedbackSubtitles opens the 反馈问题 dialog for this film's subtitles.
 	FeedbackSubtitles()
+	// MoveOpenFilmMenu is the submenu 移到资料库 of ⋯ for the open film: the other libraries Kando knows, each moving the film there when chosen, which closes it; none when there is no other library.
+	MoveOpenFilmMenu(cx *ns.Scope) []nsdesktop.MenuItem
 	// ExplainLine has the AI service explain cue i, its meaning, key words and grammar, in the command palette.
 	ExplainLine(i int)
 	// LineSaved reports whether cue i is among the lines the learner saved; ToggleSaveLine saves it, or removes it from them, and says which on the picture.

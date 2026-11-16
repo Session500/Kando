@@ -159,3 +159,51 @@ func TestFillTranslationsCompletesUntranslatedLines(t *testing.T) {
 		t.Fatal("filling again changed a line")
 	}
 }
+
+// TestTakeAndAddVideoMoveLinesBetweenLibraries checks that a video's lines leave one library's book and join another's, keyed by the video's path there, among its lines by when each was saved, with their schedule, while a line the other book has already stays as it was; and that a book whose file could not be read says so.
+func TestTakeAndAddVideoMoveLinesBetweenLibraries(t *testing.T) {
+	from, to := t.TempDir(), t.TempDir()
+	src, _ := Load(from)
+	dst, _ := Load(to)
+	day := func(d int) time.Time { return time.Date(2026, 11, d, 9, 0, 0, 0, time.UTC) }
+	old := filepath.Join(from, "Talk", "video.mp4")
+	next := filepath.Join(to, "Talk 2", "video.mp4")
+	src.Lines = []Line{
+		{Video: "Talk/video.mp4", Start: 3 * time.Second, Original: "three", SavedAt: day(5), Box: 2, Due: day(9)},
+		{Video: "Other/video.mp4", Start: time.Second, Original: "other", SavedAt: day(4)},
+		{Video: "Talk/video.mp4", Start: time.Second, Original: "one", SavedAt: day(2)},
+	}
+	dst.Lines = []Line{
+		{Video: "Mine/video.mp4", Start: time.Second, Original: "mine", SavedAt: day(6)},
+		{Video: "Talk 2/video.mp4", Start: time.Second, Original: "kept", SavedAt: day(3)},
+		{Video: "Mine/video.mp4", Start: 2 * time.Second, Original: "older", SavedAt: day(1)},
+	}
+
+	taken := src.TakeVideo(old)
+	if len(taken) != 2 || len(src.Lines) != 1 || src.Lines[0].Original != "other" {
+		t.Fatalf("took %+v, left %+v", taken, src.Lines)
+	}
+	dst.AddVideo(next, taken)
+	var got []string
+	for _, l := range dst.Lines {
+		got = append(got, l.Video+" "+l.Original)
+	}
+	want := []string{"Mine/video.mp4 mine", "Talk 2/video.mp4 three", "Talk 2/video.mp4 kept", "Mine/video.mp4 older"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("lines %q, want %q", got, want)
+	}
+	if l := dst.Lines[1]; l.Box != 2 || !l.Due.Equal(day(9)) {
+		t.Fatalf("the moved line lost its schedule: %+v", l)
+	}
+
+	if err := os.WriteFile(filepath.Join(to, FileName), []byte("{"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	broken, err := Load(to)
+	if err == nil || broken.Unread() == nil {
+		t.Fatalf("Load of a broken file = %v, Unread %v", err, broken.Unread())
+	}
+	if src.Unread() != nil {
+		t.Fatalf("a book read whole is unread: %v", src.Unread())
+	}
+}

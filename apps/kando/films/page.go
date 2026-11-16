@@ -10,6 +10,7 @@ import (
 	"kando/apps/kando/sidebar"
 
 	"github.com/nsgo-dev/nsgo/core"
+	nsdesktop "github.com/nsgo-dev/nsgo/desktop"
 	"github.com/nsgo-dev/nsgo/i18n"
 )
 
@@ -145,6 +146,11 @@ type App interface {
 	CloseRename()
 	// RenameFilm gives the film AskRename asked about the title typed into the dialog, and closes it. It never renames a file.
 	RenameFilm()
+	// MoveFilmMenu is the submenu 移到资料库 of a film's menu: the other libraries Kando knows, each moving the film there when chosen, those whose folder is not there disabled; none when there is no other library. UndoMove moves the film the message bar says was moved back (Notice.Undo), and CancelMove stops the copy it says is going (Notice.Stop). Choose opens the library at a folder, as the bar's 打开 <library> does (Notice.Library).
+	MoveFilmMenu(cx *core.Scope, item Film) []nsdesktop.MenuItem
+	UndoMove()
+	CancelMove()
+	Choose(dir string)
 }
 
 // Notice is the message bar under the top bar: why a link or a file was not added, or that it was.
@@ -160,7 +166,10 @@ type Notice struct {
 	List string
 	// Translate shows the bar's Translate, which translates every film of the library that was not translated at all (NotTranslated, App.TranslateFilms), as the bar offers once an AI service is set up.
 	Translate bool
-	Open      bool
+	// Library is the folder of the library the bar's 打开 <library> opens (App.Choose), as after a film was moved there; empty shows no button. Undo shows Undo, which moves the film back (App.UndoMove), and Stop 取消, which stops the copy the bar says is going (App.CancelMove).
+	Library    string
+	Undo, Stop bool
+	Open       bool
 }
 
 // The library's content, as the prototype lays it out: inset PagePadX from the content column's sides, starting contentTop down, under the top bar that it scrolls beneath, with pagePadBottom under its last part.

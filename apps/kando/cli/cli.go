@@ -156,6 +156,7 @@ func init() {
 		{name: "retry", synopsis: "<job-id> [--wait]", summary: "Queue a failed, canceled or finished job again", app: true, run: runRetry},
 		{name: "translate", synopsis: "<film-id> [--wait]", summary: "Translate the lines a film's translation left untranslated", app: true, run: runTranslate},
 		{name: "remove", synopsis: "<job-id>", summary: "Take a job off the library, stopping it if it runs; its files stay", app: true, run: runRemove},
+		{name: "move", synopsis: "<film-id> --to <library>", summary: "Move a film, its files and everything kept of it, to another library", app: true, run: runMove},
 		{name: "sites", synopsis: "[query] [--limit N]", summary: "Search the websites Kando downloads from", app: true, run: runSites},
 		{name: "open", synopsis: "[film-id] [--at T]", summary: "Bring Kando to the front, showing a film or the library", app: true, run: runOpen},
 		{name: "mcp", summary: "Serve MCP on standard input and output for AI agents", run: runMCP},

@@ -101,6 +101,12 @@ func (a *app) remoteHandle(method string, params json.RawMessage) (any, error) {
 			return nil, err
 		}
 		return nil, a.remoteRemove(ctx, p.ID)
+	case remote.MethodMove:
+		p, err := remote.Params[remote.MoveParams](params)
+		if err != nil {
+			return nil, err
+		}
+		return a.remoteMove(ctx, p)
 	case remote.MethodSites:
 		p, err := remote.Params[remote.SitesParams](params)
 		if err != nil {

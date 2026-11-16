@@ -1060,6 +1060,9 @@ filmsMoreActions:
   description: "Accessible name of the ⋯ button beside a poster's title, naming the film it acts on."
   placeholders:
     film: { type: "String", example: "Rivers of Europe" }
+filmsMoveToLibrary:
+  message: "Move to Library"
+  description: "Submenu of a film's ⋯ menu and of the File menu that moves the film to another library; it lists the other libraries Kando knows."
 filmsNewLibraryEllipsis:
   message: "New Library…"
   description: "Button that opens the sheet creating a new library."
@@ -1094,6 +1097,17 @@ filmsNoTranslation:
 filmsNoticeOpen:
   message: "Open"
   description: "Button in the message bar that says a video is already in the library; it opens that film."
+filmsNoticeOpenLibrary:
+  message: "Open {library}"
+  description: "Button in the message bar after a film was moved to another library; it opens that library. library is its name."
+  placeholders:
+    library: { type: "String", example: "English Listening" }
+filmsNoticeStop:
+  message: "Cancel"
+  description: "Button in the message bar while a film is being copied to a library on another drive; it stops the copy and leaves the film where it was."
+filmsNoticeUndo:
+  message: "Undo"
+  description: "Button in the message bar after a film was moved to another library; it moves the film back."
 filmsOpenLibraryEllipsis:
   message: "Open Existing Library…"
   description: "Button that opens a folder dialog to open a library already on disk."
@@ -1440,11 +1454,80 @@ libraryImportButton:
 libraryImportTitle:
   message: "Import Library"
   description: "Title of the folder dialog that opens a library already on disk."
+libraryMoveBusy:
+  message: "Another film is being moved. Try again once it's done."
+  description: "Message bar when a film is to be moved to another library while another one is still being copied to a library on another drive."
+libraryMoveFailed:
+  message: "Couldn't move “{name}” to {library}: {error}. Its files are where they were."
+  description: "Message bar when a film could not be moved to another library; nothing moved. error is the system's reason."
+  placeholders:
+    name: { type: "String", example: "Learn Rust" }
+    library: { type: "String", example: "English Listening" }
+    error: { type: "String", example: "no space left on device" }
+libraryMoveGone:
+  message: "The film is no longer there, so it can't be moved back."
+  description: "Message bar when Undo after a move finds the film gone from the library it was moved to."
+libraryMoveLinesUnread:
+  message: "Couldn't read the saved lines of {library}, so nothing was moved."
+  description: "Message bar when a film is to be moved between libraries but one library's saved-lines file cannot be read; writing it would lose what is in it, so Kando moves nothing."
+  placeholders:
+    library: { type: "String", example: "English Listening" }
+libraryMoveNoVideo:
+  message: "“{name}” has no video to move yet."
+  description: "Error when a film whose video has not been downloaded yet is to be moved to another library."
+  placeholders:
+    name: { type: "String", example: "Learn Rust" }
 libraryMoveOutFailed:
   message: "Couldn't move the library to its new folder: {error}"
   description: "Error when Kando could not move its videos out of an older version's library folder into a library of its own."
   placeholders:
     error: { type: "String", example: "permission denied" }
+libraryMoveProcessing:
+  message: "“{name}” is still being processed. Move it once it's done."
+  description: "Message bar when a film that is waiting or being processed is to be moved to another library; Kando does not move it."
+  placeholders:
+    name: { type: "String", example: "Learn Rust" }
+libraryMoveSame:
+  message: "“{name}” is already in {library}."
+  description: "Error when a film is to be moved to the library it is in already."
+  placeholders:
+    name: { type: "String", example: "Learn Rust" }
+    library: { type: "String", example: "My Films" }
+libraryMoveStopped:
+  message: "Stopped moving “{name}”. Its files are where they were."
+  description: "Message bar after the copy of a film to a library on another drive was cancelled; nothing moved."
+  placeholders:
+    name: { type: "String", example: "Learn Rust" }
+libraryMoveUnknown:
+  message: "Kando doesn't know a library at {path}."
+  description: "Error when a film is to be moved to a folder that is not one of the libraries Kando knows. path is the folder."
+  placeholders:
+    path: { type: "String", example: "/Users/me/Movies/English.kando" }
+libraryMoveUnreachable:
+  message: "{library} isn't available. Connect the drive it's on, then try again."
+  description: "Message bar when the folder of the library a film is to be moved to cannot be found, as on a drive that is not plugged in."
+  placeholders:
+    library: { type: "String", example: "English Listening" }
+libraryMoved:
+  message: "Moved “{name}” to {library}"
+  description: "Message bar after a film was moved to another library."
+  placeholders:
+    name: { type: "String", example: "Learn Rust" }
+    library: { type: "String", example: "English Listening" }
+libraryMovedLeft:
+  message: "Moved “{name}” to {library}, but some of its files couldn't be removed from {from}."
+  description: "Message bar after a film was copied to a library on another drive but some of its files could not be deleted from the library it came from."
+  placeholders:
+    name: { type: "String", example: "Learn Rust" }
+    library: { type: "String", example: "English Listening" }
+    from: { type: "String", example: "My Films" }
+libraryMoving:
+  message: "Moving “{name}” to {library}… {percent}%"
+  description: "Message bar while a film is being copied to a library on another drive, with how much is copied."
+  placeholders:
+    name: { type: "String", example: "Learn Rust" }
+    library: { type: "String", example: "English Listening" }
+    percent: { type: "int", example: "42" }
 libraryNameEmpty:
   message: "Enter a name for the library."
   description: "Error in the new-library sheet: the name field is empty."
