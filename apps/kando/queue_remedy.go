@@ -51,7 +51,7 @@ var installedBrowsers = media.InstalledBrowsers
 // openExternal opens a URL with the system under the scope cx, as the Full Disk Access pane of System Settings, and tells done whether it opened. Tests replace it.
 var openExternal = desktop.OpenURL
 
-// fullDiskAccess is the pane of System Settings that lets an app read Safari's cookies.
+// fullDiskAccess is the pane of System Settings that lets an app read Safari's cookies and the data folders of the other browsers.
 const fullDiskAccess = "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles"
 
 // queueReadYTDLP reads, off the UI thread, the browsers whose logins yt-dlp can borrow, and the version of the yt-dlp the pipeline downloads with and how it was installed.
@@ -231,7 +231,7 @@ func queueYTDLPHint(m locales.Messages, install media.YTDLPInstall) string {
 	return m.QueueYtdlpHintStandalone(install.Dir)
 }
 
-// cookiesRemedy is the card of a job whose borrowed browser login yt-dlp could not read, saying why as Settings › 通用 › 浏览器登录 does (settings.SignInWhy): Safari's needs Full Disk Access, which yt-dlp reports as an operation not permitted; on Windows an open Chromium browser locks its login, which closing it fixes, and Chrome's own encryption keeps it from yt-dlp; on macOS the Keychain may not have given its key; and a browser may have no login data on this machine. 选择浏览器… opens that setting, where the browser every download borrows from is chosen, while the computer has one to choose.
+// cookiesRemedy is the card of a job whose borrowed browser login yt-dlp could not read, saying why as Settings › 通用 › 浏览器登录 does (settings.SignInWhy): on macOS Safari's, and the data folder of another browser, need Full Disk Access (settings.NeedsDiskAccess), which yt-dlp reports as an operation not permitted or, for the folder, as no login data; on Windows an open Chromium browser locks its login, which closing it fixes, and Chrome's own encryption keeps it from yt-dlp; on macOS the Keychain may not have given its key; and a browser may have no login data on this machine. 选择浏览器… opens that setting, where the browser every download borrows from is chosen, while the computer has one to choose.
 func (a *app) cookiesRemedy(job core.Job, other media.Browser) films.Remedy {
 	m := a.messages()
 	name := media.BrowserName(job.Cookies)
@@ -241,9 +241,9 @@ func (a *app) cookiesRemedy(job core.Job, other media.Browser) films.Remedy {
 	}
 	r := films.Remedy{Headline: m.QueueRemedyCookies(name), Why: settings.SignInWhy(m, signinPlatform(), job.Cookies, trouble)}
 	switch {
-	// macOS hides Safari's cookies from an app without Full Disk Access, and yt-dlp then says it found none, or that it may not open them.
-	case job.Cookies == "safari" && (trouble == media.LoginNoAccess || trouble == media.LoginNotFound):
-		r.Actions = append(r.Actions, films.RemedyAction{ID: remedyDiskAccess, Label: m.QueueRemedyOpenSystemSettings(), Primary: true}, films.RemedyAction{ID: remedyBorrow + "safari", Label: m.QueueRemedyAllowed()})
+	// macOS hides Safari's cookies, and the data folder of the other browsers, from an app without Full Disk Access, and yt-dlp then says it found none, or that it may not open them.
+	case settings.NeedsDiskAccess(signinPlatform(), job.Cookies, trouble):
+		r.Actions = append(r.Actions, films.RemedyAction{ID: remedyDiskAccess, Label: m.QueueRemedyOpenSystemSettings(), Primary: true}, films.RemedyAction{ID: remedyBorrow + job.Cookies, Label: m.QueueRemedyAllowed()})
 	case trouble == media.LoginInUse || trouble == media.LoginNoKey:
 		r.Actions = append(r.Actions, films.RemedyAction{ID: remedyBorrow + job.Cookies, Label: m.QueueRemedyRetry(), Primary: true})
 	}

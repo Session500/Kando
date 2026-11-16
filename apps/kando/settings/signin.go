@@ -24,12 +24,20 @@ type SignIn struct {
 	Trouble  media.LoginTrouble
 }
 
+// NeedsDiskAccess reports whether the sign-in of browser (its --cookies-from-browser name) is one macOS keeps from Kando until it has Full Disk Access, for trouble, on platform, the system as desktop.Platform names it: Safari's cookies, which yt-dlp may not open or reports as none, and on macOS the data folder of any other browser, which yt-dlp may not list (media.LoginNoAccess). Both the card of a failed download and the 浏览器登录 row then offer to open System Settings.
+func NeedsDiskAccess(platform, browser string, trouble media.LoginTrouble) bool {
+	if browser == "safari" {
+		return trouble == media.LoginNoAccess || trouble == media.LoginNotFound
+	}
+	return platform == "macOS" && trouble == media.LoginNoAccess
+}
+
 // SignInWhy says in the words of m why yt-dlp could not read the sign-in of browser (its --cookies-from-browser name) for trouble, and what to do, as both the card of a failed download and the 浏览器登录 row say it. platform is the system, as desktop.Platform names it.
 func SignInWhy(m locales.Messages, platform, browser string, trouble media.LoginTrouble) string {
 	name := media.BrowserName(browser)
 	switch {
-	case browser == "safari" && (trouble == media.LoginNoAccess || trouble == media.LoginNotFound):
-		return m.QueueRemedySafariWhy()
+	case NeedsDiskAccess(platform, browser, trouble):
+		return m.QueueRemedyDiskAccessWhy(name)
 	case trouble == media.LoginInUse:
 		return m.QueueRemedyCookiesInUse(name)
 	case trouble == media.LoginEncrypted:
@@ -49,7 +57,7 @@ const (
 	signInNothing signInState = iota
 	signInReady
 	signInTrouble
-	// signInDiskAccess is Safari's sign-in, which macOS keeps from an app without Full Disk Access.
+	// signInDiskAccess is a sign-in macOS keeps from an app without Full Disk Access (NeedsDiskAccess).
 	signInDiskAccess
 )
 
@@ -84,13 +92,14 @@ func (g signIn) Render(cx *core.Scope) core.Node {
 			}),
 			Style: core.Style{Width: core.Pt(140)}}
 	})
+	platform := desktop.Platform(cx)
 	state := core.NewMemo(cx, live.Func(a, func() signInState {
 		switch st := a.SignIn(); {
 		case !st.Checked:
 			return signInNothing
 		case st.Trouble == "":
 			return signInReady
-		case st.Browser == "safari" && (st.Trouble == media.LoginNoAccess || st.Trouble == media.LoginNotFound):
+		case NeedsDiskAccess(platform, st.Browser, st.Trouble):
 			return signInDiskAccess
 		}
 		return signInTrouble

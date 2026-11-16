@@ -334,7 +334,7 @@ func (t Tools) ytdlpDownload(ctx context.Context, source, temp string, named *bo
 	if _, _, err := runFollowing(ctx, false, reader.line, t.YTDLP, append(args, "--", source)...); err != nil {
 		var exit *exec.ExitError
 		if !errors.As(err, &exit) || exit.ExitCode() != ytdlpMaxDownloadsExit || reader.path == "" {
-			return "", err
+			return "", withClosedBrowserData(err, t.Cookies)
 		}
 	}
 	if reader.path == "" {

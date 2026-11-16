@@ -38,6 +38,11 @@ func TestScreenshotsSettings(t *testing.T) {
 		shotCLITool(f, a, true)
 		shotSignIn(a, "safari", media.LoginNoAccess)
 	})
+	// Chrome, whose data folder macOS keeps from Kando without Full Disk Access, which yt-dlp takes for no sign-in data: the same 打开系统设置 and 重新检查.
+	shootSettingsScrolled(t, f, settings.SectionGeneral, "settings-general-signin-chrome-access", shown, models, turbo, func(a *app) {
+		shotCLITool(f, a, true)
+		shotSignIn(a, "chrome", media.LoginNoAccess)
+	})
 	// EveryAPI without a key on a computer without the everyapi program: the row under API Key offers 获取 EveryAPI and 重新检测.
 	shootSettings(t, f, settings.SectionAI, "settings-ai-everyapi-missing", shown, models, turbo, func(a *app) {
 		tools := a.pipeline.(media.Tools)
