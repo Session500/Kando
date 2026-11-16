@@ -550,6 +550,7 @@ var Parameters = map[string][]string{
 	"OnboardingStepOf":                   {"step", "steps"},
 	"OnboardingTipMenu":                  {"menu", "item"},
 	"OnboardingToolProgress":             {"percent"},
+	"OnboardingToolUnavailableCommand":   {"command"},
 	"PaletteAnswerNote":                  {"at", "model"},
 	"PaletteAskFailed":                   {"error_"},
 	"PaletteAskRow":                      {"question"},
@@ -650,6 +651,8 @@ var Parameters = map[string][]string{
 	"SettingsGeneralLastCheck":           {"when"},
 	"SettingsGeneralShowInFinder":        {"platform"},
 	"SettingsGeneralToolDetail":          {"use", "where"},
+	"SettingsGeneralToolPageLabel":       {"program"},
+	"SettingsGeneralToolsNoteScoop":      {"command"},
 	"SettingsGeneralUpdateAvailable":     {"version"},
 	"SettingsLibrarySaveFailed":          {"error_"},
 	"SettingsLookColorOf":                {"line"},
@@ -812,6 +815,7 @@ type Translation struct {
 	OnboardingStepOf                   func(step int, steps int) string
 	OnboardingTipMenu                  func(menu string, item string) string
 	OnboardingToolProgress             func(percent int) string
+	OnboardingToolUnavailableCommand   func(command string) string
 	PaletteAnswerNote                  func(at string, model string) string
 	PaletteAskFailed                   func(error_ string) string
 	PaletteAskRow                      func(question string) string
@@ -912,6 +916,8 @@ type Translation struct {
 	SettingsGeneralLastCheck           func(when time.Time) string
 	SettingsGeneralShowInFinder        func(platform string) string
 	SettingsGeneralToolDetail          func(use string, where string) string
+	SettingsGeneralToolPageLabel       func(program string) string
+	SettingsGeneralToolsNoteScoop      func(command string) string
 	SettingsGeneralUpdateAvailable     func(version string) string
 	SettingsLibrarySaveFailed          func(error_ string) string
 	SettingsLookColorOf                func(line string) string
@@ -1073,7 +1079,9 @@ const (
 	textFilmColorOrange
 	textFilmColorWhite
 	textFilmColorYellow
+	textFilmCommandCopied
 	textFilmCopy
+	textFilmCopyCommand
 	textFilmCopyLine
 	textFilmCopyOriginal
 	textFilmCopyTranslation
@@ -1265,6 +1273,7 @@ const (
 	textLibraryImportTitle
 	textLibraryNameEmpty
 	textLibraryNameHasPath
+	textLibraryNameNotAllowed
 	textLibraryNameTaken
 	textLibraryOpenVideosMenu
 	textLibraryPickVideosButton
@@ -1422,6 +1431,7 @@ const (
 	textPlayerKeyToggleSubtitles
 	textPlayerKeyVolumeDown
 	textPlayerKeyVolumeUp
+	textPlayerMissingPlugins
 	textPlayerOsdCopied
 	textPlayerOsdMuted
 	textPlayerSaveSpeedFailed
@@ -1646,6 +1656,7 @@ const (
 	textSettingsGeneralOpenLibrary
 	textSettingsGeneralRedetect
 	textSettingsGeneralRetry
+	textSettingsGeneralToolPage
 	textSettingsGeneralToolsNote
 	textSettingsGeneralToolsNoteManual
 	textSettingsGeneralUseFFmpeg
@@ -1953,7 +1964,9 @@ var keyOfText = [numTexts]string{
 	"filmColorOrange",
 	"filmColorWhite",
 	"filmColorYellow",
+	"filmCommandCopied",
 	"filmCopy",
+	"filmCopyCommand",
 	"filmCopyLine",
 	"filmCopyOriginal",
 	"filmCopyTranslation",
@@ -2145,6 +2158,7 @@ var keyOfText = [numTexts]string{
 	"libraryImportTitle",
 	"libraryNameEmpty",
 	"libraryNameHasPath",
+	"libraryNameNotAllowed",
 	"libraryNameTaken",
 	"libraryOpenVideosMenu",
 	"libraryPickVideosButton",
@@ -2302,6 +2316,7 @@ var keyOfText = [numTexts]string{
 	"playerKeyToggleSubtitles",
 	"playerKeyVolumeDown",
 	"playerKeyVolumeUp",
+	"playerMissingPlugins",
 	"playerOsdCopied",
 	"playerOsdMuted",
 	"playerSaveSpeedFailed",
@@ -2526,6 +2541,7 @@ var keyOfText = [numTexts]string{
 	"settingsGeneralOpenLibrary",
 	"settingsGeneralRedetect",
 	"settingsGeneralRetry",
+	"settingsGeneralToolPage",
 	"settingsGeneralToolsNote",
 	"settingsGeneralToolsNoteManual",
 	"settingsGeneralUseFFmpeg",
@@ -2831,7 +2847,9 @@ var textsEn = i18n.NewTexts(""+
 	"Orange"+
 	"White"+
 	"Yellow"+
+	"Copied"+
 	"Copy"+
+	"Copy Command"+
 	"Copy Line"+
 	"Copy Original"+
 	"Copy Translation"+
@@ -3023,6 +3041,7 @@ var textsEn = i18n.NewTexts(""+
 	"Import Library"+
 	"Enter a name for the library."+
 	"A library name can't contain a path."+
+	"Windows doesn't allow this name. Leave out < > : \" | ? * and don't use a name Windows reserves, such as CON or NUL."+
 	"A library with this name already exists. Choose another name."+
 	"Open Local Video…"+
 	"Open"+
@@ -3127,7 +3146,7 @@ var textsEn = i18n.NewTexts(""+
 	"Skip"+
 	"Press F1 anytime to come back here."+
 	"Connecting…"+
-	"Install it with your package manager and make sure it is on PATH"+
+	"Install it from its download page and add it to PATH"+
 	"Downloading the programs Kando needs"+
 	"Kando needs these programs to process videos"+
 	"Kando downloads them by itself. You can go on to the next step meanwhile."+
@@ -3180,6 +3199,7 @@ var textsEn = i18n.NewTexts(""+
 	"Show/Hide Subtitles"+
 	"Volume Down"+
 	"Volume Up"+
+	"This video needs GStreamer plug-ins that aren't installed. On Debian or Ubuntu, run the command below in a terminal; on other systems, install GTK 4's GStreamer media backend and GStreamer's good, bad and libav plug-ins. Then reopen Kando."+
 	"Copied"+
 	"Muted"+
 	"Couldn't save the speed"+
@@ -3404,8 +3424,9 @@ var textsEn = i18n.NewTexts(""+
 	"Open Library…"+
 	"Detect Again"+
 	"Retry"+
+	"Download Page"+
 	"Kando downloads the programs it is missing. Those already installed on this computer are used as they are."+
-	"These programs come from this computer; Kando doesn't install or update them."+
+	"Kando doesn't download these programs on this system. Install each from its download page and add its folder to PATH, then choose Detect Again."+
 	"Converts audio, grabs covers, decodes frames"+
 	"Speech recognition"+
 	"Downloads online videos"+
@@ -3706,7 +3727,9 @@ var textsEn = i18n.NewTexts(""+
 		6,
 		5,
 		6,
+		6,
 		4,
+		12,
 		9,
 		13,
 		16,
@@ -3898,6 +3921,7 @@ var textsEn = i18n.NewTexts(""+
 		14,
 		29,
 		36,
+		115,
 		61,
 		19,
 		4,
@@ -4002,7 +4026,7 @@ var textsEn = i18n.NewTexts(""+
 		4,
 		35,
 		13,
-		64,
+		52,
 		36,
 		44,
 		73,
@@ -4055,6 +4079,7 @@ var textsEn = i18n.NewTexts(""+
 		19,
 		11,
 		9,
+		239,
 		6,
 		5,
 		23,
@@ -4279,8 +4304,9 @@ var textsEn = i18n.NewTexts(""+
 		15,
 		12,
 		5,
+		13,
 		106,
-		77,
+		143,
 		44,
 		18,
 		23,
@@ -4584,7 +4610,9 @@ var textsJa = i18n.NewTexts(""+
 	"オレンジ"+
 	"白"+
 	"黄"+
+	"コピーしました"+
 	"コピー"+
+	"コマンドをコピー"+
 	"セリフをコピー"+
 	"原文をコピー"+
 	"訳文をコピー"+
@@ -4776,6 +4804,7 @@ var textsJa = i18n.NewTexts(""+
 	"ライブラリを読み込む"+
 	"ライブラリの名前を入力してください"+
 	"ライブラリの名前にはパスを含められません"+
+	"Windows ではこの名前を使えません。< > : \" | ? * を含めず、CON や NUL など Windows が予約している名前も避けてください。"+
 	"この名前のライブラリはすでにあります。別の名前にしてください"+
 	"ローカル動画を開く…"+
 	"開く"+
@@ -4880,7 +4909,7 @@ var textsJa = i18n.NewTexts(""+
 	"スキップ"+
 	"F1 キーでいつでもここに戻れます。"+
 	"接続中…"+
-	"パッケージマネージャーでインストールし、PATH に含めてください"+
+	"ダウンロードページからインストールして PATH に追加してください"+
 	"Kando に必要なプログラムをダウンロードしています"+
 	"動画の処理にはこれらのプログラムが必要です"+
 	"Kando が自動でダウンロードします。待たずに次へ進めます。"+
@@ -4933,6 +4962,7 @@ var textsJa = i18n.NewTexts(""+
 	"字幕を表示/隠す"+
 	"音量を下げる"+
 	"音量を上げる"+
+	"この動画の再生には、インストールされていない GStreamer プラグインが必要です。Debian または Ubuntu では、ターミナルで下のコマンドを実行してください。その他のシステムでは、GTK 4 の GStreamer メディアバックエンドと、GStreamer の good、bad、libav プラグインをインストールしてください。その後、Kando を開き直してください。"+
 	"コピーしました"+
 	"消音"+
 	"再生速度の設定を保存できませんでした"+
@@ -5157,8 +5187,9 @@ var textsJa = i18n.NewTexts(""+
 	"ライブラリを開く…"+
 	"再検出"+
 	"再試行"+
+	"ダウンロードページ"+
 	"足りないプログラムは Kando が自動でダウンロードします。このコンピュータにすでにあるものはそのまま使います。"+
-	"これらのプログラムはこのコンピュータにあるものです。Kando はインストールやアップデートを行いません。"+
+	"このシステムでは Kando はこれらのプログラムをダウンロードできません。それぞれのダウンロードページからインストールしてフォルダを PATH に追加し、「再検出」を押してください。"+
 	"音声の変換、カバーの取得、映像のデコード"+
 	"音声認識"+
 	"オンライン動画のダウンロード"+
@@ -5459,7 +5490,9 @@ var textsJa = i18n.NewTexts(""+
 		12,
 		3,
 		3,
+		21,
 		9,
+		24,
 		21,
 		18,
 		18,
@@ -5651,6 +5684,7 @@ var textsJa = i18n.NewTexts(""+
 		30,
 		51,
 		60,
+		157,
 		90,
 		30,
 		6,
@@ -5755,7 +5789,7 @@ var textsJa = i18n.NewTexts(""+
 		12,
 		48,
 		12,
-		89,
+		90,
 		69,
 		63,
 		81,
@@ -5808,6 +5842,7 @@ var textsJa = i18n.NewTexts(""+
 		22,
 		18,
 		18,
+		439,
 		21,
 		6,
 		54,
@@ -6032,8 +6067,9 @@ var textsJa = i18n.NewTexts(""+
 		27,
 		9,
 		9,
+		27,
 		157,
-		147,
+		250,
 		60,
 		12,
 		42,
@@ -6337,7 +6373,9 @@ var textsKo = i18n.NewTexts(""+
 	"주황색"+
 	"흰색"+
 	"노란색"+
+	"복사됨"+
 	"복사"+
+	"명령 복사"+
 	"대사 복사"+
 	"원문 복사"+
 	"번역 복사"+
@@ -6529,6 +6567,7 @@ var textsKo = i18n.NewTexts(""+
 	"라이브러리 가져오기"+
 	"라이브러리 이름을 입력하세요"+
 	"라이브러리 이름에는 경로를 포함할 수 없습니다"+
+	"Windows에서는 이 이름을 사용할 수 없습니다. < > : \" | ? *를 빼고, CON이나 NUL처럼 Windows가 예약한 이름도 쓰지 마십시오."+
 	"같은 이름의 라이브러리가 이미 있습니다. 다른 이름을 사용하세요"+
 	"로컬 동영상 열기…"+
 	"열기"+
@@ -6633,7 +6672,7 @@ var textsKo = i18n.NewTexts(""+
 	"건너뛰기"+
 	"언제든지 F1 키를 눌러 여기로 돌아올 수 있습니다."+
 	"연결 중…"+
-	"패키지 관리자로 설치하고 PATH에 포함되어 있는지 확인하세요"+
+	"다운로드 페이지에서 설치하고 PATH에 추가하세요"+
 	"Kando에 필요한 프로그램을 다운로드하는 중"+
 	"동영상을 처리하려면 이 프로그램들이 필요합니다"+
 	"Kando가 자동으로 다운로드합니다. 기다리지 않고 다음 단계로 넘어가도 됩니다."+
@@ -6686,6 +6725,7 @@ var textsKo = i18n.NewTexts(""+
 	"자막 보기/숨기기"+
 	"음량 낮추기"+
 	"음량 높이기"+
+	"이 동영상을 재생하려면 설치되지 않은 GStreamer 플러그인이 필요합니다. Debian 또는 Ubuntu에서는 터미널에서 아래 명령을 실행하십시오. 다른 시스템에서는 GTK 4의 GStreamer 미디어 백엔드와 GStreamer의 good, bad, libav 플러그인을 설치하십시오. 그런 다음 Kando를 다시 여십시오."+
 	"복사됨"+
 	"음소거됨"+
 	"재생 속도 설정을 저장할 수 없습니다"+
@@ -6910,8 +6950,9 @@ var textsKo = i18n.NewTexts(""+
 	"라이브러리 열기…"+
 	"다시 감지"+
 	"다시 시도"+
+	"다운로드 페이지"+
 	"없는 프로그램은 Kando가 자동으로 다운로드합니다. 이 컴퓨터에 이미 설치된 것은 그대로 사용합니다."+
-	"이 프로그램들은 이 컴퓨터에 있는 것으로, Kando가 설치하거나 업데이트하지 않습니다."+
+	"이 시스템에서는 Kando가 이 프로그램들을 다운로드할 수 없습니다. 각 다운로드 페이지에서 설치하고 폴더를 PATH에 추가한 다음 ‘다시 감지’를 누르십시오."+
 	"오디오 변환, 표지 추출, 화면 디코딩"+
 	"음성 인식"+
 	"온라인 동영상 다운로드"+
@@ -7212,7 +7253,9 @@ var textsKo = i18n.NewTexts(""+
 		9,
 		6,
 		9,
+		9,
 		6,
+		13,
 		13,
 		13,
 		13,
@@ -7404,6 +7447,7 @@ var textsKo = i18n.NewTexts(""+
 		28,
 		41,
 		65,
+		155,
 		89,
 		26,
 		6,
@@ -7508,7 +7552,7 @@ var textsKo = i18n.NewTexts(""+
 		12,
 		67,
 		13,
-		82,
+		65,
 		57,
 		67,
 		105,
@@ -7561,6 +7605,7 @@ var textsKo = i18n.NewTexts(""+
 		23,
 		16,
 		16,
+		356,
 		9,
 		12,
 		50,
@@ -7785,8 +7830,9 @@ var textsKo = i18n.NewTexts(""+
 		25,
 		13,
 		13,
+		22,
 		135,
-		115,
+		209,
 		49,
 		13,
 		32,
@@ -8090,7 +8136,9 @@ var textsZhHans = i18n.NewTexts(""+
 	"橙色"+
 	"白色"+
 	"黄色"+
+	"已拷贝"+
 	"复制"+
+	"拷贝命令"+
 	"拷贝台词"+
 	"拷贝原文"+
 	"拷贝译文"+
@@ -8282,6 +8330,7 @@ var textsZhHans = i18n.NewTexts(""+
 	"导入资料库"+
 	"先写资料库的名称"+
 	"资料库名称不能包含路径"+
+	"Windows 不允许这个名称。请不要使用 < > : \" | ? *，也不要使用 CON、NUL 等 Windows 保留的名称。"+
 	"已经有这个资料库，换个名字"+
 	"打开本地视频…"+
 	"打开"+
@@ -8386,7 +8435,7 @@ var textsZhHans = i18n.NewTexts(""+
 	"跳过"+
 	"随时可以按 F1 回到这里。"+
 	"正在连接…"+
-	"请用包管理器安装，并确保它在 PATH 中"+
+	"请从它的下载页面安装，并加进 PATH"+
 	"正在下载看懂需要的程序"+
 	"看懂要用这些程序处理视频"+
 	"看懂会自动下载，不用等，可以先进入下一步。"+
@@ -8439,6 +8488,7 @@ var textsZhHans = i18n.NewTexts(""+
 	"显示/隐藏字幕"+
 	"音量减小"+
 	"音量加大"+
+	"播放这个视频需要尚未安装的 GStreamer 插件。在 Debian 或 Ubuntu 上，请在终端运行下面的命令；在其他系统上，请安装 GTK 4 的 GStreamer 媒体后端，以及 GStreamer 的 good、bad 和 libav 插件。然后重新打开看懂。"+
 	"已拷贝"+
 	"静音"+
 	"播放速度设置无法保存"+
@@ -8663,8 +8713,9 @@ var textsZhHans = i18n.NewTexts(""+
 	"打开资料库…"+
 	"重新检测"+
 	"重试"+
+	"下载页面"+
 	"缺少的程序看懂会自动下载；这台电脑上已经装了的，就用已装的那份。"+
-	"这些程序来自本机，看懂不负责安装或更新。"+
+	"看懂无法在这个系统上下载这些程序。请从各自的下载页面安装，并把所在文件夹加进 PATH，然后点「重新检测」。"+
 	"音频转换、截取封面、解码画面"+
 	"语音识别"+
 	"下载在线视频"+
@@ -8965,7 +9016,9 @@ var textsZhHans = i18n.NewTexts(""+
 		6,
 		6,
 		6,
+		9,
 		6,
+		12,
 		12,
 		12,
 		12,
@@ -9157,6 +9210,7 @@ var textsZhHans = i18n.NewTexts(""+
 		15,
 		24,
 		33,
+		120,
 		39,
 		21,
 		6,
@@ -9261,7 +9315,7 @@ var textsZhHans = i18n.NewTexts(""+
 		6,
 		34,
 		15,
-		51,
+		47,
 		33,
 		36,
 		63,
@@ -9314,6 +9368,7 @@ var textsZhHans = i18n.NewTexts(""+
 		19,
 		12,
 		12,
+		267,
 		9,
 		6,
 		30,
@@ -9538,8 +9593,9 @@ var textsZhHans = i18n.NewTexts(""+
 		18,
 		12,
 		6,
+		12,
 		96,
-		60,
+		152,
 		42,
 		12,
 		18,
@@ -9843,7 +9899,9 @@ var textsZhHant = i18n.NewTexts(""+
 	"橙色"+
 	"白色"+
 	"黃色"+
+	"已拷貝"+
 	"拷貝"+
+	"拷貝指令"+
 	"拷貝台詞"+
 	"拷貝原文"+
 	"拷貝譯文"+
@@ -10035,6 +10093,7 @@ var textsZhHant = i18n.NewTexts(""+
 	"匯入資料庫"+
 	"請先輸入資料庫的名稱"+
 	"資料庫名稱不能包含路徑"+
+	"Windows 不允許這個名稱。請不要使用 < > : \" | ? *，也不要使用 CON、NUL 等 Windows 保留的名稱。"+
 	"已經有這個資料庫，請換個名稱"+
 	"打開本機影片…"+
 	"打開"+
@@ -10139,7 +10198,7 @@ var textsZhHant = i18n.NewTexts(""+
 	"略過"+
 	"隨時可以按 F1 回到這裡。"+
 	"正在連線…"+
-	"請用套件管理器安裝，並確認它在 PATH 中"+
+	"請從它的下載頁面安裝，並加入 PATH"+
 	"正在下載看懂需要的程式"+
 	"看懂要用這些程式處理影片"+
 	"看懂會自動下載，不用等，可以先進入下一步。"+
@@ -10192,6 +10251,7 @@ var textsZhHant = i18n.NewTexts(""+
 	"顯示/隱藏字幕"+
 	"調低音量"+
 	"調高音量"+
+	"播放這部影片需要尚未安裝的 GStreamer 外掛。在 Debian 或 Ubuntu 上，請在終端機執行下方的指令；在其他系統上，請安裝 GTK 4 的 GStreamer 媒體後端，以及 GStreamer 的 good、bad 和 libav 外掛。然後重新開啟看懂。"+
 	"已拷貝"+
 	"靜音"+
 	"播放速度設定無法儲存"+
@@ -10416,8 +10476,9 @@ var textsZhHant = i18n.NewTexts(""+
 	"打開資料庫…"+
 	"重新偵測"+
 	"重試"+
+	"下載頁面"+
 	"缺少的程式看懂會自動下載；這台電腦上已經裝了的，就用已裝的那份。"+
-	"這些程式來自本機，看懂不負責安裝或更新。"+
+	"看懂無法在這個系統上下載這些程式。請從各自的下載頁面安裝，並把所在資料夾加入 PATH，然後按「重新偵測」。"+
 	"音訊轉換、擷取封面、解碼畫面"+
 	"語音辨識"+
 	"下載線上影片"+
@@ -10718,7 +10779,9 @@ var textsZhHant = i18n.NewTexts(""+
 		6,
 		6,
 		6,
+		9,
 		6,
+		12,
 		12,
 		12,
 		12,
@@ -10910,6 +10973,7 @@ var textsZhHant = i18n.NewTexts(""+
 		15,
 		30,
 		33,
+		120,
 		42,
 		21,
 		6,
@@ -11014,7 +11078,7 @@ var textsZhHant = i18n.NewTexts(""+
 		6,
 		34,
 		15,
-		54,
+		47,
 		33,
 		36,
 		63,
@@ -11067,6 +11131,7 @@ var textsZhHant = i18n.NewTexts(""+
 		19,
 		12,
 		12,
+		270,
 		9,
 		6,
 		30,
@@ -11291,8 +11356,9 @@ var textsZhHant = i18n.NewTexts(""+
 		18,
 		12,
 		6,
+		12,
 		96,
-		60,
+		152,
 		42,
 		12,
 		18,
@@ -11903,6 +11969,9 @@ func Supply(lang string, t Translation) {
 	if t.OnboardingToolProgress != nil {
 		s.OnboardingToolProgress = t.OnboardingToolProgress
 	}
+	if t.OnboardingToolUnavailableCommand != nil {
+		s.OnboardingToolUnavailableCommand = t.OnboardingToolUnavailableCommand
+	}
 	if t.PaletteAnswerNote != nil {
 		s.PaletteAnswerNote = t.PaletteAnswerNote
 	}
@@ -12202,6 +12271,12 @@ func Supply(lang string, t Translation) {
 	}
 	if t.SettingsGeneralToolDetail != nil {
 		s.SettingsGeneralToolDetail = t.SettingsGeneralToolDetail
+	}
+	if t.SettingsGeneralToolPageLabel != nil {
+		s.SettingsGeneralToolPageLabel = t.SettingsGeneralToolPageLabel
+	}
+	if t.SettingsGeneralToolsNoteScoop != nil {
+		s.SettingsGeneralToolsNoteScoop = t.SettingsGeneralToolsNoteScoop
 	}
 	if t.SettingsGeneralUpdateAvailable != nil {
 		s.SettingsGeneralUpdateAvailable = t.SettingsGeneralUpdateAvailable
@@ -14389,6 +14464,15 @@ func FilmColorYellow(cx *core.Scope) string { return For(cx).FilmColorYellow() }
 // FilmColorYellow is the package's FilmColorYellow in the language of msgs.
 func (msgs Messages) FilmColorYellow() string { return msgs.text(textFilmColorYellow) }
 
+// FilmCommandCopied says "Copied"
+// in the language the app shows under cx.
+//
+// Copy Command once it has copied the command.
+func FilmCommandCopied(cx *core.Scope) string { return For(cx).FilmCommandCopied() }
+
+// FilmCommandCopied is the package's FilmCommandCopied in the language of msgs.
+func (msgs Messages) FilmCommandCopied() string { return msgs.text(textFilmCommandCopied) }
+
 // FilmCopy says "Copy"
 // in the language the app shows under cx.
 //
@@ -14397,6 +14481,15 @@ func FilmCopy(cx *core.Scope) string { return For(cx).FilmCopy() }
 
 // FilmCopy is the package's FilmCopy in the language of msgs.
 func (msgs Messages) FilmCopy() string { return msgs.text(textFilmCopy) }
+
+// FilmCopyCommand says "Copy Command"
+// in the language the app shows under cx.
+//
+// Button under the note of a video that needs GStreamer plug-ins, on Linux: copies the command that installs them.
+func FilmCopyCommand(cx *core.Scope) string { return For(cx).FilmCopyCommand() }
+
+// FilmCopyCommand is the package's FilmCopyCommand in the language of msgs.
+func (msgs Messages) FilmCopyCommand() string { return msgs.text(textFilmCopyCommand) }
 
 // FilmCopyLine says "Copy Line"
 // in the language the app shows under cx.
@@ -18380,6 +18473,15 @@ func LibraryNameHasPath(cx *core.Scope) string { return For(cx).LibraryNameHasPa
 // LibraryNameHasPath is the package's LibraryNameHasPath in the language of msgs.
 func (msgs Messages) LibraryNameHasPath() string { return msgs.text(textLibraryNameHasPath) }
 
+// LibraryNameNotAllowed says "Windows doesn't allow this name. Leave out < > : \" | ? * and don't use a name Windows reserves, such as CON or NUL."
+// in the language the app shows under cx.
+//
+// Error in the new-library sheet on Windows: the name holds a character Windows refuses in a file's name, or is a device name it reserves.
+func LibraryNameNotAllowed(cx *core.Scope) string { return For(cx).LibraryNameNotAllowed() }
+
+// LibraryNameNotAllowed is the package's LibraryNameNotAllowed in the language of msgs.
+func (msgs Messages) LibraryNameNotAllowed() string { return msgs.text(textLibraryNameNotAllowed) }
+
 // LibraryNameTaken says "A library with this name already exists. Choose another name."
 // in the language the app shows under cx.
 //
@@ -20496,15 +20598,47 @@ func (msgs Messages) OnboardingToolProgress(percent int) string {
 	}
 }
 
-// OnboardingToolUnavailable says "Install it with your package manager and make sure it is on PATH"
+// OnboardingToolUnavailable says "Install it from its download page and add it to PATH"
 // in the language the app shows under cx.
 //
-// Line under a program in the guide on a system Kando cannot download it for, such as Windows.
+// Line under a program in the guide on a system Kando cannot download it for, beside the link to its download page.
 func OnboardingToolUnavailable(cx *core.Scope) string { return For(cx).OnboardingToolUnavailable() }
 
 // OnboardingToolUnavailable is the package's OnboardingToolUnavailable in the language of msgs.
 func (msgs Messages) OnboardingToolUnavailable() string {
 	return msgs.text(textOnboardingToolUnavailable)
+}
+
+// OnboardingToolUnavailableCommand says "Install it with {command}, or from its download page"
+// in the language the app shows under cx.
+//
+// Line under a program in the guide on Windows, where Kando cannot download it; {command} installs it with the Scoop package manager and is not translated.
+func OnboardingToolUnavailableCommand(cx *core.Scope, command string) string {
+	return For(cx).OnboardingToolUnavailableCommand(command)
+}
+
+// OnboardingToolUnavailableCommand is the package's OnboardingToolUnavailableCommand in the language of msgs.
+func (msgs Messages) OnboardingToolUnavailableCommand(command string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.OnboardingToolUnavailableCommand(command))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].OnboardingToolUnavailableCommand; f != nil {
+			return f(command)
+		}
+		switch lang {
+		case "", "en":
+			return "Install it with " + msgs.arg(command) + ", or from its download page"
+		case "ja":
+			return command + " でインストールするか、ダウンロードページから入手してください"
+		case "ko":
+			return command + "(으)로 설치하거나 다운로드 페이지에서 받으세요"
+		case "zh-Hans":
+			return "用 " + command + " 安装，或从它的下载页面安装"
+		case "zh-Hant":
+			return "用 " + command + " 安裝，或從它的下載頁面安裝"
+		}
+	}
 }
 
 // OnboardingToolsDownloading says "Downloading the programs Kando needs"
@@ -21303,6 +21437,15 @@ func PlayerKeyVolumeUp(cx *core.Scope) string { return For(cx).PlayerKeyVolumeUp
 // PlayerKeyVolumeUp is the package's PlayerKeyVolumeUp in the language of msgs.
 func (msgs Messages) PlayerKeyVolumeUp() string { return msgs.text(textPlayerKeyVolumeUp) }
 
+// PlayerMissingPlugins says "This video needs GStreamer plug-ins that aren't installed. On Debian or Ubuntu, run the command below in a terminal; on other systems, install GTK 4's GStreamer media backend and GStreamer's good, bad and libav plug-ins. Then reopen Kando."
+// in the language the app shows under cx.
+//
+// Shown in place of the picture on Linux when the system's player has no GStreamer plug-in for the video; the command to copy, for Debian and Ubuntu, is under it.
+func PlayerMissingPlugins(cx *core.Scope) string { return For(cx).PlayerMissingPlugins() }
+
+// PlayerMissingPlugins is the package's PlayerMissingPlugins in the language of msgs.
+func (msgs Messages) PlayerMissingPlugins() string { return msgs.text(textPlayerMissingPlugins) }
+
 // PlayerOsdCopied says "Copied"
 // in the language the app shows under cx.
 //
@@ -21493,7 +21636,7 @@ func (msgs Messages) PlayerSubsUnreadable() string { return msgs.text(textPlayer
 // PlayerUnplayable says "This video can't be played"
 // in the language the app shows under cx.
 //
-// Shown in place of the picture when ffmpeg cannot open the video.
+// Shown in place of the picture when the system's player cannot play the video, nor the copies ffmpeg makes of it for the player.
 func PlayerUnplayable(cx *core.Scope) string { return For(cx).PlayerUnplayable() }
 
 // PlayerUnplayable is the package's PlayerUnplayable in the language of msgs.
@@ -26521,6 +26664,47 @@ func (msgs Messages) SettingsGeneralToolDetail(use string, where string) string 
 	}
 }
 
+// SettingsGeneralToolPage says "Download Page"
+// in the language the app shows under cx.
+//
+// Link at the end of a program's row in Settings › General and in the guide, on a system where Kando cannot download the program (Windows): opens the program's own page of builds.
+func SettingsGeneralToolPage(cx *core.Scope) string { return For(cx).SettingsGeneralToolPage() }
+
+// SettingsGeneralToolPage is the package's SettingsGeneralToolPage in the language of msgs.
+func (msgs Messages) SettingsGeneralToolPage() string { return msgs.text(textSettingsGeneralToolPage) }
+
+// SettingsGeneralToolPageLabel says "{program} download page"
+// in the language the app shows under cx.
+//
+// What assistive technology reads for the Download Page link of a program; {program} is its name, such as ffmpeg.
+func SettingsGeneralToolPageLabel(cx *core.Scope, program string) string {
+	return For(cx).SettingsGeneralToolPageLabel(program)
+}
+
+// SettingsGeneralToolPageLabel is the package's SettingsGeneralToolPageLabel in the language of msgs.
+func (msgs Messages) SettingsGeneralToolPageLabel(program string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.SettingsGeneralToolPageLabel(program))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].SettingsGeneralToolPageLabel; f != nil {
+			return f(program)
+		}
+		switch lang {
+		case "", "en":
+			return msgs.arg(program) + " download page"
+		case "ja":
+			return program + " のダウンロードページ"
+		case "ko":
+			return program + " 다운로드 페이지"
+		case "zh-Hans":
+			return program + " 的下载页面"
+		case "zh-Hant":
+			return program + " 的下載頁面"
+		}
+	}
+}
+
 // SettingsGeneralToolsNote says "Kando downloads the programs it is missing. Those already installed on this computer are used as they are."
 // in the language the app shows under cx.
 //
@@ -26532,10 +26716,10 @@ func (msgs Messages) SettingsGeneralToolsNote() string {
 	return msgs.text(textSettingsGeneralToolsNote)
 }
 
-// SettingsGeneralToolsNoteManual says "These programs come from this computer; Kando doesn't install or update them."
+// SettingsGeneralToolsNoteManual says "Kando doesn't download these programs on this system. Install each from its download page and add its folder to PATH, then choose Detect Again."
 // in the language the app shows under cx.
 //
-// Footnote under the programs Kando runs, on a system where it does not download them (Windows): they are the user's to install.
+// Footnote under the programs Kando runs, on a system where it does not download them and Scoop does not run: they are the user's to install, and Detect Again finds them.
 func SettingsGeneralToolsNoteManual(cx *core.Scope) string {
 	return For(cx).SettingsGeneralToolsNoteManual()
 }
@@ -26543,6 +26727,38 @@ func SettingsGeneralToolsNoteManual(cx *core.Scope) string {
 // SettingsGeneralToolsNoteManual is the package's SettingsGeneralToolsNoteManual in the language of msgs.
 func (msgs Messages) SettingsGeneralToolsNoteManual() string {
 	return msgs.text(textSettingsGeneralToolsNoteManual)
+}
+
+// SettingsGeneralToolsNoteScoop says "Kando doesn't download these programs on Windows. Install them by running {command} in a terminal, or each from its download page and add its folder to PATH, then choose Detect Again."
+// in the language the app shows under cx.
+//
+// Footnote under the programs Kando runs on Windows, where it does not download them; {command} installs all of them with the Scoop package manager and is not translated.
+func SettingsGeneralToolsNoteScoop(cx *core.Scope, command string) string {
+	return For(cx).SettingsGeneralToolsNoteScoop(command)
+}
+
+// SettingsGeneralToolsNoteScoop is the package's SettingsGeneralToolsNoteScoop in the language of msgs.
+func (msgs Messages) SettingsGeneralToolsNoteScoop(command string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.SettingsGeneralToolsNoteScoop(command))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].SettingsGeneralToolsNoteScoop; f != nil {
+			return f(command)
+		}
+		switch lang {
+		case "", "en":
+			return "Kando doesn't download these programs on Windows. Install them by running " + msgs.arg(command) + " in a terminal, or each from its download page and add its folder to PATH, then choose Detect Again."
+		case "ja":
+			return "Windows では Kando はこれらのプログラムをダウンロードできません。ターミナルで " + command + " を実行するとまとめてインストールできます。または、それぞれのダウンロードページからインストールしてフォルダを PATH に追加し、「再検出」を押してください。"
+		case "ko":
+			return "Windows에서는 Kando가 이 프로그램들을 다운로드할 수 없습니다. 터미널에서 " + command + "을(를) 실행하면 한꺼번에 설치되며, 각 다운로드 페이지에서 설치하고 폴더를 PATH에 추가할 수도 있습니다. 그런 다음 ‘다시 감지’를 누르십시오."
+		case "zh-Hans":
+			return "看懂无法在 Windows 上下载这些程序。在终端运行 " + command + " 即可全部安装，或从各自的下载页面安装并把所在文件夹加进 PATH，然后点「重新检测」。"
+		case "zh-Hant":
+			return "看懂無法在 Windows 上下載這些程式。在終端機執行 " + command + " 即可全部安裝，或從各自的下載頁面安裝並把所在資料夾加入 PATH，然後按「重新偵測」。"
+		}
+	}
 }
 
 // SettingsGeneralUpdateAvailable says "Version {version} is available"
