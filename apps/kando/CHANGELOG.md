@@ -2,6 +2,12 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.16.2 - 2026-11-16
+
+### Fixes
+
+- Tell a browser folder macOS keeps from Kando from a missing one (#173)
+
 ## 0.16.1 - 2026-11-16
 
 ### Fixes
