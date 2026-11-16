@@ -4,7 +4,10 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"image"
+	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -126,6 +129,7 @@ func newTestApp(t *testing.T, p media.Pipeline, opts ...nsgotest.Option) (*app, 
 	updates := make(chan func(), 16)
 	a := newApp(p, func(fn func()) { updates <- fn })
 	a.prefs.listModels = offlineModels
+	a.prefs.pingLLM = offlinePing
 	a.prefs.interfaceLanguage = testlocale.Current()
 	a.edit(func(s *session) { s.LibraryDir = "/videos" })
 	opts = append([]nsgotest.Option{nsgotest.Size(1100, 720), nsgotest.Environment(testEnvironment())}, opts...)
@@ -402,6 +406,30 @@ func offlineModels(_ context.Context, t media.ChatTranslator) ([]string, error) 
 		return nil, nil
 	}
 	return []string{t.Model}, nil
+}
+
+// offlinePing stands in for the connection test in tests, which reach no network: it asks a service on this computer, as a test's httptest server, and no other.
+func offlinePing(ctx context.Context, t media.ChatTranslator) error {
+	client := http.Client{Transport: loopbackOnly{}}
+	if t.Client != nil {
+		client = *t.Client
+		client.Transport = loopbackOnly{next: t.Client.Transport}
+	}
+	t.Client = &client
+	return t.Ping(ctx)
+}
+
+// loopbackOnly sends a request on to next, or the default transport, only when it goes to this computer.
+type loopbackOnly struct{ next http.RoundTripper }
+
+func (l loopbackOnly) RoundTrip(r *http.Request) (*http.Response, error) {
+	if ip := net.ParseIP(r.URL.Hostname()); r.URL.Hostname() != "localhost" && (ip == nil || !ip.IsLoopback()) {
+		return nil, errors.New("tests reach no network: " + r.URL.Host)
+	}
+	if l.next == nil {
+		return http.DefaultTransport.RoundTrip(r)
+	}
+	return l.next.RoundTrip(r)
 }
 
 // clickRow puts the keyboard in the field of the form row labeled label, as a click on the row does, and fails t unless the field took the focus.

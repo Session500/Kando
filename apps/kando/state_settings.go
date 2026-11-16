@@ -51,7 +51,7 @@ type settingsUI struct {
 	llmTestOK  bool
 	llmTestErr error
 	llmTestGen int
-	// llmModels are the model ids the AI service offers, fetched for the service, Base URL and key in llmModelsFor; llmModelsLoading is set while a fetch runs and llmModelsErr is why the last one failed, which LLMModelsErr words in the language it is shown in. llmEdited is when the Base URL or the key was last typed, so a fetch waits for typing to pause, and llmWaiting is set while a timer waits for that pause. listModels asks a service for its models; tests replace it.
+	// llmModels are the model ids the AI service offers, fetched for the service, Base URL and key in llmModelsFor; llmModelsLoading is set while a fetch runs and llmModelsErr is why the last one failed, which LLMModelsErr words in the language it is shown in. llmEdited is when the Base URL or the key was last typed, so a fetch waits for typing to pause, and llmWaiting is set while a timer waits for that pause. listModels asks a service for its models, and pingLLM whether it translates with the key and model given, as 测试连接 does; tests replace them.
 	llmModels        []string
 	llmModelsFor     string
 	llmModelsLoading bool
@@ -59,6 +59,7 @@ type settingsUI struct {
 	llmEdited        time.Time
 	llmWaiting       bool
 	listModels       func(context.Context, media.ChatTranslator) ([]string, error)
+	pingLLM          func(context.Context, media.ChatTranslator) error
 	toolVersions     map[string]string
 	versionGen       int
 	// open and section are the settings the user asked for: OpenSettings sets open and the settings.Section value it was given, the window's sidebar changes section, and closing the window clears open. Code and tests outside the settings area read these, never app.page, which the settings window leaves alone (D2). section "" is 通用.
@@ -75,7 +76,7 @@ type settingsUI struct {
 }
 
 func newSettingsUI() settingsUI {
-	return settingsUI{interfaceLanguage: locales.Default, language: "简体中文", translatePrompt: media.DefaultSubtitlePrompt, translateContext: true, listModels: func(ctx context.Context, t media.ChatTranslator) ([]string, error) { return t.Models(ctx) }}
+	return settingsUI{interfaceLanguage: locales.Default, language: "简体中文", translatePrompt: media.DefaultSubtitlePrompt, translateContext: true, listModels: func(ctx context.Context, t media.ChatTranslator) ([]string, error) { return t.Models(ctx) }, pingLLM: func(ctx context.Context, t media.ChatTranslator) error { return t.Ping(ctx) }}
 }
 
 // savedInterface is the settings window's own part of settings.json: the interface language, kept separate from savedTranslate, whose language is the target language of generated subtitles, and where the window was, which MyGo's StateKey used to keep in a file of its own.

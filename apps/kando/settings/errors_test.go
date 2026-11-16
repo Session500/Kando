@@ -149,9 +149,28 @@ func TestDefaultModelPrefersChatModels(t *testing.T) {
 		{Preset{}, []string{"distil-whisper-large-v3-en", "llama-3.3-70b-versatile", "whisper-large-v3"}, "llama-3.3-70b-versatile"},
 		{Preset{}, []string{"text-embedding-v3", "tts-1"}, "text-embedding-v3"},
 		{Preset{Model: "m"}, nil, ""},
+		// SiliconFlow's and Groq's lists, sorted as media's Models returns them, start with embedding, speech, image and guard models.
+		{Preset{}, []string{"BAAI/bge-large-zh-v1.5", "BAAI/bge-m3", "BAAI/bge-reranker-v2-m3", "FunAudioLLM/CosyVoice2-0.5B", "FunAudioLLM/SenseVoiceSmall", "Kwai-Kolors/Kolors", "Qwen/Qwen2.5-7B-Instruct", "black-forest-labs/FLUX.1-schnell", "stabilityai/stable-diffusion-3-5-large"}, "Qwen/Qwen2.5-7B-Instruct"},
+		{Preset{}, []string{"meta-llama/llama-guard-4-12b", "meta-llama/llama-prompt-guard-2-86m", "playai-tts", "qwen/qwen3-32b"}, "qwen/qwen3-32b"},
 	} {
 		if got := DefaultModel(tc.preset, tc.models); got != tc.want {
 			t.Errorf("DefaultModel(%q, %q) = %q, want %q", tc.preset.Model, tc.models, got, tc.want)
+		}
+	}
+}
+
+// TestCloudPresetsNameAChatModel checks that every service in the cloud fills in a chat model of its own when it is chosen, rather than leaving the choice to the first id its list happens to sort first, which on several services is an embedding, image or guard model.
+func TestCloudPresetsNameAChatModel(t *testing.T) {
+	for _, preset := range Presets(testlocale.Messages()) {
+		if preset.Group != GroupCloud {
+			continue
+		}
+		if preset.Model == "" {
+			t.Errorf("%s names no model", preset.ID)
+			continue
+		}
+		if got := DefaultModel(Preset{}, []string{preset.Model}); got != preset.Model {
+			t.Errorf("%s's model %q looks like one that does not chat", preset.ID, preset.Model)
 		}
 	}
 }

@@ -371,26 +371,31 @@ func TestEveryAPICLIThatFailsOtherwiseSaysWhat(t *testing.T) {
 	}
 }
 
-// TestSwitchingTheServiceChoosesItsModel checks that choosing another service does not keep the model of the one before, which the new service does not have: a service with a default model of its own gets it, one without gets none until its list is fetched, where a chat model is preferred to the first id listed.
+// TestSwitchingTheServiceChoosesItsModel checks that choosing another service does not keep the model of the one before, which the new service does not have: a service with a default model of its own gets it, every one in the cloud among them, and one on this computer gets none until its list is fetched, where a chat model is preferred to the first id listed and is tested at once.
 func TestSwitchingTheServiceChoosesItsModel(t *testing.T) {
 	tools := media.Tools{Translator: media.ChatTranslator{BaseURL: media.EveryAPIBaseURL, Model: media.EveryAPIModel}}
 	a, tt, updates := newTestApp(t, tools)
 	a.syncLLM(tools)
 	a.settingsPath = filepath.Join(t.TempDir(), "settings.json")
 	a.prefs.listModels = func(_ context.Context, tr media.ChatTranslator) ([]string, error) {
-		if tr.BaseURL == "https://api.groq.com/openai/v1" {
-			return []string{"distil-whisper-large-v3-en", "llama-3.3-70b-versatile", "whisper-large-v3"}, nil
+		if tr.BaseURL == "http://127.0.0.1:11434/v1" {
+			return []string{"all-minilm", "llama-guard3", "nomic-embed-text", "qwen3:8b"}, nil
 		}
 		return offlineModels(context.Background(), tr)
+	}
+	var pinged []string
+	a.prefs.pingLLM = func(_ context.Context, tr media.ChatTranslator) error {
+		pinged = append(pinged, tr.Model)
+		return nil
 	}
 
 	a.selectLLM("openai")
 	if got := translator(t, a); got.Model != "gpt-4.1-mini" || a.prefs.llmModel != "gpt-4.1-mini" {
 		t.Fatalf("OpenAI's model %q, field %q", got.Model, a.prefs.llmModel)
 	}
-	a.selectLLM("custom")
-	if got := translator(t, a); got.BaseURL != "https://api.openai.com/v1" || got.Model != "gpt-4.1-mini" {
-		t.Fatalf("choosing 自定义 on the same endpoint changed it: base %q model %q", got.BaseURL, got.Model)
+	a.selectLLM("groq")
+	if got := translator(t, a); got.Model != "llama-3.3-70b-versatile" {
+		t.Fatalf("Groq's model %q", got.Model)
 	}
 	a.selectLLM("everyapi")
 	if got := translator(t, a); got.Model != media.EveryAPIModel {
@@ -399,14 +404,41 @@ func TestSwitchingTheServiceChoosesItsModel(t *testing.T) {
 
 	tt = settingsOpenAt(a, tt, settings.SectionAI)
 	waitUntil(t, tt, a, updates, func() bool { return !a.prefs.llmModelsLoading && !a.prefs.llmWaiting })
-	a.selectLLM("groq")
-	if got := translator(t, a); got.Model == media.EveryAPIModel {
-		t.Fatalf("Groq kept EveryAPI's model %q", got.Model)
+	a.selectLLM("ollama")
+	if got := translator(t, a); got.Model != "" {
+		t.Fatalf("Ollama kept the model %q", got.Model)
 	}
 	refresh(tt, a)
-	waitUntil(t, tt, a, updates, func() bool { return a.prefs.llmModel != "" })
-	if got := translator(t, a); got.Model != "llama-3.3-70b-versatile" || loadSavedSettings(a.settingsPath).LLMModel != "llama-3.3-70b-versatile" {
-		t.Fatalf("Groq's model %q saved %q", got.Model, loadSavedSettings(a.settingsPath).LLMModel)
+	waitUntil(t, tt, a, updates, func() bool { return a.prefs.llmModel != "" && !a.prefs.testingLLM })
+	if got := translator(t, a); got.Model != "qwen3:8b" || loadSavedSettings(a.settingsPath).LLMModel != "qwen3:8b" {
+		t.Fatalf("Ollama's model %q saved %q", got.Model, loadSavedSettings(a.settingsPath).LLMModel)
+	}
+	if !slices.Equal(pinged, []string{"qwen3:8b"}) || !a.LLMConnected() {
+		t.Fatalf("tested %q, connected %v", pinged, a.LLMConnected())
+	}
+}
+
+// TestAServiceThatDropsItsDefaultModelGetsAnother checks that the model a service in the cloud fills in is replaced by a chat model it lists when it no longer lists that one, and that a model of the user's own is kept even then.
+func TestAServiceThatDropsItsDefaultModelGetsAnother(t *testing.T) {
+	llmEnv(t, "", "", "")
+	listed := []string{"meta-llama/llama-guard-4-12b", "playai-tts", "qwen/qwen3-32b"}
+	for _, tc := range []struct{ model, want string }{
+		{"llama-3.3-70b-versatile", "qwen/qwen3-32b"},
+		{"my-own-model", "my-own-model"},
+	} {
+		t.Run(tc.model, func(t *testing.T) {
+			tools := media.Tools{Translator: media.ChatTranslator{BaseURL: "https://api.groq.com/openai/v1", Model: tc.model, APIKey: "gsk-test"}}
+			a, tt, updates := newTestApp(t, tools)
+			a.syncLLM(tools)
+			a.settingsPath = filepath.Join(t.TempDir(), "settings.json")
+			a.prefs.listModels = func(context.Context, media.ChatTranslator) ([]string, error) { return listed, nil }
+			a.prefs.pingLLM = func(context.Context, media.ChatTranslator) error { return nil }
+			tt = settingsOpenAt(a, tt, settings.SectionAI)
+			waitUntil(t, tt, a, updates, func() bool { return a.prefs.llmModels != nil && !a.prefs.testingLLM })
+			if got := translator(t, a).Model; got != tc.want {
+				t.Fatalf("model %q, want %q", got, tc.want)
+			}
+		})
 	}
 }
 

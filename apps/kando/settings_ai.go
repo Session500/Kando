@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -193,13 +194,13 @@ func (a *app) testLLM() {
 	a.llmForgetTest()
 	a.prefs.testingLLM = true
 	gen := a.prefs.llmTestGen
-	translator := tools.Translator
+	translator, ping := tools.Translator, a.prefs.pingLLM
 	credential := translator.Credential != nil
 	update := a.update
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		err := translator.Ping(ctx)
+		err := ping(ctx, translator)
 		update(func() {
 			if gen != a.prefs.llmTestGen {
 				return
@@ -295,12 +296,19 @@ func (a *app) fetchLLMModels(force bool) bool {
 	return true
 }
 
-// adoptLLMModel picks a model when none is chosen yet: the service's own default when it offers it, else the first chat model it lists (settings.DefaultModel). A model already chosen is kept even when the list lacks it; the drop-down shows it on top.
+// adoptLLMModel picks a model when none is chosen yet, or when the one in use is the service's own default and the service no longer lists it: the service's own default when it offers it, else the first chat model it lists (settings.DefaultModel). A model the user chose is kept even when the list lacks it; the drop-down shows it on top. The model picked is tested at once, where the service can answer without a key or has one and EveryAPI's sign-in is not missing, so the page says whether translation works.
 func (a *app) adoptLLMModel() {
-	if strings.TrimSpace(a.prefs.llmModel) != "" || len(a.prefs.llmModels) == 0 {
+	if len(a.prefs.llmModels) == 0 {
 		return
 	}
 	preset, _ := settings.PresetByID(a.messages(), a.prefs.llmProvider)
+	model := strings.TrimSpace(a.prefs.llmModel)
+	if model != "" && (model != preset.Model || slices.Contains(a.prefs.llmModels, model)) {
+		return
+	}
 	a.prefs.llmModel = settings.DefaultModel(preset, a.prefs.llmModels)
 	a.applyLLM()
+	if tools, ok := a.pipeline.(media.Tools); ok && (!preset.NeedsKey() || tools.Translator.APIKey != "") && !everyAPICLIMissing(tools.Translator) {
+		a.testLLM()
+	}
 }
