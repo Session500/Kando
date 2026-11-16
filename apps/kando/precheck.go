@@ -15,7 +15,11 @@ import (
 
 // precheck says why sources cannot be processed yet, in the prototype's words (locales.Precheck…) in the interface's language, as the message bar and the guide's link field keep them, and the settings section that fixes it ("" when none does), in the prototype's order: an empty field, something that is not a link, a channel, a list or a page that names no single video, then what precheckReady finds missing. It reads only what the app already holds, so a click can afford it; what it cannot tell without running a program, as an EveryAPI login that has expired, still fails the job, whose card says so.
 func (a *app) precheck(sources []string) (msg, section string) {
-	m := a.messages()
+	return a.precheckIn(a.messages(), sources)
+}
+
+// precheckIn is precheck in the language of m, as the control socket says it in English.
+func (a *app) precheckIn(m locales.Messages, sources []string) (msg, section string) {
 	if len(sources) == 0 {
 		return m.PrecheckEmpty(), ""
 	}
@@ -32,12 +36,14 @@ func (a *app) precheck(sources []string) (msg, section string) {
 			return precheckWhole(m, link), ""
 		}
 	}
-	return a.precheckReady()
+	return a.precheckReadyIn(m)
 }
 
-// precheckReady is what precheck says of the app rather than of the sources: no library, then the tools and settings a job needs. A message bar that says it closes once it says nothing, and follows it once it says something else (libraryFollowNotice, browseFollowNotice), as the problem was fixed in the meantime.
-func (a *app) precheckReady() (msg, section string) {
-	m := a.messages()
+// precheckReady is precheckReadyIn in the interface's language.
+func (a *app) precheckReady() (msg, section string) { return a.precheckReadyIn(a.messages()) }
+
+// precheckReadyIn is what precheck says of the app rather than of the sources: no library, then the tools and settings a job needs. A message bar that says it closes once it says nothing, and follows it once it says something else (libraryFollowNotice, browseFollowNotice), as the problem was fixed in the meantime.
+func (a *app) precheckReadyIn(m locales.Messages) (msg, section string) {
 	if strings.TrimSpace(a.snap().LibraryDir) == "" {
 		return m.PrecheckNoLibrary(), ""
 	}
