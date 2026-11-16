@@ -12,9 +12,9 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# The repository root is a Go workspace (go.work), not a module, so ./... matches nothing there: the jobs list the three modules. The landing page, apps/site, is a Vite+ project with a job of its own (Site), so that a pull request that breaks its build, such as one that renames a screenshot or a featured site's logo, fails here rather than in the Site workflow after it is merged.
+# The repository root is a Go workspace (go.work), not a module, so ./... matches nothing there: the jobs list the four modules. The landing page, apps/site, is a Vite+ project with a job of its own (Site), so that a pull request that breaks its build, such as one that renames a screenshot or a featured site's logo, fails here rather than in the Site workflow after it is merged.
 env:
-  PKGS: ./apps/kando/... ./packages/core/... ./packages/media/...
+  PKGS: ./apps/kando/... ./packages/core/... ./packages/media/... ./packages/sync/...
 
 jobs:
   test:
@@ -28,7 +28,7 @@ jobs:
           # ffmpeg: the rows that install ffmpeg set KANDO_REQUIRE_FFMPEG, which fails the tests that need it rather than letting them skip.
           - { name: Linux, os: ubuntu-latest, ffmpeg: "1" }
           - { name: macOS, os: macos-latest, ffmpeg: "1" }
-          # Windows runs all three modules, as Release publishes the Windows installers.
+          # Windows runs all four modules, as Release publishes the Windows installers.
           - { name: Windows, os: windows-latest, ffmpeg: "1" }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -166,7 +166,7 @@ jobs:
           fi
       - name: go mod tidy
         run: |
-          for module in apps/kando packages/core packages/media; do
+          for module in apps/kando packages/core packages/media packages/sync; do
             (cd "$module" && go mod tidy)
           done
           git diff --exit-code -- '*go.mod' '*go.sum'
@@ -235,7 +235,7 @@ jobs:
       - run: go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
       # govulncheck needs a module, so it runs in each one; the workspace still resolves the modules' replaced packages.
       - run: |
-          for module in apps/kando packages/core packages/media; do
+          for module in apps/kando packages/core packages/media packages/sync; do
             echo "::group::$module"
             govulncheck -C "$module" ./...
             echo "::endgroup::"
