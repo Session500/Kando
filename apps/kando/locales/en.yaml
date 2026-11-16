@@ -2555,6 +2555,11 @@ queueRemedyCookiesWhy:
   description: "What to do when the browser has no sign-in data on this computer."
   placeholders:
     browser: { type: "String", example: "Chrome" }
+queueRemedyDiskAccessWhy:
+  message: "macOS only lets apps with Full Disk Access read {browser}'s sign-in. Allow Kando in System Settings › Privacy & Security › Full Disk Access, then come back and retry, or use another browser."
+  description: "What to do when macOS keeps the browser's sign-in from Kando (Safari's cookies, or the data folder of Chrome, Firefox and the others): grant Full Disk Access in System Settings. Use Apple's names of System Settings, its Privacy & Security pane and that permission."
+  placeholders:
+    browser: { type: "String", example: "Chrome" }
 queueRemedyDownloadYtdlp:
   message: "Download yt-dlp and Retry"
   description: "Button of the card of a download yt-dlp was too old for, when Kando cannot update the yt-dlp on this computer: download Kando's own yt-dlp and download again with it."
@@ -2707,9 +2712,6 @@ queueRemedyRelogged:
 queueRemedyRetry:
   message: "Retry"
   description: "Button of a failed download's card."
-queueRemedySafariWhy:
-  message: "macOS only lets apps with Full Disk Access read Safari's sign-in. Allow Kando in System Settings and come back to retry, or use another browser."
-  description: "What to do when macOS keeps Safari's cookies from Kando: grant Full Disk Access in System Settings. Use Apple's name of that permission."
 queueRemedySentences:
   message: "{first} {second}"
   description: "Two sentences of a failed download's card, one after the other: what the video needs, then how to get it."
@@ -3415,7 +3417,7 @@ settingsGeneralSignInChecking:
     browser: { type: "String", example: "Chrome" }
 settingsGeneralSignInDiskAccess:
   message: "Open System Settings"
-  description: "Button of the Browser Sign-In row when macOS keeps Safari's sign-in from Kando: opens the Full Disk Access pane of System Settings."
+  description: "Button of the Browser Sign-In row when macOS keeps the browser's sign-in from Kando: opens the Full Disk Access pane of System Settings."
 settingsGeneralSignInOff:
   message: "Off"
   description: "Choice of the Browser Sign-In pop-up: downloads borrow no browser's sign-in."

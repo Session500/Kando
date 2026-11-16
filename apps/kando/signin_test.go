@@ -147,7 +147,7 @@ func TestChoosingABrowserChecksItsSignIn(t *testing.T) {
 	}{
 		{"chrome", "", nil},
 		{"edge", msgs.QueueRemedyCookiesNoKey("macOS", "Edge", "Microsoft Edge Safe Storage"), []string{"settings-signin-check"}},
-		{"safari", msgs.QueueRemedySafariWhy(), []string{"settings-signin-disk-access", "settings-signin-check"}},
+		{"safari", msgs.QueueRemedyDiskAccessWhy("Safari"), []string{"settings-signin-disk-access", "settings-signin-check"}},
 		{"firefox", msgs.QueueRemedyCookiesWhy("Firefox"), []string{"settings-signin-check"}},
 	} {
 		a.SetSignInBrowser(tc.browser)
@@ -209,4 +209,49 @@ func TestBrowseStartSaysWhoseSignInDownloadsUse(t *testing.T) {
 	wantText(t, tt, en.BrowseSignInChange())
 	tt.Press("id:browse-signin")
 	wantSettings(t, a, settings.SectionGeneral)
+}
+
+// On a Mac that keeps Chrome's data folder from Kando, yt-dlp says it found no Chrome sign-in data; the row then says Kando needs Full Disk Access, and where macOS gives it, with 打开系统设置 beside 重新检查, as for Safari. Once it has the permission, 重新检查 reads the sign-in. A computer without Chrome's folder still says there is no sign-in data, with 重新检查 alone.
+func TestSignInCheckTellsAClosedBrowserFolderFromAMissingOne(t *testing.T) {
+	msgs := testlocale.Messages()
+	for _, tc := range []struct {
+		name           string
+		chrome, closed bool
+		why            string
+		withDiskAccess bool
+	}{
+		{"Chrome's folder closed", true, true, msgs.QueueRemedyDiskAccessWhy("Chrome"), true},
+		{"no Chrome", false, false, msgs.QueueRemedyCookiesWhy("Chrome"), false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			folder := chromeHome(t, tc.chrome, tc.closed)
+			tools := media.Tools{YTDLP: chromeYTDLP(t), CookieDir: filepath.Join(t.TempDir(), "cookies")}
+			a, tt, updates := newTestApp(t, tools)
+			a.settingsPath = filepath.Join(t.TempDir(), "settings.json")
+			withBrowsers(t, a, "chrome", "safari")
+			tt = settingsOpenAt(a, tt, settings.SectionGeneral)
+			a.SetSignInBrowser("chrome")
+			waitUntil(t, tt, a, updates, func() bool { return !a.signin.checking })
+			if st := a.SignIn(); !st.Checked || st.Trouble == "" {
+				t.Fatalf("the check found %+v", st)
+			}
+			wantText(t, tt, tc.why)
+			if !tt.Exists("id:settings-signin-check") || tt.Exists("id:settings-signin-disk-access") != tc.withDiskAccess {
+				t.Fatalf("the row offers 重新检查 %v, 打开系统设置 %v", tt.Exists("id:settings-signin-check"), tt.Exists("id:settings-signin-disk-access"))
+			}
+			if !tc.closed {
+				return
+			}
+			// Granted Full Disk Access, Kando may list the folder.
+			if err := os.Chmod(folder, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			tt.Press("id:settings-signin-check")
+			waitUntil(t, tt, a, updates, func() bool { return !a.signin.checking })
+			if st := a.SignIn(); !st.Checked || st.Trouble != "" {
+				t.Fatalf("after the permission the check found %+v", st)
+			}
+			wantText(t, tt, msgs.SettingsGeneralSignInReady())
+		})
+	}
 }

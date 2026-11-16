@@ -603,6 +603,7 @@ var Parameters = map[string][]string{
 	"QueueRemedyCookiesNoKey":                  {"platform", "browser", "item"},
 	"QueueRemedyCookiesUnreadable":             {"browser"},
 	"QueueRemedyCookiesWhy":                    {"browser"},
+	"QueueRemedyDiskAccessWhy":                 {"browser"},
 	"QueueRemedyDownloadYtdlpFailed":           {"error_"},
 	"QueueRemedyDrm":                           {"site"},
 	"QueueRemedyHost":                          {"host"},
@@ -885,6 +886,7 @@ type Translation struct {
 	QueueRemedyCookiesNoKey                  func(platform string, browser string, item string) string
 	QueueRemedyCookiesUnreadable             func(browser string) string
 	QueueRemedyCookiesWhy                    func(browser string) string
+	QueueRemedyDiskAccessWhy                 func(browser string) string
 	QueueRemedyDownloadYtdlpFailed           func(error_ string) string
 	QueueRemedyDrm                           func(site string) string
 	QueueRemedyHost                          func(host string) string
@@ -1558,7 +1560,6 @@ const (
 	textQueueRemedyRegionWhy
 	textQueueRemedyRelogged
 	textQueueRemedyRetry
-	textQueueRemedySafariWhy
 	textQueueRemedySites
 	textQueueRemedySwap
 	textQueueRemedyUnsupportedWhy
@@ -2470,7 +2471,6 @@ var keyOfText = [numTexts]string{
 	"queueRemedyRegionWhy",
 	"queueRemedyRelogged",
 	"queueRemedyRetry",
-	"queueRemedySafariWhy",
 	"queueRemedySites",
 	"queueRemedySwap",
 	"queueRemedyUnsupportedWhy",
@@ -3380,7 +3380,6 @@ var textsEn = i18n.NewTexts(""+
 	"The uploader restricted where it can be watched. If the video is available elsewhere, use another link."+
 	"Signed In Again, Retry"+
 	"Retry"+
-	"macOS only lets apps with Full Disk Access read Safari's sign-in. Allow Kando in System Settings and come back to retry, or use another browser."+
 	"See Supported Websites"+
 	"Use Another Link"+
 	"No video was found on the page. Use another link, or download it to this computer first and drag it in."+
@@ -4287,7 +4286,6 @@ var textsEn = i18n.NewTexts(""+
 		103,
 		22,
 		5,
-		144,
 		22,
 		16,
 		103,
@@ -5197,7 +5195,6 @@ var textsJa = i18n.NewTexts(""+
 	"アップロードした人が地域を制限しています。ほかの場所にこの動画があれば、別のリンクを使ってください。"+
 	"再ログイン済み、再試行"+
 	"再試行"+
-	"macOS では「フルディスクアクセス」のある App しか Safari のログインを読み取れません。システム設定で Kando を許可してから戻って再試行するか、別のブラウザを使ってください。"+
 	"対応サイトを見る"+
 	"別のリンクを使う"+
 	"ページに動画が見つかりませんでした。別のリンクを使うか、先にこのコンピュータにダウンロードしてからドラッグしてください。"+
@@ -6104,7 +6101,6 @@ var textsJa = i18n.NewTexts(""+
 		150,
 		33,
 		9,
-		242,
 		24,
 		24,
 		180,
@@ -7014,7 +7010,6 @@ var textsKo = i18n.NewTexts(""+
 	"업로더가 지역을 제한했습니다. 다른 곳에 이 동영상이 있으면 다른 링크를 사용하십시오."+
 	"다시 로그인 완료, 다시 시도"+
 	"다시 시도"+
-	"macOS에서는 ‘전체 디스크 접근 권한’이 있는 앱만 Safari 로그인을 읽을 수 있습니다. 시스템 설정에서 Kando를 허용한 후 돌아와 다시 시도하거나, 다른 브라우저를 사용하십시오."+
 	"지원하는 웹사이트 보기"+
 	"다른 링크 사용"+
 	"페이지에서 동영상을 찾지 못했습니다. 다른 링크를 사용하거나, 먼저 이 컴퓨터에 다운로드한 후 끌어다 놓으십시오."+
@@ -7921,7 +7916,6 @@ var textsKo = i18n.NewTexts(""+
 		120,
 		38,
 		13,
-		236,
 		32,
 		20,
 		157,
@@ -8831,7 +8825,6 @@ var textsZhHans = i18n.NewTexts(""+
 	"上传者限制了地区。别处有这个视频的话，换个链接。"+
 	"已重新登录，重试"+
 	"重试"+
-	"macOS 只让有「完全磁盘访问权限」的 App 读 Safari 的登录。在系统设置里允许看懂，回来再重试，或改用别的浏览器。"+
 	"查看支持的网站"+
 	"换个链接"+
 	"没在页面里找到视频。换个链接，或先下载到本机再拖进来。"+
@@ -9738,7 +9731,6 @@ var textsZhHans = i18n.NewTexts(""+
 		72,
 		24,
 		6,
-		154,
 		21,
 		12,
 		81,
@@ -10648,7 +10640,6 @@ var textsZhHant = i18n.NewTexts(""+
 	"上傳者限制了地區。其他地方有這部影片的話，換個連結。"+
 	"已重新登入，重試"+
 	"重試"+
-	"macOS 只讓有「完整取用磁碟」權限的 App 讀取 Safari 的登入。在系統設定中允許看懂，回來再重試，或改用其他瀏覽器。"+
 	"查看支援的網站"+
 	"換個連結"+
 	"頁面中找不到影片。換個連結，或先下載到本機再拖進來。"+
@@ -11555,7 +11546,6 @@ var textsZhHant = i18n.NewTexts(""+
 		78,
 		24,
 		6,
-		157,
 		21,
 		12,
 		78,
@@ -12485,6 +12475,9 @@ func Supply(lang string, t Translation) {
 	}
 	if t.QueueRemedyCookiesWhy != nil {
 		s.QueueRemedyCookiesWhy = t.QueueRemedyCookiesWhy
+	}
+	if t.QueueRemedyDiskAccessWhy != nil {
+		s.QueueRemedyDiskAccessWhy = t.QueueRemedyDiskAccessWhy
 	}
 	if t.QueueRemedyDownloadYtdlpFailed != nil {
 		s.QueueRemedyDownloadYtdlpFailed = t.QueueRemedyDownloadYtdlpFailed
@@ -23960,6 +23953,38 @@ func (msgs Messages) QueueRemedyCookiesWhy(browser string) string {
 	}
 }
 
+// QueueRemedyDiskAccessWhy says "macOS only lets apps with Full Disk Access read {browser}'s sign-in. Allow Kando in System Settings › Privacy & Security › Full Disk Access, then come back and retry, or use another browser."
+// in the language the app shows under cx.
+//
+// What to do when macOS keeps the browser's sign-in from Kando (Safari's cookies, or the data folder of Chrome, Firefox and the others): grant Full Disk Access in System Settings. Use Apple's names of System Settings, its Privacy & Security pane and that permission.
+func QueueRemedyDiskAccessWhy(cx *core.Scope, browser string) string {
+	return For(cx).QueueRemedyDiskAccessWhy(browser)
+}
+
+// QueueRemedyDiskAccessWhy is the package's QueueRemedyDiskAccessWhy in the language of msgs.
+func (msgs Messages) QueueRemedyDiskAccessWhy(browser string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.QueueRemedyDiskAccessWhy(browser))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].QueueRemedyDiskAccessWhy; f != nil {
+			return f(browser)
+		}
+		switch lang {
+		case "", "en":
+			return "macOS only lets apps with Full Disk Access read " + msgs.arg(browser) + "'s sign-in. Allow Kando in System Settings › Privacy & Security › Full Disk Access, then come back and retry, or use another browser."
+		case "ja":
+			return "macOS では「フルディスクアクセス」のある App しか " + browser + " のログインを読み取れません。「システム設定 › プライバシーとセキュリティ › フルディスクアクセス」で Kando を許可してから戻って再試行するか、別のブラウザを使ってください。"
+		case "ko":
+			return "macOS에서는 ‘전체 디스크 접근 권한’이 있는 앱만 " + browser + " 로그인을 읽을 수 있습니다. ‘시스템 설정 › 개인정보 보호 및 보안 › 전체 디스크 접근 권한’에서 Kando를 허용한 후 돌아와 다시 시도하거나, 다른 브라우저를 사용하십시오."
+		case "zh-Hans":
+			return "macOS 只让有「完全磁盘访问权限」的 App 读 " + browser + " 的登录。在「系统设置 › 隐私与安全性 › 完全磁盘访问权限」里允许看懂，回来再重试，或改用别的浏览器。"
+		case "zh-Hant":
+			return "macOS 只讓有「完整取用磁碟」權限的 App 讀取 " + browser + " 的登入。在「系統設定 › 隱私權與安全性 › 完整取用磁碟」中允許看懂，回來再重試，或改用其他瀏覽器。"
+		}
+	}
+}
+
 // QueueRemedyDownloadYtdlp says "Download yt-dlp and Retry"
 // in the language the app shows under cx.
 //
@@ -24643,15 +24668,6 @@ func QueueRemedyRetry(cx *core.Scope) string { return For(cx).QueueRemedyRetry()
 
 // QueueRemedyRetry is the package's QueueRemedyRetry in the language of msgs.
 func (msgs Messages) QueueRemedyRetry() string { return msgs.text(textQueueRemedyRetry) }
-
-// QueueRemedySafariWhy says "macOS only lets apps with Full Disk Access read Safari's sign-in. Allow Kando in System Settings and come back to retry, or use another browser."
-// in the language the app shows under cx.
-//
-// What to do when macOS keeps Safari's cookies from Kando: grant Full Disk Access in System Settings. Use Apple's name of that permission.
-func QueueRemedySafariWhy(cx *core.Scope) string { return For(cx).QueueRemedySafariWhy() }
-
-// QueueRemedySafariWhy is the package's QueueRemedySafariWhy in the language of msgs.
-func (msgs Messages) QueueRemedySafariWhy() string { return msgs.text(textQueueRemedySafariWhy) }
 
 // QueueRemedySentences says "{first} {second}"
 // in the language the app shows under cx.
@@ -27855,7 +27871,7 @@ func (msgs Messages) SettingsGeneralSignInChecking(browser string) string {
 // SettingsGeneralSignInDiskAccess says "Open System Settings"
 // in the language the app shows under cx.
 //
-// Button of the Browser Sign-In row when macOS keeps Safari's sign-in from Kando: opens the Full Disk Access pane of System Settings.
+// Button of the Browser Sign-In row when macOS keeps the browser's sign-in from Kando: opens the Full Disk Access pane of System Settings.
 func SettingsGeneralSignInDiskAccess(cx *core.Scope) string {
 	return For(cx).SettingsGeneralSignInDiskAccess()
 }

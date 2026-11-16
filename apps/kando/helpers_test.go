@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -563,4 +564,47 @@ func mirrorOnlyServer(t *testing.T, data []byte, sources *[]string) {
 		}
 		return srv.URL + "/huggingface"
 	}
+}
+
+// chromeHome makes a folder of its own the home folder of the test, with Chrome's data folder in it, where yt-dlp looks for Chrome's sign-in on a Mac, holding a profile's cookies; when closed, the folder cannot be listed, as macOS keeps another app's data from an app without Full Disk Access: chmod 000 stands in for macOS's refusal. Without Chrome, the home has no such folder. It returns Chrome's folder. Only macOS keeps a browser's folder from Kando (media.Tools.CheckLogin and Download look only there), so the test is skipped on other systems, and for root, whom chmod does not keep out.
+func chromeHome(t *testing.T, chrome, closed bool) string {
+	t.Helper()
+	if runtime.GOOS != "darwin" || os.Geteuid() == 0 {
+		t.Skip("only macOS keeps a browser's folder from Kando, and chmod 000 must keep it from this process")
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	folder := filepath.Join(home, "Library", "Application Support", "Google", "Chrome")
+	if !chrome {
+		return folder
+	}
+	if err := os.MkdirAll(filepath.Join(folder, "Default"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(folder, "Default", "Cookies"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if closed {
+		if err := os.Chmod(folder, 0); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = os.Chmod(folder, 0o755) })
+	}
+	return folder
+}
+
+// chromeYTDLP writes a yt-dlp that borrows Chrome's sign-in as yt-dlp 2026.08.19 does on a Mac: it walks Chrome's data folder under $HOME for the cookies database, and when it cannot list the folder, or the folder is not there, says it could not find one (packages/media/testdata/ytdlp/errors/cookies-chrome-missing.stderr), failing the check of the sign-in and every download. With the cookies found, the check succeeds as yt-dlp's usage error for want of a URL, and a download fails as above all the same, since this yt-dlp downloads nothing.
+func chromeYTDLP(t *testing.T) string {
+	t.Helper()
+	return writeFakeScript(t, t.TempDir(), "yt-dlp", `case "$1" in --version) echo 2026.08.19; exit 0;; esac
+chrome="$HOME/Library/Application Support/Google/Chrome"
+case " $* " in *" -- "*) ;; *)
+  if ls "$chrome/Default" 2>/dev/null | grep -qx Cookies; then
+    echo "Extracted 1 cookies from chrome"
+    echo "yt-dlp: error: You must provide at least one URL." >&2
+    exit 2
+  fi;;
+esac
+echo "ERROR: could not find chrome cookies database in \"$chrome\"" >&2
+exit 1`)
 }

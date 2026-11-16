@@ -17,7 +17,7 @@ type LoginTrouble string
 
 // What ReadLoginTrouble tells apart, in yt-dlp's words of 2026.08.19 (yt_dlp/cookies.py).
 const (
-	// LoginNoAccess is a browser whose cookies the system keeps from yt-dlp, as macOS keeps Safari's from an app without Full Disk Access ("Operation not permitted").
+	// LoginNoAccess is a browser whose cookies the system keeps from yt-dlp, as macOS keeps Safari's from an app without Full Disk Access ("Operation not permitted"), and the data folder of the other browsers, which yt-dlp then reports as no cookies database: CheckLogin and Download add to that error that the folder is there but closed (browserDataClosed).
 	LoginNoAccess LoginTrouble = "no-access"
 	// LoginNotFound is a browser that has no cookies on this computer ("could not find chrome cookies database"). macOS reports Safari's this way too when it keeps them from an app without Full Disk Access.
 	LoginNotFound LoginTrouble = "not-found"
@@ -36,11 +36,26 @@ var loginSigns = []struct {
 	trouble LoginTrouble
 	phrases []string
 }{
-	{LoginNoAccess, []string{"operation not permitted"}},
+	{LoginNoAccess, []string{"operation not permitted", browserDataClosed}},
 	{LoginInUse, []string{"could not copy chrome cookie database"}},
 	{LoginEncrypted, []string{"failed to decrypt with dpapi"}},
 	{LoginNotFound, []string{"cookies database", "could not find safari cookies"}},
 	{LoginNoKey, []string{"no key found", "find-generic-password failed", "failed to read from keyring"}},
+}
+
+// browserDataClosed is what withClosedBrowserData adds to yt-dlp's error, in lower case as ReadLoginTrouble compares it.
+const browserDataClosed = "the system keeps the browser's data folder from kando"
+
+// withClosedBrowserData adds to err, the error of yt-dlp borrowing the login of browser (its --cookies-from-browser name), that the system keeps the browser's data folder from Kando, when err says yt-dlp found no cookies database and the folder is there but closed (closedBrowserData), so ReadLoginTrouble reads it as LoginNoAccess rather than LoginNotFound. Any other err is returned as it is.
+func withClosedBrowserData(err error, browser string) error {
+	if err == nil || browser == "" || ReadLoginTrouble(err.Error()) != LoginNotFound {
+		return err
+	}
+	home, _ := os.UserHomeDir()
+	if closed := closedBrowserData(browserDataOS, home, os.Getenv, browser); closed != nil {
+		return fmt.Errorf("%w (%s: %w)", err, browserDataClosed, closed)
+	}
+	return err
 }
 
 // ReadLoginTrouble reads from what yt-dlp printed, or from an error that carries its ERROR lines as a job's does, why it could not borrow a browser's sign-in; "" when it says nothing of it.
@@ -65,7 +80,7 @@ const LoginCheckTimeout = 3 * time.Minute
 // ytdlpUsageExit is how yt-dlp exits when it is given no URL, after it has done what it does without one, as reading the cookies it saves.
 const ytdlpUsageExit = 2
 
-// CheckLogin has yt-dlp read the sign-in of browser, as --cookies-from-browser names it, the way a download borrows it, without downloading anything: given no URL, yt-dlp still loads the browser's cookies to save them to the --cookies file, and exits with ytdlpUsageExit once it has, or with its error when it could not. That file, which holds every cookie of the browser, is written in a folder of its own in CookieDir and removed as soon as yt-dlp exits; SweepCookieDirs removes one a check that never ended left. On macOS the first read of a Chromium browser's sign-in asks the user to allow its key in the Keychain (KeychainItem), so the app checks only when the user asks for it. It returns "" when yt-dlp read the sign-in, and otherwise why not with an error that says it in yt-dlp's words.
+// CheckLogin has yt-dlp read the sign-in of browser, as --cookies-from-browser names it, the way a download borrows it, without downloading anything: given no URL, yt-dlp still loads the browser's cookies to save them to the --cookies file, and exits with ytdlpUsageExit once it has, or with its error when it could not. That file, which holds every cookie of the browser, is written in a folder of its own in CookieDir and removed as soon as yt-dlp exits; SweepCookieDirs removes one a check that never ended left. On macOS the first read of a Chromium browser's sign-in asks the user to allow its key in the Keychain (KeychainItem), so the app checks only when the user asks for it. It returns "" when yt-dlp read the sign-in, and otherwise why not with an error that says it in yt-dlp's words, and that the system keeps the browser's data folder from Kando when yt-dlp took that for no cookies database (withClosedBrowserData).
 func (t Tools) CheckLogin(ctx context.Context, browser string) (LoginTrouble, error) {
 	if t.YTDLP == "" {
 		return LoginUnreadable, errors.New("yt-dlp is not installed")
@@ -97,7 +112,8 @@ func (t Tools) CheckLogin(ctx context.Context, browser string) (LoginTrouble, er
 	}
 	output := stderr.String() + "\n" + stdout.String()
 	if trouble := ReadLoginTrouble(output); trouble != "" {
-		return trouble, fmt.Errorf("yt-dlp: %s", toolError(output))
+		err := withClosedBrowserData(fmt.Errorf("yt-dlp: %s", toolError(output)), browser)
+		return ReadLoginTrouble(err.Error()), err
 	}
 	if err != nil && exit.ExitCode() != ytdlpUsageExit {
 		return LoginUnreadable, fmt.Errorf("yt-dlp: %w: %s", err, toolError(stderr.String()))

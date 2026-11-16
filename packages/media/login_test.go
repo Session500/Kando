@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -95,5 +96,90 @@ func TestCheckLoginReadsTheSignInWithoutDownloading(t *testing.T) {
 	}
 	if trouble, err := (Tools{}).CheckLogin(context.Background(), "chrome"); trouble != LoginUnreadable || err == nil {
 		t.Fatalf("without yt-dlp: %q, %v", trouble, err)
+	}
+}
+
+// closeBrowserFolder makes home the home folder of a Mac (closedBrowserData looks at macOS's folders whatever system the test runs on) and makes the folder dir under it, in which yt-dlp looks for a browser's login, one that cannot be listed, as macOS keeps another app's data from Kando without Full Disk Access: chmod 000 stands in for macOS's refusal. It skips where chmod does not close a folder: on Windows, and for root.
+func closeBrowserFolder(t *testing.T, home, dir string) {
+	t.Helper()
+	if runtime.GOOS == "windows" || os.Geteuid() == 0 {
+		t.Skip("chmod 000 does not keep a folder from this process")
+	}
+	macHome(t, home)
+	folder := filepath.Join(home, filepath.FromSlash(dir))
+	mkdirs(t, home, dir)
+	if err := os.WriteFile(filepath.Join(folder, "Local State"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(folder, 0); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(folder, 0o755) })
+}
+
+// macHome makes home the home folder of a Mac whose browser folders closedBrowserData looks at.
+func macHome(t *testing.T, home string) {
+	t.Helper()
+	saved := browserDataOS
+	browserDataOS = "darwin"
+	t.Cleanup(func() { browserDataOS = saved })
+	t.Setenv("HOME", home)
+}
+
+// yt-dlp says it found no cookies database of a Chromium browser or Firefox whose data folder macOS will not let it list, as it drops the error of listing it. CheckLogin then looks at the folder: there but closed is the system keeping it from Kando, which Full Disk Access opens, and missing is a browser with no sign-in on this computer.
+func TestCheckLoginTellsAClosedBrowserFolderFromAMissingOne(t *testing.T) {
+	for _, tc := range []struct {
+		name, browser, stderr, closed, open string
+		want                                LoginTrouble
+	}{
+		{name: "Chrome's folder closed", browser: "chrome", stderr: "errors/cookies-chrome-missing.stderr", closed: "Library/Application Support/Google/Chrome", want: LoginNoAccess},
+		{name: "Firefox's folder closed", browser: "firefox", stderr: "errors/cookies-firefox-missing.stderr", closed: "Library/Application Support/Firefox/Profiles", want: LoginNoAccess},
+		{name: "Chrome not on the computer", browser: "chrome", stderr: "errors/cookies-chrome-missing.stderr", want: LoginNotFound},
+		{name: "Chrome's folder open but without cookies", browser: "chrome", stderr: "errors/cookies-chrome-missing.stderr", open: "Library/Application Support/Google/Chrome", want: LoginNotFound},
+		{name: "another browser's folder closed", browser: "chrome", stderr: "errors/cookies-chrome-missing.stderr", closed: "Library/Application Support/Firefox/Profiles", want: LoginNotFound},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			home := t.TempDir()
+			if tc.closed != "" {
+				closeBrowserFolder(t, home, tc.closed)
+			} else {
+				macHome(t, home)
+				mkdirs(t, home, tc.open)
+			}
+			dir := t.TempDir()
+			tools := Tools{YTDLP: writeFakeTool(t, filepath.Join(dir, "bin"), "yt-dlp", fakeTool{Stderr: readTestdata(t, tc.stderr), Exit: 1}), CookieDir: filepath.Join(dir, "cookies")}
+			trouble, err := tools.CheckLogin(context.Background(), tc.browser)
+			if trouble != tc.want || err == nil || !strings.Contains(err.Error(), "cookies database") {
+				t.Fatalf("CheckLogin = %q, %v; want %q", trouble, err, tc.want)
+			}
+		})
+	}
+}
+
+// A download that borrowed the login of a browser whose data folder macOS keeps from Kando fails as one whose login could not be read, and says why as the check does, so its card offers Full Disk Access too.
+func TestDownloadSaysTheSystemKeepsTheBrowserFolder(t *testing.T) {
+	home := t.TempDir()
+	closeBrowserFolder(t, home, "Library/Application Support/Google/Chrome")
+	dir := t.TempDir()
+	tools := Tools{
+		YTDLP:        writeFakeTool(t, filepath.Join(dir, "bin"), "yt-dlp", fakeTool{Stderr: readTestdata(t, "errors/cookies-chrome-missing.stderr"), Exit: 1}),
+		OutputDir:    filepath.Join(dir, "library"),
+		DownloadTemp: filepath.Join(dir, "temp"),
+		Cookies:      "chrome",
+	}
+	_, err := tools.Download(context.Background(), "https://www.youtube.com/watch?v=jNQXAC9IVRw")
+	if err == nil {
+		t.Fatal("the download did not fail")
+	}
+	if got := ClassifyDownload(err.Error()); got != core.FailCookies {
+		t.Errorf("ClassifyDownload = %q, want %q", got, core.FailCookies)
+	}
+	if got := ReadLoginTrouble(err.Error()); got != LoginNoAccess {
+		t.Errorf("ReadLoginTrouble = %q, want %q (%v)", got, LoginNoAccess, err)
+	}
+	// Without the browser borrowed, the same folder says nothing.
+	tools.Cookies = ""
+	if _, err := tools.Download(context.Background(), "https://www.youtube.com/watch?v=jNQXAC9IVRw"); err == nil || ReadLoginTrouble(err.Error()) != LoginNotFound {
+		t.Errorf("without a browser: %v", err)
 	}
 }

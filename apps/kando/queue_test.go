@@ -1076,7 +1076,7 @@ func TestAFailedDownloadOffersWhatFixesIt(t *testing.T) {
 		{"https://www.instagram.com/p/C0000000000/", core.FailLogin, "", "要登录才能看", "instagram.com 的这个视频需要账号。借用浏览器里已登录的账号即可，不保存密码。", []string{"借用 Chrome 登录并重试"}},
 		{yt, core.FailNetwork, "", "连不上网络", "检查网络连接后再重试。", []string{"重试"}},
 		{"https://nonexistent-host-kando-review.invalid/video/1", core.FailHost, "", "找不到 nonexistent-host-kando-review.invalid", "网络正常的话，多半是链接里的网址写错了，或者这个网站已经关闭。换个链接，或检查网络后再重试。", []string{"换个链接", "重试"}},
-		{yt, core.FailCookies, "safari", "读不到 Safari 的登录", "macOS 只让有「完全磁盘访问权限」的 App 读 Safari 的登录。在系统设置里允许看懂，回来再重试，或改用别的浏览器。", []string{"打开系统设置", "已允许，重试", "改用 Chrome", "选择浏览器…"}},
+		{yt, core.FailCookies, "safari", "读不到 Safari 的登录", "macOS 只让有「完全磁盘访问权限」的 App 读 Safari 的登录。在「系统设置 › 隐私与安全性 › 完全磁盘访问权限」里允许看懂，回来再重试，或改用别的浏览器。", []string{"打开系统设置", "已允许，重试", "改用 Chrome", "选择浏览器…"}},
 		{yt, core.FailCookies, "chrome", "读不到 Chrome 的登录", "这台电脑上找不到 Chrome 的登录数据。换一个已登录的浏览器再试。", []string{"改用 Safari", "选择浏览器…"}},
 		{"https://www.youtube.com/watch?v=dQw4w9WgX", core.FailBadLink, "", "链接不完整", testlocale.Messages().QueueRemedyBadLinkWhy(), []string{"换个链接"}},
 	} {
@@ -3441,5 +3441,51 @@ func TestAFilmWithoutATranslationInAnotherLibrarySaysSo(t *testing.T) {
 	want := m.QueueDoneElsewhereUntranslated(jobName(job), films.LibraryName(library), m.PrecheckTranslateAuth())
 	if job.TranslationErr == "" || a.lib.notice.Text != want || a.lib.notice.Kind != "warning" || a.lib.notice.Section != settings.SectionAI {
 		t.Fatalf("job %+v, notice %+v, want %q", job, a.lib.notice, want)
+	}
+}
+
+// A download that borrowed Chrome's sign-in on a Mac that keeps Chrome's data folder from Kando fails with a card that says, as Settings › 通用 › 浏览器登录 does, that Kando needs Full Disk Access, with 打开系统设置 and 已允许，重试, which borrows Chrome again. Without Chrome's folder the card still says there is no sign-in data, and offers another browser.
+func TestAFailedDownloadSaysWhenMacOSKeepsTheBrowserFolder(t *testing.T) {
+	msgs := testlocale.Messages()
+	for _, tc := range []struct {
+		name           string
+		chrome, closed bool
+		why            string
+		actions        []string
+	}{
+		{"Chrome's folder closed", true, true, msgs.QueueRemedyDiskAccessWhy("Chrome"), []string{msgs.QueueRemedyOpenSystemSettings(), msgs.QueueRemedyAllowed(), msgs.QueueRemedySwitchBrowser("Safari"), msgs.QueueRemedyChooseBrowser()}},
+		{"no Chrome", false, false, msgs.QueueRemedyCookiesWhy("Chrome"), []string{msgs.QueueRemedySwitchBrowser("Safari"), msgs.QueueRemedyChooseBrowser()}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			chromeHome(t, tc.chrome, tc.closed)
+			tools := toolsForRemedies(t, chromeYTDLP(t))
+			tools.CookieDir = filepath.Join(t.TempDir(), "cookies")
+			a, tt, updates := newTestApp(t, tools)
+			lib := t.TempDir()
+			a.edit(func(s *session) { s.LibraryDir = lib })
+			a.settingsPath = filepath.Join(t.TempDir(), "settings.json")
+			withBrowsers(t, a, "chrome", "safari")
+			a.signin.browser = "chrome"
+			if err := a.Enqueue("https://www.youtube.com/watch?v=Rg5Lk2Pz8Wd"); err != nil {
+				t.Fatal(err)
+			}
+			settle(t, a, tt, updates)
+			id := a.library.Jobs[0].ID
+			if job := stageOf(t, a, id); job.Stage != core.StageFailed || job.FailKind != core.FailCookies || job.Cookies != "chrome" {
+				t.Fatalf("job %+v", job)
+			}
+			film, _ := a.JobFilm(id)
+			r, ok := a.FailureRemedy(film)
+			if !ok || r.Headline != msgs.QueueRemedyCookies("Chrome") || r.Why != tc.why || strings.Join(remedyLabels(r), ",") != strings.Join(tc.actions, ",") || !r.Actions[0].Primary {
+				t.Fatalf("remedy %+v", r)
+			}
+			if tc.closed && (r.Actions[0].ID != remedyDiskAccess || r.Actions[1].ID != remedyBorrow+"chrome") {
+				t.Fatalf("actions %+v", r.Actions)
+			}
+			refresh(tt, a)
+			if textCount(tt, r.Why) == 0 {
+				t.Fatalf("the card does not say %q; texts %q", r.Why, tt.Texts())
+			}
+		})
 	}
 }

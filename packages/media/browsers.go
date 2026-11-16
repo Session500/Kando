@@ -1,6 +1,8 @@
 package media
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -104,6 +106,25 @@ func browserDataDirs(goos, home string, getenv func(string) string, id string) [
 				filepath.Join(home, ".var", "app", "org.mozilla.firefox", ".mozilla", "firefox"),
 				filepath.Join(home, "snap", "firefox", "common", ".mozilla", "firefox"),
 			}
+		}
+	}
+	return nil
+}
+
+// browserDataOS is the system whose browser folders closedBrowserData looks at for CheckLogin and Download. Tests on another system make it darwin.
+var browserDataOS = runtime.GOOS
+
+// closedBrowserData is why the system will not list a folder yt-dlp looks for the login of the browser id in on goos, for the user whose home folder is home, when one is there and closed. Only macOS does this: it keeps other apps' data, as ~/Library/Application Support/Google/Chrome, from an app without Full Disk Access, refusing to list the folder ("Operation not permitted") while it still lets a single file in it be looked at. yt-dlp 2026.08.19 walks the folder for the cookies database and drops that error (_find_most_recently_used_file), so it then says it could not find one. nil on any other system, and for a folder that is not there or can be listed.
+func closedBrowserData(goos, home string, getenv func(string) string, id string) error {
+	if goos != "darwin" {
+		return nil
+	}
+	for _, dir := range browserDataDirs(goos, home, getenv, id) {
+		if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+			continue
+		}
+		if _, err := os.ReadDir(dir); errors.Is(err, fs.ErrPermission) {
+			return err
 		}
 	}
 	return nil
