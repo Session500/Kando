@@ -3502,6 +3502,9 @@ settingsKeywordsGeneral:
 settingsKeywordsLook:
   message: "subtitles display bilingual original only translation only order translation original dim blank make room preview preset font size color bold"
   description: "Search keywords of the Subtitle Style settings section, separated by spaces, besides its title. Not shown."
+settingsKeywordsPhone:
+  message: "iPhone Android phone mobile sync pair QR code Wi-Fi network device revoke"
+  description: "Words besides its title the settings search finds the Phone Sync section by, separated by spaces."
 settingsKeywordsShortcuts:
   message: "keyboard keys commands"
   description: "Search keywords of the Keyboard Shortcuts settings section, separated by spaces, besides its title. Not shown."
@@ -3644,6 +3647,79 @@ settingsLookYield:
 settingsLookYieldHint:
   message: "Keeps them clear of the control bar"
   description: "Under the switch moving subtitles up."
+settingsPhoneAddress:
+  message: "{count, plural, one {Address} other {Addresses}}"
+  description: "Label over the address or addresses (IP and port) the phone connects to."
+  placeholders:
+    count: { type: "int", example: "1" }
+settingsPhoneCode:
+  message: "Code"
+  description: "Label over the 6-digit one-time pairing code."
+settingsPhoneCodeExpired:
+  message: "This code has expired."
+  description: "In place of the QR code once the code is past its 5 minutes or was entered wrongly too many times; New Code offers another."
+settingsPhoneCodeUsed:
+  message: "This code has been used."
+  description: "In place of the QR code once a phone paired with the code; New Code offers another."
+settingsPhoneDeviceSeen:
+  message: "{platform, select, ios {iPhone} android {Android} other {Phone}} · Last seen {when}"
+  description: "Under a paired phone's name: its platform and when it last connected. {platform} is ios, android or empty."
+  placeholders:
+    platform: { type: "String", example: "ios" }
+    when: { type: "DateTime" }
+settingsPhoneDevices:
+  message: "Paired Phones"
+  description: "Heading of the card listing the phones paired with this computer."
+settingsPhoneFingerprint:
+  message: "Fingerprint"
+  description: "Label over the short form of the certificate's fingerprint, which a phone paired by hand shows to compare."
+settingsPhoneFirewall:
+  message: "{platform, select, macOS {If macOS asks whether Kando may accept incoming network connections, click Allow.} Windows {If Windows asks whether Kando may use private networks, click Allow.} other {If your firewall asks whether Kando may accept incoming connections, allow it.}}"
+  description: "Note under the Phone Sync switch: the system's firewall asks once before phones can connect. {platform} is the system the app runs on: macOS, Windows or another (Linux); each case names that system's prompt and its button."
+  placeholders:
+    platform: { type: "String", example: "macOS" }
+settingsPhoneNewCode:
+  message: "New Code"
+  description: "Button above the pairing card: offers a new one-time pairing code in place of the one shown."
+settingsPhoneNoDevices:
+  message: "No phones paired yet"
+  description: "The paired phones card when there are none."
+settingsPhoneNoNetwork:
+  message: "This computer isn't on a local network."
+  description: "In place of the QR code while the computer has no local network address a phone could reach."
+settingsPhonePair:
+  message: "Pair a Phone"
+  description: "Heading of the Phone Sync card with the pairing QR code, address, code and fingerprint."
+settingsPhonePairHint:
+  message: "In Kando on your phone, scan this code, or enter the address and code."
+  description: "Line beside the pairing QR code saying how a phone pairs."
+settingsPhoneQRLabel:
+  message: "Pairing QR code"
+  description: "Accessibility name of the pairing QR code image."
+settingsPhoneRevoke:
+  message: "Revoke"
+  description: "Button of a paired phone's row: unpairs it, so it can no longer connect."
+settingsPhoneRevokeFailed:
+  message: "Couldn't revoke the phone: {error}"
+  description: "Error under the paired phones when the device list could not be saved, with the system's reason in English."
+  placeholders:
+    error: { type: "String", example: "permission denied" }
+settingsPhoneRevokeLabel:
+  message: "Revoke {name}"
+  description: "Accessibility name of a paired phone's Revoke button; {name} is the name the phone gave itself."
+  placeholders:
+    name: { type: "String", example: "Evan's iPhone" }
+settingsPhoneStartFailed:
+  message: "Phone Sync couldn't start: {error}"
+  description: "Error under the Phone Sync switch when the server could not start, with the system's reason in English."
+  placeholders:
+    error: { type: "String", example: "address already in use" }
+settingsPhoneSwitch:
+  message: "Phone Sync"
+  description: "Switch in Settings › Phone Sync that serves this computer's libraries to paired phones on the local network."
+settingsPhoneSwitchHint:
+  message: "Watch this computer's films in Kando on an iPhone or Android phone on the same network."
+  description: "Hint under the Phone Sync switch."
 settingsSaveFailed:
   message: "Couldn't save the settings: {error}"
   description: "Error in the settings window and the sidebar's status row when a setting changed on the General, Translate, Subtitle Style or Account & Upload page could not be saved to settings.json."
@@ -3673,6 +3749,9 @@ settingsSectionGeneral:
 settingsSectionLook:
   message: "Subtitle Style"
   description: "Settings section and sidebar item: how the player shows subtitles."
+settingsSectionPhone:
+  message: "Phone Sync"
+  description: "Settings section and sidebar item: serving this computer's films to Kando on phones over the local network."
 settingsSectionShortcuts:
   message: "Keyboard Shortcuts"
   description: "Settings section and sidebar item: the table of keyboard shortcuts."

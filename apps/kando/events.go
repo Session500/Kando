@@ -75,6 +75,7 @@ func (a *app) areas() []areaHooks {
 		a.playlistHooks(),
 		a.savedHooks(),
 		a.signinHooks(),
+		a.phoneSyncHooks(),
 	}
 }
 

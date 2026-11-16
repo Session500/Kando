@@ -21,11 +21,14 @@ require (
 	golang.org/x/text v0.44.0
 	kando/packages/core v0.0.0
 	kando/packages/media v0.0.0
+	kando/packages/sync v0.0.0
+	rsc.io/qr v0.2.0
 )
 
 replace (
 	kando/packages/core => ../../packages/core
 	kando/packages/media => ../../packages/media
+	kando/packages/sync => ../../packages/sync
 )
 
 require (
@@ -51,5 +54,4 @@ require (
 	github.com/yuin/goldmark v1.8.7 // indirect
 	golang.org/x/sync v0.25.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
-	rsc.io/qr v0.2.0 // indirect
 )

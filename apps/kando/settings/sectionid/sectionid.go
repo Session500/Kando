@@ -9,4 +9,5 @@ const (
 	Look      = "look"
 	Shortcuts = "shortcuts"
 	Account   = "account"
+	Phone     = "phone"
 )

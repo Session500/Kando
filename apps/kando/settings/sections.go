@@ -18,6 +18,7 @@ const (
 	SectionLook      = sectionid.Look
 	SectionShortcuts = sectionid.Shortcuts
 	SectionAccount   = sectionid.Account
+	SectionPhone     = sectionid.Phone
 )
 
 // section is one category of the settings window: its title, its tile in the sidebar and the words the search field finds it by besides its title. The title and the keywords are read in the language the app shows under the scope they are given.
@@ -35,6 +36,7 @@ var sections = []section{
 	{SectionLook, locales.SettingsSectionLook, locales.SettingsKeywordsLook, iconLook},
 	{SectionShortcuts, locales.SettingsSectionShortcuts, locales.SettingsKeywordsShortcuts, iconShortcuts},
 	{SectionAccount, locales.SettingsSectionAccount, locales.SettingsKeywordsAccount, iconAccount},
+	{SectionPhone, locales.SettingsSectionPhone, locales.SettingsKeywordsPhone, iconPhone},
 }
 
 // Known reports whether id is one of the Section values.
