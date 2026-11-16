@@ -942,7 +942,6 @@ const (
 	textFilmBackToLibrary
 	textFilmCancel
 	textFilmClickToJump
-	textFilmClipsNote
 	textFilmColorOrange
 	textFilmColorWhite
 	textFilmColorYellow
@@ -982,6 +981,7 @@ const (
 	textFilmModeOffNote
 	textFilmModeOriginal
 	textFilmModeTranslation
+	textFilmModeTranslationBlankNote
 	textFilmModeTranslationNote
 	textFilmMoreActions
 	textFilmMute
@@ -1715,7 +1715,6 @@ var keyOfText = [numTexts]string{
 	"filmBackToLibrary",
 	"filmCancel",
 	"filmClickToJump",
-	"filmClipsNote",
 	"filmColorOrange",
 	"filmColorWhite",
 	"filmColorYellow",
@@ -1755,6 +1754,7 @@ var keyOfText = [numTexts]string{
 	"filmModeOffNote",
 	"filmModeOriginal",
 	"filmModeTranslation",
+	"filmModeTranslationBlankNote",
 	"filmModeTranslationNote",
 	"filmMoreActions",
 	"filmMute",
@@ -2486,7 +2486,6 @@ var textsEn = i18n.NewTexts(""+
 	"Back to Library"+
 	"Cancel"+
 	"Click a line to jump to it"+
-	"Subtitles are split evenly by time into 4–12 clips of about 30 seconds each."+
 	"Orange"+
 	"White"+
 	"Yellow"+
@@ -2526,6 +2525,7 @@ var textsEn = i18n.NewTexts(""+
 	"Hides only the subtitles"+
 	"Original Only"+
 	"Translation Only"+
+	"Blank until the translation is ready"+
 	"Shows the original, dimmed, until the translation is ready"+
 	"More Actions"+
 	"Mute"+
@@ -3254,7 +3254,6 @@ var textsEn = i18n.NewTexts(""+
 		15,
 		6,
 		26,
-		78,
 		6,
 		5,
 		6,
@@ -3294,6 +3293,7 @@ var textsEn = i18n.NewTexts(""+
 		24,
 		13,
 		16,
+		36,
 		58,
 		12,
 		4,
@@ -4025,7 +4025,6 @@ var textsJa = i18n.NewTexts(""+
 	"ライブラリに戻る"+
 	"キャンセル"+
 	"クリックするとそのセリフに移動します"+
-	"字幕を時間で均等に 4〜12 個のクリップに分けています。1 個は約 30 秒です。"+
 	"オレンジ"+
 	"白"+
 	"黄"+
@@ -4065,6 +4064,7 @@ var textsJa = i18n.NewTexts(""+
 	"字幕だけを隠します"+
 	"原文のみ"+
 	"訳文のみ"+
+	"訳文がまだないときは何も表示しません"+
 	"訳文がまだないときは原文を薄く表示します"+
 	"その他の操作"+
 	"消音"+
@@ -4793,7 +4793,6 @@ var textsJa = i18n.NewTexts(""+
 		24,
 		15,
 		54,
-		104,
 		12,
 		3,
 		3,
@@ -4833,6 +4832,7 @@ var textsJa = i18n.NewTexts(""+
 		27,
 		12,
 		12,
+		54,
 		60,
 		18,
 		6,
@@ -5564,7 +5564,6 @@ var textsKo = i18n.NewTexts(""+
 	"라이브러리로 돌아가기"+
 	"취소"+
 	"클릭하면 해당 대사로 이동합니다"+
-	"자막을 시간에 따라 4–12개의 클립으로 고르게 나눕니다. 클립 하나는 약 30초입니다."+
 	"주황색"+
 	"흰색"+
 	"노란색"+
@@ -5604,6 +5603,7 @@ var textsKo = i18n.NewTexts(""+
 	"자막만 숨깁니다"+
 	"원문만"+
 	"번역만"+
+	"번역이 준비되지 않으면 비워 둡니다"+
 	"번역이 준비되지 않으면 원문을 흐리게 표시합니다"+
 	"기타 동작"+
 	"음소거"+
@@ -6332,7 +6332,6 @@ var textsKo = i18n.NewTexts(""+
 		31,
 		6,
 		45,
-		113,
 		9,
 		6,
 		9,
@@ -6372,6 +6371,7 @@ var textsKo = i18n.NewTexts(""+
 		22,
 		9,
 		9,
+		49,
 		68,
 		13,
 		9,
@@ -7103,7 +7103,6 @@ var textsZhHans = i18n.NewTexts(""+
 	"返回资料库"+
 	"取消"+
 	"单击跳到该句"+
-	"按时间把字幕平均切成 4–12 段，每段约 30 秒。"+
 	"橙色"+
 	"白色"+
 	"黄色"+
@@ -7143,6 +7142,7 @@ var textsZhHans = i18n.NewTexts(""+
 	"只隐藏字幕"+
 	"仅原文"+
 	"仅译文"+
+	"译文没好时留空"+
 	"译文没好时显示弱化的原文"+
 	"更多操作"+
 	"静音"+
@@ -7871,7 +7871,6 @@ var textsZhHans = i18n.NewTexts(""+
 		15,
 		6,
 		18,
-		63,
 		6,
 		6,
 		6,
@@ -7911,6 +7910,7 @@ var textsZhHans = i18n.NewTexts(""+
 		15,
 		9,
 		9,
+		21,
 		36,
 		12,
 		6,
@@ -8642,7 +8642,6 @@ var textsZhHant = i18n.NewTexts(""+
 	"返回資料庫"+
 	"取消"+
 	"按一下即可跳到該句"+
-	"依時間把字幕平均切成 4–12 段，每段約 30 秒。"+
 	"橙色"+
 	"白色"+
 	"黃色"+
@@ -8682,6 +8681,7 @@ var textsZhHant = i18n.NewTexts(""+
 	"只隱藏字幕"+
 	"僅原文"+
 	"僅譯文"+
+	"譯文未完成時留白"+
 	"譯文未完成時顯示淡化的原文"+
 	"更多動作"+
 	"靜音"+
@@ -9410,7 +9410,6 @@ var textsZhHant = i18n.NewTexts(""+
 		15,
 		6,
 		27,
-		63,
 		6,
 		6,
 		6,
@@ -9450,6 +9449,7 @@ var textsZhHant = i18n.NewTexts(""+
 		15,
 		9,
 		9,
+		24,
 		39,
 		12,
 		6,
@@ -12388,15 +12388,6 @@ func (msgs Messages) FilmClipSpan(number int, start string, end string) string {
 	}
 }
 
-// FilmClipsNote says "Subtitles are split evenly by time into 4–12 clips of about 30 seconds each."
-// in the language the app shows under cx.
-//
-// Line over the Clips tab's list: how the film is cut.
-func FilmClipsNote(cx *core.Scope) string { return For(cx).FilmClipsNote() }
-
-// FilmClipsNote is the package's FilmClipsNote in the language of msgs.
-func (msgs Messages) FilmClipsNote() string { return msgs.text(textFilmClipsNote) }
-
 // FilmColorOrange says "Orange"
 // in the language the app shows under cx.
 //
@@ -12870,10 +12861,23 @@ func FilmModeTranslation(cx *core.Scope) string { return For(cx).FilmModeTransla
 // FilmModeTranslation is the package's FilmModeTranslation in the language of msgs.
 func (msgs Messages) FilmModeTranslation() string { return msgs.text(textFilmModeTranslation) }
 
+// FilmModeTranslationBlankNote says "Blank until the translation is ready"
+// in the language the app shows under cx.
+//
+// Line under the Translation Only row of the subtitle mode menu, when the settings leave a line without a translation blank on the picture.
+func FilmModeTranslationBlankNote(cx *core.Scope) string {
+	return For(cx).FilmModeTranslationBlankNote()
+}
+
+// FilmModeTranslationBlankNote is the package's FilmModeTranslationBlankNote in the language of msgs.
+func (msgs Messages) FilmModeTranslationBlankNote() string {
+	return msgs.text(textFilmModeTranslationBlankNote)
+}
+
 // FilmModeTranslationNote says "Shows the original, dimmed, until the translation is ready"
 // in the language the app shows under cx.
 //
-// Line under the Translation Only row of the subtitle mode menu.
+// Line under the Translation Only row of the subtitle mode menu, when the settings show a line without a translation as its original, dimmed.
 func FilmModeTranslationNote(cx *core.Scope) string { return For(cx).FilmModeTranslationNote() }
 
 // FilmModeTranslationNote is the package's FilmModeTranslationNote in the language of msgs.
