@@ -1614,6 +1614,9 @@ onboardingAIModelUnchecked:
   description: "Second step's line about translation before the EveryAPI sign-in was checked: the model, and that the sign-in on this computer is used and checked later."
   placeholders:
     model: { type: "String", example: "gpt-4o-mini" }
+onboardingAINeedsBaseURL:
+  message: "Enter the Base URL in Settings to translate"
+  description: "Second step's line about translation when the chosen service is a custom endpoint without a Base URL yet, which is typed in Settings › AI Service; the guide has no field for it, and its Settings… button opens that page. Keep Base URL as it is."
 onboardingAINeedsKey:
   message: "Enter the service's API Key to translate"
   description: "Second step's line about translation when the chosen cloud service, such as OpenAI, has no API Key yet."

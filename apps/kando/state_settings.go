@@ -39,6 +39,9 @@ type settingsUI struct {
 	llmBase         string
 	llmModel        string
 	llmKey          string
+	// llmKeyOwner is the endpoint the key belongs to, so it is not sent elsewhere when the Base URL moves to another host; llmServices are the services used before, by preset id, which choosing one again takes back (selectLLM).
+	llmKeyOwner llmKeyOwner
+	llmServices map[string]savedLLMService
 	// everyAPIOpenErr says why 获取 EveryAPI could not open EveryAPI's website, "" when it did, was not pressed, or the tools were detected again since. everyAPIOpenGen counts the presses, so only the last one's answer is kept.
 	everyAPIOpenErr string
 	everyAPIOpenGen int

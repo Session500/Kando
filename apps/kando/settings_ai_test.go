@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -161,6 +162,118 @@ func TestSwitchingTheLLMEndpointDropsTheKey(t *testing.T) {
 	a.applyLLM()
 	if got := translator(t, a); got.BaseURL != "https://proxy.example.com/v1" || got.APIKey != "" {
 		t.Fatalf("typing a custom Base URL kept the EveryAPI key: base %q key %q", got.BaseURL, got.APIKey)
+	}
+}
+
+// TestACustomEndpointCanBeFilledInKeyFirst checks that 自定义 starts with no endpoint, key or model of the service before, that its key may be typed before its Base URL without being dropped, and that the key typed is never sent to the service chosen before: the models are only asked of the endpoint typed. A key that has listed the models of its endpoint belongs to it, and is dropped when the Base URL then moves to another host.
+func TestACustomEndpointCanBeFilledInKeyFirst(t *testing.T) {
+	llmEnv(t, "", "", "")
+	tools := media.Tools{Translator: media.ChatTranslator{BaseURL: "https://api.openai.com/v1", Model: "gpt-4.1-mini", APIKey: "sk-openai"}}
+	a, tt, updates := newTestApp(t, tools)
+	a.syncLLM(tools)
+	a.settingsPath = filepath.Join(t.TempDir(), "settings.json")
+	type asked struct{ base, key string }
+	var mu sync.Mutex
+	var calls []asked
+	a.prefs.listModels = func(_ context.Context, tr media.ChatTranslator) ([]string, error) {
+		mu.Lock()
+		calls = append(calls, asked{tr.BaseURL, tr.APIKey})
+		mu.Unlock()
+		return []string{"proxy-chat"}, nil
+	}
+	tt = settingsOpenAt(a, tt, settings.SectionAI)
+	waitUntil(t, tt, a, updates, func() bool { return !a.prefs.llmModelsLoading && !a.prefs.llmWaiting })
+
+	a.selectLLM("custom")
+	refresh(tt, a)
+	if got := translator(t, a); got.BaseURL != "" || got.APIKey != "" || got.Model != "" || a.prefs.llmKey != "" {
+		t.Fatalf("自定义 kept the service before: %+v, field %q", got, a.prefs.llmKey)
+	}
+	tt.Type("id:settings-llm-key", "sk-proxy")
+	tt.Type("id:settings-llm-base", "https://proxy.example.com/v1")
+	if got := translator(t, a); got.BaseURL != "https://proxy.example.com/v1" || got.APIKey != "sk-proxy" || a.prefs.llmProvider != "custom" {
+		t.Fatalf("after the key and then the Base URL: %+v, provider %q", got, a.prefs.llmProvider)
+	}
+	waitUntil(t, tt, a, updates, func() bool { return a.prefs.llmModel == "proxy-chat" })
+	mu.Lock()
+	for _, c := range calls {
+		if c.key == "sk-proxy" && c.base != "https://proxy.example.com/v1" {
+			t.Errorf("the new key was sent to %q", c.base)
+		}
+	}
+	mu.Unlock()
+
+	tt.Clear("id:settings-llm-base")
+	tt.Type("id:settings-llm-base", "https://elsewhere.example.com/v1")
+	if got := translator(t, a); got.APIKey != "" || a.prefs.llmKey != "" {
+		t.Fatalf("the key the proxy took followed to another host: %q, field %q", got.APIKey, a.prefs.llmKey)
+	}
+}
+
+// TestSwitchingServicesKeepsEachOnesKeyAndModel checks that a service chosen again comes back with the key and model it was left with, also after Kando starts again, that each key only goes back to its own host, and that 自定义 takes back the last custom endpoint with its key.
+func TestSwitchingServicesKeepsEachOnesKeyAndModel(t *testing.T) {
+	llmEnv(t, "", "", "")
+	tools := media.Tools{Translator: media.ChatTranslator{BaseURL: media.EveryAPIBaseURL, Model: media.EveryAPIModel}}
+	a := newApp(tools, func(func()) {})
+	a.settingsPath = filepath.Join(t.TempDir(), "settings.json")
+	a.syncLLM(tools)
+	set := func(key, model string) {
+		a.prefs.llmKey, a.prefs.llmModel = key, model
+		a.applyLLM()
+	}
+	want := func(step, base, key, model string) {
+		t.Helper()
+		if got := translator(t, a); got.BaseURL != base || got.APIKey != key || got.Model != model || a.prefs.llmKey != key || a.prefs.llmModel != model {
+			t.Fatalf("%s: translator %+v, fields key %q model %q, want base %q key %q model %q", step, got, a.prefs.llmKey, a.prefs.llmModel, base, key, model)
+		}
+	}
+
+	a.selectLLM("openai")
+	set("sk-openai", "gpt-4.1")
+	a.selectLLM("deepseek")
+	want("DeepSeek the first time", "https://api.deepseek.com/v1", "", "deepseek-chat")
+	set("sk-deepseek", "deepseek-reasoner")
+	a.selectLLM("openai")
+	want("back on OpenAI", "https://api.openai.com/v1", "sk-openai", "gpt-4.1")
+	a.selectLLM("custom")
+	want("自定义 the first time", "", "", "")
+	a.prefs.llmBase = "https://proxy.example.com/v1"
+	set("sk-proxy", "proxy-chat")
+	a.selectLLM("groq")
+	want("Groq the first time", "https://api.groq.com/openai/v1", "", "llama-3.3-70b-versatile")
+
+	next := newApp(media.Tools{Translator: media.ChatTranslator{BaseURL: media.EveryAPIBaseURL, Model: media.EveryAPIModel}}, func(func()) {})
+	next.settingsPath = a.settingsPath
+	next.restoreLLM(loadSavedSettings(a.settingsPath))
+	a = next
+	want("after starting again", "https://api.groq.com/openai/v1", "", "llama-3.3-70b-versatile")
+	a.selectLLM("deepseek")
+	want("DeepSeek after starting again", "https://api.deepseek.com/v1", "sk-deepseek", "deepseek-reasoner")
+	a.selectLLM("custom")
+	want("自定义 after starting again", "https://proxy.example.com/v1", "sk-proxy", "proxy-chat")
+
+	// A remembered key whose endpoint is not the service's is not sent to the service.
+	a.prefs.llmServices["mistral"] = savedLLMService{BaseURL: "https://evil.example.com/v1", APIKey: "sk-elsewhere", Model: "m"}
+	a.selectLLM("mistral")
+	want("Mistral with another host's key", "https://api.mistral.ai/v1", "", "m")
+}
+
+// TestSavedLLMServicesAreCleaned checks that the services remembered in settings.json are trimmed, and that one of a preset Kando does not know, or without its endpoint, is dropped.
+func TestSavedLLMServicesAreCleaned(t *testing.T) {
+	s := savedLLM{LLMServices: map[string]savedLLMService{
+		"deepseek": {BaseURL: " https://api.deepseek.com/v1 ", Model: " deepseek-chat ", APIKey: " sk-ds "},
+		"gone":     {BaseURL: "https://gone.example.com/v1", APIKey: "sk-gone"},
+		"openai":   {APIKey: "sk-openai"},
+	}}
+	s.clean()
+	want := map[string]savedLLMService{"deepseek": {BaseURL: "https://api.deepseek.com/v1", Model: "deepseek-chat", APIKey: "sk-ds"}}
+	if !maps.Equal(s.LLMServices, want) {
+		t.Fatalf("cleaned to %#v", s.LLMServices)
+	}
+	empty := savedLLM{LLMServices: map[string]savedLLMService{"gone": {}}}
+	empty.clean()
+	if empty.LLMServices != nil {
+		t.Fatalf("cleaned to %#v, want none", empty.LLMServices)
 	}
 }
 

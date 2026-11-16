@@ -1295,6 +1295,7 @@ const (
 	textMenuWindowPlayer
 	textMenuZoom
 	textOnboardingAIConfigured
+	textOnboardingAINeedsBaseURL
 	textOnboardingAINeedsKey
 	textOnboardingAddAndStart
 	textOnboardingAdded
@@ -2165,6 +2166,7 @@ var keyOfText = [numTexts]string{
 	"menuWindowPlayer",
 	"menuZoom",
 	"onboardingAIConfigured",
+	"onboardingAINeedsBaseURL",
 	"onboardingAINeedsKey",
 	"onboardingAddAndStart",
 	"onboardingAdded",
@@ -3033,6 +3035,7 @@ var textsEn = i18n.NewTexts(""+
 	"Player"+
 	"Zoom"+
 	"Set up"+
+	"Enter the Base URL in Settings to translate"+
 	"Enter the service's API Key to translate"+
 	"Add and Start"+
 	"Added. Processing started."+
@@ -3898,6 +3901,7 @@ var textsEn = i18n.NewTexts(""+
 		6,
 		4,
 		6,
+		43,
 		40,
 		13,
 		26,
@@ -4766,6 +4770,7 @@ var textsJa = i18n.NewTexts(""+
 	"プレーヤー"+
 	"拡大/縮小"+
 	"設定済み"+
+	"翻訳するには設定で Base URL を入力してください"+
 	"翻訳するにはサービスの API Key を入力してください"+
 	"追加して開始"+
 	"追加して処理を開始しました。"+
@@ -5631,6 +5636,7 @@ var textsJa = i18n.NewTexts(""+
 		15,
 		13,
 		12,
+		64,
 		69,
 		18,
 		42,
@@ -6499,6 +6505,7 @@ var textsKo = i18n.NewTexts(""+
 	"플레이어"+
 	"확대/축소"+
 	"설정됨"+
+	"번역하려면 설정에서 Base URL을 입력하십시오"+
 	"번역하려면 서비스의 API Key를 입력하십시오"+
 	"추가하고 시작"+
 	"추가하고 처리를 시작했습니다."+
@@ -7364,6 +7371,7 @@ var textsKo = i18n.NewTexts(""+
 		12,
 		13,
 		9,
+		59,
 		58,
 		19,
 		42,
@@ -8232,6 +8240,7 @@ var textsZhHans = i18n.NewTexts(""+
 	"播放器"+
 	"缩放"+
 	"已设置"+
+	"在设置里填入 Base URL 才能翻译"+
 	"填入服务的 API Key 才能翻译"+
 	"加入并开始"+
 	"已加入，开始处理。"+
@@ -9097,6 +9106,7 @@ var textsZhHans = i18n.NewTexts(""+
 		9,
 		6,
 		9,
+		40,
 		36,
 		15,
 		27,
@@ -9965,6 +9975,7 @@ var textsZhHant = i18n.NewTexts(""+
 	"播放器"+
 	"縮放"+
 	"已設定"+
+	"在設定中填入 Base URL 才能翻譯"+
 	"填入服務的 API Key 才能翻譯"+
 	"加入並開始"+
 	"已加入，開始處理。"+
@@ -10830,6 +10841,7 @@ var textsZhHant = i18n.NewTexts(""+
 		9,
 		6,
 		9,
+		40,
 		36,
 		15,
 		27,
@@ -18966,6 +18978,17 @@ func (msgs Messages) OnboardingAIModelUnchecked(model string) string {
 			return "翻譯模型：" + model + " · 使用本機登入的 EveryAPI，開始處理前會檢查登入狀態"
 		}
 	}
+}
+
+// OnboardingAINeedsBaseURL says "Enter the Base URL in Settings to translate"
+// in the language the app shows under cx.
+//
+// Second step's line about translation when the chosen service is a custom endpoint without a Base URL yet, which is typed in Settings › AI Service; the guide has no field for it, and its Settings… button opens that page. Keep Base URL as it is.
+func OnboardingAINeedsBaseURL(cx *core.Scope) string { return For(cx).OnboardingAINeedsBaseURL() }
+
+// OnboardingAINeedsBaseURL is the package's OnboardingAINeedsBaseURL in the language of msgs.
+func (msgs Messages) OnboardingAINeedsBaseURL() string {
+	return msgs.text(textOnboardingAINeedsBaseURL)
 }
 
 // OnboardingAINeedsKey says "Enter the service's API Key to translate"

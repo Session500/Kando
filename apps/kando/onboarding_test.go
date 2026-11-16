@@ -471,6 +471,7 @@ func TestOnboardingAIStatus(t *testing.T) {
 		{"sign-in not checked", media.ChatTranslator{BaseURL: media.EveryAPIBaseURL, Model: "m", Credential: signIn}, false, nil, onboarding.AI{Text: "翻译模型：m · 用本机登录的 EveryAPI，开始处理前会检查登录"}},
 		{"signed in", media.ChatTranslator{BaseURL: media.EveryAPIBaseURL, Model: "m", Credential: signIn}, true, nil, onboarding.AI{Text: "翻译模型：m", Ready: true}},
 		{"key", media.ChatTranslator{BaseURL: "https://api.openai.com/v1", Model: "gpt", APIKey: "k"}, false, nil, onboarding.AI{Text: "翻译模型：gpt", Ready: true}},
+		{"custom endpoint without a Base URL", media.ChatTranslator{Model: "gpt", APIKey: "k"}, false, nil, onboarding.AI{Text: msgs.OnboardingAINeedsBaseURL(), Missing: true}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			a, _, _ := newTestApp(t, media.Tools{Translator: tc.translator})
@@ -534,6 +535,29 @@ func TestOnboardingSetsUpTranslation(t *testing.T) {
 	waitUntil(t, tt, a, updates, func() bool { return !a.prefs.testingLLM })
 	refresh(tt, a)
 	wantText(t, tt, msgs.SettingsAIConnected())
+}
+
+// TestOnboardingSendsACustomEndpointToTheSettings checks that choosing a custom endpoint in the guide, which has no field for its Base URL, opens Settings › AI 服务 to type it, asks for no key in the guide, and does not call translation ready with the model or endpoint of the service before.
+func TestOnboardingSendsACustomEndpointToTheSettings(t *testing.T) {
+	llmEnv(t, "", "", "")
+	tools := toolsInstalled
+	tools.Translator = media.ChatTranslator{BaseURL: "https://api.openai.com/v1", Model: "gpt-4.1-mini", APIKey: "sk-openai"}
+	a, tt, _, _ := newFirstRunApp(t, tools)
+	a.syncLLM(tools)
+	tt.Press("继续")
+	msgs := testlocale.Messages()
+	tt.Press("id:onboarding-ai-service")
+	tt.Press(whole(msgs.SettingsAINameCustom()))
+	wantSettings(t, a, settings.SectionAI)
+	if got := a.OnboardingAI(a.cx); got.Ready || !got.Missing || got.Text != msgs.OnboardingAINeedsBaseURL() {
+		t.Fatalf("OnboardingAI = %+v", got)
+	}
+	if got := translator(t, a); got.BaseURL != "" || got.APIKey != "" {
+		t.Fatalf("自定义 kept OpenAI's endpoint or key: %+v", got)
+	}
+	if tt.Exists("id:onboarding-ai-key") {
+		t.Fatalf("the guide asks for a custom endpoint's key: %q", tt.Texts())
+	}
 }
 
 // TestOnboardingReopensAfterQuitMidGuide checks that quitting while the guide is still open does not count as having seen it: the library the guide made under it is saved with onboarded false, and the next launch opens that library again with the guide back on its first step.
