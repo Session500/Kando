@@ -2,6 +2,12 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.14.1 - 2026-11-16
+
+### Fixes
+
+- Drop the cards inside the sidebar, so the switcher and the status are rows of it (#149)
+
 ## 0.14.0 - 2026-11-16
 
 ### Features
