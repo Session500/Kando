@@ -2,6 +2,12 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.16.0 - 2026-11-16
+
+### Features
+
+- Download with the sign-in of the user's own browser (#168)
+
 ## 0.15.0 - 2026-11-16
 
 ### Features
