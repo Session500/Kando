@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"time"
@@ -126,7 +127,7 @@ func (a *app) BindName(edit func(*string) bool) error {
 
 // NewLibraryPath is the folder createLibrary would make for the name and place the new-library sheet holds.
 func (a *app) NewLibraryPath() (string, error) {
-	file, err := libraryFileName(a.messages(), a.snap().LibraryName)
+	file, err := films.LibraryFolder(a.messages(), runtime.GOOS, a.snap().LibraryName)
 	if err != nil {
 		return "", err
 	}
@@ -324,8 +325,7 @@ func (a *app) TranslationHint(item films.Film) (reason, section string) {
 	if item.TranslationErr == "" {
 		return "", ""
 	}
-	m := a.messages()
-	return failureHint(m, films.Film{Detail: m.QueueStatusFailed("translate: " + item.TranslationErr)})
+	return translationHint(a.messages(), item.TranslationErr)
 }
 
 func (a *app) JobFilm(id string) (films.Film, bool) {
