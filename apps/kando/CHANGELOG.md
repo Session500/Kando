@@ -2,6 +2,36 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.14.0 - 2026-11-16
+
+### Features
+
+- Type or search AI models, choose a whisper model file, more languages (#135)
+- Open sites from Browse, say what Download Video did, pause hidden videos (#139)
+- Search subtitle lines, read part of a film, open at a line, and make scripting safe (#134)
+- Set up translation in the first-run guide and trim the AI and speech pages (#137)
+- Study tools: pause after each line, multi-line loops, a list that follows the mode and lets the user read away (#140)
+- Make the library, player and palette reachable by keyboard and readable by screen readers (#136)
+- Add a playlist's or a channel's videos one job each, from the library, Browse, kando add and MCP (#144)
+- Check speech model downloads against pinned checksums and offer hf-mirror.com (#143)
+- Lead with the film being watched, show progress and spoken language on posters (#148)
+- Explain Line, remedies under dead ends, subtitle style in Settings, and a selectable held line (#145)
+- Keep films watchable through failures, show jobs everywhere, and pick the translation language per film (#138)
+- Filter by spoken language in the sidebar and correct it per film (#146)
+- Save lines, list them, export to Anki with audio, and review them (#147)
+- Follow the system's light or dark appearance (#133)
+
+### Fixes
+
+- Open a film where it stopped from its poster, not at 0:00 (#125)
+- Choose the new AI service's model, keep Test Connection current, stop on out-of-credit errors (#126)
+- Make the palette's highlight match Return, add a palette button without a menu bar, and share shortcut labels and search (#128)
+- Upload without a Google account, under kando/ when signed out (#130)
+- Refuse pages that list videos, keep message bars current, search from Browse (#132)
+- Truthful mode and clip notes, line-aligned clips, wider cue clock, finer speeds (#129)
+- Keep a film watchable when Process Again fails, resume stopped translations, and say why Retry is refused (#127)
+- Make subtitles of folder videos, keep them on failure, and add dropped folders (#142)
+
 ## 0.13.3 - 2026-11-16
 
 ### Fixes
