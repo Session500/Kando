@@ -253,6 +253,37 @@ func TestSavedSpeechSourceIsCleaned(t *testing.T) {
 	}
 }
 
+// TestTheDefaultTranslationPromptIsNotSaved checks that settings.json keeps a translation prompt only when it is the user's own, so a later version's better default reaches everyone who kept the default: the default, spaces around it or not, is saved as nothing and read back as the default in use, and a prompt of the user's own is saved and restored as it is.
+func TestTheDefaultTranslationPromptIsNotSaved(t *testing.T) {
+	a, _, _ := newTestApp(t, &fakePipeline{})
+	a.settingsPath = filepath.Join(t.TempDir(), "settings.json")
+	for _, prompt := range []string{media.DefaultSubtitlePrompt, "  " + media.DefaultSubtitlePrompt + "\n"} {
+		a.prefs.translatePrompt = prompt
+		if err := a.saveSettings(); err != nil {
+			t.Fatal(err)
+		}
+		saved := loadSavedSettings(a.settingsPath)
+		if saved.TranslatePrompt != "" {
+			t.Fatalf("the default prompt was saved: %q", saved.TranslatePrompt)
+		}
+		next, _, _ := newTestApp(t, &fakePipeline{})
+		next.restoreTranslate(saved)
+		if next.prefs.translatePrompt != media.DefaultSubtitlePrompt {
+			t.Fatalf("restored %q, want the default", next.prefs.translatePrompt)
+		}
+	}
+	const own = "Translate into {{language}} like a pirate."
+	a.prefs.translatePrompt = own
+	if err := a.saveSettings(); err != nil {
+		t.Fatal(err)
+	}
+	next, _, _ := newTestApp(t, &fakePipeline{})
+	next.restoreTranslate(loadSavedSettings(a.settingsPath))
+	if next.prefs.translatePrompt != own {
+		t.Fatalf("restored %q, want %q", next.prefs.translatePrompt, own)
+	}
+}
+
 func TestAISettingsSelectsAProvider(t *testing.T) {
 	tools := media.Tools{Translator: media.ChatTranslator{BaseURL: media.EveryAPIBaseURL, Model: media.EveryAPIModel}}
 	a, tt, _ := newTestApp(t, tools)

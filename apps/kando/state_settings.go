@@ -114,11 +114,16 @@ func (s *savedTranslate) clean() {
 	s.TranslatePrompt = strings.TrimSpace(s.TranslatePrompt)
 }
 
+// saveTranslate keeps the translation prompt only when it is the user's own: the default is saved as nothing, which restoreTranslate reads as the default of the version running, so a better default reaches everyone who did not change it.
 func (a *app) saveTranslate(saved *savedSettings) {
 	contextOn := a.prefs.translateContext
+	prompt := a.prefs.translatePrompt
+	if strings.TrimSpace(prompt) == strings.TrimSpace(media.DefaultSubtitlePrompt) {
+		prompt = ""
+	}
 	saved.savedTranslate = savedTranslate{
 		Language:         a.prefs.language,
-		TranslatePrompt:  a.prefs.translatePrompt,
+		TranslatePrompt:  prompt,
 		TranslateContext: &contextOn,
 	}
 }
