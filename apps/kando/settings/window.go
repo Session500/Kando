@@ -72,6 +72,11 @@ type App interface {
 	SetSignInBrowser(id string)
 	CheckSignIn()
 	OpenFullDiskAccess()
+	// PhoneSync is where Phone Sync stands, which the 手机同步 page shows. SetPhoneSync turns it on, which starts the server off the UI thread, or off, which stops it, and saves that; NewPhoneCode offers a new pairing code in place of the one shown; RevokePhone unpairs a phone, whose token is refused from then on.
+	PhoneSync() PhoneSync
+	SetPhoneSync(on bool)
+	NewPhoneCode()
+	RevokePhone(id string)
 	// CheckForUpdates checks for a newer version of Kando at once and shows what it finds.
 	CheckForUpdates()
 	// JobNotifications is whether Kando posts a notification when a video's job is done or failed while it is in the background; SetJobNotifications changes it.
@@ -343,6 +348,8 @@ func (s screen) page(cx *core.Scope, id string, account core.Node) core.Node {
 		return look{s}
 	case SectionShortcuts:
 		return shortcuts{s}
+	case SectionPhone:
+		return phone{s}
 	case SectionAccount:
 		if account != nil {
 			return account

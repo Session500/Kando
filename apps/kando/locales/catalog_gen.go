@@ -671,6 +671,12 @@ var Parameters = map[string][]string{
 	"SettingsGeneralUpdateAvailable":           {"version"},
 	"SettingsLibrarySaveFailed":                {"error_"},
 	"SettingsLookColorOf":                      {"line"},
+	"SettingsPhoneAddress":                     {"count"},
+	"SettingsPhoneDeviceSeen":                  {"platform", "when"},
+	"SettingsPhoneFirewall":                    {"platform"},
+	"SettingsPhoneRevokeFailed":                {"error_"},
+	"SettingsPhoneRevokeLabel":                 {"name"},
+	"SettingsPhoneStartFailed":                 {"error_"},
 	"SettingsSaveFailed":                       {"error_"},
 	"SettingsSpeechDownloadFailedStatus":       {"status"},
 	"SettingsSpeechDownloadFailedStatusMirror": {"status"},
@@ -954,6 +960,12 @@ type Translation struct {
 	SettingsGeneralUpdateAvailable           func(version string) string
 	SettingsLibrarySaveFailed                func(error_ string) string
 	SettingsLookColorOf                      func(line string) string
+	SettingsPhoneAddress                     func(count int) string
+	SettingsPhoneDeviceSeen                  func(platform string, when time.Time) string
+	SettingsPhoneFirewall                    func(platform string) string
+	SettingsPhoneRevokeFailed                func(error_ string) string
+	SettingsPhoneRevokeLabel                 func(name string) string
+	SettingsPhoneStartFailed                 func(error_ string) string
 	SettingsSaveFailed                       func(error_ string) string
 	SettingsSpeechDownloadFailedStatus       func(status int) string
 	SettingsSpeechDownloadFailedStatusMirror func(status int) string
@@ -1734,6 +1746,7 @@ const (
 	textSettingsKeywordsAccount
 	textSettingsKeywordsGeneral
 	textSettingsKeywordsLook
+	textSettingsKeywordsPhone
 	textSettingsKeywordsShortcuts
 	textSettingsKeywordsSpeech
 	textSettingsKeywordsTranslate
@@ -1778,6 +1791,20 @@ const (
 	textSettingsLookUntranslatedHint
 	textSettingsLookYield
 	textSettingsLookYieldHint
+	textSettingsPhoneCode
+	textSettingsPhoneCodeExpired
+	textSettingsPhoneCodeUsed
+	textSettingsPhoneDevices
+	textSettingsPhoneFingerprint
+	textSettingsPhoneNewCode
+	textSettingsPhoneNoDevices
+	textSettingsPhoneNoNetwork
+	textSettingsPhonePair
+	textSettingsPhonePairHint
+	textSettingsPhoneQRLabel
+	textSettingsPhoneRevoke
+	textSettingsPhoneSwitch
+	textSettingsPhoneSwitchHint
 	textSettingsSearchClear
 	textSettingsSearchLabel
 	textSettingsSearchNone
@@ -1786,6 +1813,7 @@ const (
 	textSettingsSectionAccount
 	textSettingsSectionGeneral
 	textSettingsSectionLook
+	textSettingsSectionPhone
 	textSettingsSectionShortcuts
 	textSettingsSectionSpeech
 	textSettingsSectionTranslate
@@ -2650,6 +2678,7 @@ var keyOfText = [numTexts]string{
 	"settingsKeywordsAccount",
 	"settingsKeywordsGeneral",
 	"settingsKeywordsLook",
+	"settingsKeywordsPhone",
 	"settingsKeywordsShortcuts",
 	"settingsKeywordsSpeech",
 	"settingsKeywordsTranslate",
@@ -2694,6 +2723,20 @@ var keyOfText = [numTexts]string{
 	"settingsLookUntranslatedHint",
 	"settingsLookYield",
 	"settingsLookYieldHint",
+	"settingsPhoneCode",
+	"settingsPhoneCodeExpired",
+	"settingsPhoneCodeUsed",
+	"settingsPhoneDevices",
+	"settingsPhoneFingerprint",
+	"settingsPhoneNewCode",
+	"settingsPhoneNoDevices",
+	"settingsPhoneNoNetwork",
+	"settingsPhonePair",
+	"settingsPhonePairHint",
+	"settingsPhoneQRLabel",
+	"settingsPhoneRevoke",
+	"settingsPhoneSwitch",
+	"settingsPhoneSwitchHint",
 	"settingsSearchClear",
 	"settingsSearchLabel",
 	"settingsSearchNone",
@@ -2702,6 +2745,7 @@ var keyOfText = [numTexts]string{
 	"settingsSectionAccount",
 	"settingsSectionGeneral",
 	"settingsSectionLook",
+	"settingsSectionPhone",
 	"settingsSectionShortcuts",
 	"settingsSectionSpeech",
 	"settingsSectionTranslate",
@@ -3564,6 +3608,7 @@ var textsEn = i18n.NewTexts(""+
 	"Google sign in sign out object storage upload R2 S3 OSS COS Endpoint Region Bucket Access Key Secret path style"+
 	"library location Finder File Explorer file manager interface language version components yt-dlp ffmpeg whisper-cli detect again command line terminal kando install MCP Claude Code Cursor copy config update notifications notify browser sign-in signed in cookies members-only age-restricted Chrome Safari Firefox Edge Brave Chromium keychain Full Disk Access"+
 	"subtitles display bilingual original only translation only order translation original dim blank make room preview preset font size color bold"+
+	"iPhone Android phone mobile sync pair QR code Wi-Fi network device revoke"+
 	"keyboard keys commands"+
 	"whisper models download recognition transcription HuggingFace Hugging Face Vimpo hyperframes spoken language download source mirror hf-mirror.com model file ggml"+
 	"target language smart translation context prompt restore default"+
@@ -3608,6 +3653,20 @@ var textsEn = i18n.NewTexts(""+
 	"The translation replaces it as soon as it arrives"+
 	"Move subtitles up when controls appear"+
 	"Keeps them clear of the control bar"+
+	"Code"+
+	"This code has expired."+
+	"This code has been used."+
+	"Paired Phones"+
+	"Fingerprint"+
+	"New Code"+
+	"No phones paired yet"+
+	"This computer isn't on a local network."+
+	"Pair a Phone"+
+	"In Kando on your phone, scan this code, or enter the address and code."+
+	"Pairing QR code"+
+	"Revoke"+
+	"Phone Sync"+
+	"Watch this computer's films in Kando on an iPhone or Android phone on the same network."+
 	"Clear Search"+
 	"Search settings"+
 	"No matching settings"+
@@ -3616,6 +3675,7 @@ var textsEn = i18n.NewTexts(""+
 	"Account & Upload"+
 	"General"+
 	"Subtitle Style"+
+	"Phone Sync"+
 	"Keyboard Shortcuts"+
 	"Speech Recognition"+
 	"Translation"+
@@ -4475,6 +4535,7 @@ var textsEn = i18n.NewTexts(""+
 		111,
 		356,
 		141,
+		73,
 		22,
 		161,
 		64,
@@ -4519,6 +4580,20 @@ var textsEn = i18n.NewTexts(""+
 		49,
 		38,
 		35,
+		4,
+		22,
+		24,
+		13,
+		11,
+		8,
+		20,
+		39,
+		12,
+		70,
+		15,
+		6,
+		10,
+		87,
 		12,
 		15,
 		20,
@@ -4527,6 +4602,7 @@ var textsEn = i18n.NewTexts(""+
 		16,
 		7,
 		14,
+		10,
 		18,
 		18,
 		11,
@@ -5389,6 +5465,7 @@ var textsJa = i18n.NewTexts(""+
 	"Google ログイン ログアウト オブジェクトストレージ アップロード R2 S3 OSS COS Endpoint Region Bucket Access Key Secret パス形式"+
 	"ライブラリ 場所 Finder エクスプローラー ファイルマネージャー 表示言語 バージョン コンポーネント yt-dlp ffmpeg whisper-cli 再検出 コマンドライン ターミナル kando インストール MCP Claude Code Cursor 設定をコピー アップデート 通知 ブラウザ ログイン Cookie メンバー限定 年齢確認 Chrome Safari Firefox Edge キーチェーン フルディスクアクセス"+
 	"字幕 表示方法 二言語 原文のみ 訳文のみ 順序 訳文 原文 薄く 空白 移動 プレビュー プリセット フォント サイズ 色 太字"+
+	"iPhone Android スマホ スマートフォン 同期 ペアリング QR コード Wi-Fi ネットワーク デバイス 取り消し"+
 	"キーボード キー コマンド"+
 	"whisper モデル ダウンロード 認識 文字起こし HuggingFace Hugging Face Vimpo hyperframes 認識する言語 話されている言語 ダウンロード元 ミラー hf-mirror.com モデルファイル ggml"+
 	"翻訳先の言語 スマート翻訳 文脈 プロンプト デフォルトに戻す"+
@@ -5433,6 +5510,20 @@ var textsJa = i18n.NewTexts(""+
 	"訳文が届きしだい差し替えます"+
 	"コントロール表示時に字幕を上に移動"+
 	"コントロールバーに隠れないようにします"+
+	"ペアリングコード"+
+	"このコードは期限切れです。"+
+	"このコードは使用済みです。"+
+	"ペアリング済みのスマートフォン"+
+	"フィンガープリント"+
+	"新しいコード"+
+	"ペアリングしたスマートフォンはありません"+
+	"このコンピュータはローカルネットワークに接続されていません。"+
+	"スマートフォンをペアリング"+
+	"スマートフォンの Kando でこのコードを読み取るか、アドレスとコードを入力してください。"+
+	"ペアリング用 QR コード"+
+	"取り消す"+
+	"スマートフォン同期"+
+	"同じネットワークにある iPhone や Android スマートフォンの Kando で、このコンピュータの動画を観られます。"+
 	"検索をクリア"+
 	"設定を検索"+
 	"一致する設定はありません"+
@@ -5441,6 +5532,7 @@ var textsJa = i18n.NewTexts(""+
 	"アカウントとアップロード"+
 	"一般"+
 	"字幕のスタイル"+
+	"スマートフォン同期"+
 	"キーボードショートカット"+
 	"音声認識"+
 	"翻訳"+
@@ -6300,6 +6392,7 @@ var textsJa = i18n.NewTexts(""+
 		156,
 		445,
 		163,
+		133,
 		35,
 		219,
 		85,
@@ -6344,6 +6437,20 @@ var textsJa = i18n.NewTexts(""+
 		42,
 		51,
 		57,
+		24,
+		39,
+		39,
+		45,
+		27,
+		18,
+		60,
+		90,
+		39,
+		124,
+		31,
+		12,
+		27,
+		144,
 		18,
 		15,
 		36,
@@ -6352,6 +6459,7 @@ var textsJa = i18n.NewTexts(""+
 		36,
 		6,
 		21,
+		27,
 		36,
 		12,
 		6,
@@ -7214,6 +7322,7 @@ var textsKo = i18n.NewTexts(""+
 	"Google 로그인 로그아웃 오브젝트 스토리지 업로드 R2 S3 OSS COS Endpoint Region Bucket Access Key Secret 경로 스타일"+
 	"라이브러리 위치 Finder 파일 탐색기 파일 관리자 인터페이스 언어 버전 구성 요소 yt-dlp ffmpeg whisper-cli 다시 감지 명령줄 터미널 kando 설치 MCP Claude Code Cursor 설정 복사 업데이트 알림 브라우저 로그인 쿠키 멤버십 연령 확인 Chrome Safari Firefox Edge 키체인 전체 디스크 접근 권한"+
 	"자막 표시 방식 이중 언어 원문만 번역만 순서 번역 원문 흐리게 비워 두기 이동 미리 보기 프리셋 서체 크기 색상 굵게"+
+	"iPhone Android 휴대폰 스마트폰 동기화 페어링 QR 코드 Wi-Fi 네트워크 기기 해제"+
 	"키보드 키 명령"+
 	"whisper 모델 다운로드 인식 전사 HuggingFace Hugging Face Vimpo hyperframes 인식 언어 다운로드 소스 미러 hf-mirror.com 모델 파일 ggml"+
 	"대상 언어 스마트 번역 문맥 프롬프트 기본값 복원"+
@@ -7258,6 +7367,20 @@ var textsKo = i18n.NewTexts(""+
 	"번역이 도착하면 바로 바꿉니다"+
 	"컨트롤이 나타나면 자막을 위로 이동"+
 	"컨트롤 막대에 가려지지 않게 합니다"+
+	"페어링 코드"+
+	"이 코드는 만료되었습니다."+
+	"이 코드는 이미 사용되었습니다."+
+	"페어링된 휴대폰"+
+	"지문"+
+	"새 코드"+
+	"페어링된 휴대폰이 없습니다"+
+	"이 컴퓨터는 로컬 네트워크에 연결되어 있지 않습니다."+
+	"휴대폰 페어링"+
+	"휴대폰의 Kando에서 이 코드를 스캔하거나 주소와 코드를 입력하세요."+
+	"페어링 QR 코드"+
+	"해제"+
+	"휴대폰 동기화"+
+	"같은 네트워크의 iPhone이나 Android 휴대폰에서 Kando로 이 컴퓨터의 영상을 볼 수 있습니다."+
 	"검색 지우기"+
 	"설정 검색"+
 	"일치하는 설정이 없습니다"+
@@ -7266,6 +7389,7 @@ var textsKo = i18n.NewTexts(""+
 	"계정 및 업로드"+
 	"일반"+
 	"자막 스타일"+
+	"휴대폰 동기화"+
 	"단축키"+
 	"음성 인식"+
 	"번역"+
@@ -8125,6 +8249,7 @@ var textsKo = i18n.NewTexts(""+
 		137,
 		359,
 		158,
+		100,
 		20,
 		158,
 		67,
@@ -8170,6 +8295,20 @@ var textsKo = i18n.NewTexts(""+
 		49,
 		49,
 		16,
+		36,
+		43,
+		22,
+		6,
+		10,
+		38,
+		73,
+		19,
+		91,
+		19,
+		6,
+		19,
+		117,
+		16,
 		13,
 		35,
 		6,
@@ -8177,6 +8316,7 @@ var textsKo = i18n.NewTexts(""+
 		20,
 		6,
 		16,
+		19,
 		9,
 		13,
 		6,
@@ -9039,6 +9179,7 @@ var textsZhHans = i18n.NewTexts(""+
 	"Google 登录 退出 对象存储 上传 R2 S3 OSS COS Endpoint Region Bucket Access Key Secret 路径样式"+
 	"资料库 位置 访达 文件资源管理器 文件管理器 界面语言 版本 组件 yt-dlp ffmpeg whisper-cli 重新检测 命令行 终端 kando 安装 MCP Claude Code Cursor 拷贝配置 更新 通知 浏览器 登录 借用 Cookie 会员 年龄验证 Chrome Safari Firefox Edge 钥匙串 完全磁盘访问权限"+
 	"字幕 显示方式 双语 仅原文 仅译文 顺序 译文 原文 弱化 留空 让位 预览 预设 字体 字号 颜色 粗体"+
+	"iPhone Android 手机 移动 同步 配对 二维码 Wi-Fi 网络 设备 撤销"+
 	"键盘 按键 命令"+
 	"whisper 模型 下载 识别 HuggingFace Hugging Face Vimpo hyperframes 识别语言 下载源 镜像 hf-mirror.com 模型文件 ggml"+
 	"目标语言 智能翻译 上下文 提示词 恢复默认"+
@@ -9083,6 +9224,20 @@ var textsZhHans = i18n.NewTexts(""+
 	"译文到达后立即换上"+
 	"控件出现时字幕上移让位"+
 	"避免被控制条挡住"+
+	"配对码"+
+	"此配对码已过期。"+
+	"此配对码已使用。"+
+	"已配对的手机"+
+	"指纹"+
+	"新配对码"+
+	"尚未配对手机"+
+	"这台电脑未连接局域网。"+
+	"配对手机"+
+	"在手机上的看懂里扫描此二维码，或输入地址和配对码。"+
+	"配对二维码"+
+	"撤销"+
+	"手机同步"+
+	"在同一网络下的 iPhone 或 Android 手机上，用看懂观看这台电脑里的影片。"+
 	"清除搜索"+
 	"搜索设置"+
 	"没有匹配的设置"+
@@ -9091,6 +9246,7 @@ var textsZhHans = i18n.NewTexts(""+
 	"账号与上传"+
 	"通用"+
 	"字幕外观"+
+	"手机同步"+
 	"快捷键"+
 	"语音识别"+
 	"翻译"+
@@ -9950,6 +10106,7 @@ var textsZhHans = i18n.NewTexts(""+
 		108,
 		320,
 		130,
+		79,
 		20,
 		133,
 		58,
@@ -9994,6 +10151,20 @@ var textsZhHans = i18n.NewTexts(""+
 		27,
 		33,
 		24,
+		9,
+		24,
+		24,
+		18,
+		6,
+		12,
+		18,
+		33,
+		12,
+		75,
+		15,
+		6,
+		12,
+		95,
 		12,
 		12,
 		21,
@@ -10001,6 +10172,7 @@ var textsZhHans = i18n.NewTexts(""+
 		9,
 		15,
 		6,
+		12,
 		12,
 		9,
 		12,
@@ -10864,6 +11036,7 @@ var textsZhHant = i18n.NewTexts(""+
 	"Google 登入 登出 物件儲存 上傳 R2 S3 OSS COS Endpoint Region Bucket Access Key Secret 路徑樣式"+
 	"資料庫 位置 Finder 檔案總管 檔案管理員 介面語言 版本 元件 yt-dlp ffmpeg whisper-cli 重新偵測 命令列 終端機 kando 安裝 MCP Claude Code Cursor 拷貝設定 更新 通知 瀏覽器 登入 借用 Cookie 會員 年齡驗證 Chrome Safari Firefox Edge 鑰匙圈 完整取用磁碟"+
 	"字幕 顯示方式 雙語 僅原文 僅譯文 順序 譯文 原文 淡化 留空 讓位 預覽 預設 字體 字級 顏色 粗體"+
+	"iPhone Android 手機 行動 同步 配對 QR 碼 Wi-Fi 網路 裝置 撤銷"+
 	"鍵盤 按鍵 指令"+
 	"whisper 模型 下載 辨識 HuggingFace Hugging Face Vimpo hyperframes 辨識語言 下載來源 鏡像 hf-mirror.com 模型檔案 ggml"+
 	"目標語言 智慧翻譯 上下文 提示詞 恢復預設"+
@@ -10908,6 +11081,20 @@ var textsZhHant = i18n.NewTexts(""+
 	"譯文到達後立即換上"+
 	"控制項出現時字幕上移讓位"+
 	"避免被控制列擋住"+
+	"配對碼"+
+	"此配對碼已過期。"+
+	"此配對碼已使用。"+
+	"已配對的手機"+
+	"指紋"+
+	"新配對碼"+
+	"尚未配對手機"+
+	"這台電腦未連上區域網路。"+
+	"配對手機"+
+	"在手機上的看懂中掃描此 QR 碼，或輸入位址和配對碼。"+
+	"配對 QR 碼"+
+	"撤銷"+
+	"手機同步"+
+	"在同一網路上的 iPhone 或 Android 手機，用看懂觀看這台電腦裡的影片。"+
 	"清除搜尋"+
 	"搜尋設定"+
 	"沒有符合的設定"+
@@ -10916,6 +11103,7 @@ var textsZhHant = i18n.NewTexts(""+
 	"帳號與上傳"+
 	"一般"+
 	"字幕外觀"+
+	"手機同步"+
 	"快速鍵"+
 	"語音辨識"+
 	"翻譯"+
@@ -11775,6 +11963,7 @@ var textsZhHant = i18n.NewTexts(""+
 		108,
 		308,
 		130,
+		76,
 		20,
 		136,
 		58,
@@ -11819,6 +12008,20 @@ var textsZhHant = i18n.NewTexts(""+
 		27,
 		36,
 		24,
+		9,
+		24,
+		24,
+		18,
+		6,
+		12,
+		18,
+		36,
+		12,
+		73,
+		13,
+		6,
+		12,
+		92,
 		12,
 		12,
 		21,
@@ -11826,6 +12029,7 @@ var textsZhHant = i18n.NewTexts(""+
 		9,
 		15,
 		6,
+		12,
 		12,
 		9,
 		12,
@@ -12739,6 +12943,24 @@ func Supply(lang string, t Translation) {
 	}
 	if t.SettingsLookColorOf != nil {
 		s.SettingsLookColorOf = t.SettingsLookColorOf
+	}
+	if t.SettingsPhoneAddress != nil {
+		s.SettingsPhoneAddress = t.SettingsPhoneAddress
+	}
+	if t.SettingsPhoneDeviceSeen != nil {
+		s.SettingsPhoneDeviceSeen = t.SettingsPhoneDeviceSeen
+	}
+	if t.SettingsPhoneFirewall != nil {
+		s.SettingsPhoneFirewall = t.SettingsPhoneFirewall
+	}
+	if t.SettingsPhoneRevokeFailed != nil {
+		s.SettingsPhoneRevokeFailed = t.SettingsPhoneRevokeFailed
+	}
+	if t.SettingsPhoneRevokeLabel != nil {
+		s.SettingsPhoneRevokeLabel = t.SettingsPhoneRevokeLabel
+	}
+	if t.SettingsPhoneStartFailed != nil {
+		s.SettingsPhoneStartFailed = t.SettingsPhoneStartFailed
 	}
 	if t.SettingsSaveFailed != nil {
 		s.SettingsSaveFailed = t.SettingsSaveFailed
@@ -28303,6 +28525,15 @@ func SettingsKeywordsLook(cx *core.Scope) string { return For(cx).SettingsKeywor
 // SettingsKeywordsLook is the package's SettingsKeywordsLook in the language of msgs.
 func (msgs Messages) SettingsKeywordsLook() string { return msgs.text(textSettingsKeywordsLook) }
 
+// SettingsKeywordsPhone says "iPhone Android phone mobile sync pair QR code Wi-Fi network device revoke"
+// in the language the app shows under cx.
+//
+// Words besides its title the settings search finds the Phone Sync section by, separated by spaces.
+func SettingsKeywordsPhone(cx *core.Scope) string { return For(cx).SettingsKeywordsPhone() }
+
+// SettingsKeywordsPhone is the package's SettingsKeywordsPhone in the language of msgs.
+func (msgs Messages) SettingsKeywordsPhone() string { return msgs.text(textSettingsKeywordsPhone) }
+
 // SettingsKeywordsShortcuts says "keyboard keys commands"
 // in the language the app shows under cx.
 //
@@ -28817,6 +29048,455 @@ func SettingsLookYieldHint(cx *core.Scope) string { return For(cx).SettingsLookY
 // SettingsLookYieldHint is the package's SettingsLookYieldHint in the language of msgs.
 func (msgs Messages) SettingsLookYieldHint() string { return msgs.text(textSettingsLookYieldHint) }
 
+// SettingsPhoneAddress says "{count, plural, one {Address} other {Addresses}}"
+// in the language the app shows under cx.
+//
+// Label over the address or addresses (IP and port) the phone connects to.
+func SettingsPhoneAddress(cx *core.Scope, count int) string {
+	return For(cx).SettingsPhoneAddress(count)
+}
+
+// SettingsPhoneAddress is the package's SettingsPhoneAddress in the language of msgs.
+func (msgs Messages) SettingsPhoneAddress(count int) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.SettingsPhoneAddress(count))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].SettingsPhoneAddress; f != nil {
+			return f(count)
+		}
+		switch lang {
+		case "", "en":
+			var b strings.Builder
+			switch i18n.Cardinal("en", float64(count)) {
+			case i18n.One:
+				b.WriteString("Address")
+			default:
+				b.WriteString("Addresses")
+			}
+			return b.String()
+		case "ja":
+			var b strings.Builder
+			switch i18n.Cardinal("ja", float64(count)) {
+			default:
+				b.WriteString("アドレス")
+			}
+			return b.String()
+		case "ko":
+			var b strings.Builder
+			switch i18n.Cardinal("ko", float64(count)) {
+			default:
+				b.WriteString("주소")
+			}
+			return b.String()
+		case "zh-Hans":
+			var b strings.Builder
+			switch i18n.Cardinal("zh-Hans", float64(count)) {
+			default:
+				b.WriteString("地址")
+			}
+			return b.String()
+		case "zh-Hant":
+			var b strings.Builder
+			switch i18n.Cardinal("zh-Hant", float64(count)) {
+			default:
+				b.WriteString("位址")
+			}
+			return b.String()
+		}
+	}
+}
+
+// SettingsPhoneCode says "Code"
+// in the language the app shows under cx.
+//
+// Label over the 6-digit one-time pairing code.
+func SettingsPhoneCode(cx *core.Scope) string { return For(cx).SettingsPhoneCode() }
+
+// SettingsPhoneCode is the package's SettingsPhoneCode in the language of msgs.
+func (msgs Messages) SettingsPhoneCode() string { return msgs.text(textSettingsPhoneCode) }
+
+// SettingsPhoneCodeExpired says "This code has expired."
+// in the language the app shows under cx.
+//
+// In place of the QR code once the code is past its 5 minutes or was entered wrongly too many times; New Code offers another.
+func SettingsPhoneCodeExpired(cx *core.Scope) string { return For(cx).SettingsPhoneCodeExpired() }
+
+// SettingsPhoneCodeExpired is the package's SettingsPhoneCodeExpired in the language of msgs.
+func (msgs Messages) SettingsPhoneCodeExpired() string {
+	return msgs.text(textSettingsPhoneCodeExpired)
+}
+
+// SettingsPhoneCodeUsed says "This code has been used."
+// in the language the app shows under cx.
+//
+// In place of the QR code once a phone paired with the code; New Code offers another.
+func SettingsPhoneCodeUsed(cx *core.Scope) string { return For(cx).SettingsPhoneCodeUsed() }
+
+// SettingsPhoneCodeUsed is the package's SettingsPhoneCodeUsed in the language of msgs.
+func (msgs Messages) SettingsPhoneCodeUsed() string { return msgs.text(textSettingsPhoneCodeUsed) }
+
+// SettingsPhoneDeviceSeen says "{platform, select, ios {iPhone} android {Android} other {Phone}} · Last seen {when}"
+// in the language the app shows under cx.
+//
+// Under a paired phone's name: its platform and when it last connected. {platform} is ios, android or empty.
+func SettingsPhoneDeviceSeen(cx *core.Scope, platform string, when time.Time) string {
+	return For(cx).SettingsPhoneDeviceSeen(platform, when)
+}
+
+// SettingsPhoneDeviceSeen is the package's SettingsPhoneDeviceSeen in the language of msgs.
+func (msgs Messages) SettingsPhoneDeviceSeen(platform string, when time.Time) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.SettingsPhoneDeviceSeen(platform, when))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].SettingsPhoneDeviceSeen; f != nil {
+			return f(platform, when)
+		}
+		switch lang {
+		case "", "en":
+			var b strings.Builder
+			switch platform {
+			case "ios":
+				b.WriteString("iPhone")
+			case "android":
+				b.WriteString("Android")
+			default:
+				b.WriteString("Phone")
+			}
+			b.WriteString(" · Last seen ")
+			b.WriteString(msgs.arg(i18n.FormatDate(msgs.dated("en"), when, i18n.DateOptions{Date: i18n.ShortStyle, Time: i18n.ShortStyle})))
+			return b.String()
+		case "ja":
+			var b strings.Builder
+			switch platform {
+			case "ios":
+				b.WriteString("iPhone")
+			case "android":
+				b.WriteString("Android")
+			default:
+				b.WriteString("スマートフォン")
+			}
+			b.WriteString(" · 最終接続：")
+			b.WriteString(i18n.FormatDate(msgs.dated("ja"), when, i18n.DateOptions{Date: i18n.ShortStyle, Time: i18n.ShortStyle}))
+			return b.String()
+		case "ko":
+			var b strings.Builder
+			switch platform {
+			case "ios":
+				b.WriteString("iPhone")
+			case "android":
+				b.WriteString("Android")
+			default:
+				b.WriteString("휴대폰")
+			}
+			b.WriteString(" · 마지막 연결: ")
+			b.WriteString(i18n.FormatDate(msgs.dated("ko"), when, i18n.DateOptions{Date: i18n.ShortStyle, Time: i18n.ShortStyle}))
+			return b.String()
+		case "zh-Hans":
+			var b strings.Builder
+			switch platform {
+			case "ios":
+				b.WriteString("iPhone")
+			case "android":
+				b.WriteString("Android")
+			default:
+				b.WriteString("手机")
+			}
+			b.WriteString(" · 上次连接：")
+			b.WriteString(i18n.FormatDate(msgs.dated("zh-Hans"), when, i18n.DateOptions{Date: i18n.ShortStyle, Time: i18n.ShortStyle}))
+			return b.String()
+		case "zh-Hant":
+			var b strings.Builder
+			switch platform {
+			case "ios":
+				b.WriteString("iPhone")
+			case "android":
+				b.WriteString("Android")
+			default:
+				b.WriteString("手機")
+			}
+			b.WriteString(" · 上次連線：")
+			b.WriteString(i18n.FormatDate(msgs.dated("zh-Hant"), when, i18n.DateOptions{Date: i18n.ShortStyle, Time: i18n.ShortStyle}))
+			return b.String()
+		}
+	}
+}
+
+// SettingsPhoneDevices says "Paired Phones"
+// in the language the app shows under cx.
+//
+// Heading of the card listing the phones paired with this computer.
+func SettingsPhoneDevices(cx *core.Scope) string { return For(cx).SettingsPhoneDevices() }
+
+// SettingsPhoneDevices is the package's SettingsPhoneDevices in the language of msgs.
+func (msgs Messages) SettingsPhoneDevices() string { return msgs.text(textSettingsPhoneDevices) }
+
+// SettingsPhoneFingerprint says "Fingerprint"
+// in the language the app shows under cx.
+//
+// Label over the short form of the certificate's fingerprint, which a phone paired by hand shows to compare.
+func SettingsPhoneFingerprint(cx *core.Scope) string { return For(cx).SettingsPhoneFingerprint() }
+
+// SettingsPhoneFingerprint is the package's SettingsPhoneFingerprint in the language of msgs.
+func (msgs Messages) SettingsPhoneFingerprint() string {
+	return msgs.text(textSettingsPhoneFingerprint)
+}
+
+// SettingsPhoneFirewall says "{platform, select, macOS {If macOS asks whether Kando may accept incoming network connections, click Allow.} Windows {If Windows asks whether Kando may use private networks, click Allow.} other {If your firewall asks whether Kando may accept incoming connections, allow it.}}"
+// in the language the app shows under cx.
+//
+// Note under the Phone Sync switch: the system's firewall asks once before phones can connect. {platform} is the system the app runs on: macOS, Windows or another (Linux); each case names that system's prompt and its button.
+func SettingsPhoneFirewall(cx *core.Scope, platform string) string {
+	return For(cx).SettingsPhoneFirewall(platform)
+}
+
+// SettingsPhoneFirewall is the package's SettingsPhoneFirewall in the language of msgs.
+func (msgs Messages) SettingsPhoneFirewall(platform string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.SettingsPhoneFirewall(platform))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].SettingsPhoneFirewall; f != nil {
+			return f(platform)
+		}
+		switch lang {
+		case "", "en":
+			var b strings.Builder
+			switch platform {
+			case "macOS":
+				b.WriteString("If macOS asks whether Kando may accept incoming network connections, click Allow.")
+			case "Windows":
+				b.WriteString("If Windows asks whether Kando may use private networks, click Allow.")
+			default:
+				b.WriteString("If your firewall asks whether Kando may accept incoming connections, allow it.")
+			}
+			return b.String()
+		case "ja":
+			var b strings.Builder
+			switch platform {
+			case "macOS":
+				b.WriteString("macOS が Kando へのネットワーク受信接続を許可するか確認してきたら、「許可」をクリックしてください。")
+			case "Windows":
+				b.WriteString("Windows が Kando のプライベートネットワークの使用を許可するか確認してきたら、「許可」をクリックしてください。")
+			default:
+				b.WriteString("ファイアウォールが Kando への受信接続を許可するか確認してきたら、許可してください。")
+			}
+			return b.String()
+		case "ko":
+			var b strings.Builder
+			switch platform {
+			case "macOS":
+				b.WriteString("macOS가 Kando의 수신 네트워크 연결을 허용할지 물으면 ‘허용’을 클릭하세요.")
+			case "Windows":
+				b.WriteString("Windows가 Kando의 개인 네트워크 사용을 허용할지 물으면 ‘허용’을 클릭하세요.")
+			default:
+				b.WriteString("방화벽이 Kando의 수신 연결을 허용할지 물으면 허용하세요.")
+			}
+			return b.String()
+		case "zh-Hans":
+			var b strings.Builder
+			switch platform {
+			case "macOS":
+				b.WriteString("如果 macOS 询问是否允许看懂接受传入的网络连接，请点按“允许”。")
+			case "Windows":
+				b.WriteString("如果 Windows 询问是否允许看懂使用专用网络，请点击“允许”。")
+			default:
+				b.WriteString("如果防火墙询问是否允许看懂接受传入的连接，请允许。")
+			}
+			return b.String()
+		case "zh-Hant":
+			var b strings.Builder
+			switch platform {
+			case "macOS":
+				b.WriteString("如果 macOS 詢問是否允許看懂接受傳入的網路連線，請按一下「允許」。")
+			case "Windows":
+				b.WriteString("如果 Windows 詢問是否允許看懂使用私人網路，請按一下「允許」。")
+			default:
+				b.WriteString("如果防火牆詢問是否允許看懂接受傳入的連線，請允許。")
+			}
+			return b.String()
+		}
+	}
+}
+
+// SettingsPhoneNewCode says "New Code"
+// in the language the app shows under cx.
+//
+// Button above the pairing card: offers a new one-time pairing code in place of the one shown.
+func SettingsPhoneNewCode(cx *core.Scope) string { return For(cx).SettingsPhoneNewCode() }
+
+// SettingsPhoneNewCode is the package's SettingsPhoneNewCode in the language of msgs.
+func (msgs Messages) SettingsPhoneNewCode() string { return msgs.text(textSettingsPhoneNewCode) }
+
+// SettingsPhoneNoDevices says "No phones paired yet"
+// in the language the app shows under cx.
+//
+// The paired phones card when there are none.
+func SettingsPhoneNoDevices(cx *core.Scope) string { return For(cx).SettingsPhoneNoDevices() }
+
+// SettingsPhoneNoDevices is the package's SettingsPhoneNoDevices in the language of msgs.
+func (msgs Messages) SettingsPhoneNoDevices() string { return msgs.text(textSettingsPhoneNoDevices) }
+
+// SettingsPhoneNoNetwork says "This computer isn't on a local network."
+// in the language the app shows under cx.
+//
+// In place of the QR code while the computer has no local network address a phone could reach.
+func SettingsPhoneNoNetwork(cx *core.Scope) string { return For(cx).SettingsPhoneNoNetwork() }
+
+// SettingsPhoneNoNetwork is the package's SettingsPhoneNoNetwork in the language of msgs.
+func (msgs Messages) SettingsPhoneNoNetwork() string { return msgs.text(textSettingsPhoneNoNetwork) }
+
+// SettingsPhonePair says "Pair a Phone"
+// in the language the app shows under cx.
+//
+// Heading of the Phone Sync card with the pairing QR code, address, code and fingerprint.
+func SettingsPhonePair(cx *core.Scope) string { return For(cx).SettingsPhonePair() }
+
+// SettingsPhonePair is the package's SettingsPhonePair in the language of msgs.
+func (msgs Messages) SettingsPhonePair() string { return msgs.text(textSettingsPhonePair) }
+
+// SettingsPhonePairHint says "In Kando on your phone, scan this code, or enter the address and code."
+// in the language the app shows under cx.
+//
+// Line beside the pairing QR code saying how a phone pairs.
+func SettingsPhonePairHint(cx *core.Scope) string { return For(cx).SettingsPhonePairHint() }
+
+// SettingsPhonePairHint is the package's SettingsPhonePairHint in the language of msgs.
+func (msgs Messages) SettingsPhonePairHint() string { return msgs.text(textSettingsPhonePairHint) }
+
+// SettingsPhoneQRLabel says "Pairing QR code"
+// in the language the app shows under cx.
+//
+// Accessibility name of the pairing QR code image.
+func SettingsPhoneQRLabel(cx *core.Scope) string { return For(cx).SettingsPhoneQRLabel() }
+
+// SettingsPhoneQRLabel is the package's SettingsPhoneQRLabel in the language of msgs.
+func (msgs Messages) SettingsPhoneQRLabel() string { return msgs.text(textSettingsPhoneQRLabel) }
+
+// SettingsPhoneRevoke says "Revoke"
+// in the language the app shows under cx.
+//
+// Button of a paired phone's row: unpairs it, so it can no longer connect.
+func SettingsPhoneRevoke(cx *core.Scope) string { return For(cx).SettingsPhoneRevoke() }
+
+// SettingsPhoneRevoke is the package's SettingsPhoneRevoke in the language of msgs.
+func (msgs Messages) SettingsPhoneRevoke() string { return msgs.text(textSettingsPhoneRevoke) }
+
+// SettingsPhoneRevokeFailed says "Couldn't revoke the phone: {error}"
+// in the language the app shows under cx.
+//
+// Error under the paired phones when the device list could not be saved, with the system's reason in English.
+func SettingsPhoneRevokeFailed(cx *core.Scope, error_ string) string {
+	return For(cx).SettingsPhoneRevokeFailed(error_)
+}
+
+// SettingsPhoneRevokeFailed is the package's SettingsPhoneRevokeFailed in the language of msgs.
+func (msgs Messages) SettingsPhoneRevokeFailed(error_ string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.SettingsPhoneRevokeFailed(error_))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].SettingsPhoneRevokeFailed; f != nil {
+			return f(error_)
+		}
+		switch lang {
+		case "", "en":
+			return "Couldn't revoke the phone: " + msgs.arg(error_)
+		case "ja":
+			return "スマートフォンを取り消せません：" + error_
+		case "ko":
+			return "휴대폰을 해제할 수 없습니다: " + error_
+		case "zh-Hans":
+			return "无法撤销该手机：" + error_
+		case "zh-Hant":
+			return "無法撤銷該手機：" + error_
+		}
+	}
+}
+
+// SettingsPhoneRevokeLabel says "Revoke {name}"
+// in the language the app shows under cx.
+//
+// Accessibility name of a paired phone's Revoke button; {name} is the name the phone gave itself.
+func SettingsPhoneRevokeLabel(cx *core.Scope, name string) string {
+	return For(cx).SettingsPhoneRevokeLabel(name)
+}
+
+// SettingsPhoneRevokeLabel is the package's SettingsPhoneRevokeLabel in the language of msgs.
+func (msgs Messages) SettingsPhoneRevokeLabel(name string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.SettingsPhoneRevokeLabel(name))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].SettingsPhoneRevokeLabel; f != nil {
+			return f(name)
+		}
+		switch lang {
+		case "", "en":
+			return "Revoke " + msgs.arg(name)
+		case "ja":
+			return name + " を取り消す"
+		case "ko":
+			return name + " 해제"
+		case "zh-Hans":
+			return "撤销 " + name
+		case "zh-Hant":
+			return "撤銷 " + name
+		}
+	}
+}
+
+// SettingsPhoneStartFailed says "Phone Sync couldn't start: {error}"
+// in the language the app shows under cx.
+//
+// Error under the Phone Sync switch when the server could not start, with the system's reason in English.
+func SettingsPhoneStartFailed(cx *core.Scope, error_ string) string {
+	return For(cx).SettingsPhoneStartFailed(error_)
+}
+
+// SettingsPhoneStartFailed is the package's SettingsPhoneStartFailed in the language of msgs.
+func (msgs Messages) SettingsPhoneStartFailed(error_ string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.SettingsPhoneStartFailed(error_))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].SettingsPhoneStartFailed; f != nil {
+			return f(error_)
+		}
+		switch lang {
+		case "", "en":
+			return "Phone Sync couldn't start: " + msgs.arg(error_)
+		case "ja":
+			return "スマートフォン同期を開始できません：" + error_
+		case "ko":
+			return "휴대폰 동기화를 시작할 수 없습니다: " + error_
+		case "zh-Hans":
+			return "手机同步无法启动：" + error_
+		case "zh-Hant":
+			return "手機同步無法啟動：" + error_
+		}
+	}
+}
+
+// SettingsPhoneSwitch says "Phone Sync"
+// in the language the app shows under cx.
+//
+// Switch in Settings › Phone Sync that serves this computer's libraries to paired phones on the local network.
+func SettingsPhoneSwitch(cx *core.Scope) string { return For(cx).SettingsPhoneSwitch() }
+
+// SettingsPhoneSwitch is the package's SettingsPhoneSwitch in the language of msgs.
+func (msgs Messages) SettingsPhoneSwitch() string { return msgs.text(textSettingsPhoneSwitch) }
+
+// SettingsPhoneSwitchHint says "Watch this computer's films in Kando on an iPhone or Android phone on the same network."
+// in the language the app shows under cx.
+//
+// Hint under the Phone Sync switch.
+func SettingsPhoneSwitchHint(cx *core.Scope) string { return For(cx).SettingsPhoneSwitchHint() }
+
+// SettingsPhoneSwitchHint is the package's SettingsPhoneSwitchHint in the language of msgs.
+func (msgs Messages) SettingsPhoneSwitchHint() string { return msgs.text(textSettingsPhoneSwitchHint) }
+
 // SettingsSaveFailed says "Couldn't save the settings: {error}"
 // in the language the app shows under cx.
 //
@@ -28922,6 +29602,15 @@ func SettingsSectionLook(cx *core.Scope) string { return For(cx).SettingsSection
 
 // SettingsSectionLook is the package's SettingsSectionLook in the language of msgs.
 func (msgs Messages) SettingsSectionLook() string { return msgs.text(textSettingsSectionLook) }
+
+// SettingsSectionPhone says "Phone Sync"
+// in the language the app shows under cx.
+//
+// Settings section and sidebar item: serving this computer's films to Kando on phones over the local network.
+func SettingsSectionPhone(cx *core.Scope) string { return For(cx).SettingsSectionPhone() }
+
+// SettingsSectionPhone is the package's SettingsSectionPhone in the language of msgs.
+func (msgs Messages) SettingsSectionPhone() string { return msgs.text(textSettingsSectionPhone) }
 
 // SettingsSectionShortcuts says "Keyboard Shortcuts"
 // in the language the app shows under cx.

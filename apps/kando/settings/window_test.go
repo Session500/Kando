@@ -3,6 +3,7 @@ package settings
 import (
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -30,6 +31,7 @@ type fakeApp struct {
 	cli                     CLI
 	ext                     BrowserExtension
 	signIn                  SignIn
+	phone                   PhoneSync
 	notify                  bool
 	models                  map[string]string
 	owned                   map[string]bool
@@ -124,6 +126,13 @@ func (f *fakeApp) SetSignInBrowser(id string)            { f.call("sign in with 
 func (f *fakeApp) CheckSignIn()                          { f.call("check sign-in") }
 func (f *fakeApp) OpenFullDiskAccess()                   { f.call("full disk access") }
 func (f *fakeApp) CheckForUpdates()                      { f.call("check updates") }
+func (f *fakeApp) PhoneSync() PhoneSync                  { return f.phone }
+func (f *fakeApp) SetPhoneSync(on bool) {
+	f.call("phone sync " + strconv.FormatBool(on))
+	f.phone.On = on
+}
+func (f *fakeApp) NewPhoneCode()                         { f.call("new phone code") }
+func (f *fakeApp) RevokePhone(id string)                 { f.call("revoke " + id) }
 func (f *fakeApp) JobNotifications() bool                { return f.notify }
 func (f *fakeApp) SetJobNotifications(on bool)           { f.notify = on }
 func (f *fakeApp) InstalledSpeechModel(id string) string { return f.models[id] }
@@ -826,5 +835,63 @@ func TestLookPageChangesTheStyle(t *testing.T) {
 	}
 	if !app.Exists(whole("43")) || saves() != 6 {
 		t.Fatalf("size shown %v, %d saves", app.Exists(whole("43")), saves())
+	}
+}
+
+func TestPhonePageSaysWhereTheCodeStands(t *testing.T) {
+	a := newFakeApp()
+	a.section = SectionPhone
+	app := start(t, a)
+	msgs := testlocale.Messages()
+	// Off: the switch and the firewall's note, and nothing to pair with.
+	if !app.Exists(whole(msgs.SettingsPhoneFirewall("macOS"))) || app.Exists("id:settings-phone-pairing") {
+		t.Fatalf("texts %q while off", app.Texts())
+	}
+	app.Press("id:settings-phone-sync")
+	if !slices.Contains(a.calls, "phone sync true") {
+		t.Fatalf("calls %q", a.calls)
+	}
+	change(app, a, func() {
+		a.phone = PhoneSync{On: true, Running: true, Addrs: []string{"192.168.1.20:52817"}, Code: "482913", Fingerprint: "MZXW 6YTB OJUW U3DP", QR: []byte("png"), QRModules: 49}
+	})
+	if got := app.Find("id:settings-phone-code").Text; got != "482 913" || !app.Exists("id:settings-phone-qr") || app.Find("id:settings-phone-fingerprint").Text != "MZXW 6YTB OJUW U3DP" {
+		t.Fatalf("code %q, texts %q", got, app.Texts())
+	}
+	for _, c := range []struct {
+		state func(*PhoneSync)
+		text  string
+	}{
+		{func(p *PhoneSync) { p.Expired, p.QR = true, nil }, msgs.SettingsPhoneCodeExpired()},
+		{func(p *PhoneSync) { p.Used, p.QR = true, nil }, msgs.SettingsPhoneCodeUsed()},
+		{func(p *PhoneSync) { p.Addrs, p.QR = nil, nil }, msgs.SettingsPhoneNoNetwork()},
+	} {
+		change(app, a, func() {
+			a.phone = PhoneSync{On: true, Running: true, Addrs: []string{"192.168.1.20:52817"}, Code: "482913"}
+			c.state(&a.phone)
+		})
+		if !app.Exists(whole(c.text)) || app.Exists("id:settings-phone-qr") || app.Find("id:settings-phone-code").Text != "—" {
+			t.Fatalf("want %q in place of the QR code and no code; texts %q", c.text, app.Texts())
+		}
+	}
+	app.Press("id:settings-phone-new-code")
+	change(app, a, func() {
+		a.phone.Devices = []PhoneDevice{{ID: "d1", Name: "iPhone 17", Platform: "ios", LastSeen: time.Date(2026, 11, 17, 9, 41, 0, 0, time.Local)}}
+	})
+	app.Press("id:settings-phone-revoke-d1")
+	if !slices.Contains(a.calls, "new phone code") || !slices.Contains(a.calls, "revoke d1") || !app.Exists(whole("iPhone 17")) {
+		t.Fatalf("calls %q, texts %q", a.calls, app.Texts())
+	}
+	change(app, a, func() { a.phone = PhoneSync{On: true, Err: "address already in use"} })
+	if !app.Exists(whole(msgs.SettingsPhoneStartFailed("address already in use"))) {
+		t.Fatalf("texts %q after a failed start", app.Texts())
+	}
+}
+
+func TestPhonePageSaysNothingOfAFirewallOnLinux(t *testing.T) {
+	a := newFakeApp()
+	a.section = SectionPhone
+	app := startOn(t, a, core.OSLinux)
+	if app.Exists(whole(testlocale.Messages().SettingsPhoneFirewall("Linux"))) {
+		t.Fatal("a firewall's note on Linux, where no prompt asks")
 	}
 }

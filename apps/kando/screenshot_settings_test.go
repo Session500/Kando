@@ -2,15 +2,19 @@ package main
 
 import (
 	"fmt"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"kando/apps/kando/browserext"
 	"kando/apps/kando/clitool"
 	"kando/apps/kando/locales/testlocale"
+	"kando/apps/kando/phonesync"
 	"kando/apps/kando/settings"
 	"kando/packages/media"
+	psync "kando/packages/sync"
 
 	ns "github.com/nsgo-dev/nsgo/core"
 	"github.com/nsgo-dev/nsgo/nsgotest"
@@ -20,7 +24,7 @@ import (
 func TestScreenshotsSettings(t *testing.T) {
 	f := newScreenshotFixture(t)
 	shown, models, turbo := settingsShotFolders(t, f)
-	for _, section := range []string{settings.SectionGeneral, settings.SectionSpeech, settings.SectionAI, settings.SectionTranslate, settings.SectionLook, settings.SectionShortcuts, settings.SectionAccount} {
+	for _, section := range []string{settings.SectionGeneral, settings.SectionSpeech, settings.SectionAI, settings.SectionTranslate, settings.SectionLook, settings.SectionShortcuts, settings.SectionAccount, settings.SectionPhone} {
 		shootSettings(t, f, section, "settings-"+section, shown, models, turbo, func(a *app) { shotCLITool(f, a, true) })
 	}
 	// The 命令行与 MCP card at the end of 通用: before the kando command is installed, with 安装; and once a terminal finds it, after 拷贝配置.
@@ -43,6 +47,8 @@ func TestScreenshotsSettings(t *testing.T) {
 		shotCLITool(f, a, true)
 		shotSignIn(a, "chrome", media.LoginNoAccess)
 	})
+	// 手机同步 on, while the page offers a code: its QR code with the address, the code and the fingerprint, and one phone paired.
+	shootSettings(t, f, settings.SectionPhone, "settings-phone-paired", shown, models, turbo, shotPhoneSync)
 	// EveryAPI without a key on a computer without the everyapi program: the row under API Key offers 获取 EveryAPI and 重新检测.
 	shootSettings(t, f, settings.SectionAI, "settings-ai-everyapi-missing", shown, models, turbo, func(a *app) {
 		tools := a.pipeline.(media.Tools)
@@ -111,6 +117,18 @@ func shotBrowserExt(a *app, connected bool) {
 func shotSignIn(a *app, browser string, trouble media.LoginTrouble) {
 	a.queue.ytdlp.browsers = []media.Browser{media.Browsers[0], media.Browsers[1], media.Browsers[5]}
 	a.signin.browser, a.signin.checked, a.signin.trouble = browser, browser, trouble
+}
+
+// shotPhoneSync shows Phone Sync on, offering a code at a fixed address with a fixed certificate's fingerprint, and one iPhone paired, as a running server would show them; no server starts, so nothing listens and the picture is the same each time.
+func shotPhoneSync(a *app) {
+	a.phone.on, a.phone.running = true, true
+	a.phone.fingerprint = psync.Fingerprint([]byte("Kando screenshot certificate"))
+	a.phone.name = "MacBook Pro"
+	a.phone.addrs = []netip.AddrPort{netip.MustParseAddrPort("192.168.1.20:52817")}
+	a.phone.offer = phonesync.Offer{Code: "482913", State: phonesync.OfferLive}
+	seen := time.Date(2026, 11, 17, 9, 41, 0, 0, time.Local)
+	a.phone.devices = []phonesync.Device{{ID: "iphone", Name: "iPhone 17", Platform: psync.PlatformIOS, Paired: seen.Add(-48 * time.Hour), LastSeen: seen}}
+	a.phoneSyncQR()
 }
 
 // shootSettings renders the settings window open at section, at the prototype's 880 by 640, as name.png: the library shown, the whisper models in models with turbo in use, and EveryAPI as the AI service, without a key, through the everyapi program in ~/bin (writeFakeEveryAPI). setup, when given, changes the app before it is drawn.

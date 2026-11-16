@@ -166,6 +166,7 @@ type savedSettings struct {
 	savedOnboarding // state_onboarding.go
 	savedWindow     // state_window.go
 	savedSignIn     // state_signin.go
+	savedPhoneSync  // state_phonesync.go
 }
 
 // clean tidies what was read. Every part has a clean of its own, in its own file, which trims its text or does nothing, and each is called here, so an area changes only its own clean.
@@ -185,4 +186,5 @@ func (s *savedSettings) clean() {
 	s.savedOnboarding.clean()
 	s.savedWindow.clean()
 	s.savedSignIn.clean()
+	s.savedPhoneSync.clean()
 }
