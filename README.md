@@ -139,6 +139,7 @@ To get the `kando` command:
 | `kando retry <job-id> [--wait]` | Queues a failed, canceled or finished job again under the same id, as Retry and Process Again do, without changing what the window shows. A finished film is translated again into the language its subtitles are in, or into the target language set in Kando if it was not translated. A running or waiting job is refused. When processing a finished film again fails or is canceled, the film keeps the subtitles it had, and the job is reported as failed or canceled. |
 | `kando translate <film-id> [--wait]` | Translates the lines a finished film's translation left untranslated, as Translate Missing Lines does, without downloading or transcribing it again: every line of a film that was not translated at all. A film with no untranslated line, or still being processed, is refused. |
 | `kando remove <job-id>` | Takes a job off the library, as Remove does, stopping it first when it is running. Its files stay on disk. |
+| `kando move <film-id> --to <library>` | Moves a finished film to another library Kando knows, named as `kando status` lists it or by its folder, as Move to Library does, and prints its id there and that library's folder. A film still being processed is refused. |
 | `kando sites [query] [--limit N]` | Searches the websites Kando downloads from, by name, domain or a video link. |
 | `kando open [film-id] [--at T]` | Brings Kando to the front, showing a film, or the library without an id. `--at` plays the film from that time of its subtitles, such as a line `kando search` found. A film still being processed plays once its video is on disk, as its card's Watch does; one that cannot be watched yet shows the library instead, with a note. While a dialog is open in the window, it fails and changes nothing. |
 | `kando mcp` | Serves MCP on standard input and output (see below). |
@@ -166,6 +167,7 @@ Every command that talks to the app takes `--json`, which prints the app's answe
 | `kando_retry_job` | Queues a failed, canceled or finished job again under the same id; returns the job. |
 | `kando_translate_film` | Translates the lines a finished film's translation left untranslated, every line of one that was not translated; returns its job. |
 | `kando_remove_job` | Takes a job off the library, stopping it first when it is running; its files stay on disk. |
+| `kando_move_film` | Moves a finished film to another library Kando knows (`to`, its name or its folder), with its files, its job, where it stopped, its subtitle delay and place, its title and its saved lines; returns its id there. |
 | `kando_search_sites` | Searches the websites Kando downloads from, by name, domain or a video link (20 results unless `limit` is set). |
 | `kando_open` | Brings the Kando window to the front, showing a film or the library, from a line of the film when `at_ms` is set. `shown` and `reason` say what it shows: a film still being processed plays once its video is on disk, and one that cannot be watched yet shows the library (`in_queue`). While a dialog is open in the window, it fails with `not_ready`. |
 
@@ -233,6 +235,8 @@ Uploading is manual: open a film and click Upload to R2 (or the store you chose)
 ## Libraries and settings
 
 A library is a folder whose name ends in `.kando`. Each downloaded film gets its own folder inside it, `<title> [<video id>]/`, holding `video.mp4`, `cover.jpg`, `video.srt` and `video.bilingual.srt`. They are ordinary files: Kando watches the library folder, so videos added or removed in Finder or a file manager show up in the library. On macOS a `.kando` folder gets a folder icon with the Kando mark in Finder. The lines you save are kept in `saved-lines.json` at the top of the library folder, with when each is next due for review, so they move with the library.
+
+Move to Library, in a film's ⋯ and in the File menu while it is open, moves the film to another library Kando knows: its folder, or its video, subtitles and the files Kando keeps beside them, moves into the other library's folder, renamed with a number when the name is taken there, and its job, where it stopped, its subtitle delay and place, the title given to it and its saved lines go with it. To a library on another drive it is copied first, with its progress in the message bar, and stays where it was if the copy fails or is canceled. A local video outside the library folder stays where it is and moves only in the list. A film still being processed cannot be moved. The message bar then opens the other library or undoes the move.
 
 Removing a film from the library moves the film's folder to the Trash, or only its video and subtitles when that folder holds other videos or folders too; a local video outside the library folder stays where it is and only leaves the list. Removing a library from the list leaves its folder on disk.
 

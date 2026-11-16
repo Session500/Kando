@@ -38,6 +38,8 @@ const (
 	MethodTranslate = "jobs.translate"
 	// MethodRemove takes IDParams, a Job's ID, takes the job off the open library's shelf as the window's 移除 does, stopping it first when it is running, and answers nothing (null). Its files stay on disk.
 	MethodRemove = "jobs.remove"
+	// MethodMove takes MoveParams, a Film's ID and the library to move it to, moves the film there as the window's Move to Library does, with its files, its job and everything Kando keeps of it, and answers Moved once it is there, which across drives takes as long as copying it (MoveTimeout). A film still being processed is refused.
+	MethodMove = "films.move"
 	// MethodSites takes SitesParams and answers []Site, the websites Kando downloads from that the query finds.
 	MethodSites = "sites.search"
 	// MethodShow takes ShowParams, a Film's ID or "" for the library and where to play the film from, brings the window to the front showing it, and answers ShowResult, what it shows. IDParams are ShowParams without a time.
@@ -140,6 +142,19 @@ type SearchParams struct {
 type ShowParams struct {
 	ID   string `json:"id"`
 	AtMS *int64 `json:"at_ms,omitempty"`
+}
+
+// MoveParams name a film of the open library and the library MethodMove moves it to, To, by its path or its name as Status's Libraries name it.
+type MoveParams struct {
+	ID string `json:"id"`
+	To string `json:"to"`
+}
+
+// Moved is where MethodMove moved a film: its ID in the library it is in now, which is the same job ID for a film with a job and its video's new path for one without, and that library's path and name.
+type Moved struct {
+	ID      string `json:"id"`
+	Library string `json:"library"`
+	Name    string `json:"name"`
 }
 
 // ShowResult is what MethodShow shows: Shown is the film's ID, or "" for the library, and Reason why it shows the library instead of the film asked for. AtMS is where the film plays from, as ShowParams gave it, when it was asked to.
@@ -388,10 +403,16 @@ var Timeout = 30 * time.Second
 // ListTimeout is how long a client waits for MethodLists' answer, and the app gives it: longer than the app gives yt-dlp to list one link (media.ListTimeout), so the app's own answer, an error when yt-dlp took too long, comes first.
 var ListTimeout = 4 * time.Minute
 
+// MoveTimeout is how long a client waits for MethodMove's answer, and the app gives it: as long as copying a long film to another drive may take. The move goes on in the window when it takes longer.
+var MoveTimeout = 30 * time.Minute
+
 // TimeoutOf is how long a client waits for the app's answer to method, and the app takes to give it.
 func TimeoutOf(method string) time.Duration {
-	if method == MethodLists {
+	switch method {
+	case MethodLists:
 		return ListTimeout
+	case MethodMove:
+		return MoveTimeout
 	}
 	return Timeout
 }

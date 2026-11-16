@@ -222,7 +222,7 @@ func needsSubtitles(item Film) bool {
 	return item.JobID == "" && item.SubtitlePath == ""
 }
 
-// filmMenu is what can be done with a done film, from ⋯ or a right click on its poster or the hero, in the system's menu. Its reveal item names the file manager of the system the app runs on, as the buttons beside it do. It is built as the menu opens, so it says what is true then.
+// filmMenu is what can be done with a done film, from ⋯ or a right click on its poster or the hero, in the system's menu, 移到资料库 among it while Kando knows another library. Its reveal item names the file manager of the system the app runs on, as the buttons beside it do. It is built as the menu opens, so it says what is true then.
 func filmMenu(cx *core.Scope, a App, item Film) []nsdesktop.MenuItem {
 	do := func(fn func(Film)) func() { return live.Do(a, func() { fn(item) }) }
 	items := []nsdesktop.MenuItem{
@@ -255,6 +255,9 @@ func filmMenu(cx *core.Scope, a App, item Film) []nsdesktop.MenuItem {
 		case item.Untranslated > 0:
 			items = append(items, nsdesktop.MenuItem{Label: locales.FilmsTranslateMissing(cx), OnSelect: do(a.TranslateMissing)})
 		}
+	}
+	if move := a.MoveFilmMenu(cx, item); len(move) > 0 {
+		items = append(items, nsdesktop.MenuItem{Label: locales.FilmsMoveToLibrary(cx), Items: move})
 	}
 	return append(items, nsdesktop.MenuItem{Separator: true}, nsdesktop.MenuItem{Label: locales.FilmsRemoveFromLibrary(cx), OnSelect: do(a.AskRemove)})
 }

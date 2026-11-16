@@ -203,6 +203,36 @@ func (b *Book) MoveVideos(move func(path string) (string, bool)) bool {
 	return moved
 }
 
+// Unread is why Load could not read the book's file, nil when it read it or there was none; while it is set Save leaves the file as it is (ErrUnread).
+func (b Book) Unread() error { return b.unread }
+
+// TakeVideo takes the lines of the video at path out of the book and returns them, newest first, as when the video moves to another library (AddVideo there).
+func (b *Book) TakeVideo(path string) []Line {
+	key := b.Key(path)
+	var taken []Line
+	b.Lines = slices.DeleteFunc(b.Lines, func(l Line) bool {
+		if l.Video != key {
+			return false
+		}
+		taken = append(taken, l)
+		return true
+	})
+	return taken
+}
+
+// AddVideo puts lines, the lines another book kept of a video (TakeVideo), in this book as the lines of the video at path, each with the times and schedule it had, among the others by when it was saved, newest first. A line this book has already, at the same start of that video, stays as it is.
+func (b *Book) AddVideo(path string, lines []Line) {
+	key := b.Key(path)
+	for _, l := range lines {
+		if b.Find(key, l.Start) >= 0 {
+			continue
+		}
+		l.Video = key
+		at, _ := slices.BinarySearchFunc(b.Lines, l, func(have, l Line) int { return l.SavedAt.Compare(have.SavedAt) })
+		b.Lines = slices.Insert(b.Lines, at, l)
+	}
+}
+
 // Counts is how many lines each video has saved, by its path as Key gives it.
 func (b Book) Counts() map[string]int {
 	out := map[string]int{}

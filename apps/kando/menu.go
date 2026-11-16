@@ -210,6 +210,10 @@ func (a *app) menuItem(s shortcut, own bool) nsdesktop.MenuItem {
 	if s.InText {
 		it.When = core.MenuAlways
 	}
+	if s.Items != nil {
+		it.Items = s.Items()
+		return it
+	}
 	if hasCommand(s.Key) {
 		it.Shortcut = s.Key
 	}

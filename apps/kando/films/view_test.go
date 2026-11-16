@@ -17,6 +17,7 @@ import (
 	"kando/packages/core"
 
 	ns "github.com/nsgo-dev/nsgo/core"
+	nsdesktop "github.com/nsgo-dev/nsgo/desktop"
 	"github.com/nsgo-dev/nsgo/nsgotest"
 )
 
@@ -201,8 +202,12 @@ func (f *fakeApp) AskRename(item Film) {
 func (f *fakeApp) Renaming() (*bool, *string, string) {
 	return &f.renameOpen, &f.renameName, f.renameOriginal
 }
-func (f *fakeApp) CloseRename() { f.call("close-rename"); f.renameOpen = false }
-func (f *fakeApp) RenameFilm()  { f.call("rename", f.renameName); f.renameOpen = false }
+func (f *fakeApp) CloseRename()                                      { f.call("close-rename"); f.renameOpen = false }
+func (f *fakeApp) RenameFilm()                                       { f.call("rename", f.renameName); f.renameOpen = false }
+func (f *fakeApp) MoveFilmMenu(*ns.Scope, Film) []nsdesktop.MenuItem { return nil }
+func (f *fakeApp) UndoMove()                                         { f.call("undo-move") }
+func (f *fakeApp) CancelMove()                                       { f.call("cancel-move") }
+func (f *fakeApp) Choose(dir string)                                 { f.call("choose", dir) }
 
 // testEnvironment is a Mac desktop in testlocale's language.
 func testEnvironment() ns.Environment {
@@ -584,6 +589,30 @@ func TestNoticeOffersItsButtons(t *testing.T) {
 	if a.notice.Open || app.Exists("id:films-notice") {
 		t.Fatal("× did not close the notice")
 	}
+}
+
+// TestNoticeOffersMoveButtons checks the bar after a film was moved to another library, 打开 <library> and Undo, and the bar of a copy going on, 取消.
+func TestNoticeOffersMoveButtons(t *testing.T) {
+	a := newFakeApp()
+	msgs := testlocale.Messages()
+	a.notice = Notice{Kind: "success", Text: "已移动。", Library: "/Movies/英语听力.kando", Undo: true, Open: true}
+	app := start(t, a)
+	if !app.Exists(whole(msgs.FilmsNoticeOpenLibrary("英语听力"))) {
+		t.Fatalf("no 打开 for the library: %q", app.Texts())
+	}
+	app.Press("id:notice-undo")
+	change(app, a, func() { a.notice.Open = true })
+	app.Press("id:notice-library")
+	wantCalls(t, a, "undo-move", "choose /Movies/英语听力.kando")
+	if a.notice.Open {
+		t.Fatal("打开 left the notice open")
+	}
+	change(app, a, func() { a.notice = Notice{Kind: "success", Text: "正在移动…", Stop: true, Open: true} })
+	if app.Exists("id:notice-undo") || app.Exists("id:notice-library") {
+		t.Fatal("the bar of a copy going on offers Undo or 打开")
+	}
+	app.Press("id:notice-stop")
+	wantCalls(t, a, "cancel-move")
 }
 
 func TestTopBarAddsTheLink(t *testing.T) {

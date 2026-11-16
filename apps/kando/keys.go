@@ -9,6 +9,7 @@ import (
 	"kando/apps/kando/settings"
 
 	"github.com/nsgo-dev/nsgo/core"
+	nsdesktop "github.com/nsgo-dev/nsgo/desktop"
 )
 
 // shortcut is one row of the app's shortcut table. The cheat sheet and Settings › 快捷键 list the same rows wireKeys binds.
@@ -27,6 +28,8 @@ type shortcut struct {
 	// InText lets the key run while a text field has the focus, for a ⌘ key no text field uses although NSGo counts it among the ones it does (core.EditsText counts every ⌘C as copy), as ⌘⇧C, which copies the playing line from the subtitle search too.
 	InText bool
 	Run    func()
+	// Items makes the row a submenu of the menu bar, with the items it gives as the menu is built, in place of Run; such a row has no key, and the menu bar is the only place it shows. Each item's OnSelect goes through menuSelect, as a row's Run does.
+	Items func() []nsdesktop.MenuItem
 }
 
 // hasCommand reports whether key is held with ⌘, Ctrl on Windows and Linux: a row the menu bar carries as its item's shortcut.

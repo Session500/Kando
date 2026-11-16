@@ -660,6 +660,36 @@ func runRemove(e *env, args []string) error {
 	return err
 }
 
+func runMove(e *env, args []string) error {
+	fs := e.flags()
+	to := fs.String("to", "", "the library to move the film to: its name, as kando status lists it, or its folder")
+	positional, err := e.parse(fs, args)
+	if err != nil {
+		return err
+	}
+	switch {
+	case len(positional) == 0:
+		return usagef("needs a film id")
+	case len(positional) > 1:
+		return usagef("takes one film id, got %d arguments", len(positional))
+	case strings.TrimSpace(*to) == "":
+		return usagef("needs --to and the library to move the film to")
+	}
+	// A library named by its folder is sent as its absolute path, as the app knows its libraries by theirs.
+	library := *to
+	if info, err := os.Stat(library); err == nil && info.IsDir() {
+		if abs, err := filepath.Abs(library); err == nil {
+			library = abs
+		}
+	}
+	var moved remote.Moved
+	if done, err := e.answer(remote.MethodMove, remote.MoveParams{ID: positional[0], To: library}, &moved); done || err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(e.stdout, "%s\t%s\n", printable(moved.ID), printable(moved.Library))
+	return err
+}
+
 func runSites(e *env, args []string) error {
 	fs := e.flags()
 	limit := fs.Int("limit", 0, "at most this many sites, 0 for all")

@@ -179,6 +179,15 @@ func cannedApp(method string, params json.RawMessage) (any, error) {
 			return nil, nil
 		}
 		return cannedRetried, nil
+	case remote.MethodMove:
+		p, err := remote.Params[remote.MoveParams](params)
+		if err != nil {
+			return nil, err
+		}
+		if p.ID != "f1" {
+			return nil, remote.Errorf(remote.CodeNotFound, "No film %s.", p.ID)
+		}
+		return remote.Moved{ID: "f1", Library: "/Users/me/Movies/English.kando", Name: "English"}, nil
 	case remote.MethodSites:
 		return cannedSites, nil
 	case remote.MethodAdd:
@@ -239,7 +248,7 @@ func TestOpensWindow(t *testing.T) {
 		{"-v"},
 		{"--bogus"},
 		{"status"},
-		{"help", "-h", "--help", "version", "--version", "list", "show", "subtitles", "jobs", "add", "cancel", "retry", "remove", "sites", "open", "mcp"},
+		{"help", "-h", "--help", "version", "--version", "list", "show", "subtitles", "jobs", "add", "cancel", "retry", "remove", "move", "sites", "open", "mcp"},
 	} {
 		for _, name := range args {
 			if OpensWindow([]string{name}) {
@@ -357,6 +366,7 @@ func TestHelpListsFlags(t *testing.T) {
 		{"add", []string{"--wait", "--json"}},
 		{"retry", []string{"--wait", "--json"}},
 		{"remove", []string{"--json"}},
+		{"move", []string{"--to string", "--json"}},
 		{"sites", []string{"--limit int", "--json"}},
 		{"search", []string{"--film string", "--until string", "--limit int", "--json"}},
 		{"open", []string{"--at string", "--json"}},
@@ -456,6 +466,7 @@ func TestTextOutput(t *testing.T) {
 			want: "j3  queued  Cats\n",
 		},
 		{args: []string{"remove", "j3"}, want: ""},
+		{args: []string{"move", "f1", "--to", "English"}, want: "f1\t/Users/me/Movies/English.kando\n"},
 		{
 			args: []string{"sites", "you"},
 			want: "YouTube   youtube.com\nBilibili  bilibili.com\n",
@@ -591,6 +602,19 @@ func TestParamsSent(t *testing.T) {
 	if sites != (remote.SitesParams{Query: "you tube", Limit: 3}) {
 		t.Errorf("sites params = %+v", sites)
 	}
+	// A library named by its folder is sent by its absolute path; one named by its name as it is.
+	lib := t.TempDir()
+	t.Chdir(filepath.Dir(lib))
+	for _, tt := range []struct{ to, want string }{{"English", "English"}, {filepath.Base(lib), lib}} {
+		if code, _, stderr := run("move", "f1", "--to", tt.to); code != 0 {
+			t.Fatalf("move --to %s = %d, %q", tt.to, code, stderr)
+		}
+		var move remote.MoveParams
+		f.lastParams(t, remote.MethodMove, &move)
+		if got, _ := filepath.EvalSymlinks(move.To); move.ID != "f1" || (move.To != tt.want && got != tt.want) {
+			t.Errorf("move --to %s sent %+v, want %q", tt.to, move, tt.want)
+		}
+	}
 
 	for _, tt := range []struct {
 		args   []string
@@ -647,6 +671,10 @@ func TestUsageErrors(t *testing.T) {
 		{"remove"},
 		{"remove", "j3", "j4"},
 		{"remove", "j3", "--wait"},
+		{"move"},
+		{"move", "f1"},
+		{"move", "f1", "f2", "--to", "English"},
+		{"move", "--to", "English"},
 		{"sites", "--limit", "-1"},
 		{"sites", "--limit", "many"},
 		{"open", "f1", "f2"},
@@ -690,6 +718,7 @@ func TestRemoteErrors(t *testing.T) {
 		{[]string{"retry", "j7"}, 4, "kando retry: No job j7.\n"},
 		{[]string{"retry", "j7", "--wait"}, 4, "kando retry: No job j7.\n"},
 		{[]string{"remove", "j7"}, 4, "kando remove: No job j7.\n"},
+		{[]string{"move", "f7", "--to", "English"}, 4, "kando move: No film f7.\n"},
 		{[]string{"add", "https://youtu.be/x"}, 3, "kando add: Choose a folder for the library first.\n"},
 		{[]string{"status"}, 1, "kando status: disk on fire\n"},
 	} {
