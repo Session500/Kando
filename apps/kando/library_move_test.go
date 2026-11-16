@@ -233,26 +233,30 @@ func TestMoveFilmAcrossVolumes(t *testing.T) {
 		t.Fatalf("a stopped copy left %v in the other library", entries)
 	}
 	f.wantKept(t, f.video)
-	libraryMoveCopyFiles = copyFiles
 
-	// A copy that cannot read a file fails, and the film stays.
-	if os.Getuid() != 0 {
-		locked := filepath.Join(f.from, "Talk", "video.srt")
-		if err := os.Chmod(locked, 0); err == nil {
-			a.MoveFilm(item, f.to)
-			waitUntil(t, tt, a, f.updates, func() bool { return a.lib.move.copying == nil })
-			os.Chmod(locked, 0o644)
-			if n := a.lib.notice; n.Kind != "warning" || n.Undo {
-				t.Fatalf("after a failed copy the bar says %+v", n)
-			}
-			if _, err := os.Stat(f.video); err != nil {
-				t.Fatalf("a failed copy took the video: %v", err)
-			}
-			if entries, _ := os.ReadDir(f.to); len(entries) != 1 {
-				t.Fatalf("a failed copy left %v in the other library", entries)
-			}
+	// A copy that fails partway, as on a drive that fills up, leaves the film where it was and nothing in the other library: the real copy runs and is stopped after its first bytes, and reports the failure the disk would.
+	full := errors.New("no space left on device")
+	libraryMoveCopyFiles = func(m media.FilmMove, ctx context.Context, progress func(done, total int64)) error {
+		ctx, stop := context.WithCancel(ctx)
+		defer stop()
+		if err := copyFiles(m, ctx, func(done, total int64) { stop() }); err == nil {
+			t.Error("the copy stopped partway did not fail")
 		}
+		return full
 	}
+	a.MoveFilm(item, f.to)
+	waitUntil(t, tt, a, f.updates, func() bool { return a.lib.move.copying == nil })
+	libraryMoveCopyFiles = copyFiles
+	if n := a.lib.notice; n.Kind != "warning" || n.Undo || n.Text != m.LibraryMoveFailed(moveName, "英语听力", full.Error()) {
+		t.Fatalf("after a failed copy the bar says %+v", n)
+	}
+	if _, err := os.Stat(f.video); err != nil {
+		t.Fatalf("a failed copy took the video: %v", err)
+	}
+	if entries, _ := os.ReadDir(f.to); len(entries) != 1 {
+		t.Fatalf("a failed copy left %v in the other library", entries)
+	}
+	f.wantKept(t, f.video)
 
 	// A whole copy moves the film.
 	a.MoveFilm(item, f.to)
@@ -367,7 +371,7 @@ func TestMoveFilmClashRefusalAndOutside(t *testing.T) {
 	}
 }
 
-// TestMoveFilmFromThePlayerAndMenuBar checks that the film page's ⋯ and File › 移到资料库 move the open film, closing it.
+// TestMoveFilmFromThePlayerAndMenuBar checks that the film page's ⋯, on every system, and File › 移到资料库 of the menu bar, which the app has on macOS, move the open film, closing it.
 func TestMoveFilmFromThePlayerAndMenuBar(t *testing.T) {
 	f := newMoveFixture(t)
 	a, tt := f.a, f.tt
@@ -387,8 +391,8 @@ func TestMoveFilmFromThePlayerAndMenuBar(t *testing.T) {
 	a.Choose(f.to)
 	refresh(tt, a)
 	a.Open(must(films.Find(a.films(), "film")))
-	a.installMenu(a.cx)
-	refresh(tt, a)
+	// The app has a menu bar of its own on macOS alone (appMenuBar); the test gives it one on every system, as the menu bar's own tests do.
+	useMenuBar(t, a, tt)
 	tt.ChooseMenu(m.MenuGroupFile(), m.FilmsMoveToLibrary(), "我的影片")
 	refresh(tt, a)
 	if _, err := os.Stat(f.video); err != nil {
