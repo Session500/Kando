@@ -116,14 +116,30 @@ jobs:
           done
           echo "::error::Could not push the tag $VERSION."
           exit 1
-      # The release's notes are the version's section of CHANGELOG.md. The macOS packages are signed and notarized (see package.yml); the Windows installers are not signed yet, which the notes say.
+      # The release's notes start with a table of the downloads for each system, whose names are the ones package.yml and browser-extension.sh give the files, then the version's section of CHANGELOG.md. The macOS packages are signed and notarized (see package.yml); the Windows installers are not signed yet, which the notes say.
       - name: Draft the release
         if: steps.commit.outputs.sha != ''
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          cat > "$RUNNER_TEMP/notes.md" <<'EOF'
+          v=${VERSION#v}
+          d="https://github.com/$GITHUB_REPOSITORY/releases/download/$VERSION"
+          cat > "$RUNNER_TEMP/notes.md" <<EOF
+          ## Download
+
+          | System | Download |
+          |---|---|
+          | macOS (Apple silicon) | [kando-$v-macos-arm64.dmg]($d/kando-$v-macos-arm64.dmg) |
+          | macOS (Intel) | [kando-$v-macos-x64.dmg]($d/kando-$v-macos-x64.dmg) |
+          | Windows (x64) | [Installer]($d/kando-$v-windows-x64-setup.exe) · [Portable .tar.gz]($d/kando-$v-windows-amd64.tar.gz) |
+          | Windows (ARM64) | [Installer]($d/kando-$v-windows-arm64-setup.exe) · [Portable .tar.gz]($d/kando-$v-windows-arm64.tar.gz) |
+          | Linux (x64) | [AppImage]($d/kando-$v-linux-x64.AppImage) · [Debian/Ubuntu .deb]($d/kando-$v-linux-x64.deb) · [Arch .pkg.tar.gz]($d/kando-$v-linux-x64.pkg.tar.gz) |
+          | Linux (ARM64) | [AppImage]($d/kando-$v-linux-arm64.AppImage) · [Debian/Ubuntu .deb]($d/kando-$v-linux-arm64.deb) · [Arch .pkg.tar.gz]($d/kando-$v-linux-arm64.pkg.tar.gz) |
+          | Browser extension | [Chrome, Edge, Brave]($d/kando-browser-extension-chromium-$v.zip) · [Firefox]($d/kando-browser-extension-firefox-$v.zip) |
+
+          EOF
+          cat >> "$RUNNER_TEMP/notes.md" <<'EOF'
           > [!NOTE]
           > The macOS disk images are signed with a Developer ID and notarized by Apple. The Windows installers are not signed yet, so SmartScreen warns before the first run: choose More info, then Run anyway. On Windows, Kando does not download yt-dlp, ffmpeg and whisper-cli yet; install them with a package manager and put them on your PATH. `checksums.txt` lists the SHA-256 of every file, and `gh attestation verify <file> --repo ${{ github.repository }}` checks that a file was built by this repository's Release workflow.
           EOF
