@@ -2,6 +2,12 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.16.1 - 2026-11-16
+
+### Fixes
+
+- Explain X posts whose sensitive or protected video X hides, and lead to the sign-in (#171)
+
 ## 0.16.0 - 2026-11-16
 
 ### Features
