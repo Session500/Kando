@@ -1,10 +1,10 @@
-// Package film is a film's page: its poster, title and facts, and its download, which starts, pauses, resumes, cancels and, once whole, plays or is deleted from the phone.
+// Package film is a film's page: its poster where it has one, its title, facts and library, and its download, whose actions sit at the page's foot: it starts, pauses, resumes, cancels and, once whole, plays, or is deleted from the phone from the header.
 package film
 
 import (
 	"context"
+	"time"
 
-	"kando/apps/mobile/home"
 	"kando/apps/mobile/locales"
 	"kando/apps/mobile/look"
 	"kando/apps/mobile/session"
@@ -36,17 +36,30 @@ func Page(cx *core.Scope, s *session.Session, desktop, library string, f sync.Fi
 	}, func(ctx context.Context, src posterSource, _ core.ResourceInfo) ([]byte, error) {
 		return s.Poster(ctx, src.c, desktop, f.ID)
 	})
+	// failed is a poster the platform could not draw.
+	failed := core.NewSignal(cx, false)
 	poster := func() core.ImageSource {
 		if k, ok := kept(); ok && k.Poster != "" {
-			return home.LocalPoster(s, k)
+			return look.LocalPoster(s, k)
 		}
 		if data, ok := remote.Get(); ok {
 			return core.ImageSource{Data: data}
 		}
 		return core.ImageSource{}
 	}
-	button := func(id, text string, variant ui.ButtonVariant, icon func() *core.SVG, press func()) core.Node {
-		return ui.Button{TestID: id, Text: text, Variant: variant, Size: ui.SizeLarge, Icon: icon, OnPress: press}
+	// hasPoster is a film with a poster to show, which takes no room without one.
+	hasPoster := func() bool {
+		if failed.Get() {
+			return false
+		}
+		k, ok := kept()
+		if ok && k.Poster != "" {
+			return true
+		}
+		if data, got := remote.Get(); got && len(data) > 0 {
+			return true
+		}
+		return f.Poster != "" && !ok && remote.Err() == nil
 	}
 	confirmDelete := func() {
 		cx.ShowAlert(core.AlertConfig{Title: locales.FilmDeleteTitle(cx, f.Title), Actions: []core.AlertAction{
@@ -77,58 +90,84 @@ func Page(cx *core.Scope, s *session.Session, desktop, library string, f sync.Fi
 		}
 		return notKept
 	})
+	text := func(say func(*core.Scope) string) func() string { return func() string { return say(cx) } }
+	cancel := func() { s.Delete(key) }
 	actions := core.Dynamic(func(cx *core.Scope) core.Node {
-		var row []core.Node
+		pair := func(children ...core.Node) core.Node {
+			return core.View{Style: core.Style{Direction: core.Row, Gap: 10}, Children: children}
+		}
 		switch phase.Get() {
 		case whole:
-			row = []core.Node{
-				button("film-play", locales.FilmPlay(cx), ui.ButtonPrimary, lucide.Play, func() { play(key) }),
-				button("film-delete", locales.FilmDelete(cx), ui.ButtonSecondary, lucide.Trash, confirmDelete),
-			}
+			return look.Button{Kind: look.Primary, Text: text(locales.FilmPlay), Icon: lucide.Play, TestID: "film-play", OnPress: func() { play(key) }}
 		case downloading:
-			row = []core.Node{
-				button("film-pause", locales.FilmPause(cx), ui.ButtonPrimary, lucide.Pause, func() { s.Pause(key) }),
-				button("film-cancel", locales.FilmCancel(cx), ui.ButtonSecondary, lucide.X, func() { s.Delete(key) }),
-			}
+			return pair(
+				look.Button{Kind: look.Tinted, Text: text(locales.FilmPause), Icon: lucide.Pause, Flex: 1, TestID: "film-pause", OnPress: func() { s.Pause(key) }},
+				look.Button{Kind: look.Danger, Text: text(locales.FilmCancel), Flex: 1, TestID: "film-cancel", OnPress: cancel})
 		case halted:
-			row = []core.Node{
-				button("film-resume", locales.FilmResume(cx), ui.ButtonPrimary, lucide.Download, func() { s.Resume(key) }),
-				button("film-cancel", locales.FilmCancel(cx), ui.ButtonSecondary, lucide.X, func() { s.Delete(key) }),
-			}
-		default:
-			row = []core.Node{button("film-download", locales.FilmDownload(cx), ui.ButtonPrimary, lucide.Download, func() { s.Download(desktop, library, f) })}
+			return pair(
+				look.Button{Kind: look.Primary, Text: text(locales.FilmResume), Flex: 2, TestID: "film-resume", OnPress: func() { s.Resume(key) }},
+				look.Button{Kind: look.Danger, Text: text(locales.FilmCancel), Flex: 1, TestID: "film-cancel", OnPress: cancel})
 		}
-		return core.View{Style: core.Style{Direction: core.Row, Wrap: core.Wrap, Gap: 12}, Children: row}
+		return look.Button{Kind: look.Primary, Text: text(locales.FilmDownload), Icon: lucide.Download, TestID: "film-download", OnPress: func() { s.Download(desktop, library, f) }}
 	})
 	progress := core.Show{When: func() bool { _, ok := transfer(); return ok }, Then: func(cx *core.Scope) core.Node {
-		return core.View{Style: core.Style{Gap: 6}, Children: []core.Node{
+		return core.View{Style: core.Style{Gap: 8}, Children: []core.Node{
+			// TODO(nsgo#145): ui.Progress.Label is a string only (ui/progress.go:12-19), so the bar's spoken name keeps the language it was built in; pass a LabelFunc once Progress has one https://github.com/nsgo-dev/nsgo/issues/145
 			ui.Progress{TestID: "film-progress", Label: locales.FilmDownload(cx), Value: func() float32 { t, _ := transfer(); return t.Fraction() * 100 }},
-			core.Text{TestID: "film-status", ContentFunc: func() string { return look.Status(cx, s, key) }, LiveRegion: core.LiveRegionPolite, Style: look.Caption, StyleFunc: ui.Colored(colors.Muted)},
+			core.Text{TestID: "film-status", ContentFunc: func() string { return look.Status(cx, s, key) }, LiveRegion: core.LiveRegionPolite, Style: look.Subhead,
+				StyleFunc: func() core.Style {
+					if st, ok := state(); ok && st == session.Failed {
+						return core.Style{Color: colors.Danger()}
+					}
+					return core.Style{Color: colors.Muted()}
+				}},
 		}}
 	}}
-	wide := func() bool { return cx.Env().Window().Width >= 700 }
-	return ui.NavPage(cx, base.NavPage{Title: f.Title, TestID: "film-page", Children: []core.Node{
-		core.Scroll{Style: core.Style{FlexGrow: 1, FlexShrink: 1}, Children: []core.Node{
-			core.View{Style: core.Style{Padding: core.All(20), Gap: 16, PaddingEnv: core.EnvEdges{Bottom: core.EnvSafeArea}, Width: core.Pct(100), MaxWidth: core.Pt(720), AlignSelf: core.AlignCenter}, Children: []core.Node{
-				core.View{StyleFunc: func() core.Style {
-					if wide() {
-						return core.Style{Width: core.Pt(420), AlignSelf: core.AlignCenter}
-					}
-					return core.Style{Width: core.Pct(100)}
-				}, Children: []core.Node{
-					core.View{Style: core.Style{Width: core.Pct(100), AspectRatio: 16.0 / 9, CornerRadius: 10, Overflow: core.Hidden}, StyleFunc: ui.Filled(colors.Inset), Children: []core.Node{
-						core.Image{TestID: "film-poster", SourceFunc: poster, ResizeMode: core.Cover, ElementsHidden: true,
-							Style: core.Style{Position: core.Absolute, Left: core.Pt(0), Top: core.Pt(0), Right: core.Pt(0), Bottom: core.Pt(0)}},
-					}},
+	art := core.Show{When: hasPoster, Then: func(cx *core.Scope) core.Node {
+		return core.View{TestID: "film-poster", Style: core.Style{Width: core.Pct(100), AspectRatio: 16.0 / 9, CornerRadius: 12, BorderCurve: core.BorderCurveContinuous, Overflow: core.Hidden},
+			StyleFunc: func() core.Style {
+				s := core.Style{Background: colors.Inset()}
+				// A phone on its side keeps the poster to about a third of the screen's height, so the title shows under it above the action bar.
+				if w := cx.Env().Window(); w.Width > w.Height {
+					s.MaxWidth, s.AlignSelf = core.Pt(w.Height*0.35*16/9), core.AlignCenter
+				}
+				return s
+			},
+			Children: []core.Node{core.Image{SourceFunc: poster, ResizeMode: core.Cover, FadeDuration: 150 * time.Millisecond, ElementsHidden: true,
+				OnError: func(error) { failed.Set(true) },
+				Style:   core.Style{Position: core.Absolute, Left: core.Pt(0), Top: core.Pt(0), Right: core.Pt(0), Bottom: core.Pt(0)}}}}
+	}}
+	about := []core.Node{
+		core.Text{TestID: "film-title", Content: f.Title, Role: core.RoleHeader, MaxLines: 3, Style: look.Display, StyleFunc: ui.Colored(colors.Text)},
+		core.Text{TestID: "film-facts", Content: look.Facts(f), Style: look.Subhead, StyleFunc: ui.Colored(colors.Muted)},
+	}
+	if library != "" {
+		about = append(about, core.View{TestID: "film-library", Style: core.Style{Direction: core.Row, Gap: 6, AlignItems: core.AlignCenter}, Children: []core.Node{
+			ui.Icon(lucide.Library, 14, colors.Faint),
+			core.Text{Content: library, Style: look.Caption, StyleFunc: ui.Colored(colors.Muted)},
+		}})
+	}
+	ref := &core.Ref{}
+	remove := ui.IconButton{TestID: "film-delete", Icon: lucide.Trash, LabelFunc: text(locales.FilmDelete), Size: 44, OnPress: confirmDelete}
+	header := ui.NavHeader{OnBack: back, Scroll: ref,
+		Trailing: []core.Node{core.Show{When: done, Then: func(*core.Scope) core.Node { return remove }}},
+		Symbols: func() []core.HeaderSymbol {
+			if done() {
+				return []core.HeaderSymbol{{Name: "trash", Label: locales.FilmDelete(cx)}}
+			}
+			return nil
+		}}
+	return ui.NavPage(cx, base.NavPage{TestID: "film-page", Children: []core.Node{
+		core.View{Style: core.Style{FlexGrow: 1, FlexShrink: 1}, Children: []core.Node{
+			core.Scroll{Ref: ref, Style: core.Style{FlexGrow: 1, FlexShrink: 1}, Children: []core.Node{
+				core.View{Style: core.Style{Padding: core.Edges{Top: 8, Right: 16, Bottom: 24, Left: 16}, PaddingEnv: core.EnvEdges{Right: core.EnvSafeArea, Left: core.EnvSafeArea},
+					Gap: 20, MaxWidth: core.Pt(560), Width: core.Pct(100), AlignSelf: core.AlignCenter}, Children: []core.Node{
+					art,
+					core.View{Style: core.Style{Gap: 6}, Children: about},
+					progress,
 				}},
-				core.View{Style: core.Style{Gap: 4}, Children: []core.Node{
-					core.Text{TestID: "film-title", Content: f.Title, Role: core.RoleHeader, Style: core.Style{FontSize: 22, LineHeight: 28, FontWeight: core.FontWeightBold}, StyleFunc: ui.Colored(colors.Text)},
-					core.Text{TestID: "film-facts", Content: look.Facts(f), Style: look.Body, StyleFunc: ui.Colored(colors.Muted)},
-					core.Text{Content: library, Style: look.Caption, StyleFunc: ui.Colored(colors.Muted)},
-				}},
-				progress,
-				actions,
 			}},
+			look.ActionBar(cx, actions),
 		}},
-	}}, ui.NavHeader{OnBack: back})
+	}}, header)
 }

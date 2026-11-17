@@ -6,30 +6,72 @@ commonCancel:
   description: "Button that closes a dialog or a step without doing anything."
 commonRetry:
   message: "Try Again"
-  description: "Button that asks the computer again after it could not be reached."
-desktopsPairAnother:
+  description: "Row or button that asks the computer again after it could not be reached."
+computersCertificate:
+  message: "{name} answered with another certificate. Pair with it again."
+  description: "In a computer's section: it answered with another certificate."
+  placeholders:
+    name: { type: "String", example: "Studio" }
+computersFilmCount:
+  message: "{count, plural, one {# film} other {# films}}"
+  description: "Beside a library's name: how many films it holds."
+  placeholders:
+    count: { type: "int", example: "12" }
+computersNoLibraries:
+  message: "No libraries to show"
+  description: "In a computer's section when it lists no libraries."
+computersOptions:
+  message: "{name} Options"
+  description: "Spoken name of the … button beside a computer's name, which offers to unpair it."
+  placeholders:
+    name: { type: "String", example: "Studio" }
+computersPair:
   message: "Pair Another Computer"
-  description: "Button on the Computers page that opens the pairing page."
-desktopsTitle:
+  description: "Spoken name of the + button in the Computers header."
+computersPairAgain:
+  message: "Pair Again"
+  description: "Row under a computer that no longer takes this phone: opens pairing."
+computersTitle:
   message: "Computers"
-  description: "Title of the page listing the computers the phone is paired with, and the name of the home page's button that opens it."
-desktopsUnpair:
+  description: "Tab and title of the computers section."
+computersUnpair:
   message: "Unpair"
-  description: "Button on a paired computer's row, and the alert's button that confirms unpairing."
-desktopsUnpairMessage:
+  description: "Action sheet button that confirms unpairing a computer."
+computersUnpairMessage:
   message: "The films downloaded from it stay on this phone."
-  description: "Message of the alert that confirms unpairing a computer."
-desktopsUnpairTitle:
+  description: "Message of the action sheet that confirms unpairing."
+computersUnpairTitle:
   message: "Unpair {name}?"
   description: "Title of the alert that confirms unpairing a computer, by its name."
   placeholders:
     name: { type: "String", example: "Studio" }
+computersUnpaired:
+  message: "{name} no longer knows this phone"
+  description: "In a computer's section and on a library's page: it revoked this phone."
+  placeholders:
+    name: { type: "String", example: "Studio" }
+computersUnreachable:
+  message: "Can't reach {name}"
+  description: "In a computer's section and on a library's page: it does not answer."
+  placeholders:
+    name: { type: "String", example: "Studio" }
+downloadsEmpty:
+  message: "No Downloads"
+  description: "Downloads tab when no film is on the phone."
+downloadsTitle:
+  message: "Downloads"
+  description: "Tab and title of the films downloaded to the phone."
+downloadsUsed:
+  message: "{size} used"
+  description: "Under the downloads: the space they take."
+  placeholders:
+    size: { type: "String", example: "1.2 GB" }
 filmCancel:
   message: "Cancel Download"
   description: "Button on a film's page that stops its download and deletes what was downloaded."
 filmDelete:
   message: "Delete Download"
-  description: "Button on a downloaded film's page that deletes it from the phone."
+  description: "Spoken name of the trash button in a downloaded film's header, which deletes it from the phone."
 filmDeleteConfirm:
   message: "Delete"
   description: "The alert's button that confirms deleting a downloaded film."
@@ -75,49 +117,6 @@ filmStopped:
 filmUnpaired:
   message: "Pair with the computer again to download."
   description: "Why a download stopped: the computer no longer takes this phone, or answers with another certificate."
-homeCertificate:
-  message: "{name} answered with another certificate. Pair with it again."
-  description: "Under a paired computer's name on the home page: it answered with a certificate other than the one paired with."
-  placeholders:
-    name: { type: "String", example: "Studio" }
-homeDownloads:
-  message: "Downloads"
-  description: "Heading of the home page's section of the films downloaded to the phone."
-homeEmptyBody:
-  message: "Kando on your phone plays the films Kando on your computer has made. Turn on Settings › Phone Sync there, then pair."
-  description: "The home page before any computer is paired: what the app does and what to do first."
-homeEmptyTitle:
-  message: "Pair with Kando on your computer"
-  description: "Heading of the home page before any computer is paired."
-homeFilmCount:
-  message: "{count, plural, one {# film} other {# films}}"
-  description: "Under a library's name: how many films it holds."
-  placeholders:
-    count: { type: "int", example: "12" }
-homeNoLibraries:
-  message: "No libraries to show"
-  description: "Under a paired computer's name when it lists no libraries (locked ones are never listed)."
-homePair:
-  message: "Pair"
-  description: "Button on the home page before any computer is paired: opens the pairing page."
-homePairAgain:
-  message: "Pair Again"
-  description: "Button under a computer that no longer takes this phone: opens the pairing page."
-homeSpaceUsed:
-  message: "{size} used"
-  description: "Beside the Downloads heading: the space the downloaded films take on the phone, as 1.2 GB."
-  placeholders:
-    size: { type: "String", example: "1.2 GB" }
-homeUnpaired:
-  message: "{name} no longer knows this phone"
-  description: "Under a paired computer's name: it revoked this phone in its Phone Sync settings."
-  placeholders:
-    name: { type: "String", example: "Studio" }
-homeUnreachable:
-  message: "Can't reach {name}"
-  description: "Under a paired computer's name: it does not answer (off, asleep, on another network, or Phone Sync off)."
-  placeholders:
-    name: { type: "String", example: "Studio" }
 libraryEmpty:
   message: "No films ready yet"
   description: "A library's page when it has no film done processing."
@@ -135,9 +134,6 @@ pairAddressExample:
 pairCode:
   message: "Code"
   description: "Label of the field for the 6-digit pairing code the computer shows."
-pairCompareHint:
-  message: "Pair only if Phone Sync shows the same fingerprint."
-  description: "Under the fingerprint on the pairing page: compare it with the one the computer shows before trusting it."
 pairCompareTitle:
   message: "Does your computer show these letters?"
   description: "Heading over the computer certificate's fingerprint in short, which the user compares with the computer's."
@@ -146,7 +142,7 @@ pairConfirm:
   description: "Button that pairs once the user has compared the fingerprint."
 pairConnecting:
   message: "Connecting…"
-  description: "Spoken name of the spinner while the phone reaches the computer."
+  description: "Spoken name of the pairing page's button while the phone reaches the computer, which shows a spinner meanwhile."
 pairContinue:
   message: "Continue"
   description: "Button under the address and code that reaches the computer."
@@ -236,3 +232,9 @@ playerSubtitles:
 sessionDownloading:
   message: "Downloading films"
   description: "Why the app keeps the screen on while films download, where the system lists it."
+welcomePair:
+  message: "Pair"
+  description: "Button on the first screen, and on Computers with none paired: opens pairing."
+welcomeTitle:
+  message: "Pair with Kando on your computer"
+  description: "Heading of the first screen, and of Computers with none paired."

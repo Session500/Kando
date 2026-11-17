@@ -1,9 +1,16 @@
 package main
 
 import (
+	"io"
+	"net"
+	"net/netip"
 	"os"
+	"sync/atomic"
 	"testing"
 	"time"
+
+	"kando/apps/mobile/store"
+	"kando/packages/sync/synctest"
 
 	"github.com/nsgo-dev/nsgo/nsgotest"
 )
@@ -25,7 +32,7 @@ func screenshots(t *testing.T) func(p *phone, scene string) {
 func TestScreenshotsWelcome(t *testing.T) {
 	shot := screenshots(t)
 	p := startPhone(t, "")
-	p.app.WaitFor("id:home-welcome", wait)
+	p.app.WaitFor("id:welcome", wait)
 	shot(p, "welcome")
 }
 
@@ -33,8 +40,8 @@ func TestScreenshotsPair(t *testing.T) {
 	shot := screenshots(t)
 	d := newDesktop(t)
 	p := startPhone(t, "")
-	p.app.WaitFor("id:home-welcome", wait)
-	p.app.Press("id:home-pair")
+	p.app.WaitFor("id:welcome", wait)
+	p.app.Press("id:welcome-pair")
 	p.fillPairing(d.Addr.String(), "123456")
 	shot(p, "pair")
 	p.app.Press("id:pair-continue")
@@ -48,9 +55,9 @@ func TestScreenshotsBrowse(t *testing.T) {
 	dir := t.TempDir()
 	// TODO(nsgo#475): paired beforehand, as popping the pairing page crashes on iOS; pair through the page again once a popped input no longer crashes https://github.com/nsgo-dev/nsgo/issues/475
 	p := startPhone(t, dir, pairedWith(t, d, dir))
-	p.app.WaitFor("id:home-library-lib", wait)
-	shot(p, "home")
-	p.app.Press("id:home-library-lib")
+	p.app.WaitFor("id:computers-library-lib", wait)
+	shot(p, "computers")
+	p.app.Press("id:computers-library-lib")
 	p.app.WaitFor("id:library-film-f1", wait)
 	shot(p, "library")
 	// Forward only: HeaderBack reports what the platform would, which a phone skips.
@@ -65,6 +72,107 @@ func TestScreenshotsBrowse(t *testing.T) {
 	// Paused, so the stalled answer ends before the desktop closes: on a phone the app outlives the test's cleanups.
 	p.app.Press("id:film-pause")
 	p.app.WaitFor("id:film-resume", wait)
+}
+
+func TestScreenshotsDownloads(t *testing.T) {
+	shot := screenshots(t)
+	dir := t.TempDir()
+	keepTalk(t, dir)
+	p := startPhone(t, dir)
+	p.app.WaitFor("id:downloads-film-f1", wait)
+	shot(p, "downloads")
+	p.app.Press("id:downloads-film-f1")
+	p.app.WaitFor("id:film-play", wait)
+	shot(p, "film-downloaded")
+}
+
+func TestScreenshotsComputersProblem(t *testing.T) {
+	shot := screenshots(t)
+	d := newDesktop(t)
+	dir := t.TempDir()
+	secrets := pairedWith(t, d, dir)
+	d.Close()
+	p := startPhone(t, dir, secrets)
+	p.app.WaitFor("id:computers-problem-"+store.DesktopID(d.Fingerprint), wait)
+	shot(p, "computers-problem")
+}
+
+func TestScreenshotsLibraryLoading(t *testing.T) {
+	shot := screenshots(t)
+	d := newDesktop(t)
+	dir := t.TempDir()
+	secrets := pairedWith(t, d, dir)
+	// The phone reaches the desktop through a gate, held once the libraries are listed so the library's films stay loading.
+	g := newGate(t, d)
+	desktops, err := store.Open(dir).Desktops()
+	if err != nil || len(desktops) != 1 {
+		t.Fatalf("kept %+v, %v", desktops, err)
+	}
+	desktops[0].Addr = g.addr
+	if err := store.Open(dir).SaveDesktops(desktops); err != nil {
+		t.Fatal(err)
+	}
+	p := startPhone(t, dir, secrets)
+	p.app.WaitFor("id:computers-library-lib", wait)
+	g.held.Store(true)
+	p.app.Press("id:computers-library-lib")
+	p.app.WaitFor("id:library-loading", wait)
+	shot(p, "library-loading")
+}
+
+// gate is a relay on loopback to a desktop that passes on what the phone sends until held, then holds it, so a request made after hangs as on a network that stalls. It closes as the test ends, which fails what it held.
+type gate struct {
+	addr netip.AddrPort
+	held atomic.Bool
+	stop chan struct{}
+}
+
+// newGate starts a gate to d.
+func newGate(t *testing.T, d *synctest.Desktop) *gate {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	g := &gate{addr: netip.MustParseAddrPort(ln.Addr().String()), stop: make(chan struct{})}
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			go g.relay(c, d.Addr)
+		}
+	}()
+	t.Cleanup(func() { close(g.stop); ln.Close() })
+	return g
+}
+
+// relay passes c's bytes to the desktop at to and back, holding what c sends once the gate is held.
+func (g *gate) relay(c net.Conn, to netip.AddrPort) {
+	defer c.Close()
+	up, err := net.Dial("tcp", to.String())
+	if err != nil {
+		return
+	}
+	defer up.Close()
+	go func() { _, _ = io.Copy(c, up); c.Close() }()
+	buf := make([]byte, 32<<10)
+	for {
+		n, err := c.Read(buf)
+		if n > 0 {
+			if g.held.Load() {
+				<-g.stop
+				return
+			}
+			if _, err := up.Write(buf[:n]); err != nil {
+				return
+			}
+		}
+		if err != nil {
+			return
+		}
+	}
 }
 
 func TestScreenshotsPlayer(t *testing.T) {

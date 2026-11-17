@@ -75,10 +75,20 @@ func newDesktop(t *testing.T) *synctest.Desktop {
 	return d
 }
 
-// pair pairs the phone with d through the pairing page opened from the home page, comparing the fingerprint.
+// openTab shows tab i (downloadsTab, computersTab), named name, pressing the drawn bar's tab, which headless always shows. Where the system's bar shows in its place, on an iOS target, it reports the change as the platform would, which nsgotest allows headless only: there it skips the test, so a screenshot scene must not depend on it.
+func (p *phone) openTab(i int, name string) {
+	p.t.Helper()
+	if p.app.Exists("id:tab-bar >> label:" + name) {
+		p.app.Press("id:tab-bar >> label:" + name)
+		return
+	}
+	p.app.Emit("id:tab-bar", "change", float64(i))
+}
+
+// pair pairs the phone with d through the pairing page opened from the welcome screen, comparing the fingerprint; paired, the phone shows the computers.
 func (p *phone) pair(d *synctest.Desktop) {
 	p.t.Helper()
-	p.app.Press("id:home-pair")
+	p.app.Press("id:welcome-pair")
 	p.fillPairing(d.Addr.String(), "123456")
 	p.app.Press("id:pair-continue")
 	got := p.app.WaitFor("id:pair-fingerprint", wait).Text
@@ -86,7 +96,7 @@ func (p *phone) pair(d *synctest.Desktop) {
 		p.t.Fatalf("the pairing page shows fingerprint %q, the desktop's is %q", got, want)
 	}
 	p.app.Press("id:pair-confirm")
-	p.app.WaitFor("id:home-desktop-"+store.DesktopID(d.Fingerprint), wait)
+	p.app.WaitFor("id:computers-desktop-"+store.DesktopID(d.Fingerprint), wait)
 }
 
 // pairedWith keeps d in dir as paired, pairing over the protocol rather than through the pairing page, and returns the option that starts the phone with the token in its secure store.

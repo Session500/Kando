@@ -1,23 +1,29 @@
-// Package look is what the phone app's screens draw alike: the sizes of their text, a row of a list, a film's poster, and how they write a size, a length and a language.
+// Package look is what the phone app's screens draw alike: the sizes of their text, a row of a list and the card it sits in, a film's poster, the buttons, an empty page, a tab's root page and the bar of a page's actions, and how they write a size, a length and a language.
 package look
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"kando/apps/mobile/locales"
 	"kando/apps/mobile/session"
+	"kando/apps/mobile/store"
+	kcore "kando/packages/core"
 	"kando/packages/sync"
 
 	"github.com/nsgo-dev/nsgo/core"
 	"github.com/nsgo-dev/nsgo/ui"
 )
 
-// Text sizes on a phone, after the system's: a row's title, the body, and the line under a title.
+// Text sizes on a phone, after the system's: a page's own title in its content, a section's heading, a row's title, the body, the line under a title, a caption and a field's label.
 var (
+	Display = core.Style{FontSize: 28, LineHeight: 34, FontWeight: core.FontWeightBold}
+	Heading = core.Style{FontSize: 20, LineHeight: 25, FontWeight: core.FontWeightSemibold}
 	Title   = core.Style{FontSize: 17, LineHeight: 22, FontWeight: core.FontWeightSemibold}
 	Body    = core.Style{FontSize: 16, LineHeight: 21}
+	Subhead = core.Style{FontSize: 15, LineHeight: 20}
 	Caption = core.Style{FontSize: 13, LineHeight: 18}
 	Section = core.Style{FontSize: 13, LineHeight: 18, FontWeight: core.FontWeightSemibold}
 )
@@ -82,60 +88,23 @@ func Facts(f sync.Film) string {
 	return strings.Join(parts, " · ")
 }
 
-// Poster is a film's poster at width, in the 16:9 of a video, on a tile of the surface's color until it loads or where the film has none.
+// Poster is a film's poster at width, in the 16:9 of a video, on a tile of the surface's color until it loads or where the film has none, rimmed so its edge shows on a dark page too.
 func Poster(cx *core.Scope, source func() core.ImageSource, width core.Points, testID string) core.Node {
 	colors := ui.ColorsOf(cx)
-	return core.View{TestID: testID, Style: core.Style{Width: core.Pt(width), AspectRatio: 16.0 / 9, CornerRadius: 6, Overflow: core.Hidden, FlexShrink: 0},
-		StyleFunc: ui.Filled(colors.Inset),
+	return core.View{TestID: testID, Style: core.Style{Width: core.Pt(width), AspectRatio: 16.0 / 9, CornerRadius: 8, BorderWidth: 1, Overflow: core.Hidden, FlexShrink: 0},
+		StyleFunc: func() core.Style {
+			return core.Style{Background: colors.Inset(), BorderColor: ui.Alpha(colors.Text(), 0.08)}
+		},
 		Children: []core.Node{core.Image{SourceFunc: source, ResizeMode: core.Cover, ElementsHidden: true,
 			Style: core.Style{Position: core.Absolute, Left: core.Pt(0), Top: core.Pt(0), Right: core.Pt(0), Bottom: core.Pt(0)}}}}
 }
 
-// Row is a row of a list: a press target the width of the list with a leading view, a title, a line under it and a trailing view, each optional but the title.
-type Row struct {
-	Leading  core.Node
-	Title    func() string
-	Detail   func() string
-	Trailing core.Node
-	OnPress  func()
-	TestID   string
-}
-
-// Render implements core.Node.
-func (r Row) Render(cx *core.Scope) core.Node {
-	colors := ui.ColorsOf(cx)
-	texts := []core.Node{core.Text{ContentFunc: r.Title, Style: Body.Merge(core.Style{FontWeight: core.FontWeightMedium}), StyleFunc: ui.Colored(colors.Text)}}
-	if r.Detail != nil {
-		texts = append(texts, core.Show{When: func() bool { return r.Detail() != "" }, Then: func(cx *core.Scope) core.Node {
-			return core.Text{ContentFunc: r.Detail, Style: Caption, StyleFunc: ui.Colored(colors.Muted)}
-		}})
+// LocalPoster is the poster of a film kept on the phone, none until it is downloaded.
+func LocalPoster(s *session.Session, f store.Film) core.ImageSource {
+	if f.Poster == "" {
+		return core.ImageSource{}
 	}
-	children := []core.Node{}
-	if r.Leading != nil {
-		children = append(children, r.Leading)
-	}
-	children = append(children, core.View{Style: core.Style{FlexGrow: 1, FlexShrink: 1, MinWidth: core.Pt(0), Gap: 2}, Children: texts})
-	if r.Trailing != nil {
-		children = append(children, r.Trailing)
-	}
-	v := core.View{TestID: r.TestID, Children: children,
-		Style:     core.Style{Direction: core.Row, AlignItems: core.AlignCenter, Gap: 12, Padding: core.Symmetric(10, 16), MinHeight: core.Pt(52)},
-		StyleFunc: func() core.Style { return core.Style{Active: &core.Style{Background: colors.Pressed()}} }}
-	if r.OnPress != nil {
-		v.Role = core.RoleButton
-		v.OnPress = func(core.PressEvent) { r.OnPress() }
-	}
-	return v
-}
-
-// SectionTitle is the heading over a group of rows, with an optional note at its end, as the space the downloads use.
-func SectionTitle(cx *core.Scope, title func() string, note func() string, testID string) core.Node {
-	colors := ui.ColorsOf(cx)
-	children := []core.Node{core.Text{ContentFunc: title, Role: core.RoleHeader, Style: Section.Merge(core.Style{FlexGrow: 1, FlexShrink: 1}), StyleFunc: ui.Colored(colors.Muted)}}
-	if note != nil {
-		children = append(children, core.Text{ContentFunc: note, Style: Caption, StyleFunc: ui.Colored(colors.Muted)})
-	}
-	return core.View{TestID: testID, Style: core.Style{Direction: core.Row, AlignItems: core.AlignCenter, Padding: core.Edges{Top: 20, Right: 16, Bottom: 6, Left: 16}}, Children: children}
+	return core.Src(kcore.FileURL(filepath.Join(s.Store().FilmDir(f.Desktop, f.Film.ID), f.Poster)))
 }
 
 // Status is where the film under key stands on the phone, as its rows and its page say it: downloading or paused at a share of its video, why its download stopped, or downloaded; "" for a film not on the phone.

@@ -14,10 +14,10 @@ import (
 // openTalk pairs the phone with d and opens the talk's page from its library.
 func (p *phone) openTalk(d *synctest.Desktop) string {
 	p.t.Helper()
-	p.app.WaitFor("id:home-welcome", wait)
+	p.app.WaitFor("id:welcome", wait)
 	p.pair(d)
-	p.app.WaitFor("id:home-library-lib", wait)
-	p.app.Press("id:home-library-lib")
+	p.app.WaitFor("id:computers-library-lib", wait)
+	p.app.Press("id:computers-library-lib")
 	p.app.WaitFor("id:library-film-f1", wait)
 	p.app.Press("id:library-film-f1")
 	p.app.WaitFor("id:film-download", wait)
@@ -57,9 +57,10 @@ func TestADownloadPausesAndResumes(t *testing.T) {
 	// The film now shows among the downloads, with the space it takes.
 	p.app.HeaderBack("id:film-page")
 	p.app.HeaderBack("id:library-page")
-	p.app.WaitFor("id:home-film-f1", wait)
-	if got := p.texts("id:home-downloads-title"); !strings.Contains(got, "MB") && !strings.Contains(got, "KB") {
-		t.Errorf("the downloads' heading shows %q, without the space they take", got)
+	p.openTab(downloadsTab, msgs.DownloadsTitle())
+	p.app.WaitFor("id:downloads-film-f1", wait)
+	if got := p.texts("id:downloads-used"); !strings.Contains(got, "MB") && !strings.Contains(got, "KB") {
+		t.Errorf("the downloads show %q, without the space they take", got)
 	}
 }
 
@@ -81,11 +82,14 @@ func TestDeletingADownloadedFilm(t *testing.T) {
 	p := startPhone(t, "")
 	f := keepTalk(t, p.dir)
 	p = startPhone(t, p.dir)
-	p.app.WaitFor("id:home-film-f1", wait)
-	p.app.Press("id:home-film-f1")
+	p.app.WaitFor("id:downloads-film-f1", wait)
+	p.app.Press("id:downloads-film-f1")
 	p.app.WaitFor("id:film-delete", wait)
+	if p.app.Exists("id:film-poster") {
+		t.Fatal("a film with no poster shows an empty poster frame")
+	}
 	p.app.Press("id:film-delete")
 	p.app.Answer(1)
-	p.app.WaitForGone("id:home-film-f1", wait)
+	p.app.WaitForGone("id:downloads-film-f1", wait)
 	p.waitFile(filepath.Join("films", f.Desktop, f.Film.ID), -1)
 }
