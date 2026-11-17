@@ -62,10 +62,10 @@ github.com/stretchr/testify v1.12.1 h1:EuwCh5fleGS7H32xRwO3wRGT7DxrDhLAT6FF8MpWD
 github.com/stretchr/testify v1.12.1/go.mod h1:MDEgiDPPsNp5cuIrHPPCyornHKgEVbtFUmoNlxoYthg=
 github.com/xyproto/randomstring v1.0.5 h1:YtlWPoRdgMu3NZtP45drfy1GKoojuR7hmRcnhZqKjWU=
 github.com/xyproto/randomstring v1.0.5/go.mod h1:rgmS5DeNXLivK7YprL0pY+lTuhNQW3iGxZ18UQApw/E=
-github.com/yldm-tech/ai-logo/nsgo v1.21.0 h1:iwZnuTwsmxqqNDpRnyr5ITV0b8paRzvJnva4N7vFOjM=
-github.com/yldm-tech/ai-logo/nsgo v1.21.0/go.mod h1:t4Un25FGWv6QJWyYV0pS3/get0txAGEkbTpNpTYYpZw=
-github.com/yldm-tech/nodra v1.5.0 h1:mzpM1EbuoNqtGWJyBTm4gau5XnUkKtpt5649XcVzyK8=
-github.com/yldm-tech/nodra v1.5.0/go.mod h1:b83A8x/Cb3r63aidKDvV0zYfvJEyRV9opEJsbLpyAoA=
+github.com/yldm-tech/ai-logo/nsgo v1.22.0 h1:ytMLyo/By1ERlPPO9ulPNsJPK4dFpvyCRLq1QFdltBc=
+github.com/yldm-tech/ai-logo/nsgo v1.22.0/go.mod h1:t4Un25FGWv6QJWyYV0pS3/get0txAGEkbTpNpTYYpZw=
+github.com/yldm-tech/nodra v1.6.0 h1:lbYuRU9ZC7EhrPagb0pS3eHqkwsNDXk5UOASWgziCMk=
+github.com/yldm-tech/nodra v1.6.0/go.mod h1:b83A8x/Cb3r63aidKDvV0zYfvJEyRV9opEJsbLpyAoA=
 github.com/yosida95/uritemplate/v3 v3.0.2 h1:Ed3Oyj9yrmi9087+NczuL5BwkIc4wvTb5zIM+UJPGz4=
 github.com/yosida95/uritemplate/v3 v3.0.2/go.mod h1:ILOh0sOhIJR3+L/8afwt/kE++YT040gmv5BQTMR2HP4=
 github.com/yuin/goldmark v1.8.7 h1:XT/tNqCIbabh0ln675w4x3dv04kQBKi8NwYqi9IJaxI=
