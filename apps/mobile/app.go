@@ -110,14 +110,14 @@ func App(cx *core.Scope, cfg session.Config) core.Node {
 			}
 			chosen.Set(i)
 		}
-		// TODO(nsgo): Android's system tab bar takes drawable names only, with no way to bundle the app's own (core/tabbar.go:20-26, TabBar.java:154-170); drawn bar until it can show vector icons
+		// TODO(nsgo#484): Android's system tab bar takes drawable names only, with no way to bundle the app's own (core/tabbar.go:20-26, TabBar.java:154-170); drawn bar until it can show vector icons https://github.com/nsgo-dev/nsgo/issues/484
 		ios := func(name string) string {
 			if cx.Env().OS() == core.OSIOS {
 				return name
 			}
 			return ""
 		}
-		// TODO(nsgo): ui.ShellTab.Text and TabShell.Label are strings only (ui/tabshell.go:10-36), so the tab titles keep the language they were built in; pass TextFunc/LabelFunc once ShellTab has them (mobile.TabBar already takes ItemsFunc)
+		// TODO(nsgo#145): ui.ShellTab.Text and TabShell.Label are strings only (ui/tabshell.go:10-36), so the tab titles keep the language they were built in; pass TextFunc/LabelFunc once ShellTab has them (mobile.TabBar already takes ItemsFunc) https://github.com/nsgo-dev/nsgo/issues/145
 		return ui.TabShell{Label: locales.AppName(cx), Selected: selected, OnChange: change, Tabs: []ui.ShellTab{
 			{Text: locales.DownloadsTitle(cx), Icon: lucide.CircleArrowDown, SystemIcon: ios("arrow.down.circle"), TestID: "tab-downloads", Content: tabStack(navs[downloadsTab])},
 			{Text: locales.ComputersTitle(cx), Icon: lucide.Monitor, SystemIcon: ios("desktopcomputer"), TestID: "tab-computers", Content: tabStack(navs[computersTab])},

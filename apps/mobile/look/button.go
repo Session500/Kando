@@ -21,7 +21,7 @@ const (
 )
 
 // Button is a phone's full-width capsule button, 50 points tall (44 Plain), with an optional leading icon. While Busy it shows a spinner in the icon's place on the tinted look and takes no presses, and BusyLabel, when set, is what assistive technology reads meanwhile.
-// TODO(nsgo): ui.Button is 32pt tall at most (size.go:10-15,31) and takes no Style (button.go:28-50), so a phone's large or full-width button is base.Button with the app's own style; use ui.Button once it has a size or style for that
+// TODO(nsgo#482): ui.Button is 32pt tall at most (size.go:10-15,31) and takes no Style (button.go:28-50), so a phone's large or full-width button is base.Button with the app's own style; use ui.Button once it has a size or style for that https://github.com/nsgo-dev/nsgo/issues/482
 type Button struct {
 	Text      func() string
 	Icon      func() *core.SVG
@@ -50,7 +50,7 @@ func (b Button) Render(cx *core.Scope) core.Node {
 	}
 	kindStyle := func() core.Style {
 		kind := b.Kind
-		// TODO(nsgo): ui.Spinner and ProgressRing draw in the accent alone (spinner.go:36-38, progressring.go:70), which vanishes on the accent's fill, so a busy primary button turns tinted; keep it primary with a ring in OnAccent once the color can be set
+		// TODO(nsgo#486): ui.Spinner and ProgressRing draw in the accent alone (spinner.go:36-38, progressring.go:70), which vanishes on the accent's fill, so a busy primary button turns tinted; keep it primary with a ring in OnAccent once the color can be set https://github.com/nsgo-dev/nsgo/issues/486
 		if busy() && kind == Primary {
 			kind = Tinted
 		}

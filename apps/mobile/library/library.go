@@ -60,7 +60,10 @@ func Page(cx *core.Scope, s *session.Session, desktop string, lib sync.Library, 
 			Refreshing: pulled.Get,
 			// The column fills the scroll's height while its content is shorter, so an empty or failed library's message centers in the page as the tabs' do.
 			Children: []core.Node{core.View{StyleFunc: func() core.Style { st := column(); st.FlexGrow = 1; return st }, Children: []core.Node{
-				core.Show{When: func() bool { _, ok := films.Get(); return films.Loading() && (!ok || films.Err() != nil) && !pulled.Get() }, Then: func(cx *core.Scope) core.Node {
+				core.Show{When: func() bool {
+					_, ok := films.Get()
+					return films.Loading() && (!ok || films.Err() != nil) && !pulled.Get()
+				}, Then: func(cx *core.Scope) core.Node {
 					var rows []core.Node
 					for i := range 3 {
 						rows = append(rows, look.Row{Index: func() int { return i }, Inset: 140,
@@ -139,7 +142,7 @@ func filmRow(cx *core.Scope, s *session.Session, desktop string, f func() sync.F
 						return core.Style{Color: colors.Accent()}
 					}},
 				core.Show{When: func() bool { t, ok := transfer(); return ok && t.State != session.Failed }, Then: func(cx *core.Scope) core.Node {
-					// TODO(nsgo): ui.Progress.Label is a string only (ui/progress.go:12-19), so the bar's spoken name keeps the language it was built in; pass a LabelFunc once Progress has one
+					// TODO(nsgo#145): ui.Progress.Label is a string only (ui/progress.go:12-19), so the bar's spoken name keeps the language it was built in; pass a LabelFunc once Progress has one https://github.com/nsgo-dev/nsgo/issues/145
 					return ui.Progress{Label: locales.FilmDownload(cx), Value: func() float32 { t, _ := transfer(); return t.Fraction() * 100 }}
 				}},
 			}}

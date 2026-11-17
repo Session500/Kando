@@ -7,7 +7,7 @@ import (
 
 // Group is a card of rows, as a grouped list's section.
 // ui.FormSection divides only its static Children (formsection.go:20-27); rows from core.Each draw their own hairline.
-// TODO(nsgo): ui.FormSection divides only its static Children (formsection.go:20-27) and ui.FormRow is a desktop's (40pt, 13pt text, formsection.go:48, formrow.go:60-70) with no room for a poster; use them once a section divides rows from core.Each and a row takes a phone's size and a leading image
+// TODO(nsgo#483): ui.FormSection divides only its static Children (formsection.go:20-27) and ui.FormRow is a desktop's (40pt, 13pt text, formsection.go:48, formrow.go:60-70) with no room for a poster; use them once a section divides rows from core.Each and a row takes a phone's size and a leading image https://github.com/nsgo-dev/nsgo/issues/483
 type Group struct {
 	Children []core.Node
 	TestID   string

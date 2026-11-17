@@ -24,7 +24,7 @@ func ActionBar(cx *core.Scope, children ...core.Node) core.Node {
 				pad.Bottom, env.Bottom = 8, core.EnvKeyboard
 			case inset > 0 || inTab:
 				// A drawn tab bar takes room of its own and keeps clear of the bottom safe area itself, so a page above it adds none.
-				// TODO(nsgo): TabShell's drawn bar takes the bottom safe area but its sections' screens still report it (core/nav.go:140-155, ui/tabshell.go:139-140), so the app marks a tab's pages to leave it out; drop the mark once TabShell gives its sections insets without the bottom it covers
+				// TODO(nsgo#493): TabShell's drawn bar takes the bottom safe area but its sections' screens still report it (core/nav.go:140-155, ui/tabshell.go:139-140), so the app marks a tab's pages to leave it out; drop the mark once TabShell gives its sections insets without the bottom it covers https://github.com/nsgo-dev/nsgo/issues/493
 				pad.Bottom = 12 + inset
 			default:
 				pad.Bottom, env.Bottom = 12, core.EnvSafeArea

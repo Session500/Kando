@@ -69,7 +69,7 @@ func row(cx *core.Scope, s *session.Session, f func() store.Film, i func() int, 
 			return ok && (t.State == session.Running || t.State == session.Paused)
 		},
 			Then: func(cx *core.Scope) core.Node {
-				// TODO(nsgo): ui.Progress.Label is a string only (ui/progress.go:12-19), so the bar's spoken name keeps the language it was built in; pass a LabelFunc once Progress has one
+				// TODO(nsgo#145): ui.Progress.Label is a string only (ui/progress.go:12-19), so the bar's spoken name keeps the language it was built in; pass a LabelFunc once Progress has one https://github.com/nsgo-dev/nsgo/issues/145
 				return ui.Progress{Label: locales.FilmDownload(cx), Value: func() float32 { t, _ := transfer(); return t.Fraction() * 100 }, Style: core.Style{Margin: core.Edges{Top: 6}}}
 			}},
 		OnPress: func() { open(f()) }}
