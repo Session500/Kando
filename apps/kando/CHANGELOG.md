@@ -2,6 +2,12 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.21.0 - 2026-11-17
+
+### Features
+
+- Redesign the phone app with Downloads and Computers tabs and phone-sized controls (#187)
+
 ## 0.20.0 - 2026-11-17
 
 ### Features
