@@ -75,7 +75,7 @@ func newDesktop(t *testing.T) *synctest.Desktop {
 	return d
 }
 
-// openTab shows tab i (downloadsTab, computersTab), named name: the drawn bar's tab headless, the system bar's on a target.
+// openTab shows tab i (downloadsTab, computersTab), named name, pressing the drawn bar's tab, which headless always shows. Where the system's bar shows in its place, on an iOS target, it reports the change as the platform would, which nsgotest allows headless only: there it skips the test, so a screenshot scene must not depend on it.
 func (p *phone) openTab(i int, name string) {
 	p.t.Helper()
 	if p.app.Exists("id:tab-bar >> label:" + name) {

@@ -15,6 +15,10 @@ func TestListsTheLibrariesAndTheirFilms(t *testing.T) {
 	p := startPhone(t, "")
 	p.app.WaitFor("id:welcome", wait)
 	p.pair(d)
+	// Nothing is downloaded yet.
+	p.openTab(downloadsTab, msgs.DownloadsTitle())
+	p.app.WaitFor("id:downloads-empty", wait)
+	p.openTab(computersTab, msgs.ComputersTitle())
 	desk := "id:computers-desktop-" + store.DesktopID(d.Fingerprint)
 	p.app.WaitFor("id:computers-library-lib", wait)
 	if got := p.texts(desk); !strings.Contains(got, "Studio") || !strings.Contains(got, "Japanese Class") || !strings.Contains(got, msgs.ComputersFilmCount(1)) {
@@ -48,6 +52,12 @@ func TestOfflineTheDownloadsStillShow(t *testing.T) {
 	if got, want := p.texts(problem), msgs.ComputersUnreachable("Studio"); !strings.Contains(got, want) {
 		t.Fatalf("the desktop's section says %q, want %q", got, want)
 	}
+	// A computer that does not answer offers to try again, not to pair again.
+	id := store.DesktopID(d.Fingerprint)
+	p.app.Find("id:computers-retry-" + id)
+	if p.app.Exists("id:computers-pair-again-" + id) {
+		t.Fatal("an unreachable desktop offers to pair again")
+	}
 	p.openTab(downloadsTab, msgs.DownloadsTitle())
 	p.app.Press("id:downloads-film-f1")
 	p.app.WaitFor("id:film-play", wait)
@@ -65,5 +75,8 @@ func TestARevokedPhoneIsAskedToPairAgain(t *testing.T) {
 	p.app.WaitFor("id:computers-pair-again-"+id, wait)
 	if got, want := p.texts("id:computers-problem-"+id), msgs.ComputersUnpaired("Studio"); !strings.Contains(got, want) {
 		t.Fatalf("the desktop's section says %q, want %q", got, want)
+	}
+	if p.app.Exists("id:computers-library-lib") || p.app.Exists("id:computers-retry-"+id) {
+		t.Fatal("beside the request to pair again the desktop's section shows its last libraries or a retry")
 	}
 }

@@ -85,6 +85,9 @@ func TestDeletingADownloadedFilm(t *testing.T) {
 	p.app.WaitFor("id:downloads-film-f1", wait)
 	p.app.Press("id:downloads-film-f1")
 	p.app.WaitFor("id:film-delete", wait)
+	if p.app.Exists("id:film-poster") {
+		t.Fatal("a film with no poster shows an empty poster frame")
+	}
 	p.app.Press("id:film-delete")
 	p.app.Answer(1)
 	p.app.WaitForGone("id:downloads-film-f1", wait)

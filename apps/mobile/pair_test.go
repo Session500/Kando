@@ -70,9 +70,18 @@ func TestTheTokenIsKeptInTheSecureStore(t *testing.T) {
 
 	p = startPhone(t, p.dir, nsgotest.Secrets(map[string]string{account: token}))
 	p.app.WaitFor("id:computers-library-lib", wait)
-	p.app.Press("id:computers-options-" + store.DesktopID(d.Fingerprint))
+	id := store.DesktopID(d.Fingerprint)
+	// The options' Cancel keeps the computer.
+	p.app.Press("id:computers-options-" + id)
+	p.app.Answer(0)
+	if !p.app.Exists("id:computers-desktop-"+id) || func() string { token, _ := secretOf(p, account); return token }() == "" {
+		t.Fatal("cancelling the computer's options unpaired it")
+	}
+	p.app.Press("id:computers-options-" + id)
 	p.app.Answer(1)
 	p.app.WaitUntil(wait, func() bool { token, _ := secretOf(p, account); return token == "" })
+	// With nothing paired or downloaded, the phone is back at its welcome.
+	p.app.WaitFor("id:welcome", wait)
 }
 
 // secretOf is what the phone's secure store keeps for account, and how it was written.
