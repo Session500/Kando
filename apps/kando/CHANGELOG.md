@@ -2,6 +2,13 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.20.0 - 2026-11-17
+
+### Features
+
+- Sign Browse's pages in with the chosen browser's sign-in (#184)
+- The iOS and Android app pairs, downloads and plays films (#185)
+
 ## 0.19.0 - 2026-11-17
 
 ### Features
