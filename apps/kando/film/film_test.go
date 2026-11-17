@@ -1132,29 +1132,6 @@ func TestNextCueChange(t *testing.T) {
 	}
 }
 
-// TestPictureFillsTheStage checks that a picture close to the stage's shape covers it, as the prototype's does, with no black bars under the title bar and the transport, and that one far from it shows whole.
-func TestPictureFillsTheStage(t *testing.T) {
-	for _, tc := range []struct {
-		name           string
-		stageW, stageH ns.Points
-		videoW, videoH ns.Points
-		want           ns.ResizeMode
-	}{
-		{"16:9 in the prototype's window", 1304, 782, 1920, 1080, ns.Cover},
-		{"16:9 in a 16:10 window", 1440, 900, 1920, 1080, ns.Cover},
-		{"1.85:1 in a 16:10 window", 1440, 900, 1998, 1080, ns.Cover},
-		{"the same shape", 1280, 720, 1920, 1080, ns.Cover},
-		{"2.39:1 in a 16:10 window", 1440, 900, 2048, 858, ns.Contain},
-		{"4:3 in the prototype's window", 1304, 782, 640, 480, ns.Contain},
-		{"portrait in a wide window", 1304, 782, 1080, 1920, ns.Contain},
-		{"no frame yet", 1304, 782, 0, 0, ns.Cover},
-	} {
-		if got := PictureFit(tc.stageW, tc.stageH, tc.videoW, tc.videoH); got != tc.want {
-			t.Errorf("%s: fit %v, want %v", tc.name, got, tc.want)
-		}
-	}
-}
-
 // TestChaptersCoverTheTranscript cuts 100 seconds of subtitles into the least 4 片段 by time: the cut at 25 seconds falls inside 第二句 and moves to 第三句's start at 40, the cuts at 50 and 75 to 第四句's at 70, so three 片段 cover the subtitles end to end, each named after the line it starts with.
 func TestChaptersCoverTheTranscript(t *testing.T) {
 	cues := []core.Segment{

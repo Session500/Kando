@@ -373,21 +373,6 @@ func CueNear(cues []core.Segment, at time.Duration) (prev, cur, next int) {
 	return prev, cur, next
 }
 
-// maxCrop is the most of a picture's width or height PictureFit cuts off to fill the stage: enough for a 16:9 or 1.85:1 film in a 16:10 window, not for a 2.39:1 film or a 4:3 one, which lose too much of their edges and show whole with bars instead.
-const maxCrop = 0.15
-
-// PictureFit fills the stage, stageW×stageH, with a picture of videoW×videoH, as the prototype does: the title bar and the transport float over the picture, with no black bars under them. A picture whose shape is far from the stage's would lose more than maxCrop of it, so it shows whole (core.Contain) instead.
-func PictureFit(stageW, stageH, videoW, videoH ns.Points) ns.ResizeMode {
-	if stageW <= 0 || stageH <= 0 || videoW <= 0 || videoH <= 0 {
-		return ns.Cover
-	}
-	picture, stage := videoW/videoH, stageW/stageH
-	if 1-min(picture, stage)/max(picture, stage) > maxCrop {
-		return ns.Contain
-	}
-	return ns.Cover
-}
-
 func seconds(v float64) time.Duration { return time.Duration(v * float64(time.Second)) }
 
 // shorten cuts s to n characters, the last an ellipsis, as the library shortens a title.
