@@ -424,17 +424,18 @@ func For(cx *core.Scope) Messages {
 // its method, for the TSX declarations of the messages
 // (tsx.RegisterMessages).
 var Parameters = map[string][]string{
-	"DesktopsUnpairTitle": {"name"},
-	"FilmDeleteTitle":     {"title"},
-	"FilmDownloading":     {"percent"},
-	"FilmPaused":          {"percent"},
-	"HomeCertificate":     {"name"},
-	"HomeFilmCount":       {"count"},
-	"HomeSpaceUsed":       {"size"},
-	"HomeUnpaired":        {"name"},
-	"HomeUnreachable":     {"name"},
-	"LibraryGone":         {"name"},
-	"PairErrUnreachable":  {"address"},
+	"ComputersCertificate": {"name"},
+	"ComputersFilmCount":   {"count"},
+	"ComputersOptions":     {"name"},
+	"ComputersUnpairTitle": {"name"},
+	"ComputersUnpaired":    {"name"},
+	"ComputersUnreachable": {"name"},
+	"DownloadsUsed":        {"size"},
+	"FilmDeleteTitle":      {"title"},
+	"FilmDownloading":      {"percent"},
+	"FilmPaused":           {"percent"},
+	"LibraryGone":          {"name"},
+	"PairErrUnreachable":   {"address"},
 }
 
 // Translation is a language's messages another package supplies:
@@ -442,18 +443,19 @@ var Parameters = map[string][]string{
 // of the others; a key or a field left out leaves the message to the
 // catalog.
 type Translation struct {
-	Texts               map[string]string
-	DesktopsUnpairTitle func(name string) string
-	FilmDeleteTitle     func(title string) string
-	FilmDownloading     func(percent int) string
-	FilmPaused          func(percent int) string
-	HomeCertificate     func(name string) string
-	HomeFilmCount       func(count int) string
-	HomeSpaceUsed       func(size string) string
-	HomeUnpaired        func(name string) string
-	HomeUnreachable     func(name string) string
-	LibraryGone         func(name string) string
-	PairErrUnreachable  func(address string) string
+	Texts                map[string]string
+	ComputersCertificate func(name string) string
+	ComputersFilmCount   func(count int) string
+	ComputersOptions     func(name string) string
+	ComputersUnpairTitle func(name string) string
+	ComputersUnpaired    func(name string) string
+	ComputersUnreachable func(name string) string
+	DownloadsUsed        func(size string) string
+	FilmDeleteTitle      func(title string) string
+	FilmDownloading      func(percent int) string
+	FilmPaused           func(percent int) string
+	LibraryGone          func(name string) string
+	PairErrUnreachable   func(address string) string
 }
 
 var supplied = map[string]Translation{}
@@ -463,10 +465,14 @@ const (
 	textAppName = iota
 	textCommonCancel
 	textCommonRetry
-	textDesktopsPairAnother
-	textDesktopsTitle
-	textDesktopsUnpair
-	textDesktopsUnpairMessage
+	textComputersNoLibraries
+	textComputersPair
+	textComputersPairAgain
+	textComputersTitle
+	textComputersUnpair
+	textComputersUnpairMessage
+	textDownloadsEmpty
+	textDownloadsTitle
 	textFilmCancel
 	textFilmDelete
 	textFilmDeleteConfirm
@@ -479,17 +485,10 @@ const (
 	textFilmResume
 	textFilmStopped
 	textFilmUnpaired
-	textHomeDownloads
-	textHomeEmptyBody
-	textHomeEmptyTitle
-	textHomeNoLibraries
-	textHomePair
-	textHomePairAgain
 	textLibraryEmpty
 	textPairAddress
 	textPairAddressExample
 	textPairCode
-	textPairCompareHint
 	textPairCompareTitle
 	textPairConfirm
 	textPairConnecting
@@ -521,6 +520,8 @@ const (
 	textPlayerSpeed
 	textPlayerSubtitles
 	textSessionDownloading
+	textWelcomePair
+	textWelcomeTitle
 	numTexts
 )
 
@@ -530,10 +531,14 @@ var keyOfText = [numTexts]string{
 	"appName",
 	"commonCancel",
 	"commonRetry",
-	"desktopsPairAnother",
-	"desktopsTitle",
-	"desktopsUnpair",
-	"desktopsUnpairMessage",
+	"computersNoLibraries",
+	"computersPair",
+	"computersPairAgain",
+	"computersTitle",
+	"computersUnpair",
+	"computersUnpairMessage",
+	"downloadsEmpty",
+	"downloadsTitle",
 	"filmCancel",
 	"filmDelete",
 	"filmDeleteConfirm",
@@ -546,17 +551,10 @@ var keyOfText = [numTexts]string{
 	"filmResume",
 	"filmStopped",
 	"filmUnpaired",
-	"homeDownloads",
-	"homeEmptyBody",
-	"homeEmptyTitle",
-	"homeNoLibraries",
-	"homePair",
-	"homePairAgain",
 	"libraryEmpty",
 	"pairAddress",
 	"pairAddressExample",
 	"pairCode",
-	"pairCompareHint",
 	"pairCompareTitle",
 	"pairConfirm",
 	"pairConnecting",
@@ -588,6 +586,8 @@ var keyOfText = [numTexts]string{
 	"playerSpeed",
 	"playerSubtitles",
 	"sessionDownloading",
+	"welcomePair",
+	"welcomeTitle",
 }
 
 // textsEn are the messages without arguments in en.
@@ -595,10 +595,14 @@ var textsEn = i18n.NewTexts(""+
 	"Kando"+
 	"Cancel"+
 	"Try Again"+
+	"No libraries to show"+
 	"Pair Another Computer"+
+	"Pair Again"+
 	"Computers"+
 	"Unpair"+
 	"The films downloaded from it stay on this phone."+
+	"No Downloads"+
+	"Downloads"+
 	"Cancel Download"+
 	"Delete Download"+
 	"Delete"+
@@ -611,17 +615,10 @@ var textsEn = i18n.NewTexts(""+
 	"Resume"+
 	"The download stopped. Resume it when the computer can be reached."+
 	"Pair with the computer again to download."+
-	"Downloads"+
-	"Kando on your phone plays the films Kando on your computer has made. Turn on Settings › Phone Sync there, then pair."+
-	"Pair with Kando on your computer"+
-	"No libraries to show"+
-	"Pair"+
-	"Pair Again"+
 	"No films ready yet"+
 	"Address"+
 	"192.168.1.20:47123"+
 	"Code"+
-	"Pair only if Phone Sync shows the same fingerprint."+
 	"Does your computer show these letters?"+
 	"Pair"+
 	"Connecting…"+
@@ -652,15 +649,21 @@ var textsEn = i18n.NewTexts(""+
 	"Previous Line"+
 	"Speed"+
 	"Subtitles"+
-	"Downloading films",
+	"Downloading films"+
+	"Pair"+
+	"Pair with Kando on your computer",
 	[]uint16{
 		5,
 		6,
 		9,
+		20,
 		21,
+		10,
 		9,
 		6,
 		48,
+		12,
+		9,
 		15,
 		15,
 		6,
@@ -673,17 +676,10 @@ var textsEn = i18n.NewTexts(""+
 		6,
 		65,
 		41,
-		9,
-		118,
-		32,
-		20,
-		4,
-		10,
 		18,
 		7,
 		18,
 		4,
-		51,
 		38,
 		4,
 		13,
@@ -715,6 +711,8 @@ var textsEn = i18n.NewTexts(""+
 		5,
 		9,
 		17,
+		4,
+		32,
 	})
 
 // textsJa are the messages without arguments in ja.
@@ -722,10 +720,14 @@ var textsJa = i18n.NewTexts(""+
 	"Kando"+
 	"キャンセル"+
 	"再試行"+
+	"表示できるライブラリはありません"+
 	"別のコンピュータとペアリング"+
+	"もう一度ペアリング"+
 	"コンピュータ"+
 	"ペアリングを解除"+
 	"ダウンロード済みの動画はこのスマートフォンに残ります。"+
+	"ダウンロードした動画はありません"+
+	"ダウンロード済み"+
 	"ダウンロードをキャンセル"+
 	"ダウンロードを削除"+
 	"削除"+
@@ -738,17 +740,10 @@ var textsJa = i18n.NewTexts(""+
 	"ダウンロードを再開"+
 	"ダウンロードが中断しました。コンピュータに接続できるときに再開してください。"+
 	"ダウンロードするには、もう一度コンピュータとペアリングしてください。"+
-	"ダウンロード済み"+
-	"スマートフォンの Kando は、コンピュータの Kando が用意した動画を再生します。コンピュータで「設定 › スマートフォン同期」をオンにしてからペアリングしてください。"+
-	"コンピュータの Kando とペアリング"+
-	"表示できるライブラリはありません"+
-	"ペアリング"+
-	"もう一度ペアリング"+
 	"再生できる動画はまだありません"+
 	"アドレス"+
 	"192.168.1.20:47123"+
 	"ペアリングコード"+
-	"「スマートフォン同期」に同じフィンガープリントが表示されている場合にのみペアリングしてください。"+
 	"コンピュータに同じ文字が表示されていますか？"+
 	"ペアリング"+
 	"接続しています…"+
@@ -779,15 +774,21 @@ var textsJa = i18n.NewTexts(""+
 	"前のセリフ"+
 	"再生速度"+
 	"字幕"+
-	"動画をダウンロード中",
+	"動画をダウンロード中"+
+	"ペアリング"+
+	"コンピュータの Kando とペアリング",
 	[]uint16{
 		5,
 		15,
 		9,
+		48,
 		42,
+		27,
 		18,
 		24,
 		81,
+		48,
+		24,
 		36,
 		27,
 		6,
@@ -800,17 +801,10 @@ var textsJa = i18n.NewTexts(""+
 		27,
 		114,
 		102,
-		24,
-		232,
-		46,
-		48,
-		15,
-		27,
 		45,
 		12,
 		18,
 		24,
-		144,
 		66,
 		15,
 		24,
@@ -842,6 +836,8 @@ var textsJa = i18n.NewTexts(""+
 		12,
 		6,
 		30,
+		15,
+		46,
 	})
 
 // textsKo are the messages without arguments in ko.
@@ -849,10 +845,14 @@ var textsKo = i18n.NewTexts(""+
 	"Kando"+
 	"취소"+
 	"다시 시도"+
+	"표시할 라이브러리가 없습니다"+
 	"다른 컴퓨터와 페어링"+
+	"다시 페어링"+
 	"컴퓨터"+
 	"페어링 해제"+
 	"다운로드한 영상은 이 휴대폰에 남습니다."+
+	"다운로드한 영상이 없습니다"+
+	"다운로드됨"+
 	"다운로드 취소"+
 	"다운로드 삭제"+
 	"삭제"+
@@ -865,17 +865,10 @@ var textsKo = i18n.NewTexts(""+
 	"다운로드 재개"+
 	"다운로드가 중단되었습니다. 컴퓨터에 연결할 수 있을 때 다시 시작하세요."+
 	"다운로드하려면 컴퓨터와 다시 페어링하세요."+
-	"다운로드됨"+
-	"휴대폰의 Kando는 컴퓨터의 Kando가 준비한 영상을 재생합니다. 컴퓨터에서 ‘설정 › 휴대폰 동기화’를 켠 다음 페어링하세요."+
-	"컴퓨터의 Kando와 페어링"+
-	"표시할 라이브러리가 없습니다"+
-	"페어링"+
-	"다시 페어링"+
 	"아직 재생할 수 있는 영상이 없습니다"+
 	"주소"+
 	"192.168.1.20:47123"+
 	"페어링 코드"+
-	"‘휴대폰 동기화’에 같은 지문이 표시될 때만 페어링하세요."+
 	"컴퓨터에 같은 문자가 표시되나요?"+
 	"페어링"+
 	"연결 중…"+
@@ -906,15 +899,21 @@ var textsKo = i18n.NewTexts(""+
 	"이전 대사"+
 	"재생 속도"+
 	"자막"+
-	"영상 다운로드 중",
+	"영상 다운로드 중"+
+	"페어링"+
+	"컴퓨터의 Kando와 페어링",
 	[]uint16{
 		5,
 		6,
 		13,
+		41,
 		29,
+		16,
 		9,
 		16,
 		56,
+		38,
+		15,
 		19,
 		19,
 		6,
@@ -927,17 +926,10 @@ var textsKo = i18n.NewTexts(""+
 		19,
 		100,
 		61,
-		15,
-		167,
-		31,
-		41,
-		9,
-		16,
 		50,
 		6,
 		18,
 		16,
-		82,
 		46,
 		9,
 		13,
@@ -969,6 +961,8 @@ var textsKo = i18n.NewTexts(""+
 		13,
 		6,
 		23,
+		9,
+		31,
 	})
 
 // textsZhHans are the messages without arguments in zh-Hans.
@@ -976,10 +970,14 @@ var textsZhHans = i18n.NewTexts(""+
 	"看懂"+
 	"取消"+
 	"重试"+
+	"没有可显示的资料库"+
 	"配对另一台电脑"+
+	"重新配对"+
 	"电脑"+
 	"取消配对"+
 	"从它下载的影片仍会留在这部手机上。"+
+	"没有下载的影片"+
+	"已下载"+
 	"取消下载"+
 	"删除下载"+
 	"删除"+
@@ -992,17 +990,10 @@ var textsZhHans = i18n.NewTexts(""+
 	"继续下载"+
 	"下载中断了。能连上电脑时再继续。"+
 	"请重新与电脑配对后再下载。"+
-	"已下载"+
-	"手机上的看懂播放电脑上的看懂处理好的影片。先在电脑上打开“设置 › 手机同步”，再来配对。"+
-	"与电脑上的看懂配对"+
-	"没有可显示的资料库"+
-	"配对"+
-	"重新配对"+
 	"还没有可以播放的影片"+
 	"地址"+
 	"192.168.1.20:47123"+
 	"配对码"+
-	"只有“手机同步”显示的指纹相同时才配对。"+
 	"电脑上显示的是这些字母吗？"+
 	"配对"+
 	"正在连接…"+
@@ -1033,15 +1024,21 @@ var textsZhHans = i18n.NewTexts(""+
 	"上一句"+
 	"播放速度"+
 	"字幕"+
-	"正在下载影片",
+	"正在下载影片"+
+	"配对"+
+	"与电脑上的看懂配对",
 	[]uint16{
 		6,
 		6,
 		6,
+		27,
 		21,
+		12,
 		6,
 		12,
 		51,
+		21,
+		9,
 		12,
 		12,
 		6,
@@ -1054,17 +1051,10 @@ var textsZhHans = i18n.NewTexts(""+
 		12,
 		48,
 		39,
-		9,
-		131,
-		27,
-		27,
-		6,
-		12,
 		30,
 		6,
 		18,
 		9,
-		60,
 		39,
 		6,
 		15,
@@ -1096,6 +1086,8 @@ var textsZhHans = i18n.NewTexts(""+
 		12,
 		6,
 		18,
+		6,
+		27,
 	})
 
 // textsZhHant are the messages without arguments in zh-Hant.
@@ -1103,10 +1095,14 @@ var textsZhHant = i18n.NewTexts(""+
 	"看懂"+
 	"取消"+
 	"重試"+
+	"沒有可顯示的資料庫"+
 	"配對另一台電腦"+
+	"重新配對"+
 	"電腦"+
 	"取消配對"+
 	"從它下載的影片仍會留在這支手機上。"+
+	"沒有下載的影片"+
+	"已下載"+
 	"取消下載"+
 	"刪除下載"+
 	"刪除"+
@@ -1119,17 +1115,10 @@ var textsZhHant = i18n.NewTexts(""+
 	"繼續下載"+
 	"下載中斷了。能連上電腦時再繼續。"+
 	"請重新與電腦配對後再下載。"+
-	"已下載"+
-	"手機上的看懂播放電腦上的看懂處理好的影片。先在電腦上開啟「設定 › 手機同步」，再來配對。"+
-	"與電腦上的看懂配對"+
-	"沒有可顯示的資料庫"+
-	"配對"+
-	"重新配對"+
 	"還沒有可以播放的影片"+
 	"位址"+
 	"192.168.1.20:47123"+
 	"配對碼"+
-	"只有「手機同步」顯示的指紋相同時才配對。"+
 	"電腦上顯示的是這些字母嗎？"+
 	"配對"+
 	"正在連線…"+
@@ -1160,15 +1149,21 @@ var textsZhHant = i18n.NewTexts(""+
 	"上一句"+
 	"播放速度"+
 	"字幕"+
-	"正在下載影片",
+	"正在下載影片"+
+	"配對"+
+	"與電腦上的看懂配對",
 	[]uint16{
 		6,
 		6,
 		6,
+		27,
 		21,
+		12,
 		6,
 		12,
 		51,
+		21,
+		9,
 		12,
 		12,
 		6,
@@ -1181,17 +1176,10 @@ var textsZhHant = i18n.NewTexts(""+
 		12,
 		48,
 		39,
-		9,
-		131,
-		27,
-		27,
-		6,
-		12,
 		30,
 		6,
 		18,
 		9,
-		60,
 		39,
 		6,
 		15,
@@ -1223,6 +1211,8 @@ var textsZhHant = i18n.NewTexts(""+
 		12,
 		6,
 		18,
+		6,
+		27,
 	})
 
 // texts returns the messages without arguments in lang, nil for a
@@ -1285,8 +1275,26 @@ func Supply(lang string, t Translation) {
 		}
 	}
 	s := supplied[lang]
-	if t.DesktopsUnpairTitle != nil {
-		s.DesktopsUnpairTitle = t.DesktopsUnpairTitle
+	if t.ComputersCertificate != nil {
+		s.ComputersCertificate = t.ComputersCertificate
+	}
+	if t.ComputersFilmCount != nil {
+		s.ComputersFilmCount = t.ComputersFilmCount
+	}
+	if t.ComputersOptions != nil {
+		s.ComputersOptions = t.ComputersOptions
+	}
+	if t.ComputersUnpairTitle != nil {
+		s.ComputersUnpairTitle = t.ComputersUnpairTitle
+	}
+	if t.ComputersUnpaired != nil {
+		s.ComputersUnpaired = t.ComputersUnpaired
+	}
+	if t.ComputersUnreachable != nil {
+		s.ComputersUnreachable = t.ComputersUnreachable
+	}
+	if t.DownloadsUsed != nil {
+		s.DownloadsUsed = t.DownloadsUsed
 	}
 	if t.FilmDeleteTitle != nil {
 		s.FilmDeleteTitle = t.FilmDeleteTitle
@@ -1296,21 +1304,6 @@ func Supply(lang string, t Translation) {
 	}
 	if t.FilmPaused != nil {
 		s.FilmPaused = t.FilmPaused
-	}
-	if t.HomeCertificate != nil {
-		s.HomeCertificate = t.HomeCertificate
-	}
-	if t.HomeFilmCount != nil {
-		s.HomeFilmCount = t.HomeFilmCount
-	}
-	if t.HomeSpaceUsed != nil {
-		s.HomeSpaceUsed = t.HomeSpaceUsed
-	}
-	if t.HomeUnpaired != nil {
-		s.HomeUnpaired = t.HomeUnpaired
-	}
-	if t.HomeUnreachable != nil {
-		s.HomeUnreachable = t.HomeUnreachable
 	}
 	if t.LibraryGone != nil {
 		s.LibraryGone = t.LibraryGone
@@ -1352,63 +1345,207 @@ func (msgs Messages) CommonCancel() string { return msgs.text(textCommonCancel) 
 // CommonRetry says "Try Again"
 // in the language the app shows under cx.
 //
-// Button that asks the computer again after it could not be reached.
+// Row or button that asks the computer again after it could not be reached.
 func CommonRetry(cx *core.Scope) string { return For(cx).CommonRetry() }
 
 // CommonRetry is the package's CommonRetry in the language of msgs.
 func (msgs Messages) CommonRetry() string { return msgs.text(textCommonRetry) }
 
-// DesktopsPairAnother says "Pair Another Computer"
+// ComputersCertificate says "{name} answered with another certificate. Pair with it again."
 // in the language the app shows under cx.
 //
-// Button on the Computers page that opens the pairing page.
-func DesktopsPairAnother(cx *core.Scope) string { return For(cx).DesktopsPairAnother() }
+// In a computer's section: it answered with another certificate.
+func ComputersCertificate(cx *core.Scope, name string) string {
+	return For(cx).ComputersCertificate(name)
+}
 
-// DesktopsPairAnother is the package's DesktopsPairAnother in the language of msgs.
-func (msgs Messages) DesktopsPairAnother() string { return msgs.text(textDesktopsPairAnother) }
+// ComputersCertificate is the package's ComputersCertificate in the language of msgs.
+func (msgs Messages) ComputersCertificate(name string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.ComputersCertificate(name))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].ComputersCertificate; f != nil {
+			return f(name)
+		}
+		switch lang {
+		case "", "en":
+			return msgs.arg(name) + " answered with another certificate. Pair with it again."
+		case "ja":
+			return name + " の証明書がペアリング時と異なります。もう一度ペアリングしてください。"
+		case "ko":
+			return name + "의 인증서가 페어링할 때와 다릅니다. 다시 페어링하세요."
+		case "zh-Hans":
+			return name + " 返回的证书和配对时的不同，请重新配对。"
+		case "zh-Hant":
+			return name + " 傳回的憑證和配對時的不同，請重新配對。"
+		}
+	}
+}
 
-// DesktopsTitle says "Computers"
+// ComputersFilmCount says "{count, plural, one {# film} other {# films}}"
 // in the language the app shows under cx.
 //
-// Title of the page listing the computers the phone is paired with, and the name of the home page's button that opens it.
-func DesktopsTitle(cx *core.Scope) string { return For(cx).DesktopsTitle() }
+// Beside a library's name: how many films it holds.
+func ComputersFilmCount(cx *core.Scope, count int) string { return For(cx).ComputersFilmCount(count) }
 
-// DesktopsTitle is the package's DesktopsTitle in the language of msgs.
-func (msgs Messages) DesktopsTitle() string { return msgs.text(textDesktopsTitle) }
+// ComputersFilmCount is the package's ComputersFilmCount in the language of msgs.
+func (msgs Messages) ComputersFilmCount(count int) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.ComputersFilmCount(count))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].ComputersFilmCount; f != nil {
+			return f(count)
+		}
+		switch lang {
+		case "", "en":
+			var b strings.Builder
+			switch i18n.Cardinal("en", float64(count)) {
+			case i18n.One:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+				b.WriteString(" film")
+			default:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+				b.WriteString(" films")
+			}
+			return b.String()
+		case "ja":
+			var b strings.Builder
+			switch i18n.Cardinal("ja", float64(count)) {
+			default:
+				b.WriteString(i18n.FormatNumber("ja", float64(count)))
+				b.WriteString(" 本の動画")
+			}
+			return b.String()
+		case "ko":
+			var b strings.Builder
+			switch i18n.Cardinal("ko", float64(count)) {
+			default:
+				b.WriteString("영상 ")
+				b.WriteString(i18n.FormatNumber("ko", float64(count)))
+				b.WriteString("개")
+			}
+			return b.String()
+		case "zh-Hans":
+			var b strings.Builder
+			switch i18n.Cardinal("zh-Hans", float64(count)) {
+			default:
+				b.WriteString(i18n.FormatNumber("zh-Hans", float64(count)))
+				b.WriteString(" 部影片")
+			}
+			return b.String()
+		case "zh-Hant":
+			var b strings.Builder
+			switch i18n.Cardinal("zh-Hant", float64(count)) {
+			default:
+				b.WriteString(i18n.FormatNumber("zh-Hant", float64(count)))
+				b.WriteString(" 部影片")
+			}
+			return b.String()
+		}
+	}
+}
 
-// DesktopsUnpair says "Unpair"
+// ComputersNoLibraries says "No libraries to show"
 // in the language the app shows under cx.
 //
-// Button on a paired computer's row, and the alert's button that confirms unpairing.
-func DesktopsUnpair(cx *core.Scope) string { return For(cx).DesktopsUnpair() }
+// In a computer's section when it lists no libraries.
+func ComputersNoLibraries(cx *core.Scope) string { return For(cx).ComputersNoLibraries() }
 
-// DesktopsUnpair is the package's DesktopsUnpair in the language of msgs.
-func (msgs Messages) DesktopsUnpair() string { return msgs.text(textDesktopsUnpair) }
+// ComputersNoLibraries is the package's ComputersNoLibraries in the language of msgs.
+func (msgs Messages) ComputersNoLibraries() string { return msgs.text(textComputersNoLibraries) }
 
-// DesktopsUnpairMessage says "The films downloaded from it stay on this phone."
+// ComputersOptions says "{name} Options"
 // in the language the app shows under cx.
 //
-// Message of the alert that confirms unpairing a computer.
-func DesktopsUnpairMessage(cx *core.Scope) string { return For(cx).DesktopsUnpairMessage() }
+// Spoken name of the … button beside a computer's name, which offers to unpair it.
+func ComputersOptions(cx *core.Scope, name string) string { return For(cx).ComputersOptions(name) }
 
-// DesktopsUnpairMessage is the package's DesktopsUnpairMessage in the language of msgs.
-func (msgs Messages) DesktopsUnpairMessage() string { return msgs.text(textDesktopsUnpairMessage) }
+// ComputersOptions is the package's ComputersOptions in the language of msgs.
+func (msgs Messages) ComputersOptions(name string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.ComputersOptions(name))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].ComputersOptions; f != nil {
+			return f(name)
+		}
+		switch lang {
+		case "", "en":
+			return msgs.arg(name) + " Options"
+		case "ja":
+			return name + " のオプション"
+		case "ko":
+			return name + " 옵션"
+		case "zh-Hans":
+			return name + " 选项"
+		case "zh-Hant":
+			return name + " 選項"
+		}
+	}
+}
 
-// DesktopsUnpairTitle says "Unpair {name}?"
+// ComputersPair says "Pair Another Computer"
+// in the language the app shows under cx.
+//
+// Spoken name of the + button in the Computers header.
+func ComputersPair(cx *core.Scope) string { return For(cx).ComputersPair() }
+
+// ComputersPair is the package's ComputersPair in the language of msgs.
+func (msgs Messages) ComputersPair() string { return msgs.text(textComputersPair) }
+
+// ComputersPairAgain says "Pair Again"
+// in the language the app shows under cx.
+//
+// Row under a computer that no longer takes this phone: opens pairing.
+func ComputersPairAgain(cx *core.Scope) string { return For(cx).ComputersPairAgain() }
+
+// ComputersPairAgain is the package's ComputersPairAgain in the language of msgs.
+func (msgs Messages) ComputersPairAgain() string { return msgs.text(textComputersPairAgain) }
+
+// ComputersTitle says "Computers"
+// in the language the app shows under cx.
+//
+// Tab and title of the computers section.
+func ComputersTitle(cx *core.Scope) string { return For(cx).ComputersTitle() }
+
+// ComputersTitle is the package's ComputersTitle in the language of msgs.
+func (msgs Messages) ComputersTitle() string { return msgs.text(textComputersTitle) }
+
+// ComputersUnpair says "Unpair"
+// in the language the app shows under cx.
+//
+// Action sheet button that confirms unpairing a computer.
+func ComputersUnpair(cx *core.Scope) string { return For(cx).ComputersUnpair() }
+
+// ComputersUnpair is the package's ComputersUnpair in the language of msgs.
+func (msgs Messages) ComputersUnpair() string { return msgs.text(textComputersUnpair) }
+
+// ComputersUnpairMessage says "The films downloaded from it stay on this phone."
+// in the language the app shows under cx.
+//
+// Message of the action sheet that confirms unpairing.
+func ComputersUnpairMessage(cx *core.Scope) string { return For(cx).ComputersUnpairMessage() }
+
+// ComputersUnpairMessage is the package's ComputersUnpairMessage in the language of msgs.
+func (msgs Messages) ComputersUnpairMessage() string { return msgs.text(textComputersUnpairMessage) }
+
+// ComputersUnpairTitle says "Unpair {name}?"
 // in the language the app shows under cx.
 //
 // Title of the alert that confirms unpairing a computer, by its name.
-func DesktopsUnpairTitle(cx *core.Scope, name string) string {
-	return For(cx).DesktopsUnpairTitle(name)
+func ComputersUnpairTitle(cx *core.Scope, name string) string {
+	return For(cx).ComputersUnpairTitle(name)
 }
 
-// DesktopsUnpairTitle is the package's DesktopsUnpairTitle in the language of msgs.
-func (msgs Messages) DesktopsUnpairTitle(name string) string {
+// ComputersUnpairTitle is the package's ComputersUnpairTitle in the language of msgs.
+func (msgs Messages) ComputersUnpairTitle(name string) string {
 	if i18n.IsPseudo(msgs.lang) {
-		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.DesktopsUnpairTitle(name))
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.ComputersUnpairTitle(name))
 	}
 	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
-		if f := supplied[lang].DesktopsUnpairTitle; f != nil {
+		if f := supplied[lang].ComputersUnpairTitle; f != nil {
 			return f(name)
 		}
 		switch lang {
@@ -1426,6 +1563,116 @@ func (msgs Messages) DesktopsUnpairTitle(name string) string {
 	}
 }
 
+// ComputersUnpaired says "{name} no longer knows this phone"
+// in the language the app shows under cx.
+//
+// In a computer's section and on a library's page: it revoked this phone.
+func ComputersUnpaired(cx *core.Scope, name string) string { return For(cx).ComputersUnpaired(name) }
+
+// ComputersUnpaired is the package's ComputersUnpaired in the language of msgs.
+func (msgs Messages) ComputersUnpaired(name string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.ComputersUnpaired(name))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].ComputersUnpaired; f != nil {
+			return f(name)
+		}
+		switch lang {
+		case "", "en":
+			return msgs.arg(name) + " no longer knows this phone"
+		case "ja":
+			return name + " はこのスマートフォンのペアリングを解除しました"
+		case "ko":
+			return name + "에서 이 휴대폰의 페어링을 해제했습니다"
+		case "zh-Hans":
+			return name + " 已不再认可这部手机"
+		case "zh-Hant":
+			return name + " 已不再認可這支手機"
+		}
+	}
+}
+
+// ComputersUnreachable says "Can't reach {name}"
+// in the language the app shows under cx.
+//
+// In a computer's section and on a library's page: it does not answer.
+func ComputersUnreachable(cx *core.Scope, name string) string {
+	return For(cx).ComputersUnreachable(name)
+}
+
+// ComputersUnreachable is the package's ComputersUnreachable in the language of msgs.
+func (msgs Messages) ComputersUnreachable(name string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.ComputersUnreachable(name))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].ComputersUnreachable; f != nil {
+			return f(name)
+		}
+		switch lang {
+		case "", "en":
+			return "Can't reach " + msgs.arg(name)
+		case "ja":
+			return name + " に接続できません"
+		case "ko":
+			return name + "에 연결할 수 없습니다"
+		case "zh-Hans":
+			return "连不上 " + name
+		case "zh-Hant":
+			return "連不上 " + name
+		}
+	}
+}
+
+// DownloadsEmpty says "No Downloads"
+// in the language the app shows under cx.
+//
+// Downloads tab when no film is on the phone.
+func DownloadsEmpty(cx *core.Scope) string { return For(cx).DownloadsEmpty() }
+
+// DownloadsEmpty is the package's DownloadsEmpty in the language of msgs.
+func (msgs Messages) DownloadsEmpty() string { return msgs.text(textDownloadsEmpty) }
+
+// DownloadsTitle says "Downloads"
+// in the language the app shows under cx.
+//
+// Tab and title of the films downloaded to the phone.
+func DownloadsTitle(cx *core.Scope) string { return For(cx).DownloadsTitle() }
+
+// DownloadsTitle is the package's DownloadsTitle in the language of msgs.
+func (msgs Messages) DownloadsTitle() string { return msgs.text(textDownloadsTitle) }
+
+// DownloadsUsed says "{size} used"
+// in the language the app shows under cx.
+//
+// Under the downloads: the space they take.
+func DownloadsUsed(cx *core.Scope, size string) string { return For(cx).DownloadsUsed(size) }
+
+// DownloadsUsed is the package's DownloadsUsed in the language of msgs.
+func (msgs Messages) DownloadsUsed(size string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.DownloadsUsed(size))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].DownloadsUsed; f != nil {
+			return f(size)
+		}
+		switch lang {
+		case "", "en":
+			return msgs.arg(size) + " used"
+		case "ja":
+			return size + " 使用中"
+		case "ko":
+			return size + " 사용 중"
+		case "zh-Hans":
+			return "占用 " + size
+		case "zh-Hant":
+			return "佔用 " + size
+		}
+	}
+}
+
 // FilmCancel says "Cancel Download"
 // in the language the app shows under cx.
 //
@@ -1438,7 +1685,7 @@ func (msgs Messages) FilmCancel() string { return msgs.text(textFilmCancel) }
 // FilmDelete says "Delete Download"
 // in the language the app shows under cx.
 //
-// Button on a downloaded film's page that deletes it from the phone.
+// Spoken name of the trash button in a downloaded film's header, which deletes it from the phone.
 func FilmDelete(cx *core.Scope) string { return For(cx).FilmDelete() }
 
 // FilmDelete is the package's FilmDelete in the language of msgs.
@@ -1624,244 +1871,6 @@ func FilmUnpaired(cx *core.Scope) string { return For(cx).FilmUnpaired() }
 // FilmUnpaired is the package's FilmUnpaired in the language of msgs.
 func (msgs Messages) FilmUnpaired() string { return msgs.text(textFilmUnpaired) }
 
-// HomeCertificate says "{name} answered with another certificate. Pair with it again."
-// in the language the app shows under cx.
-//
-// Under a paired computer's name on the home page: it answered with a certificate other than the one paired with.
-func HomeCertificate(cx *core.Scope, name string) string { return For(cx).HomeCertificate(name) }
-
-// HomeCertificate is the package's HomeCertificate in the language of msgs.
-func (msgs Messages) HomeCertificate(name string) string {
-	if i18n.IsPseudo(msgs.lang) {
-		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.HomeCertificate(name))
-	}
-	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
-		if f := supplied[lang].HomeCertificate; f != nil {
-			return f(name)
-		}
-		switch lang {
-		case "", "en":
-			return msgs.arg(name) + " answered with another certificate. Pair with it again."
-		case "ja":
-			return name + " の証明書がペアリング時と異なります。もう一度ペアリングしてください。"
-		case "ko":
-			return name + "의 인증서가 페어링할 때와 다릅니다. 다시 페어링하세요."
-		case "zh-Hans":
-			return name + " 返回的证书和配对时的不同，请重新配对。"
-		case "zh-Hant":
-			return name + " 傳回的憑證和配對時的不同，請重新配對。"
-		}
-	}
-}
-
-// HomeDownloads says "Downloads"
-// in the language the app shows under cx.
-//
-// Heading of the home page's section of the films downloaded to the phone.
-func HomeDownloads(cx *core.Scope) string { return For(cx).HomeDownloads() }
-
-// HomeDownloads is the package's HomeDownloads in the language of msgs.
-func (msgs Messages) HomeDownloads() string { return msgs.text(textHomeDownloads) }
-
-// HomeEmptyBody says "Kando on your phone plays the films Kando on your computer has made. Turn on Settings › Phone Sync there, then pair."
-// in the language the app shows under cx.
-//
-// The home page before any computer is paired: what the app does and what to do first.
-func HomeEmptyBody(cx *core.Scope) string { return For(cx).HomeEmptyBody() }
-
-// HomeEmptyBody is the package's HomeEmptyBody in the language of msgs.
-func (msgs Messages) HomeEmptyBody() string { return msgs.text(textHomeEmptyBody) }
-
-// HomeEmptyTitle says "Pair with Kando on your computer"
-// in the language the app shows under cx.
-//
-// Heading of the home page before any computer is paired.
-func HomeEmptyTitle(cx *core.Scope) string { return For(cx).HomeEmptyTitle() }
-
-// HomeEmptyTitle is the package's HomeEmptyTitle in the language of msgs.
-func (msgs Messages) HomeEmptyTitle() string { return msgs.text(textHomeEmptyTitle) }
-
-// HomeFilmCount says "{count, plural, one {# film} other {# films}}"
-// in the language the app shows under cx.
-//
-// Under a library's name: how many films it holds.
-func HomeFilmCount(cx *core.Scope, count int) string { return For(cx).HomeFilmCount(count) }
-
-// HomeFilmCount is the package's HomeFilmCount in the language of msgs.
-func (msgs Messages) HomeFilmCount(count int) string {
-	if i18n.IsPseudo(msgs.lang) {
-		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.HomeFilmCount(count))
-	}
-	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
-		if f := supplied[lang].HomeFilmCount; f != nil {
-			return f(count)
-		}
-		switch lang {
-		case "", "en":
-			var b strings.Builder
-			switch i18n.Cardinal("en", float64(count)) {
-			case i18n.One:
-				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
-				b.WriteString(" film")
-			default:
-				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
-				b.WriteString(" films")
-			}
-			return b.String()
-		case "ja":
-			var b strings.Builder
-			switch i18n.Cardinal("ja", float64(count)) {
-			default:
-				b.WriteString(i18n.FormatNumber("ja", float64(count)))
-				b.WriteString(" 本の動画")
-			}
-			return b.String()
-		case "ko":
-			var b strings.Builder
-			switch i18n.Cardinal("ko", float64(count)) {
-			default:
-				b.WriteString("영상 ")
-				b.WriteString(i18n.FormatNumber("ko", float64(count)))
-				b.WriteString("개")
-			}
-			return b.String()
-		case "zh-Hans":
-			var b strings.Builder
-			switch i18n.Cardinal("zh-Hans", float64(count)) {
-			default:
-				b.WriteString(i18n.FormatNumber("zh-Hans", float64(count)))
-				b.WriteString(" 部影片")
-			}
-			return b.String()
-		case "zh-Hant":
-			var b strings.Builder
-			switch i18n.Cardinal("zh-Hant", float64(count)) {
-			default:
-				b.WriteString(i18n.FormatNumber("zh-Hant", float64(count)))
-				b.WriteString(" 部影片")
-			}
-			return b.String()
-		}
-	}
-}
-
-// HomeNoLibraries says "No libraries to show"
-// in the language the app shows under cx.
-//
-// Under a paired computer's name when it lists no libraries (locked ones are never listed).
-func HomeNoLibraries(cx *core.Scope) string { return For(cx).HomeNoLibraries() }
-
-// HomeNoLibraries is the package's HomeNoLibraries in the language of msgs.
-func (msgs Messages) HomeNoLibraries() string { return msgs.text(textHomeNoLibraries) }
-
-// HomePair says "Pair"
-// in the language the app shows under cx.
-//
-// Button on the home page before any computer is paired: opens the pairing page.
-func HomePair(cx *core.Scope) string { return For(cx).HomePair() }
-
-// HomePair is the package's HomePair in the language of msgs.
-func (msgs Messages) HomePair() string { return msgs.text(textHomePair) }
-
-// HomePairAgain says "Pair Again"
-// in the language the app shows under cx.
-//
-// Button under a computer that no longer takes this phone: opens the pairing page.
-func HomePairAgain(cx *core.Scope) string { return For(cx).HomePairAgain() }
-
-// HomePairAgain is the package's HomePairAgain in the language of msgs.
-func (msgs Messages) HomePairAgain() string { return msgs.text(textHomePairAgain) }
-
-// HomeSpaceUsed says "{size} used"
-// in the language the app shows under cx.
-//
-// Beside the Downloads heading: the space the downloaded films take on the phone, as 1.2 GB.
-func HomeSpaceUsed(cx *core.Scope, size string) string { return For(cx).HomeSpaceUsed(size) }
-
-// HomeSpaceUsed is the package's HomeSpaceUsed in the language of msgs.
-func (msgs Messages) HomeSpaceUsed(size string) string {
-	if i18n.IsPseudo(msgs.lang) {
-		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.HomeSpaceUsed(size))
-	}
-	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
-		if f := supplied[lang].HomeSpaceUsed; f != nil {
-			return f(size)
-		}
-		switch lang {
-		case "", "en":
-			return msgs.arg(size) + " used"
-		case "ja":
-			return size + " 使用中"
-		case "ko":
-			return size + " 사용 중"
-		case "zh-Hans":
-			return "占用 " + size
-		case "zh-Hant":
-			return "佔用 " + size
-		}
-	}
-}
-
-// HomeUnpaired says "{name} no longer knows this phone"
-// in the language the app shows under cx.
-//
-// Under a paired computer's name: it revoked this phone in its Phone Sync settings.
-func HomeUnpaired(cx *core.Scope, name string) string { return For(cx).HomeUnpaired(name) }
-
-// HomeUnpaired is the package's HomeUnpaired in the language of msgs.
-func (msgs Messages) HomeUnpaired(name string) string {
-	if i18n.IsPseudo(msgs.lang) {
-		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.HomeUnpaired(name))
-	}
-	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
-		if f := supplied[lang].HomeUnpaired; f != nil {
-			return f(name)
-		}
-		switch lang {
-		case "", "en":
-			return msgs.arg(name) + " no longer knows this phone"
-		case "ja":
-			return name + " はこのスマートフォンのペアリングを解除しました"
-		case "ko":
-			return name + "에서 이 휴대폰의 페어링을 해제했습니다"
-		case "zh-Hans":
-			return name + " 已不再认可这部手机"
-		case "zh-Hant":
-			return name + " 已不再認可這支手機"
-		}
-	}
-}
-
-// HomeUnreachable says "Can't reach {name}"
-// in the language the app shows under cx.
-//
-// Under a paired computer's name: it does not answer (off, asleep, on another network, or Phone Sync off).
-func HomeUnreachable(cx *core.Scope, name string) string { return For(cx).HomeUnreachable(name) }
-
-// HomeUnreachable is the package's HomeUnreachable in the language of msgs.
-func (msgs Messages) HomeUnreachable(name string) string {
-	if i18n.IsPseudo(msgs.lang) {
-		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.HomeUnreachable(name))
-	}
-	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
-		if f := supplied[lang].HomeUnreachable; f != nil {
-			return f(name)
-		}
-		switch lang {
-		case "", "en":
-			return "Can't reach " + msgs.arg(name)
-		case "ja":
-			return name + " に接続できません"
-		case "ko":
-			return name + "에 연결할 수 없습니다"
-		case "zh-Hans":
-			return "连不上 " + name
-		case "zh-Hant":
-			return "連不上 " + name
-		}
-	}
-}
-
 // LibraryEmpty says "No films ready yet"
 // in the language the app shows under cx.
 //
@@ -1928,15 +1937,6 @@ func PairCode(cx *core.Scope) string { return For(cx).PairCode() }
 // PairCode is the package's PairCode in the language of msgs.
 func (msgs Messages) PairCode() string { return msgs.text(textPairCode) }
 
-// PairCompareHint says "Pair only if Phone Sync shows the same fingerprint."
-// in the language the app shows under cx.
-//
-// Under the fingerprint on the pairing page: compare it with the one the computer shows before trusting it.
-func PairCompareHint(cx *core.Scope) string { return For(cx).PairCompareHint() }
-
-// PairCompareHint is the package's PairCompareHint in the language of msgs.
-func (msgs Messages) PairCompareHint() string { return msgs.text(textPairCompareHint) }
-
 // PairCompareTitle says "Does your computer show these letters?"
 // in the language the app shows under cx.
 //
@@ -1958,7 +1958,7 @@ func (msgs Messages) PairConfirm() string { return msgs.text(textPairConfirm) }
 // PairConnecting says "Connecting…"
 // in the language the app shows under cx.
 //
-// Spoken name of the spinner while the phone reaches the computer.
+// Spoken name of the pairing page's button while the phone reaches the computer, which shows a spinner meanwhile.
 func PairConnecting(cx *core.Scope) string { return For(cx).PairConnecting() }
 
 // PairConnecting is the package's PairConnecting in the language of msgs.
@@ -2247,3 +2247,21 @@ func SessionDownloading(cx *core.Scope) string { return For(cx).SessionDownloadi
 
 // SessionDownloading is the package's SessionDownloading in the language of msgs.
 func (msgs Messages) SessionDownloading() string { return msgs.text(textSessionDownloading) }
+
+// WelcomePair says "Pair"
+// in the language the app shows under cx.
+//
+// Button on the first screen, and on Computers with none paired: opens pairing.
+func WelcomePair(cx *core.Scope) string { return For(cx).WelcomePair() }
+
+// WelcomePair is the package's WelcomePair in the language of msgs.
+func (msgs Messages) WelcomePair() string { return msgs.text(textWelcomePair) }
+
+// WelcomeTitle says "Pair with Kando on your computer"
+// in the language the app shows under cx.
+//
+// Heading of the first screen, and of Computers with none paired.
+func WelcomeTitle(cx *core.Scope) string { return For(cx).WelcomeTitle() }
+
+// WelcomeTitle is the package's WelcomeTitle in the language of msgs.
+func (msgs Messages) WelcomeTitle() string { return msgs.text(textWelcomeTitle) }

@@ -18,6 +18,7 @@ import (
 
 	"github.com/nsgo-dev/nsgo/base"
 	"github.com/nsgo-dev/nsgo/core"
+	"github.com/nsgo-dev/nsgo/icons/lucide"
 	"github.com/nsgo-dev/nsgo/ui"
 )
 
@@ -66,6 +67,8 @@ func Page(cx *core.Scope, s *session.Session, done, back func()) base.NavPage {
 	problem := core.NewSignal(cx, "")
 	// answer is where the computer answered and its certificate's fingerprint, once checked.
 	answer := core.NewSignalFunc(cx, found{}, nil)
+	// confirmed is a pairing the user confirmed after comparing the fingerprint, rather than one a link's fingerprint let through.
+	confirmed := core.NewSignal(cx, false)
 	// page ends as the page goes, which stops a pairing under way. It is the page's own, read as the page is built: a handler's cx is the region of the button pressed, which the page's stages replace as a pairing goes on.
 	page := cx.Context()
 
@@ -99,6 +102,7 @@ func Page(cx *core.Scope, s *session.Session, done, back func()) base.NavPage {
 			return
 		}
 		problem.Set("")
+		confirmed.Set(false)
 		at.Set(checking)
 		go func() {
 			f, err := reach(page, target.Addrs)
@@ -121,50 +125,82 @@ func Page(cx *core.Scope, s *session.Session, done, back func()) base.NavPage {
 		}()
 	}
 
-	errorText := core.Show{When: func() bool { return problem.Get() != "" }, Then: func(cx *core.Scope) core.Node {
-		return core.Text{TestID: "pair-problem", ContentFunc: problem.Get, LiveRegion: core.LiveRegionPolite, Style: look.Body, StyleFunc: ui.Colored(colors.Danger)}
-	}}
 	busy := func() bool { return at.Get() == checking || at.Get() == pairing }
-	form := core.View{Style: core.Style{Gap: 16}, Children: []core.Node{
-		core.Text{ContentFunc: func() string { return locales.PairHint(cx) }, Style: look.Body, StyleFunc: ui.Colored(colors.Muted)},
-		field(cx, locales.PairAddress(cx), ui.Input{TestID: "pair-address", Label: locales.PairAddress(cx), Value: address.Get, OnChange: func(v string) { address.Set(v); problem.Set("") },
-			Placeholder: locales.PairAddressExample(cx), KeyboardType: core.KeyboardURL, AutoCapitalize: core.AutoCapitalizeNone, NoAutoCorrect: true, Disabled: busy}),
-		field(cx, locales.PairCode(cx), ui.OtpInput{TestID: "pair-code", Label: locales.PairCode(cx), Length: sync.CodeDigits, Groups: 2, Value: code.Get, OnChange: func(v string) { code.Set(v); problem.Set("") }, Disabled: busy}),
-		errorText,
-		core.View{Style: core.Style{Direction: core.Row, AlignItems: core.AlignCenter, Gap: 12}, Children: []core.Node{
-			ui.Button{TestID: "pair-continue", Text: locales.PairContinue(cx), Size: ui.SizeLarge, Disabled: func() bool { return busy() || !ready() }, OnPress: check},
-			core.Show{When: busy, Then: func(cx *core.Scope) core.Node { return ui.Spinner{Label: locales.PairConnecting(cx)} }},
-		}},
-	}}
-	compare := core.View{TestID: "pair-compare", Style: core.Style{Gap: 16}, Children: []core.Node{
-		core.Text{ContentFunc: func() string { return locales.PairCompareTitle(cx) }, Role: core.RoleHeader, Style: look.Title, StyleFunc: ui.Colored(colors.Text)},
-		core.Text{TestID: "pair-fingerprint", ContentFunc: func() string { return sync.ShortFingerprint(answer.Get().fingerprint) },
-			Style: core.Style{FontSize: 26, LineHeight: 34, FontFamily: ui.Mono, FontWeight: core.FontWeightSemibold, LetterSpacing: 1}, StyleFunc: ui.Colored(colors.Text)},
-		core.Text{ContentFunc: func() string { return locales.PairCompareHint(cx) }, Style: look.Body, StyleFunc: ui.Colored(colors.Muted)},
-		core.View{Style: core.Style{Direction: core.Row, Gap: 12}, Children: []core.Node{
-			ui.Button{TestID: "pair-confirm", Text: locales.PairConfirm(cx), Size: ui.SizeLarge, OnPress: func() {
-				target, _ := ParseTarget(address.Get(), code.Get())
-				send(answer.Get(), target)
+	// comparingNow is the fingerprint on show: while the user compares it, and while the code goes out after they confirmed it.
+	comparingNow := func() bool { return at.Get() == comparing || (at.Get() == pairing && confirmed.Get()) }
+	confirm := func() {
+		target, _ := ParseTarget(address.Get(), code.Get())
+		confirmed.Set(true)
+		send(answer.Get(), target)
+	}
+	scroll := &core.Ref{}
+	form := core.Scroll{Ref: scroll, Style: core.Style{FlexGrow: 1, FlexShrink: 1}, Children: []core.Node{
+		core.View{Style: core.Style{Padding: core.All(16), Gap: 24, MaxWidth: core.Pt(480), Width: core.Pct(100), AlignSelf: core.AlignCenter}, Children: []core.Node{
+			core.Text{ContentFunc: func() string { return locales.PairHint(cx) }, Style: look.Subhead, StyleFunc: ui.Colored(colors.Muted)},
+			field(cx, locales.PairAddress(cx), ui.Input{TestID: "pair-address", Label: locales.PairAddress(cx), Value: address.Get, OnChange: func(v string) { address.Set(v); problem.Set("") },
+				Placeholder: locales.PairAddressExample(cx), KeyboardType: core.KeyboardURL, AutoCapitalize: core.AutoCapitalizeNone, NoAutoCorrect: true, Disabled: busy,
+				Style: core.Style{Height: core.Pt(50), FontSize: 17, CornerRadius: 12, Padding: core.Symmetric(0, 14)}}),
+			field(cx, locales.PairCode(cx), codeInput(cx, code.Get, func(v string) { code.Set(v); problem.Set("") }, busy)),
+			core.Show{When: func() bool { return problem.Get() != "" }, Then: func(cx *core.Scope) core.Node {
+				return core.Text{TestID: "pair-problem", ContentFunc: problem.Get, LiveRegion: core.LiveRegionPolite, Style: look.Subhead, StyleFunc: ui.Colored(colors.Danger)}
 			}},
-			ui.Button{TestID: "pair-reject", Text: locales.CommonCancel(cx), Variant: ui.ButtonSecondary, Size: ui.SizeLarge, OnPress: func() { at.Set(editing) }},
 		}},
 	}}
+	compare := core.View{TestID: "pair-compare", Style: core.Style{FlexGrow: 1, JustifyContent: core.JustifyCenter, AlignItems: core.AlignCenter, Gap: 20},
+		// The comparison does not scroll, so it keeps clear of iOS's header itself.
+		StyleFunc: func() core.Style { return core.Style{Padding: core.Edges{Top: ui.NavInset(cx), Right: 24, Left: 24}} },
+		Children: []core.Node{
+			ui.Icon(lucide.ShieldCheck, 40, colors.Accent),
+			core.Text{ContentFunc: func() string { return locales.PairCompareTitle(cx) }, Role: core.RoleHeader, Style: look.Heading.Merge(core.Style{TextAlign: core.TextAlignCenter}), StyleFunc: ui.Colored(colors.Text)},
+			core.View{Style: core.Style{CornerRadius: 16, Padding: core.Symmetric(20, 24)}, StyleFunc: ui.Filled(colors.Inset), Children: []core.Node{
+				core.Text{TestID: "pair-fingerprint", ContentFunc: func() string { return sync.ShortFingerprint(answer.Get().fingerprint) },
+					Style: core.Style{FontSize: 30, LineHeight: 38, FontFamily: ui.Mono, FontWeight: core.FontWeightSemibold, LetterSpacing: 2, TextAlign: core.TextAlignCenter}, StyleFunc: ui.Colored(colors.Text)},
+			}},
+		}}
+	actions := core.Show{When: comparingNow,
+		Then: func(cx *core.Scope) core.Node {
+			return core.View{Style: core.Style{Gap: 4}, Children: []core.Node{
+				look.Button{Kind: look.Primary, Text: func() string { return locales.PairConfirm(cx) }, TestID: "pair-confirm", Busy: func() bool { return at.Get() == pairing },
+					BusyLabel: func() string { return locales.PairConnecting(cx) }, OnPress: confirm},
+				look.Button{Kind: look.Plain, Text: func() string { return locales.CommonCancel(cx) }, TestID: "pair-reject", OnPress: func() { at.Set(editing) }},
+			}}
+		},
+		Else: func(cx *core.Scope) core.Node {
+			return look.Button{Kind: look.Primary, Text: func() string { return locales.PairContinue(cx) }, TestID: "pair-continue", Busy: busy,
+				BusyLabel: func() string { return locales.PairConnecting(cx) }, Disabled: func() bool { return !ready() }, OnPress: check}
+		}}
 	return ui.NavPage(cx, base.NavPage{TitleFunc: func() string { return locales.PairTitle(cx) }, TestID: "pair-page", Children: []core.Node{
-		core.Scroll{Style: core.Style{FlexGrow: 1, FlexShrink: 1}, Children: []core.Node{
-			core.View{Style: core.Style{Padding: core.All(20), PaddingEnv: core.EnvEdges{Bottom: core.EnvKeyboard}, MaxWidth: core.Pt(560), Width: core.Pct(100), AlignSelf: core.AlignCenter}, Children: []core.Node{
-				core.Show{When: func() bool { return at.Get() == comparing }, Then: func(*core.Scope) core.Node { return compare }, Else: func(*core.Scope) core.Node { return form }},
-			}},
+		core.View{Style: core.Style{FlexGrow: 1, FlexShrink: 1}, Children: []core.Node{
+			core.Show{When: comparingNow, Then: func(*core.Scope) core.Node { return compare }, Else: func(*core.Scope) core.Node { return form }},
+			look.ActionBar(cx, actions),
 		}},
-	}}, ui.NavHeader{OnBack: back})
+	}}, ui.NavHeader{OnBack: back, Scroll: scroll})
 }
 
 // field is a labeled control of the form.
 func field(cx *core.Scope, label string, control core.Node) core.Node {
 	colors := ui.ColorsOf(cx)
-	return core.View{Style: core.Style{Gap: 6}, Children: []core.Node{
-		core.Text{Content: label, Style: look.Section, StyleFunc: ui.Colored(colors.Muted)},
+	return core.View{Style: core.Style{Gap: 8}, Children: []core.Node{
+		core.Text{Content: label, Style: look.Section.Merge(core.Style{Padding: core.Edges{Left: 4}}), StyleFunc: ui.Colored(colors.Muted)},
 		control,
 	}}
+}
+
+// codeInput is the field of the pairing code, in cells a phone's thumb and eye find at once.
+// TODO(nsgo): ui.OtpInput's cells are ButtonHeight+8 square whatever its Style says (otpinput.go:35-39), so the code is base.OtpInput in the app's own cells; use ui.OtpInput once it takes a cell size
+func codeInput(cx *core.Scope, value func() string, change func(string), disabled func() bool) core.Node {
+	colors := ui.ColorsOf(cx)
+	return base.OtpInput{TestID: "pair-code", Label: locales.PairCode(cx), Length: sync.CodeDigits, Groups: 2, Value: value, OnChange: change, Disabled: disabled,
+		Style:      core.Style{Direction: core.Row, AlignItems: core.AlignCenter, AlignSelf: core.AlignStart, Gap: 12},
+		GroupStyle: core.Style{Direction: core.Row, Gap: 6},
+		CellStyle: core.Style{Width: core.Pt(44), Height: core.Pt(52), CornerRadius: 10, BorderCurve: core.BorderCurveContinuous, BorderWidth: 1,
+			FontSize: 22, FontWeight: core.FontWeightSemibold, FontVariant: core.FontTabularNums, AlignItems: core.AlignCenter, JustifyContent: core.JustifyCenter,
+			Disabled: ui.Dimmed()},
+		CellStyleFunc: func() core.Style {
+			return core.Style{Color: colors.Text(), Background: colors.Field(), BorderColor: colors.FieldBorder(), Focus: &core.Style{BorderColor: colors.Accent()}}
+		},
+		CaretStyle:     core.Style{Width: core.Pt(1.5), Height: core.Pt(24)},
+		CaretStyleFunc: ui.Filled(colors.Accent)}
 }
 
 // found is a computer that answered: where, and its certificate's fingerprint.

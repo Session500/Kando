@@ -19,8 +19,8 @@ import (
 func TestPairingShowsTheFingerprintBeforeTrustingIt(t *testing.T) {
 	d := newDesktop(t)
 	p := startPhone(t, "")
-	p.app.WaitFor("id:home-welcome", wait)
-	p.app.Press("id:home-pair")
+	p.app.WaitFor("id:welcome", wait)
+	p.app.Press("id:welcome-pair")
 	p.fillPairing(d.Addr.String(), "123456")
 	p.app.Press("id:pair-continue")
 	p.app.WaitFor("id:pair-compare", wait)
@@ -38,7 +38,7 @@ func TestPairingShowsTheFingerprintBeforeTrustingIt(t *testing.T) {
 		t.Fatalf("fingerprint %q, want %q", got, sync.ShortFingerprint(d.Fingerprint))
 	}
 	p.app.Press("id:pair-confirm")
-	p.app.WaitFor("id:home-desktop-"+store.DesktopID(d.Fingerprint), wait)
+	p.app.WaitFor("id:computers-desktop-"+store.DesktopID(d.Fingerprint), wait)
 	if d.Paired() != 1 {
 		t.Fatalf("%d devices paired, want 1", d.Paired())
 	}
@@ -54,7 +54,7 @@ func TestPairingShowsTheFingerprintBeforeTrustingIt(t *testing.T) {
 func TestTheTokenIsKeptInTheSecureStore(t *testing.T) {
 	d := newDesktop(t)
 	p := startPhone(t, "")
-	p.app.WaitFor("id:home-welcome", wait)
+	p.app.WaitFor("id:welcome", wait)
 	p.pair(d)
 	account := store.TokenAccount(store.DesktopID(d.Fingerprint))
 	var token string
@@ -69,10 +69,8 @@ func TestTheTokenIsKeptInTheSecureStore(t *testing.T) {
 	}
 
 	p = startPhone(t, p.dir, nsgotest.Secrets(map[string]string{account: token}))
-	p.app.WaitFor("id:home-library-lib", wait)
-	p.app.Press("id:home-desktops")
-	p.app.WaitFor("id:desktops-unpair", wait)
-	p.app.Press("id:desktops-unpair")
+	p.app.WaitFor("id:computers-library-lib", wait)
+	p.app.Press("id:computers-options-" + store.DesktopID(d.Fingerprint))
 	p.app.Answer(1)
 	p.app.WaitUntil(wait, func() bool { token, _ := secretOf(p, account); return token == "" })
 }
@@ -91,8 +89,8 @@ func secretOf(p *phone, account string) (string, core.SecretAccessible) {
 func TestPairingWithAWrongCodeSaysSo(t *testing.T) {
 	d := newDesktop(t)
 	p := startPhone(t, "")
-	p.app.WaitFor("id:home-welcome", wait)
-	p.app.Press("id:home-pair")
+	p.app.WaitFor("id:welcome", wait)
+	p.app.Press("id:welcome-pair")
 	p.fillPairing(d.Addr.String(), "654321")
 	p.app.Press("id:pair-continue")
 	p.app.WaitFor("id:pair-compare", wait)
@@ -108,7 +106,7 @@ func TestPairingWithAWrongCodeSaysSo(t *testing.T) {
 	p.app.Press("id:pair-continue")
 	p.app.WaitFor("id:pair-compare", wait)
 	p.app.Press("id:pair-confirm")
-	p.app.WaitFor("id:home-desktop-"+store.DesktopID(d.Fingerprint), wait)
+	p.app.WaitFor("id:computers-desktop-"+store.DesktopID(d.Fingerprint), wait)
 }
 
 // A pasted kando://pair link pairs without asking when the desktop's certificate is the one it names, and is refused when it is not.
@@ -116,8 +114,8 @@ func TestAPairingLinkChecksTheFingerprintItself(t *testing.T) {
 	d := newDesktop(t)
 	other := sync.Fingerprint([]byte("another desktop's certificate"))
 	p := startPhone(t, "")
-	p.app.WaitFor("id:home-welcome", wait)
-	p.app.Press("id:home-pair")
+	p.app.WaitFor("id:welcome", wait)
+	p.app.Press("id:welcome-pair")
 	p.app.WaitFor("id:pair-address", wait)
 	p.app.Type("id:pair-address", sync.PairURL{Addrs: []netip.AddrPort{d.Addr}, Code: "123456", Fingerprint: other, Name: "Studio"}.String())
 	p.app.Press("id:pair-continue")
@@ -130,7 +128,7 @@ func TestAPairingLinkChecksTheFingerprintItself(t *testing.T) {
 	p.app.Clear("id:pair-address")
 	p.app.Type("id:pair-address", sync.PairURL{Addrs: []netip.AddrPort{d.Addr}, Code: "123456", Fingerprint: d.Fingerprint, Name: "Studio"}.String())
 	p.app.Press("id:pair-continue")
-	p.app.WaitFor("id:home-desktop-"+store.DesktopID(d.Fingerprint), wait)
+	p.app.WaitFor("id:computers-desktop-"+store.DesktopID(d.Fingerprint), wait)
 	if p.app.Exists("id:pair-compare") {
 		t.Fatal("a link's fingerprint was shown to compare")
 	}
@@ -141,9 +139,9 @@ func TestPairingWithNoDesktopThere(t *testing.T) {
 	d := newDesktop(t)
 	addr := d.Addr.String()
 	p := startPhone(t, "")
-	p.app.WaitFor("id:home-welcome", wait)
+	p.app.WaitFor("id:welcome", wait)
 	d.Close()
-	p.app.Press("id:home-pair")
+	p.app.Press("id:welcome-pair")
 	p.fillPairing(addr, "123456")
 	p.app.Press("id:pair-continue")
 	if got, want := p.app.WaitFor("id:pair-problem", wait).Text, msgs.PairErrUnreachable(addr); got != want {

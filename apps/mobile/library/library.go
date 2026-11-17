@@ -1,4 +1,4 @@
-// Package library is the page of a computer's library: its films with their posters, languages, lengths and sizes, and how far each is on the phone; pull to refresh reads them again. A film opens its own page.
+// Package library is the page of a computer's library: its films with their posters, languages, lengths and sizes, and how far each is on the phone, or why none show; pull to refresh reads them again. A film opens its own page.
 package library
 
 import (
@@ -12,6 +12,7 @@ import (
 
 	"github.com/nsgo-dev/nsgo/base"
 	"github.com/nsgo-dev/nsgo/core"
+	"github.com/nsgo-dev/nsgo/icons/lucide"
 	"github.com/nsgo-dev/nsgo/ui"
 )
 
@@ -22,7 +23,6 @@ type filmsSource struct {
 
 // Page is the page of library lib of desktop; open opens a film's page.
 func Page(cx *core.Scope, s *session.Session, desktop string, lib sync.Library, open func(f sync.Film), back func()) base.NavPage {
-	colors := ui.ColorsOf(cx)
 	gen := core.NewSignal(cx, 0)
 	pulled := core.NewSignal(cx, false)
 	films := core.NewResource(cx, func() (filmsSource, bool) {
@@ -43,47 +43,70 @@ func Page(cx *core.Scope, s *session.Session, desktop string, lib sync.Library, 
 		}
 		return ""
 	}
-	note := func(cx *core.Scope, text func() string, action core.Node) core.Node {
-		children := []core.Node{core.Text{ContentFunc: text, Style: look.Body.Merge(core.Style{TextAlign: core.TextAlignCenter}), StyleFunc: ui.Colored(colors.Muted)}}
-		if action != nil {
-			children = append(children, action)
+	problem := func() session.Problem { return session.ProblemOf(films.Err()) }
+	failed := func() bool { return films.Err() != nil && !films.Loading() }
+	// shown are the films listed while the computer's answer is not a failure.
+	shown := func() []sync.Film {
+		if failed() {
+			return nil
 		}
-		return core.View{TestID: "library-note", Style: core.Style{Padding: core.All(32), Gap: 12, AlignItems: core.AlignCenter}, Children: children}
+		return list()
 	}
+	ref := &core.Ref{}
 	return ui.NavPage(cx, base.NavPage{Title: lib.Name, TestID: "library-page", Children: []core.Node{
-		core.Scroll{TestID: "library-scroll", Style: core.Style{FlexGrow: 1, FlexShrink: 1},
+		core.Scroll{TestID: "library-scroll", Ref: ref, Style: core.Style{FlexGrow: 1, FlexShrink: 1},
 			OnRefresh:  func() { pulled.Set(true); gen.Update(func(n int) int { return n + 1 }) },
 			Refreshing: pulled.Get,
-			Children: []core.Node{core.View{Style: core.Style{PaddingEnv: core.EnvEdges{Bottom: core.EnvSafeArea}, Padding: core.Edges{Top: 8, Bottom: 24}}, Children: []core.Node{
+			Children: []core.Node{core.View{StyleFunc: look.Column(cx), Children: []core.Node{
 				core.Show{When: func() bool { return films.Loading() && len(list()) == 0 && !pulled.Get() }, Then: func(cx *core.Scope) core.Node {
-					return core.View{Style: core.Style{Padding: core.All(32), AlignItems: core.AlignCenter}, Children: []core.Node{ui.Spinner{}}}
+					var rows []core.Node
+					for i := range 3 {
+						rows = append(rows, look.Row{Index: func() int { return i }, Inset: 140,
+							Leading: ui.SkeletonBlock{Width: core.Pt(112), Height: core.Pt(63), Index: i},
+							Below:   ui.Skeleton{Lines: 2}})
+					}
+					return look.Group{TestID: "library-loading", Children: rows}
 				}},
-				core.Show{When: func() bool { return films.Err() != nil && !films.Loading() }, Then: func(cx *core.Scope) core.Node {
-					return note(cx, func() string {
-						switch session.ProblemOf(films.Err()) {
-						case session.Gone:
-							return locales.LibraryGone(cx, name())
-						case session.Unpaired, session.Certificate:
-							return locales.HomeUnpaired(cx, name())
-						}
-						return locales.HomeUnreachable(cx, name())
-					}, ui.Button{TestID: "library-retry", Text: locales.CommonRetry(cx), Variant: ui.ButtonSecondary, OnPress: films.Refetch})
+				core.Show{When: failed, Then: func(cx *core.Scope) core.Node {
+					return look.Empty{TestID: "library-problem",
+						Icon: func() *core.SVG {
+							if problem() == session.Unreachable {
+								return lucide.WifiOff()
+							}
+							return lucide.CircleAlert()
+						},
+						Title: func() string {
+							switch problem() {
+							case session.Gone:
+								return locales.LibraryGone(cx, name())
+							case session.Unpaired, session.Certificate:
+								return locales.ComputersUnpaired(cx, name())
+							}
+							return locales.ComputersUnreachable(cx, name())
+						},
+						Action: look.Button{Kind: look.Tinted, Text: func() string { return locales.CommonRetry(cx) }, TestID: "library-retry", OnPress: films.Refetch}}
 				}},
 				core.Show{When: func() bool { _, ok := films.Get(); return ok && films.Err() == nil && len(list()) == 0 }, Then: func(cx *core.Scope) core.Node {
-					return note(cx, func() string { return locales.LibraryEmpty(cx) }, nil)
+					return look.Empty{TestID: "library-empty", Icon: lucide.Film, Title: func() string { return locales.LibraryEmpty(cx) }}
 				}},
-				core.Each(list, func(f sync.Film) string { return f.ID }, func(cx *core.Scope, f func() sync.Film, _ func() int) core.Node {
-					return filmRow(cx, s, desktop, f, open)
-				}),
+				core.Show{When: func() bool { return len(shown()) > 0 }, Then: func(cx *core.Scope) core.Node {
+					return look.Group{Children: []core.Node{
+						core.Each(shown, func(f sync.Film) string { return f.ID }, func(cx *core.Scope, f func() sync.Film, i func() int) core.Node {
+							return filmRow(cx, s, desktop, f, i, open)
+						}),
+					}}
+				}},
 			}}},
 		},
-	}}, ui.NavHeader{OnBack: back})
+	}}, ui.NavHeader{OnBack: back, Scroll: ref})
 }
 
-// filmRow is a film of the list: its poster, which the computer sends, its title and facts, and where it stands on the phone.
-func filmRow(cx *core.Scope, s *session.Session, desktop string, f func() sync.Film, open func(sync.Film)) core.Node {
+// filmRow is a film of the list: its poster, which the computer sends, its title and facts, where its download stands while it is under way, paused or stopped, and a mark once it is on the phone.
+func filmRow(cx *core.Scope, s *session.Session, desktop string, f func() sync.Film, i func() int, open func(sync.Film)) core.Node {
 	colors := ui.ColorsOf(cx)
 	key := func() string { return store.Key(desktop, f().ID) }
+	transfer := func() (session.Transfer, bool) { return s.Transfer(key()) }
+	done := func() bool { k, ok := s.Film(key()); return ok && k.Done() }
 	type posterSource struct {
 		c  *sync.Client
 		id string
@@ -100,11 +123,27 @@ func filmRow(cx *core.Scope, s *session.Session, desktop string, f func() sync.F
 		}
 		return core.ImageSource{}
 	}
-	return look.Row{TestID: "library-film-" + f().ID,
+	return look.Row{TestID: "library-film-" + f().ID, Index: i, Inset: 140,
 		Leading: look.Poster(cx, source, 112, ""),
 		Title:   func() string { return f().Title },
 		Detail:  func() string { return look.Facts(f()) },
-		Trailing: core.Text{TestID: "library-film-status", ContentFunc: func() string { return look.Status(cx, s, key()) },
-			Style: look.Caption.Merge(core.Style{MaxWidth: core.Pt(110), TextAlign: core.TextAlignRight}), StyleFunc: ui.Colored(colors.Accent)},
+		Below: core.Show{When: func() bool { _, ok := transfer(); return ok && !done() }, Then: func(cx *core.Scope) core.Node {
+			return core.View{Style: core.Style{Gap: 6, Padding: core.Edges{Top: 4}}, Children: []core.Node{
+				core.Text{TestID: "library-film-status-" + f().ID, ContentFunc: func() string { return look.Status(cx, s, key()) }, Style: look.Caption,
+					StyleFunc: func() core.Style {
+						if t, _ := transfer(); t.State == session.Failed {
+							return core.Style{Color: colors.Danger()}
+						}
+						return core.Style{Color: colors.Accent()}
+					}},
+				core.Show{When: func() bool { t, ok := transfer(); return ok && t.State != session.Failed }, Then: func(cx *core.Scope) core.Node {
+					return ui.Progress{Label: locales.FilmDownload(cx), Value: func() float32 { t, _ := transfer(); return t.Fraction() * 100 }}
+				}},
+			}}
+		}},
+		Trailing: core.Show{When: done, Then: func(cx *core.Scope) core.Node {
+			return core.View{LabelFunc: func() string { return locales.FilmDownloaded(cx) }, Role: core.RoleImage, Accessible: true,
+				Children: []core.Node{ui.Icon(lucide.CircleCheck, 20, colors.Accent)}}
+		}},
 		OnPress: func() { open(f()) }}
 }
