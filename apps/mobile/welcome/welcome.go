@@ -34,7 +34,10 @@ func Page(cx *core.Scope, pair func()) core.Node {
 					}
 					return core.Style{Width: side, Height: side, Background: tints.Accent()}
 				},
-				Children: []core.Node{ui.Icon(lucide.MonitorSmartphone, 44, colors.Accent)}},
+				// The glyph keeps to half the tile, whichever size the tile takes.
+				Children: []core.Node{core.Show{When: flat,
+					Then: func(*core.Scope) core.Node { return ui.Icon(lucide.MonitorSmartphone, 32, colors.Accent) },
+					Else: func(*core.Scope) core.Node { return ui.Icon(lucide.MonitorSmartphone, 44, colors.Accent) }}}},
 			core.Text{ContentFunc: func() string { return locales.WelcomeTitle(cx) }, Role: core.RoleHeader,
 				Style: look.Display.Merge(core.Style{TextAlign: core.TextAlignCenter}), StyleFunc: ui.Colored(colors.Text)},
 		}},

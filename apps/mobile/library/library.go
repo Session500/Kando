@@ -45,20 +45,22 @@ func Page(cx *core.Scope, s *session.Session, desktop string, lib sync.Library, 
 	}
 	problem := func() session.Problem { return session.ProblemOf(films.Err()) }
 	failed := func() bool { return films.Err() != nil && !films.Loading() }
-	// shown are the films listed while the computer's answer is not a failure.
+	// shown are the films the computer last listed, none after a failure, nor while it is asked again after one.
 	shown := func() []sync.Film {
-		if failed() {
+		if films.Err() != nil {
 			return nil
 		}
 		return list()
 	}
 	ref := &core.Ref{}
+	column := look.Column(cx)
 	return ui.NavPage(cx, base.NavPage{Title: lib.Name, TestID: "library-page", Children: []core.Node{
 		core.Scroll{TestID: "library-scroll", Ref: ref, Style: core.Style{FlexGrow: 1, FlexShrink: 1},
 			OnRefresh:  func() { pulled.Set(true); gen.Update(func(n int) int { return n + 1 }) },
 			Refreshing: pulled.Get,
-			Children: []core.Node{core.View{StyleFunc: look.Column(cx), Children: []core.Node{
-				core.Show{When: func() bool { return films.Loading() && len(list()) == 0 && !pulled.Get() }, Then: func(cx *core.Scope) core.Node {
+			// The column fills the scroll's height while its content is shorter, so an empty or failed library's message centers in the page as the tabs' do.
+			Children: []core.Node{core.View{StyleFunc: func() core.Style { st := column(); st.FlexGrow = 1; return st }, Children: []core.Node{
+				core.Show{When: func() bool { _, ok := films.Get(); return films.Loading() && (!ok || films.Err() != nil) && !pulled.Get() }, Then: func(cx *core.Scope) core.Node {
 					var rows []core.Node
 					for i := range 3 {
 						rows = append(rows, look.Row{Index: func() int { return i }, Inset: 140,
@@ -137,6 +139,7 @@ func filmRow(cx *core.Scope, s *session.Session, desktop string, f func() sync.F
 						return core.Style{Color: colors.Accent()}
 					}},
 				core.Show{When: func() bool { t, ok := transfer(); return ok && t.State != session.Failed }, Then: func(cx *core.Scope) core.Node {
+					// TODO(nsgo): ui.Progress.Label is a string only (ui/progress.go:12-19), so the bar's spoken name keeps the language it was built in; pass a LabelFunc once Progress has one
 					return ui.Progress{Label: locales.FilmDownload(cx), Value: func() float32 { t, _ := transfer(); return t.Fraction() * 100 }}
 				}},
 			}}

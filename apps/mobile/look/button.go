@@ -41,14 +41,14 @@ func (b Button) Render(cx *core.Scope) core.Node {
 	busy := func() bool { return b.Busy != nil && b.Busy() }
 	shape := core.Style{Height: core.Pt(50), CornerRadius: 25, BorderCurve: core.BorderCurveContinuous, Direction: core.Row, Gap: 8,
 		AlignItems: core.AlignCenter, JustifyContent: core.JustifyCenter, Padding: core.Symmetric(0, 20),
-		Active: &core.Style{Opacity: core.Alpha(0.7)}, Disabled: &core.Style{Opacity: core.Alpha(0.4)}}
+		Active: &core.Style{Opacity: core.Alpha(0.7)}}
 	if b.Kind == Plain {
 		shape.Height = core.Pt(44)
 	}
 	if b.Flex > 0 {
 		shape.FlexGrow, shape.FlexShrink, shape.FlexBasis, shape.MinWidth = b.Flex, 1, core.Pt(0), core.Pt(0)
 	}
-	look := func() core.Style {
+	kindStyle := func() core.Style {
 		kind := b.Kind
 		// TODO(nsgo): ui.Spinner and ProgressRing draw in the accent alone (spinner.go:36-38, progressring.go:70), which vanishes on the accent's fill, so a busy primary button turns tinted; keep it primary with a ring in OnAccent once the color can be set
 		if busy() && kind == Primary {
@@ -63,6 +63,14 @@ func (b Button) Render(cx *core.Scope) core.Node {
 			return core.Style{Color: colors.Accent()}
 		}
 		return core.Style{Background: colors.Accent(), Color: colors.OnAccent()}
+	}
+	look := func() core.Style {
+		st := kindStyle()
+		// A busy button takes no presses but stays whole, as the platforms' own do: only one that cannot be pressed fades.
+		if !busy() {
+			st.Disabled = &core.Style{Opacity: core.Alpha(0.4)}
+		}
+		return st
 	}
 	var lead core.Node
 	if b.Icon != nil {

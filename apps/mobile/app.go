@@ -6,6 +6,7 @@ import (
 	"kando/apps/mobile/film"
 	"kando/apps/mobile/library"
 	"kando/apps/mobile/locales"
+	"kando/apps/mobile/look"
 	"kando/apps/mobile/pair"
 	"kando/apps/mobile/player"
 	"kando/apps/mobile/session"
@@ -58,11 +59,18 @@ func App(cx *core.Scope, cfg session.Config) core.Node {
 	// chosen is the tab the user chose, -1 before they chose one.
 	chosen := core.NewSignal(cx, -1)
 	openPair := func() { outer.Push(route{page: pairPage}) }
-	// Paired, the phone shows the computer it paired with.
-	paired := func() { chosen.Set(computersTab); navs[computersTab].PopToRoot(); outer.Pop(1) }
+	// Paired, the phone shows the computer it paired with. Both stacks go back to their first page: the tabs may have been torn down to the welcome screen since they were last shown, and a page left on them may be of a film no longer kept.
+	paired := func() {
+		chosen.Set(computersTab)
+		for _, n := range navs {
+			n.PopToRoot()
+		}
+		outer.Pop(1)
+	}
 	play := func(key string) { outer.Push(route{page: playerPage, key: key}) }
 	tabStack := func(n *base.Nav[route]) func(cx *core.Scope) core.Node {
 		return func(cx *core.Scope) core.Node {
+			look.InTab(cx)
 			return n.Stack(core.Style{FlexGrow: 1}, func(cx *core.Scope, r route, _ func() int) base.NavPage {
 				back := func() { n.Pop(1) }
 				openFilm := func(desktop string, lib sync.Library, f sync.Film) {
@@ -109,6 +117,7 @@ func App(cx *core.Scope, cfg session.Config) core.Node {
 			}
 			return ""
 		}
+		// TODO(nsgo): ui.ShellTab.Text and TabShell.Label are strings only (ui/tabshell.go:10-36), so the tab titles keep the language they were built in; pass TextFunc/LabelFunc once ShellTab has them (mobile.TabBar already takes ItemsFunc)
 		return ui.TabShell{Label: locales.AppName(cx), Selected: selected, OnChange: change, Tabs: []ui.ShellTab{
 			{Text: locales.DownloadsTitle(cx), Icon: lucide.CircleArrowDown, SystemIcon: ios("arrow.down.circle"), TestID: "tab-downloads", Content: tabStack(navs[downloadsTab])},
 			{Text: locales.ComputersTitle(cx), Icon: lucide.Monitor, SystemIcon: ios("desktopcomputer"), TestID: "tab-computers", Content: tabStack(navs[computersTab])},

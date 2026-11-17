@@ -162,7 +162,8 @@ func Page(cx *core.Scope, s *session.Session, done, back func()) base.NavPage {
 			return core.View{Style: core.Style{Gap: 4}, Children: []core.Node{
 				look.Button{Kind: look.Primary, Text: func() string { return locales.PairConfirm(cx) }, TestID: "pair-confirm", Busy: func() bool { return at.Get() == pairing },
 					BusyLabel: func() string { return locales.PairConnecting(cx) }, OnPress: confirm},
-				look.Button{Kind: look.Plain, Text: func() string { return locales.CommonCancel(cx) }, TestID: "pair-reject", OnPress: func() { at.Set(editing) }},
+				// Once the code goes out it cannot be called back: the computer may take it whether or not the phone waits for the answer, so Cancel waits too.
+				look.Button{Kind: look.Plain, Text: func() string { return locales.CommonCancel(cx) }, TestID: "pair-reject", Disabled: func() bool { return at.Get() == pairing }, OnPress: func() { at.Set(editing) }},
 			}}
 		},
 		Else: func(cx *core.Scope) core.Node {

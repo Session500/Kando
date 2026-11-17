@@ -84,13 +84,15 @@ func section(cx *core.Scope, s *session.Session, d func() store.Desktop, gen fun
 	list := func() []sync.Library { v, _ := libs.Get(); return v }
 	problem := func() session.Problem { return session.ProblemOf(libs.Err()) }
 	failed := func() bool { return libs.Err() != nil && !libs.Loading() }
-	// shown are the libraries listed while the computer's answer is not a failure.
+	// shown are the libraries the computer last listed, none after a failure, nor while it is asked again after one.
 	shown := func() []sync.Library {
-		if failed() {
+		if libs.Err() != nil {
 			return nil
 		}
 		return list()
 	}
+	// waiting is a read with nothing to show meanwhile: the first, or one again after a failure; a pull to refresh keeps the last list, or its "No libraries", until the answer comes.
+	waiting := func() bool { _, ok := libs.Get(); return libs.Loading() && (!ok || libs.Err() != nil) }
 	unpairable := func() bool { p := problem(); return p == session.Unpaired || p == session.Certificate }
 	options := func() {
 		id, name := d().ID, d().Name
@@ -115,7 +117,7 @@ func section(cx *core.Scope, s *session.Session, d func() store.Desktop, gen fun
 				LabelFunc: func() string { return locales.ComputersOptions(cx, d().Name) }, OnPress: options},
 		}},
 		look.Group{Children: []core.Node{
-			core.Show{When: func() bool { return libs.Loading() && len(list()) == 0 }, Then: func(cx *core.Scope) core.Node {
+			core.Show{When: waiting, Then: func(cx *core.Scope) core.Node {
 				return core.View{Children: []core.Node{placeholder(), placeholder()}}
 			}},
 			core.Show{When: failed, Then: func(cx *core.Scope) core.Node {

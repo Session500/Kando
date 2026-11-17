@@ -112,6 +112,7 @@ func Page(cx *core.Scope, s *session.Session, desktop, library string, f sync.Fi
 	})
 	progress := core.Show{When: func() bool { _, ok := transfer(); return ok }, Then: func(cx *core.Scope) core.Node {
 		return core.View{Style: core.Style{Gap: 8}, Children: []core.Node{
+			// TODO(nsgo): ui.Progress.Label is a string only (ui/progress.go:12-19), so the bar's spoken name keeps the language it was built in; pass a LabelFunc once Progress has one
 			ui.Progress{TestID: "film-progress", Label: locales.FilmDownload(cx), Value: func() float32 { t, _ := transfer(); return t.Fraction() * 100 }},
 			core.Text{TestID: "film-status", ContentFunc: func() string { return look.Status(cx, s, key) }, LiveRegion: core.LiveRegionPolite, Style: look.Subhead,
 				StyleFunc: func() core.Style {
@@ -126,9 +127,9 @@ func Page(cx *core.Scope, s *session.Session, desktop, library string, f sync.Fi
 		return core.View{TestID: "film-poster", Style: core.Style{Width: core.Pct(100), AspectRatio: 16.0 / 9, CornerRadius: 12, BorderCurve: core.BorderCurveContinuous, Overflow: core.Hidden},
 			StyleFunc: func() core.Style {
 				s := core.Style{Background: colors.Inset()}
-				// A phone on its side keeps the poster to half the screen's height, beside the room the text needs.
+				// A phone on its side keeps the poster to about a third of the screen's height, so the title shows under it above the action bar.
 				if w := cx.Env().Window(); w.Width > w.Height {
-					s.MaxWidth, s.AlignSelf = core.Pt(w.Height*0.5*16/9), core.AlignCenter
+					s.MaxWidth, s.AlignSelf = core.Pt(w.Height*0.35*16/9), core.AlignCenter
 				}
 				return s
 			},
