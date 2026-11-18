@@ -11,8 +11,8 @@ require (
 	github.com/aws/smithy-go v1.28.9
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/nsgo-dev/nsgo v0.1.1-0.20261116154601-80d94246b875
-	github.com/yldm-tech/ai-logo/nsgo v1.21.0
-	github.com/yldm-tech/nodra v1.5.0
+	github.com/yldm-tech/ai-logo/nsgo v1.22.0
+	github.com/yldm-tech/nodra v1.6.0
 	go.yaml.in/yaml/v3 v3.0.6
 	golang.org/x/image v0.48.0
 	golang.org/x/net v0.62.0
