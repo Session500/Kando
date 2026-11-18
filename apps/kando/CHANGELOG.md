@@ -2,6 +2,24 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.25.0 - 2026-11-19
+
+### Features
+
+- Add up study stats across the unlocked libraries and name them (#247)
+- Add at most three new videos per check, and subscriptions on the command line and MCP (#249)
+- Candidates for a wrong line and fixes across the film; E selects a line and I explains it (#252)
+- Storage relay spec, bucket reads and presigned links, and the desktop relay behind a setting (#250)
+- Request size and retries, context lines, speech threads and hints, appearance and shortcut presets (#251)
+- Show the whole hero card whenever the window has room for it (#248)
+- Recap card when a film opens, and Explain Line in the side panel with follow-ups and save to notes (#254)
+- Handoff, paused-on-phone jobs, read-only phones, conflicts and activity on the desktop (#256)
+- One library of every paired computer's films, with continue watching, search over kept lines, source chips and a film's options (#253)
+- Jobs page and Add sheet over protocol v2 (#257)
+- Learning player with the line card, lookups and explanations through the computer, saved lines and notes over v2 (#258)
+- Learn tab with review, vocabulary, saved lines and export; Settings for subtitle style, goal, reminder and a revoked computer (#259)
+- Subtitle-only films that stream from YouTube on macOS and download their video later (#255)
+
 ## 0.24.0 - 2026-11-18
 
 ### Features
