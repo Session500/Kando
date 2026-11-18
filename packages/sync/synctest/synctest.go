@@ -54,11 +54,17 @@ type Desktop struct {
 	queue queue
 	// ledgers are the libraries' learning state, by library ID (state.go).
 	ledgers map[string]*sync.Ledger
-	desk    *sync.Desk
-	libs    []sync.Library
-	films   []Film
-	stall   int64
-	held    chan struct{}
+	// refuse, putHeld and puts are how the learning state's puts are answered and how many were (state.go).
+	refuse  func(sync.Record) bool
+	putHeld chan struct{}
+	puts    int
+	// study is the lookups and explanations (study.go).
+	study study
+	desk  *sync.Desk
+	libs  []sync.Library
+	films []Film
+	stall int64
+	held  chan struct{}
 	// off hangs up on every connection, as a computer asleep or with Phone Sync off (SetOff).
 	off     bool
 	ranges  []string
@@ -70,7 +76,7 @@ func New(t testing.TB, name string) *Desktop {
 	t.Helper()
 	d := &Desktop{Name: name, tokens: map[string]bool{}, names: map[string]string{}, modTime: time.Unix(1_700_000_000, 0)}
 	d.queue.receive = sync.ReceiveQueue
-	d.desk = &sync.Desk{Service: jobService{d}, State: stateService{d}, Journal: sync.NewJournal(), Desktop: name}
+	d.desk = &sync.Desk{Service: jobService{d}, State: stateService{d}, Study: studyService{d}, Journal: sync.NewJournal(), Desktop: name}
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST "+sync.PathPair, d.pair)
 	mux.HandleFunc("GET "+sync.PathLibraries, d.authed(d.libraries))
