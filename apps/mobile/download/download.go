@@ -18,7 +18,7 @@ import (
 // Progress hears how far the video is: done bytes of total.
 type Progress func(done, total int64)
 
-// Film downloads f from c into its folder in st and returns its record as it then stands, which it also keeps: whole, or as far as it got when ctx ended or the download failed. The subtitles and the poster come first, once; then the video goes on from the part already kept, if the desktop's file has not changed since (its ETag), else from the start.
+// Film downloads f from c into its folder in st and returns its record as it then stands, which it also keeps: whole, or as far as it got when ctx ended or the download failed. The subtitles and the poster come first, once (a film the desktop changes later takes its new subtitles when it is played, Follow); then the video goes on from the part already kept, if the desktop's file has not changed since (its ETag), else from the start.
 func Film(ctx context.Context, c *sync.Client, st *store.Store, f store.Film, progress Progress) (store.Film, error) {
 	if err := st.SaveFilm(f); err != nil {
 		return f, err
@@ -65,6 +65,44 @@ func Film(ctx context.Context, c *sync.Client, st *store.Store, f store.Film, pr
 	}
 	f.Video = name
 	return f, st.SaveFilm(f)
+}
+
+// Follow brings f, a film kept on the phone, up to date with its desktop: when the desktop lists it as changed since the phone has it (sync.Film.Updated), as one translated again, or whose transcript was proofread, the phone takes the desktop's record and subtitles and keeps them, and Follow returns the film as it now stands and true. The video stays as it was downloaded, and so does its size in the record, which is the file's. A film the desktop lists in none of its libraries, or has not changed, is left as it is, with false; so is one whose desktop cannot be reached, with the error.
+func Follow(ctx context.Context, c *sync.Client, st *store.Store, f store.Film) (store.Film, bool, error) {
+	listed, ok, err := listedFilm(ctx, c, f.Film.ID)
+	if err != nil || !ok || !listed.Updated.After(f.Film.Updated) {
+		return f, false, err
+	}
+	cues, err := c.Subtitles(ctx, f.Film.ID)
+	if err != nil {
+		return f, false, err
+	}
+	if err := st.SaveCues(f.Desktop, f.Film.ID, cues); err != nil {
+		return f, false, err
+	}
+	listed.VideoSize, listed.Poster = f.Film.VideoSize, f.Film.Poster
+	f.Film = listed
+	return f, true, st.SaveFilm(f)
+}
+
+// listedFilm is film id as its desktop lists it, looked for in each of its libraries, as the phone keeps a film's library by the name it had, which may have changed since; false when no library lists it.
+func listedFilm(ctx context.Context, c *sync.Client, id string) (sync.Film, bool, error) {
+	libs, err := c.Libraries(ctx)
+	if err != nil {
+		return sync.Film{}, false, err
+	}
+	for _, lib := range libs {
+		films, err := c.Films(ctx, lib.ID)
+		if err != nil {
+			return sync.Film{}, false, err
+		}
+		for _, f := range films {
+			if f.ID == id {
+				return f, true, nil
+			}
+		}
+	}
+	return sync.Film{}, false, nil
 }
 
 // poster keeps the film's poster in dir and returns the file's name.

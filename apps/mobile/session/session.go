@@ -105,6 +105,8 @@ type Session struct {
 	transfers *core.Signal[map[string]Transfer]
 	used      *core.Signal[int64]
 	jobs      map[string]*job
+	// following are the films Follow is bringing up to date, by key, so a film opened again meanwhile does not ask its desktop twice.
+	following map[string]bool
 	clients   map[string]*sync.Client
 	// work counts the goroutines that read and write the store, which the session waits for as it goes, so none outlives it.
 	work  gosync.WaitGroup
@@ -146,6 +148,7 @@ func New(cx *core.Scope, cfg Config) *Session {
 		transfers: core.NewSignalFunc(cx, map[string]Transfer{}, nil),
 		used:      core.NewSignal(cx, int64(0)),
 		jobs:      map[string]*job{},
+		following: map[string]bool{},
 		clients:   map[string]*sync.Client{},
 		posters:   map[string][]byte{},
 	}
@@ -335,6 +338,38 @@ func (s *Session) Download(desktop, library string, f sync.Film) {
 	rec := store.Film{Desktop: desktop, Library: library, Film: f, Added: s.cfg.Now()}
 	s.films.Set(append([]store.Film{rec}, s.films.Get()...))
 	s.start(rec)
+}
+
+// followFor is how long Follow waits for a desktop, which may be off or out of reach, as the phone is used away from it.
+const followFor = 15 * time.Second
+
+// Follow brings the film kept under key, a downloaded one, up to date with its desktop when the desktop can be reached (download.Follow): one translated again or proofread there since takes the desktop's subtitles and record, and changed runs on the engine's goroutine once they are kept, so a player showing the film reads its lines again. A film whose desktop is out of reach, or not paired any more, stays as it is, without a word: it plays as it was downloaded.
+func (s *Session) Follow(key string, changed func()) {
+	f, ok := s.Film(key)
+	if !ok || !f.Done() || s.following[key] {
+		return
+	}
+	c := s.Client(f.Desktop)
+	if c == nil {
+		return
+	}
+	s.following[key] = true
+	s.work.Go(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), followFor)
+		defer cancel()
+		got, updated, _ := download.Follow(ctx, c, s.st, f)
+		s.cx.Post(func() {
+			delete(s.following, key)
+			if !updated {
+				return
+			}
+			// A film deleted meanwhile is not put back.
+			if _, ok := s.Film(key); ok {
+				s.replace(got)
+				changed()
+			}
+		})
+	})
 }
 
 // Pause stops the download of key, keeping what it has, which Resume goes on from.
