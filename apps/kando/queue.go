@@ -990,6 +990,9 @@ func statusText(m locales.Messages, job core.Job) string {
 	case core.StageTranscribing:
 		return m.QueueStatusTranscribing()
 	case core.StageTranslating:
+		if job.Progress.Proofreading {
+			return m.QueueStatusProofreading()
+		}
 		return m.QueueStatusTranslating()
 	case core.StageExporting:
 		return m.QueueStatusExporting()

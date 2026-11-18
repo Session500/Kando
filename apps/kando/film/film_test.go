@@ -1006,6 +1006,21 @@ func TestPictureLinesForAMissingTranslation(t *testing.T) {
 	}
 }
 
+// TestPictureLinesOfAFilmInItsOwnLanguage checks that a film heard in the language its subtitles are for, whose cues are its own lines alone, shows them in 仅译文 and 双语 as 原文 does, never dimmed as lines not translated yet, and still nothing in 关闭.
+func TestPictureLinesOfAFilmInItsOwnLanguage(t *testing.T) {
+	a := newFakeApp()
+	for _, mode := range []string{SubTranslation, SubBilingual, SubOriginal} {
+		a.mode = mode
+		if got := pictureLines(ownLanguage{a}, "今天讲神经网络"); len(got) != 1 || got[0].text != "今天讲神经网络" || got[0].dim {
+			t.Fatalf("%s: %+v", mode, got)
+		}
+	}
+	a.mode = SubOff
+	if got := (ownLanguage{a}).SubMode(); got != SubOff {
+		t.Fatalf("off is %s", got)
+	}
+}
+
 // TestSubtitleOutlineFollowsTheGlyphs checks that an outlined line is drawn again in black under itself, ten copies after the prototype's text-shadow, which follow the glyphs as a box's shadow would not, and that only the line itself is read by assistive technology.
 func TestSubtitleOutlineFollowsTheGlyphs(t *testing.T) {
 	line := styledLine{text: "每条河都始于高山", face: Face{Size: 30, Color: "#FFFFFF", Bold: true}}

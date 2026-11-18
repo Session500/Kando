@@ -120,11 +120,31 @@ func pendingTranscriptPath(videoPath string) string {
 	return hiddenBeside(videoPath, ".pending.srt")
 }
 
-// pendingHeard is how the speech a RedoAll job keeps aside was heard (pendingTranscriptPath), which Run keeps in a hidden file beside it (pendingHeardPath): by Model in Language, as Tools hears it (hearer), and Spoken, the language the transcription said it heard, "" when it said none. A redo that failed or was stopped after it transcribed reads that speech back when run again the same way, rather than transcribing the film again.
+// pendingHeard is how the speech a RedoAll job keeps aside was heard (pendingTranscriptPath), which Run keeps in a hidden file beside it (pendingHeardPath): by Model in Language, as Tools hears it (hearer), and Spoken, the language the transcription said it heard, "" when it said none; Proofread is true once that speech was proofread and written back. A redo that failed or was stopped after it transcribed reads that speech back when run again the same way, rather than transcribing the film again, and does not proofread it again.
 type pendingHeard struct {
-	Model    string `json:"model"`
-	Language string `json:"language"`
-	Spoken   string `json:"spoken,omitempty"`
+	Model     string `json:"model"`
+	Language  string `json:"language"`
+	Spoken    string `json:"spoken,omitempty"`
+	Proofread bool   `json:"proofread,omitempty"`
+}
+
+// proofreadTranscriptPath is where a job translating a done film again (core.Redo.TranslatesOnly) keeps the film's transcript once it has proofread it, until it exports: a hidden file beside the video, so the film's own transcript, which its bilingual subtitles match line for line, stays as it is should the job fail or be stopped, and a job run again reads the proofread lines back rather than paying for them again.
+func proofreadTranscriptPath(videoPath string) string {
+	return hiddenBeside(videoPath, ".proofread.srt")
+}
+
+// readProofread is the proofread transcript a translating redo kept beside the video at videoPath (proofreadTranscriptPath), if it is the proofreading of original, line for line at the same times.
+func readProofread(videoPath string, original []core.Segment) ([]core.Segment, bool) {
+	lines, err := loadTranscript(proofreadTranscriptPath(videoPath))
+	if err != nil || len(lines) != len(original) {
+		return nil, false
+	}
+	for i, s := range lines {
+		if s.Start != original[i].Start || s.End != original[i].End {
+			return nil, false
+		}
+	}
+	return lines, true
 }
 
 // pendingHeardPath is the hidden file beside the video at videoPath that says how the speech kept aside was heard (pendingHeard).

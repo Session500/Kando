@@ -322,6 +322,9 @@ type storedJob struct {
 	TranslationError string `json:"translationError,omitempty"`
 	// Transcribed is whether the job saved its transcript beside its video (core.Job.Transcribed).
 	Transcribed bool `json:"transcribed,omitempty"`
+	// Proofread is whether the job's transcript has been proofread (core.Job.Proofread), and SameLanguage whether the film needed no translation (core.Job.SameLanguage).
+	Proofread    bool `json:"proofread,omitempty"`
+	SameLanguage bool `json:"sameLanguage,omitempty"`
 	// Redo is the part of a done film's processing a job translating it again does (core.Job.Redo).
 	Redo core.Redo `json:"redo,omitempty"`
 	// RedoLanguage is the language a job translating every line again translates into (core.Job.RedoLanguage).
@@ -340,7 +343,7 @@ func storeJob(job core.Job) storedJob {
 		Title: job.Title, Thumbnail: job.Thumbnail,
 		VideoPath: job.VideoPath, SubtitlePath: job.SubtitlePath, LibraryDir: job.LibraryDir,
 		CompletedAt: job.CompletedAt, FailKind: job.FailKind, Cookies: job.Cookies, Untranslated: job.Untranslated, TranslationError: job.TranslationErr,
-		Transcribed: job.Transcribed, Redo: job.Redo, RedoLanguage: job.RedoLanguage, SpokenLanguage: job.SpokenLanguage, SpeechLanguage: job.SpeechLanguage, FromFolder: job.FromFolder,
+		Transcribed: job.Transcribed, Proofread: job.Proofread, SameLanguage: job.SameLanguage, Redo: job.Redo, RedoLanguage: job.RedoLanguage, SpokenLanguage: job.SpokenLanguage, SpeechLanguage: job.SpeechLanguage, FromFolder: job.FromFolder,
 	}
 	switch {
 	case errors.Is(job.Err, context.Canceled):
@@ -359,7 +362,7 @@ func (s storedJob) job() core.Job {
 		Title: s.Title, Thumbnail: s.Thumbnail,
 		VideoPath: s.VideoPath, SubtitlePath: s.SubtitlePath, LibraryDir: s.LibraryDir,
 		CompletedAt: s.CompletedAt, FailKind: s.FailKind, Cookies: s.Cookies, Untranslated: s.Untranslated, TranslationErr: s.TranslationError,
-		Transcribed: s.Transcribed, Redo: s.Redo, RedoLanguage: s.RedoLanguage, SpokenLanguage: s.SpokenLanguage, SpeechLanguage: s.SpeechLanguage, FromFolder: s.FromFolder,
+		Transcribed: s.Transcribed, Proofread: s.Proofread, SameLanguage: s.SameLanguage, Redo: s.Redo, RedoLanguage: s.RedoLanguage, SpokenLanguage: s.SpokenLanguage, SpeechLanguage: s.SpeechLanguage, FromFolder: s.FromFolder,
 	}
 	switch s.Error {
 	case "":

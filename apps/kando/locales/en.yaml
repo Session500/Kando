@@ -1202,6 +1202,12 @@ filmsQueueQueued:
   description: "Dimmed note beside the processing heading, after the running count: how many jobs wait their turn."
   placeholders:
     count: { type: "int", example: "2" }
+filmsQueueProofreadingLines:
+  message: "Proofreading · {lines} of {total} lines"
+  description: "Line under the title of a job correcting the words speech recognition misheard in its transcript, before it translates it: how many lines are done of how many."
+  placeholders:
+    lines: { type: "int", example: "80" }
+    total: { type: "int", example: "480" }
 filmsQueueRateLimited:
   message: "Translation API rate-limited, retrying in {seconds, plural, one {# second} other {# seconds}} ({attempt}/{attempts})"
   description: "Line under the title of a job whose translation request was rate-limited and will be retried."
@@ -2999,6 +3005,9 @@ queueStatusFailed:
 queueStatusLibrarySwitched:
   message: "Stopped: another library was opened"
   description: "Status of a job stopped because the user opened another library."
+queueStatusProofreading:
+  message: "Proofreading the subtitles…"
+  description: "Status of a job correcting the words speech recognition misheard in its transcript, before it translates it."
 queueStatusQueued:
   message: "Added to the queue"
   description: "Status of a job waiting in the queue."

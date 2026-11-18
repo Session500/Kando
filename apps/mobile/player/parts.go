@@ -40,7 +40,7 @@ func subtitles(cx *core.Scope, p *play, shape func() layout, controlsOver func()
 		if i < 0 || i >= len(list) {
 			return nil
 		}
-		return kcore.PictureLines(p.mode.Get(), kcore.SubTranslationFirst, kcore.UntranslatedDim, list[i].Translation, list[i].Original)
+		return kcore.PictureLines(p.shownMode(), kcore.SubTranslationFirst, kcore.UntranslatedDim, list[i].Translation, list[i].Original)
 	}, slices.Equal[[]kcore.CueLine])
 	body := core.Dynamic(func(cx *core.Scope) core.Node {
 		tr, orig := lineSizes(shape())

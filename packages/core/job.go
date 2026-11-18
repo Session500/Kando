@@ -46,9 +46,9 @@ type Progress struct {
 	// Speed is bytes a second and ETA the time yt-dlp expects the download still needs; both are 0 when it has not said.
 	Speed float64
 	ETA   time.Duration
-	// Batch is the translation batch being sent, from 1, of Batches, each of up to BatchSize lines.
+	// Batch is the translation or proofreading batch being sent, from 1, of Batches, each of up to BatchSize lines.
 	Batch, Batches, BatchSize int
-	// Lines is how many of the Of lines being translated are done; both are 0 outside a translation.
+	// Lines is how many of the Of lines being translated, or proofread (Proofreading), are done; both are 0 outside the translation stage.
 	Lines, Of int
 	// Started is when the stage first said how far it had gone, at From, which media.Run keeps through the stage's later reports, so the time it has left can be told from how fast it has gone since; zero until it has said.
 	Started time.Time
@@ -56,6 +56,8 @@ type Progress struct {
 	// RetryIn is how long the translation waits before trying a rate-limited or failed request again, as the API's Retry-After asked or the backoff chose; Attempt is the retry about to be made, of Attempts. RetryIn is 0 while no retry is waiting.
 	RetryIn           time.Duration
 	Attempt, Attempts int
+	// Proofreading is true while the translation stage proofreads the transcript before it translates it (media.Proofreader): Batch and Lines then count the lines being proofread.
+	Proofreading bool
 	// Unanswered is true while the translation waits to try again a request that got no usable answer, as one that timed out, lost its connection or came back cut off; false while it waits out a rate limit or a server error.
 	Unanswered bool
 }
@@ -90,6 +92,10 @@ type Job struct {
 	TranslationErr string
 	// Transcribed is true once this job's transcription has saved the speech it heard beside VideoPath, so running the job again, as a retry after a failed translation or after the app quit in the middle, reads it back instead of transcribing the video again. Processing a done film again clears it, so its speech is transcribed anew.
 	Transcribed bool
+	// Proofread is true once the transcript beside VideoPath has been proofread (media.Proofreader): a job making a film for the first time sets it as it saves the proofread transcript, so running it again does not proofread it again, and a done film's says whether its transcript was, so translating it again proofreads one that was not. Transcribing the video anew clears it; a job processing a done film again keeps the film's until it completes.
+	Proofread bool
+	// SameLanguage is true for a completed film heard in the language its subtitles are for (Language), as a Mandarin film for 简体中文 (core.SameLanguage): it was not translated, its subtitles are its own lines alone, and none of them counts as untranslated. It is decided by the job that made the subtitles, from the language that job heard, so naming another speech language later (SpeechLanguage) does not change it until the film is processed again.
+	SameLanguage bool
 	// Cookies is the browser whose login the download borrows (yt-dlp's --cookies-from-browser name, such as chrome); empty borrows none.
 	Cookies string
 	// Redo is what a job processing a done film again does: RedoAll, RedoTranslation or RedoMissing. Empty is a job that has not completed yet, which runs every stage. It stays set while the job waits, runs or has failed, so a restart does the same part again, and is cleared once the job is complete. Until then Language, Untranslated, CompletedAt and SubtitlePath still describe the film's subtitles on disk, which the job only rewrites as its last step, so a redo that fails or is stopped leaves the film done as it was.

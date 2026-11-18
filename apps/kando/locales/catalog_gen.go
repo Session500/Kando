@@ -497,6 +497,7 @@ var Parameters = map[string][]string{
 	"FilmsQueueInto":                           {"language"},
 	"FilmsQueueNoAnswer":                       {"seconds", "attempt", "attempts"},
 	"FilmsQueueQueued":                         {"count"},
+	"FilmsQueueProofreadingLines":              {"lines", "total"},
 	"FilmsQueueRateLimited":                    {"seconds", "attempt", "attempts"},
 	"FilmsQueueRemaining":                      {"time_"},
 	"FilmsQueueSavingTo":                       {"library"},
@@ -807,6 +808,7 @@ type Translation struct {
 	FilmsQueueInto                           func(language string) string
 	FilmsQueueNoAnswer                       func(seconds int, attempt int, attempts int) string
 	FilmsQueueQueued                         func(count int) string
+	FilmsQueueProofreadingLines              func(lines int, total int) string
 	FilmsQueueRateLimited                    func(seconds int, attempt int, attempts int) string
 	FilmsQueueRemaining                      func(time_ string) string
 	FilmsQueueSavingTo                       func(library string) string
@@ -1658,6 +1660,7 @@ const (
 	textQueueStatusDownloading
 	textQueueStatusExporting
 	textQueueStatusLibrarySwitched
+	textQueueStatusProofreading
 	textQueueStatusQueued
 	textQueueStatusTranscribing
 	textQueueStatusTranslating
@@ -2613,6 +2616,7 @@ var keyOfText = [numTexts]string{
 	"queueStatusDownloading",
 	"queueStatusExporting",
 	"queueStatusLibrarySwitched",
+	"queueStatusProofreading",
 	"queueStatusQueued",
 	"queueStatusTranscribing",
 	"queueStatusTranslating",
@@ -3566,6 +3570,7 @@ var textsEn = i18n.NewTexts(""+
 	"Downloading the video…"+
 	"Exporting bilingual subtitles…"+
 	"Stopped: another library was opened"+
+	"Proofreading the subtitles…"+
 	"Added to the queue"+
 	"Generating subtitles on this computer…"+
 	"Translating the subtitles…"+
@@ -4516,6 +4521,7 @@ var textsEn = i18n.NewTexts(""+
 		24,
 		32,
 		35,
+		29,
 		18,
 		40,
 		28,
@@ -5469,6 +5475,7 @@ var textsJa = i18n.NewTexts(""+
 	"動画をダウンロード中…"+
 	"二言語字幕を書き出し中…"+
 	"停止しました：ライブラリが切り替えられました"+
+	"字幕を校正中…"+
 	"ジョブをキューに追加しました"+
 	"このコンピュータで字幕を生成中…"+
 	"字幕を翻訳中…"+
@@ -6419,6 +6426,7 @@ var textsJa = i18n.NewTexts(""+
 		33,
 		36,
 		66,
+		21,
 		42,
 		48,
 		21,
@@ -7372,6 +7380,7 @@ var textsKo = i18n.NewTexts(""+
 	"동영상 다운로드 중…"+
 	"이중 언어 자막 내보내는 중…"+
 	"중지됨: 라이브러리가 전환되었습니다"+
+	"자막 교정 중…"+
 	"작업을 대기열에 추가했습니다"+
 	"이 컴퓨터에서 자막 생성 중…"+
 	"자막 번역 중…"+
@@ -8322,6 +8331,7 @@ var textsKo = i18n.NewTexts(""+
 		29,
 		40,
 		51,
+		20,
 		41,
 		40,
 		20,
@@ -9275,6 +9285,7 @@ var textsZhHans = i18n.NewTexts(""+
 	"正在下载视频…"+
 	"正在导出双语字幕…"+
 	"已停止：切换了资料库"+
+	"正在校对字幕…"+
 	"任务已加入队列"+
 	"正在本机生成字幕…"+
 	"正在翻译字幕…"+
@@ -10225,6 +10236,7 @@ var textsZhHans = i18n.NewTexts(""+
 		21,
 		27,
 		30,
+		21,
 		21,
 		27,
 		21,
@@ -11178,6 +11190,7 @@ var textsZhHant = i18n.NewTexts(""+
 	"正在下載影片…"+
 	"正在匯出雙語字幕…"+
 	"已停止：切換了資料庫"+
+	"正在校對字幕…"+
 	"工作已加入佇列"+
 	"正在本機產生字幕…"+
 	"正在翻譯字幕…"+
@@ -12129,6 +12142,7 @@ var textsZhHant = i18n.NewTexts(""+
 		27,
 		30,
 		21,
+		21,
 		27,
 		21,
 		41,
@@ -12739,6 +12753,9 @@ func Supply(lang string, t Translation) {
 	}
 	if t.FilmsQueueQueued != nil {
 		s.FilmsQueueQueued = t.FilmsQueueQueued
+	}
+	if t.FilmsQueueProofreadingLines != nil {
+		s.FilmsQueueProofreadingLines = t.FilmsQueueProofreadingLines
 	}
 	if t.FilmsQueueRateLimited != nil {
 		s.FilmsQueueRateLimited = t.FilmsQueueRateLimited
@@ -18427,6 +18444,38 @@ func (msgs Messages) FilmsQueueQueued(count int) string {
 			return i18n.FormatNumber("zh-Hans", float64(count)) + " 个排队"
 		case "zh-Hant":
 			return i18n.FormatNumber("zh-Hant", float64(count)) + " 個排隊"
+		}
+	}
+}
+
+// FilmsQueueProofreadingLines says "Proofreading · {lines} of {total} lines"
+// in the language the app shows under cx.
+//
+// Line under the title of a job correcting the words speech recognition misheard in its transcript, before it translates it: how many lines are done of how many.
+func FilmsQueueProofreadingLines(cx *core.Scope, lines int, total int) string {
+	return For(cx).FilmsQueueProofreadingLines(lines, total)
+}
+
+// FilmsQueueProofreadingLines is the package's FilmsQueueProofreadingLines in the language of msgs.
+func (msgs Messages) FilmsQueueProofreadingLines(lines int, total int) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.FilmsQueueProofreadingLines(lines, total))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].FilmsQueueProofreadingLines; f != nil {
+			return f(lines, total)
+		}
+		switch lang {
+		case "", "en":
+			return "Proofreading · " + msgs.arg(i18n.FormatNumber("en", float64(lines))) + " of " + msgs.arg(i18n.FormatNumber("en", float64(total))) + " lines"
+		case "ja":
+			return "校正中 · " + i18n.FormatNumber("ja", float64(lines)) + "/" + i18n.FormatNumber("ja", float64(total)) + " 行"
+		case "ko":
+			return "교정 중 · " + i18n.FormatNumber("ko", float64(lines)) + "/" + i18n.FormatNumber("ko", float64(total)) + "줄"
+		case "zh-Hans":
+			return "校对中 · " + i18n.FormatNumber("zh-Hans", float64(lines)) + "/" + i18n.FormatNumber("zh-Hans", float64(total)) + " 句"
+		case "zh-Hant":
+			return "校對中 · " + i18n.FormatNumber("zh-Hant", float64(lines)) + "/" + i18n.FormatNumber("zh-Hant", float64(total)) + " 句"
 		}
 	}
 }
@@ -26647,6 +26696,15 @@ func QueueStatusLibrarySwitched(cx *core.Scope) string { return For(cx).QueueSta
 func (msgs Messages) QueueStatusLibrarySwitched() string {
 	return msgs.text(textQueueStatusLibrarySwitched)
 }
+
+// QueueStatusProofreading says "Proofreading the subtitles…"
+// in the language the app shows under cx.
+//
+// Status of a job correcting the words speech recognition misheard in its transcript, before it translates it.
+func QueueStatusProofreading(cx *core.Scope) string { return For(cx).QueueStatusProofreading() }
+
+// QueueStatusProofreading is the package's QueueStatusProofreading in the language of msgs.
+func (msgs Messages) QueueStatusProofreading() string { return msgs.text(textQueueStatusProofreading) }
 
 // QueueStatusQueued says "Added to the queue"
 // in the language the app shows under cx.

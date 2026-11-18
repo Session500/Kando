@@ -154,19 +154,29 @@ func (b *Book) Toggle(l Line) bool {
 	return true
 }
 
-// FillTranslations gives each line of video, a path as Key gives it, that was saved without a translation, as one saved while its film was still being translated, the translation at gives for its start now: the translation and the original of the subtitle line starting there, ok false with none. It takes it only when that line still says the line's original, so a film made again with other lines leaves it alone. A line that has a translation keeps it as it was saved. It reports whether any line changed.
-func (b *Book) FillTranslations(video string, at func(start time.Duration) (translation, original string, ok bool)) bool {
+// FollowSubtitles keeps each line of video, a path as Key gives it, as the film's subtitles say it now, at giving the translation and the original of the subtitle line starting at a line's start, ok false with none. A line whose original the film's now proofreads (proofreads, media.Proofreads), as a film whose transcript was proofread after the line was saved, takes the corrected original; one whose original the film no longer says, as a film made again with other lines, is left alone. A line saved without a translation, as one saved while its film was still being translated, takes the translation the film has now; one that has a translation keeps it as it was saved. It reports whether any line changed.
+func (b *Book) FollowSubtitles(video string, at func(start time.Duration) (translation, original string, ok bool), proofreads func(heard, now string) bool) bool {
 	changed := false
 	for i, l := range b.Lines {
-		if l.Video != video || l.Translation != "" {
+		if l.Video != video {
 			continue
 		}
 		translation, original, ok := at(l.Start)
-		if !ok || strings.TrimSpace(translation) == "" || strings.TrimSpace(original) != strings.TrimSpace(l.Original) {
+		original = strings.TrimSpace(original)
+		if !ok || original == "" {
 			continue
 		}
-		b.Lines[i].Translation = strings.TrimSpace(translation)
-		changed = true
+		if original != strings.TrimSpace(l.Original) {
+			if !proofreads(l.Original, original) {
+				continue
+			}
+			b.Lines[i].Original = original
+			changed = true
+		}
+		if translation = strings.TrimSpace(translation); l.Translation == "" && translation != "" {
+			b.Lines[i].Translation = translation
+			changed = true
+		}
 	}
 	return changed
 }

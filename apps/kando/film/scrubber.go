@@ -55,8 +55,10 @@ func (s *screen) scrubber(cx *ns.Scope) ns.Node {
 		d.SetFillColor(onGlass).FillRect(0, 7, w*min(max(frac, 0), 1), 5)
 		d.Restore()
 		list := cues()
+		// A film in its own language has no translation to mark, done or missing.
+		own := s.item().SameLanguage
 		for _, cue := range list {
-			if cue.End <= cue.Start {
+			if own || cue.End <= cue.Start {
 				continue
 			}
 			x0, x1 := shown(cue.Start), shown(cue.End)

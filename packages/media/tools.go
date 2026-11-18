@@ -476,6 +476,11 @@ func (t Tools) Translate(ctx context.Context, segments []core.Segment, language 
 	return t.Translator.Translate(ctx, segments, language)
 }
 
+// Proofread corrects what whisper misheard through the translator (ChatTranslator.Proofread).
+func (t Tools) Proofread(ctx context.Context, segments []core.Segment, title string) ([]core.Segment, error) {
+	return t.Translator.Proofread(ctx, segments, title)
+}
+
 func (t Tools) Export(ctx context.Context, videoPath string, original, translated []core.Segment) (string, error) {
 	return exportSubtitles(ctx, videoPath, original, translated)
 }

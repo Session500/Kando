@@ -37,6 +37,8 @@ type Film struct {
 	// Untranslated is how many lines of a done film's subtitles the translation left untranslated.
 	Untranslated int
 	// TranslationErr is why a done film translated none of its lines, its subtitles being the original lines alone (core.Job.TranslationErr); empty for one that was translated.
+	// SameLanguage is true for a film heard in the language its subtitles are for, which was not translated: its subtitles are its own lines alone (core.Job.SameLanguage).
+	SameLanguage   bool
 	TranslationErr string
 	// Stopped reports a failed job that was cancelled rather than one that went wrong; Canceled reads it.
 	Stopped bool
@@ -104,7 +106,7 @@ func FromJob(job core.Job, name, detail string) Film {
 		Key: job.ID, Title: Shorten(name, 22), Name: name, Source: job.Source,
 		Detail: detail, Stage: job.Stage, JobID: job.ID,
 		VideoPath: job.VideoPath, SubtitlePath: job.SubtitlePath, Language: job.Language, Spoken: job.SpokenLanguage, SpeechLanguage: job.SpeechLanguage,
-		Progress: job.Progress, Thumbnail: job.Thumbnail, Untranslated: job.Untranslated, TranslationErr: job.TranslationErr,
+		Progress: job.Progress, Thumbnail: job.Thumbnail, Untranslated: job.Untranslated, TranslationErr: job.TranslationErr, SameLanguage: job.SameLanguage,
 		Stopped: errors.Is(job.Err, context.Canceled), Target: jobTarget(job),
 	}
 }

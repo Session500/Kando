@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"kando/packages/media"
 	"maps"
 	"slices"
 	"sort"
@@ -30,7 +31,7 @@ type savedUI struct {
 	export savedExport
 	// review is the review of the lines due open now (saved_review.go).
 	review savedReview
-	// filled is the open film's subtitle lines the saved lines' translations were last filled from (savedFillTranslations), so each reading of them fills them once.
+	// filled is the open film's subtitle lines the saved lines last followed (savedFollowSubtitles), so each reading of them is followed once.
 	filled []kcore.Segment
 }
 
@@ -55,7 +56,7 @@ func (a *app) savedHooks() areaHooks {
 		libraryChanged: a.savedSync,
 		afterChange: func() bool {
 			followed := a.savedFollowFilm()
-			return a.savedFillTranslations() || followed
+			return a.savedFollowSubtitles() || followed
 		},
 		quitting: func() {
 			a.savedStopExport()
@@ -122,8 +123,8 @@ func (a *app) savedPlayingLine() int {
 	return cur
 }
 
-// savedFillTranslations gives the open film's saved lines that have no translation, as lines saved while it was still being translated, the ones its subtitles have now (saved.Book.FillTranslations), and keeps them. It runs once each time the film's subtitles are read, as when its translation finishes and the file is written again, and reports whether it changed a saved line.
-func (a *app) savedFillTranslations() bool {
+// savedFollowSubtitles keeps the open film's saved lines as its subtitles say them now (saved.Book.FollowSubtitles): those that have no translation, as lines saved while it was still being translated, take the ones it has now, and those saved before its transcript was proofread take the corrected originals. It runs once each time the film's subtitles are read, as when its translation finishes and the file is written again, and reports whether it changed a saved line.
+func (a *app) savedFollowSubtitles() bool {
 	cues, video := a.playerCues(), a.player.film.video
 	if len(cues) == 0 || video == "" {
 		return false
@@ -134,7 +135,7 @@ func (a *app) savedFillTranslations() bool {
 	a.saved.filled = cues
 	a.savedSync()
 	book := &a.saved.book
-	filled := book.FillTranslations(book.Key(video), func(start time.Duration) (string, string, bool) {
+	filled := book.FollowSubtitles(book.Key(video), func(start time.Duration) (string, string, bool) {
 		for _, cue := range cues {
 			if saved.SameStart(cue.Start, start) {
 				translation, original := film.SplitCue(cue.Text)
@@ -142,7 +143,7 @@ func (a *app) savedFillTranslations() bool {
 			}
 		}
 		return "", "", false
-	})
+	}, media.Proofreads)
 	if filled {
 		a.savedWrite()
 	}

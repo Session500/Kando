@@ -194,10 +194,12 @@ type play struct {
 	aspect  *core.Signal[float32]
 	failed  *core.Signal[bool]
 	// loop is the line looped, -1 for none.
-	loop  *core.Signal[int]
-	mode  *core.Persisted[string]
-	rate  *core.Persisted[float32]
-	saved time.Duration
+	loop *core.Signal[int]
+	mode *core.Persisted[string]
+	// untranslated is true for a film the desktop did not translate (sync.Film.Translation is empty), as one heard in the language its subtitles are for: its lines are its own alone.
+	untranslated bool
+	rate         *core.Persisted[float32]
+	saved        time.Duration
 	// current is the line showing, -1 for none.
 	current *core.Memo[int]
 }
@@ -205,15 +207,16 @@ type play struct {
 func newPlay(cx *core.Scope, s *session.Session, key string) *play {
 	f, _ := s.Film(key)
 	p := &play{cx: cx, s: s, key: key, ref: &core.Ref{},
-		playing: core.NewSignal(cx, true),
-		at:      core.NewSignal(cx, time.Duration(f.PositionMS)*time.Millisecond),
-		length:  core.NewSignal(cx, time.Duration(f.Film.DurationMS)*time.Millisecond),
-		aspect:  core.NewSignal(cx, float32(16.0/9)),
-		failed:  core.NewSignal(cx, false),
-		loop:    core.NewSignal(cx, -1),
-		mode:    core.NewPersisted(cx, modeKey, kcore.SubBilingual, core.PersistOptions{}),
-		rate:    core.NewPersisted(cx, speedKey, float32(1), core.PersistOptions{}),
-		saved:   time.Duration(f.PositionMS) * time.Millisecond,
+		playing:      core.NewSignal(cx, true),
+		at:           core.NewSignal(cx, time.Duration(f.PositionMS)*time.Millisecond),
+		length:       core.NewSignal(cx, time.Duration(f.Film.DurationMS)*time.Millisecond),
+		aspect:       core.NewSignal(cx, float32(16.0/9)),
+		failed:       core.NewSignal(cx, false),
+		loop:         core.NewSignal(cx, -1),
+		mode:         core.NewPersisted(cx, modeKey, kcore.SubBilingual, core.PersistOptions{}),
+		rate:         core.NewPersisted(cx, speedKey, float32(1), core.PersistOptions{}),
+		saved:        time.Duration(f.PositionMS) * time.Millisecond,
+		untranslated: f.Film.Translation == "",
 	}
 	p.cues = core.NewResource(cx, func() (string, bool) { return key, true }, func(_ context.Context, key string, _ core.ResourceInfo) ([]cues.Cue, error) {
 		list, _, err := s.Store().Cues(f.Desktop, f.Film.ID)
@@ -232,6 +235,14 @@ func newPlay(cx *core.Scope, s *session.Session, key string) *play {
 	})
 	cx.Cleanup(p.save)
 	return p
+}
+
+// shownMode is the mode the picture shows the lines in: the one chosen, but for a film the desktop did not translate, whose lines show as Original shows them rather than dimmed as lines not translated yet.
+func (p *play) shownMode() string {
+	if mode := p.mode.Get(); !p.untranslated || (mode != kcore.SubTranslation && mode != kcore.SubBilingual) {
+		return mode
+	}
+	return kcore.SubOriginal
 }
 
 // list is the film's lines, none until they are read.
