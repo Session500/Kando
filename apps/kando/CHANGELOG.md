@@ -2,6 +2,21 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.22.0 - 2026-11-18
+
+### Features
+
+- Show the films as a list, and sort them either way or by length (#194)
+
+### Fixes
+
+- Show the whole picture instead of cropping it to fill the window (#189)
+- A downloaded film takes its desktop's new subtitles when it is played (#191)
+- Proofread what speech recognition misheard, and leave films in their own language untranslated (#190)
+- Proofread Thai, Lao, Khmer and Myanmar a character at a time (#195)
+- Move a film's hidden files to the Trash with it (#196)
+- Let the list's Today and Yesterday follow the day (#197)
+
 ## 0.21.1 - 2026-11-18
 
 No changes to the app worth listing: this version only carries maintenance.
