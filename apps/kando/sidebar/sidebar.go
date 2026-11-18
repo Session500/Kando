@@ -106,7 +106,7 @@ type Jobs struct {
 	Active, Failed int
 }
 
-// The card the sidebar is drawn on, 8 points in from the window's edges and from the page on every side, so it stands apart from the page as an object of its own rather than a column beside it, its corners the platform's cards' (theme.RadiiOf). On macOS it floats over the page's own ground as Finder's sidebar does on macOS 26: in the light, Liquid Glass with white at 30% over it, a frosted face before macOS 26, which has no glass; in the dark, the card's gray, a step lighter than the page, with no glass, since the glass takes on the colors of the desktop behind the window there and shows them as a blue-to-green gradient beside the page's neutral gray, which no tint over it can neutralize: NSGo draws the background under the glass. Elsewhere it is the prototype's white at 42% over the window's material, Mica on Windows, or over the painted gutter. Everywhere it has a white inner hairline, a dark outer one and a soft shadow.
+// The card the sidebar is drawn on, 8 points in from the window's edges and from the page on every side, so it stands apart from the page as an object of its own rather than a column beside it, its corners the platform's cards' (theme.RadiiOf). On macOS it floats over the page's own ground as Finder's sidebar does on macOS 26: in the light, Liquid Glass washed with white (glassWash), a frosted face before macOS 26, which has no glass; in the dark, the card's gray, a step lighter than the page, with no glass, since the glass takes on the colors of the desktop behind the window there and shows them as a blue-to-green gradient beside the page's neutral gray, which no tint over it can neutralize: NSGo draws the background under the glass. Elsewhere it is the prototype's white at 42% over the window's material, Mica on Windows, or over the painted gutter. Everywhere it has a white inner hairline, a dark outer one and a soft shadow.
 const (
 	cardMargin ns.Points = 8
 	// inset is how far the switcher, the sources and the status line stand in from the card's sides.
@@ -121,6 +121,9 @@ const (
 
 // cardShadow is the soft shadow under the card. Its face and its rings are the theme's card color, translucent, and its shade (theme.Of). On macOS the gutter around it is the page's ground, which the window paints (view.go); elsewhere it shows the window's material, and it stands in for it where the window shows none (a test, Linux, a window without one): the prototype's frosted strip.
 var cardShadow = ns.RGBA(0x1E325A, 0.08)
+
+// glassWash is how much white a view of the card's own lays over the glass in the light. The glass takes on the colors of the desktop behind the window, a cyan-to-green gradient over a blue wallpaper, and the card's background cannot tone it down, as NSGo draws it under the glass; at 70% the panel reads as the near-white of Finder's sidebar and keeps the glass's rim.
+const glassWash = 0.7
 
 // floats reports whether the sidebar floats over the page's ground as macOS 26 draws its sidebars: on macOS, where the window shows no material.
 func floats(cx *ns.Scope) bool { return cx.Env().OS() == ns.OSMacOS && !nsdesktop.ShowsMaterial(cx) }
@@ -151,6 +154,14 @@ func (v View) Render(cx *ns.Scope) ns.Node {
 			return s
 		},
 		Children: []ns.Node{
+			// The wash over the glass in the light, under the card's lists.
+			ns.View{TestID: "sidebar-wash", Style: ns.Style{Position: ns.Absolute, Top: ns.Pt(0), Right: ns.Pt(0), Bottom: ns.Pt(0), Left: ns.Pt(0), CornerRadius: theme.RadiiOf(cx).Card},
+				StyleFunc: func() ns.Style {
+					if !floats(cx) || cx.Dark() {
+						return ns.Style{}
+					}
+					return ns.Style{Background: k.Card().Faded(glassWash)}
+				}},
 			ns.View{
 				Desktop: ns.DesktopViewProps{WindowDrag: ns.WindowDragOn},
 				Style:   ns.Style{FlexShrink: 0},

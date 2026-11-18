@@ -72,6 +72,9 @@ func TestMaterialShowsThroughTheSidebarOnly(t *testing.T) {
 	if card.Style.Glass != ns.GlassNone {
 		t.Fatal("the card is glass over the window's material, want it to let the material through")
 	}
+	if a := windowAlphaOf(tt.Find("id:sidebar-wash")); a != 0 {
+		t.Fatalf("the card is washed at alpha %v over the window's material, want it to let the material through", a)
+	}
 	if a := windowAlphaOf(content); a != 1 {
 		t.Fatalf("content alpha = %v, want it opaque", a)
 	}
@@ -107,10 +110,17 @@ func TestSidebarFloatsOverThePageOnMac(t *testing.T) {
 			if a := windowAlphaOf(card); a == 0 || a == 1 {
 				t.Fatalf("card tint alpha = %v in the light, want it translucent", a)
 			}
+			// The glass takes on the desktop's colors, which the card's own wash over it tones down to a near-white.
+			if a := windowAlphaOf(tt.Find("id:sidebar-wash")); a < 0.5 || a == 1 {
+				t.Fatalf("the wash over the glass is at alpha %v in the light, want most of the way to opaque", a)
+			}
 		} else {
 			// In the dark the glass would show the desktop's colors as a gradient beside the page's gray, so the card is a neutral gray a step lighter than the page.
 			if card.Style.Glass != ns.GlassNone {
 				t.Fatal("the sidebar's card is glass in the dark, want the card's neutral gray")
+			}
+			if a := windowAlphaOf(tt.Find("id:sidebar-wash")); a != 0 {
+				t.Fatalf("the card's gray is washed at alpha %v in the dark, want it as it is", a)
 			}
 			face, page := card.Style.Background, root.Style.Background
 			if windowAlphaOf(card) != 1 || luminance(face) <= luminance(page) {
