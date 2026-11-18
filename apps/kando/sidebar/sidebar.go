@@ -29,8 +29,8 @@ const (
 	PageTranslate    = "translate"
 	PageAccount      = "account"
 
-	// Width is the sidebar's column: the card and the gutter of the window's material around it.
-	Width        ns.Points = 236
+	// Width is the sidebar's column: the card and the gutter around it on every side.
+	Width        ns.Points = 244
 	PagePadX     ns.Points = 32
 	CardMinWidth ns.Points = 280
 	CardGap      ns.Points = 18
@@ -106,12 +106,11 @@ type Jobs struct {
 	Active, Failed int
 }
 
-// The card the sidebar is drawn on, floating over the window's material: the prototype's white at 42% with a white inner hairline, a dark outer one and a soft shadow, 8 points in from the window's edges, its corners the platform's cards' (theme.RadiiOf).
+// The card the sidebar is drawn on, 8 points in from the window's edges and from the page on every side, so it stands apart from the page as an object of its own rather than a column beside it, its corners the platform's cards' (theme.RadiiOf). On macOS it floats over the page's own ground as Finder's sidebar does on macOS 26: Liquid Glass, white at 30% over it, and before macOS 26, which has no glass, a frosted face. Elsewhere it is the prototype's white at 42% over the window's material, Mica on Windows, or over the painted gutter. Everywhere it has a white inner hairline, a dark outer one and a soft shadow.
 const (
 	cardMargin ns.Points = 8
-	// insetStart and insetEnd are how far the switcher, the sources and the status line stand in from the card's edges. In the prototype the card is 231 wide and runs 3 points under the content, so they end 8 points before that hidden edge, 5 before the one that shows.
-	insetStart ns.Points = 8
-	insetEnd   ns.Points = 5
+	// inset is how far the switcher, the sources and the status line stand in from the card's sides.
+	inset ns.Points = 8
 	// listPad is how far ui.Sidebar stands its rows in from its own sides (its content's padding, nsgo ui/sidebar.go), so the switcher and the search field, which stand as far in, fill the same width as a source row; rowRadius and rowPad are those rows' corners and the room inside their ends.
 	listPad   ns.Points = 10
 	rowRadius ns.Points = 8
@@ -120,8 +119,11 @@ const (
 	LightsRow ns.Points = 48
 )
 
-// cardShadow is the soft shadow under the card. Its face and its rings are the theme's card color, translucent, and its shade (theme.Of), and the gutter around it stands in for the window's material where the window shows none (a test, Linux, a window without one): the prototype's frosted strip over the page.
+// cardShadow is the soft shadow under the card. Its face and its rings are the theme's card color, translucent, and its shade (theme.Of). On macOS the gutter around it is the page's ground, which the window paints (view.go); elsewhere it shows the window's material, and it stands in for it where the window shows none (a test, Linux, a window without one): the prototype's frosted strip.
 var cardShadow = ns.RGBA(0x1E325A, 0.08)
+
+// floats reports whether the sidebar floats over the page's ground as macOS 26 draws its sidebars: on macOS, where the window shows no material.
+func floats(cx *ns.Scope) bool { return cx.Env().OS() == ns.OSMacOS && !nsdesktop.ShowsMaterial(cx) }
 
 // View is the sidebar: a column Width wide holding the card with the library switcher, the search field, the sources, the spoken languages, the watch states and the status line. Its top row clears the traffic lights of a window with a hidden title bar and drags the window.
 type View struct {
@@ -138,8 +140,12 @@ func (v View) Render(cx *ns.Scope) ns.Node {
 	card := ns.View{
 		Style: ns.Style{FlexGrow: 1, FlexShrink: 1, MinHeight: ns.Pt(0), AlignItems: ns.AlignStretch, CornerRadius: theme.RadiiOf(cx).Card},
 		StyleFunc: func() ns.Style {
-			return ns.Style{Background: k.Card().Faded(0.42),
+			s := ns.Style{Background: k.Card().Faded(0.42),
 				Shadows: []ns.BoxShadow{{Spread: 0.5, Color: k.Card().Faded(0.85), Inset: true}, {Spread: 0.5, Color: k.Shade(0.06)}, {Offset: ns.Point{Y: 4}, Blur: 14, Color: cardShadow}}}
+			if floats(cx) {
+				s.Background, s.GlassEffect, s.BackdropFilters = k.Card().Faded(0.3), ns.GlassRegular, []ns.Filter{ns.Blur(30)}
+			}
+			return s
 		},
 		Children: []ns.Node{
 			ns.View{
@@ -168,10 +174,10 @@ func (v View) Render(cx *ns.Scope) ns.Node {
 	}
 	return ns.View{
 		TestID: "sidebar",
-		Style:  ns.Style{Width: ns.Pt(Width), FlexShrink: 0, AlignItems: ns.AlignStretch, Padding: ns.Edges{Top: cardMargin, Bottom: cardMargin, Left: cardMargin}},
-		// With the window's material on, the gutter around the card shows it; without it, the gutter is painted.
+		Style:  ns.Style{Width: ns.Pt(Width), FlexShrink: 0, AlignItems: ns.AlignStretch, Padding: ns.All(cardMargin)},
+		// On macOS the gutter around the card is the page's ground, which the window paints; with the window's material on, it shows the material; otherwise it is painted.
 		StyleFunc: func() ns.Style {
-			if nsdesktop.ShowsMaterial(cx) {
+			if floats(cx) || nsdesktop.ShowsMaterial(cx) {
 				return ns.Style{}
 			}
 			return ns.Style{Background: k.Gutter()}
@@ -185,7 +191,7 @@ func (v View) subscriptions() ns.Node {
 	if v.Subscriptions == nil {
 		return nil
 	}
-	return ns.View{Style: ns.Style{FlexShrink: 1, MinHeight: ns.Pt(0), Padding: ns.Edges{Right: insetEnd, Left: insetStart}}, Children: []ns.Node{v.Subscriptions}}
+	return ns.View{Style: ns.Style{FlexShrink: 1, MinHeight: ns.Pt(0), Padding: ns.Symmetric(0, inset)}, Children: []ns.Node{v.Subscriptions}}
 }
 
 // Menu is the library menu of the settings page's 切换 button, for nsgo's desktop.PopupMenu: the known libraries, new and open, reveal, and forgetting the open one. Its items do what they say through a's actions and tell a it changed.
@@ -217,5 +223,5 @@ func Title(dir string) string {
 	return base
 }
 
-// rowStyle is a part of the sidebar that stands as far in from the card's edges as the source rows' fills, insetStart and insetEnd and then listPad, 10 points above the next: the switcher and the search field.
-var rowStyle = ns.Style{Direction: ns.Row, AlignItems: ns.AlignStretch, Padding: ns.Edges{Right: insetEnd + listPad, Bottom: 10, Left: insetStart + listPad}}
+// rowStyle is a part of the sidebar that stands as far in from the card's edges as the source rows' fills, inset and then listPad, 10 points above the next: the switcher and the search field.
+var rowStyle = ns.Style{Direction: ns.Row, AlignItems: ns.AlignStretch, Padding: ns.Edges{Right: inset + listPad, Bottom: 10, Left: inset + listPad}}

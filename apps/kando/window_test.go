@@ -47,13 +47,14 @@ func windowChildOf(t *testing.T, root, v *nsgotest.View) *nsgotest.View {
 	return nil
 }
 
-// TestMaterialShowsThroughTheSidebarOnly checks that with the window's material on, the gutter around the sidebar's card shows it, the card lets it through, and the content beside it stays opaque, and that without the material the gutter is painted.
+// TestMaterialShowsThroughTheSidebarOnly checks that with the window's material on, as on Windows, the gutter around the sidebar's card shows it, the card lets it through, and the content beside it stays opaque, and that on Linux, without the material, the gutter is painted.
 func TestMaterialShowsThroughTheSidebarOnly(t *testing.T) {
+	usePlatform(t, ns.OSWindows)
 	_, tt, _ := newTestApp(t, &fakePipeline{})
 	env := testEnvironment()
 	env.Dark = true
 	env.TitleBar = ns.Edges{Top: 28, Left: 80}
-	env.WindowMaterial = ns.WindowMaterialSidebar
+	env.WindowMaterial = ns.WindowMaterialMica
 	tt.SetEnvironment(env)
 	root := windowRoot(t, tt)
 	side := tt.Find("id:sidebar")
@@ -64,16 +65,18 @@ func TestMaterialShowsThroughTheSidebarOnly(t *testing.T) {
 	if a := windowAlphaOf(side); a != 0 {
 		t.Fatalf("the sidebar's gutter is painted at alpha %v over the material", a)
 	}
-	if len(side.Children) == 0 {
-		t.Fatalf("the sidebar has no card\n%s", tt.Dump())
-	}
-	if a := windowAlphaOf(side.Children[0]); a == 0 || a == 1 {
+	card := sidebarCard(t, tt)
+	if a := windowAlphaOf(card); a == 0 || a == 1 {
 		t.Fatalf("card alpha = %v, want it translucent", a)
+	}
+	if card.Style.Glass != ns.GlassNone {
+		t.Fatal("the card is glass over the window's material, want it to let the material through")
 	}
 	if a := windowAlphaOf(content); a != 1 {
 		t.Fatalf("content alpha = %v, want it opaque", a)
 	}
 
+	usePlatform(t, ns.OSLinux)
 	_, plain, _ := newTestApp(t, &fakePipeline{})
 	if a := windowAlphaOf(windowRoot(t, plain)); a != 1 {
 		t.Fatalf("window alpha without the material = %v, want opaque", a)
@@ -81,6 +84,44 @@ func TestMaterialShowsThroughTheSidebarOnly(t *testing.T) {
 	if a := windowAlphaOf(plain.Find("id:sidebar")); a != 1 {
 		t.Fatalf("gutter alpha without the material = %v, want opaque", a)
 	}
+}
+
+// TestSidebarFloatsOverThePageOnMac checks that on macOS, whose window shows no material, the window is painted the page's ground, the sidebar's gutter leaves it showing, so the page's ground runs around the card, and the card is glass standing as far in from the page as from the window's edges, as Finder's sidebar does on macOS 26, rather than a column under the page.
+func TestSidebarFloatsOverThePageOnMac(t *testing.T) {
+	_, tt, _ := newTestApp(t, &fakePipeline{})
+	for _, dark := range []bool{false, true} {
+		env := testEnvironment()
+		env.Dark = dark
+		tt.SetEnvironment(env)
+		root, side, card := windowRoot(t, tt), tt.Find("id:sidebar"), sidebarCard(t, tt)
+		if a := windowAlphaOf(root); a != 1 {
+			t.Fatalf("dark %v: the window's root alpha = %v, want the page's ground opaque", dark, a)
+		}
+		if a := windowAlphaOf(side); a != 0 {
+			t.Fatalf("dark %v: the sidebar's gutter is painted at alpha %v over the page's ground", dark, a)
+		}
+		if card.Style.Glass == ns.GlassNone {
+			t.Fatalf("dark %v: the sidebar's card is not glass", dark)
+		}
+		if a := windowAlphaOf(card); a == 0 || a == 1 {
+			t.Fatalf("dark %v: card tint alpha = %v, want it translucent", dark, a)
+		}
+		left := card.Frame.Origin.X - side.Frame.Origin.X
+		right := side.Frame.Origin.X + side.Frame.Size.Width - (card.Frame.Origin.X + card.Frame.Size.Width)
+		if left <= 0 || right != left {
+			t.Fatalf("dark %v: the card stands %v in from the window's edge and %v from the page, want the same room on both", dark, left, right)
+		}
+	}
+}
+
+// sidebarCard is the card the sidebar draws its lists on, the sidebar's only child.
+func sidebarCard(t *testing.T, tt *nsgotest.App) *nsgotest.View {
+	t.Helper()
+	side := tt.Find("id:sidebar")
+	if len(side.Children) != 1 {
+		t.Fatalf("the sidebar has %d children, want its card\n%s", len(side.Children), tt.Dump())
+	}
+	return side.Children[0]
 }
 
 // TestPrimaryButtonUsesTheAccent checks that 开始处理, the library's primary button, is filled with Kando's blue, #0A66D8, which theme.Kando gives both appearances in place of the desktop's accent color.

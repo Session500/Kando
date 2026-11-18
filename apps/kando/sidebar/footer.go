@@ -93,7 +93,7 @@ func (f footer) Render(cx *core.Scope) core.Node {
 		TestID:    "sidebar-status-card",
 		Role:      core.RoleGroup,
 		LabelFunc: func() string { return locales.SidebarStatus(cx) },
-		Style:     core.Style{FlexShrink: 0, Margin: core.Edges{Top: 8, Right: insetEnd, Bottom: 8, Left: insetStart}, Padding: core.Symmetric(10, 12), Gap: 8, CornerRadius: 11},
+		Style:     core.Style{FlexShrink: 0, Margin: core.Edges{Top: 8, Right: inset, Bottom: 8, Left: inset}, Padding: core.Symmetric(10, 12), Gap: 8, CornerRadius: 11},
 		StyleFunc: func() core.Style {
 			return core.Style{Background: k.Card().Faded(0.55), Shadows: []core.BoxShadow{{Spread: 0.5, Color: k.Shade(0.06)}}}
 		},

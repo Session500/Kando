@@ -236,12 +236,9 @@ func trafficLights() desktop.WindowControls {
 	return desktop.WindowControls{TrafficLights: core.Point{X: 24, Y: 25}}
 }
 
-// sidebarMaterial is the window's material, which the sidebar shows: AppKit's source list on macOS and Mica on Windows, whose navigation pane is transparent over it, as Onevra's shell chose. Linux shows none, and the sidebar paints its gutter.
+// sidebarMaterial is the window's material, which the sidebar shows: Mica on Windows, whose navigation pane is transparent over it, as Onevra's shell chose. macOS shows none: the window is the page's ground, which the sidebar's card floats over in glass, as Finder's does on macOS 26, so a material would show nowhere. Linux shows none, and the sidebar paints its gutter.
 func sidebarMaterial() core.WindowMaterial {
-	switch runtime.GOOS {
-	case "darwin":
-		return desktop.WindowMaterialSidebar
-	case "windows":
+	if runtime.GOOS == "windows" {
 		return desktop.WindowMaterialMica
 	}
 	return desktop.WindowMaterialNone

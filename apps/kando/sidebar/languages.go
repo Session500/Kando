@@ -46,7 +46,7 @@ func (l languages) Render(cx *core.Scope) core.Node {
 	return core.Show{When: func() bool { return len(rows.Get()) > 0 }, Then: func(cx *core.Scope) core.Node {
 		return core.View{
 			// The list takes the room its rows need, under the sources, and scrolls when the sidebar is too short for it.
-			Style: core.Style{FlexShrink: 1, MinHeight: core.Pt(0), Padding: core.Edges{Right: insetEnd, Left: insetStart}},
+			Style: core.Style{FlexShrink: 1, MinHeight: core.Pt(0), Padding: core.Symmetric(0, inset)},
 			Children: []core.Node{ui.Sidebar{
 				TestID: "sidebar-languages",
 				SectionsFunc: func() []ui.SidebarSection {
