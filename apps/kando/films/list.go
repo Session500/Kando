@@ -12,7 +12,6 @@ import (
 	"github.com/nsgo-dev/nsgo/base/datatable"
 	"github.com/nsgo-dev/nsgo/core"
 	nsdesktop "github.com/nsgo-dev/nsgo/desktop"
-	"github.com/nsgo-dev/nsgo/i18n"
 	"github.com/nsgo-dev/nsgo/icons/lucide"
 	"github.com/nsgo-dev/nsgo/ui"
 )
@@ -168,19 +167,20 @@ func listProgress(m locales.Messages, seen watched) string {
 	return ""
 }
 
-// listDate is when a film last played, in the language of m and as lang writes dates and times, as Finder's list writes them: today and yesterday by name with the time, other days by their date and time. now is the time it is now; the zero time is "".
-func listDate(m locales.Messages, lang string, at, now time.Time) string {
+// listDate is when a film last played, in the language of m, as Finder's list writes it: today and yesterday by name with the time, other days by their date and time, all in now's time zone and with the hour cycle the user chose (m's). now is the time it is now; the zero time is "".
+func listDate(m locales.Messages, at, now time.Time) string {
 	if at.IsZero() {
 		return ""
 	}
-	clock := i18n.FormatDate(lang, at, i18n.DateOptions{Time: i18n.ShortStyle})
+	// library.json keeps the offset the film played at, which is not now's after a move to another time zone or across a change of daylight saving time; the day and the time read in now's.
+	at = at.In(now.Location())
 	y, mo, d := now.Date()
 	today := time.Date(y, mo, d, 0, 0, 0, 0, now.Location())
 	switch {
 	case !at.Before(today):
-		return m.FilmsListToday(clock)
+		return m.FilmsListToday(at)
 	case !at.Before(today.AddDate(0, 0, -1)):
-		return m.FilmsListYesterday(clock)
+		return m.FilmsListYesterday(at)
 	}
 	return m.FilmsListDate(at)
 }
@@ -252,7 +252,7 @@ func (l filmList) Render(cx *core.Scope) core.Node {
 		case colSource:
 			return SourceLabel(m, item)
 		case colWatched:
-			return listDate(m, i18n.Language(cx), a.PlayedAt(item.VideoPath), time.Now())
+			return listDate(m, a.PlayedAt(item.VideoPath), time.Now())
 		}
 		return ""
 	}
@@ -328,6 +328,7 @@ func (l filmList) Render(cx *core.Scope) core.Node {
 			return core.Text{ContentFunc: func() string { return cell().Text }, MaxLines: 1, EllipsizeMode: core.EllipsizeTail, Style: style, StyleFunc: ui.Colored(colors.Muted)}
 		})
 	}
+	// TODO(nsgo#145): give datatable.DataTable a LabelFunc twin, so the list's accessible name follows the interface language as it changes; it is read once here https://github.com/nsgo-dev/nsgo/issues/145
 	return datatable.DataTable{
 		TestID:            "films-list",
 		Label:             locales.FilmsViewList(cx),

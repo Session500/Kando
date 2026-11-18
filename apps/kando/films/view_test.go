@@ -1078,11 +1078,21 @@ func TestListFitsTheColumnsToTheWidth(t *testing.T) {
 func TestListDateNamesTodayAndYesterday(t *testing.T) {
 	msgs := testlocale.Messages()
 	now := time.Date(2026, 11, 18, 21, 0, 0, 0, time.UTC)
-	if got := listDate(msgs, "zh-Hans", time.Time{}, now); got != "" {
+	if got := listDate(msgs, time.Time{}, now); got != "" {
 		t.Fatalf("never played %q", got)
 	}
-	today, yesterday, before := listDate(msgs, "zh-Hans", now.Add(-time.Hour), now), listDate(msgs, "zh-Hans", now.Add(-22*time.Hour), now), listDate(msgs, "zh-Hans", now.AddDate(0, 0, -3), now)
-	if !strings.HasPrefix(today, "今天") || !strings.HasPrefix(yesterday, "昨天") || !strings.Contains(before, "15") {
+	today, yesterday, before := listDate(msgs, now.Add(-time.Hour), now), listDate(msgs, now.Add(-22*time.Hour), now), listDate(msgs, now.AddDate(0, 0, -3), now)
+	if !strings.HasPrefix(today, "今天") || !strings.Contains(today, "20:00") || !strings.HasPrefix(yesterday, "昨天") || !strings.Contains(before, "15") {
 		t.Fatalf("today %q, yesterday %q, three days before %q", today, yesterday, before)
+	}
+}
+
+// TestListDateReadsInNowsTimeZone: library.json keeps the offset a film played at, so one played in Tokyo the morning of the 18th, the evening of the 17th in UTC, reads as yesterday evening, not as a morning.
+func TestListDateReadsInNowsTimeZone(t *testing.T) {
+	msgs := testlocale.Messages()
+	now := time.Date(2026, 11, 18, 21, 0, 0, 0, time.UTC)
+	tokyo := time.Date(2026, 11, 18, 8, 30, 0, 0, time.FixedZone("JST", 9*60*60))
+	if got := listDate(msgs, tokyo, now); !strings.HasPrefix(got, "昨天") || !strings.Contains(got, "23:30") {
+		t.Fatalf("played 08:30 JST, now 21:00 UTC: %q, want yesterday at 23:30", got)
 	}
 }

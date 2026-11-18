@@ -1074,18 +1074,18 @@ filmsListSubtitles:
   message: "Subtitles"
   description: "Heading of the library list's column that says what language each film's subtitles were translated into, or that they are missing."
 filmsListToday:
-  message: "Today, {time}"
-  description: "In the Last Watched column of the library's list: the film last played today, at time."
+  message: "Today, {when, time, short}"
+  description: "In the Last Watched column of the library's list: the film last played today, at the time of day when."
   placeholders:
-    time: { type: "String", example: "8:05 PM" }
+    when: { type: "DateTime" }
 filmsListWatched:
   message: "Last Watched"
   description: "Heading of the library list's column that says when each film last played. Pressing it sorts by it."
 filmsListYesterday:
-  message: "Yesterday, {time}"
-  description: "In the Last Watched column of the library's list: the film last played yesterday, at time."
+  message: "Yesterday, {when, time, short}"
+  description: "In the Last Watched column of the library's list: the film last played yesterday, at the time of day when."
   placeholders:
-    time: { type: "String", example: "8:05 PM" }
+    when: { type: "DateTime" }
 filmsLocalVideo:
   message: "Local Video"
   description: "Toolbar button that opens a file dialog to add video files."

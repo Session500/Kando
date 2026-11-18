@@ -485,8 +485,8 @@ var Parameters = map[string][]string{
 	"FilmsLinkPlaylist":                        {"site"},
 	"FilmsListDate":                            {"when"},
 	"FilmsListPercent":                         {"percent"},
-	"FilmsListToday":                           {"time_"},
-	"FilmsListYesterday":                       {"time_"},
+	"FilmsListToday":                           {"when"},
+	"FilmsListYesterday":                       {"when"},
 	"FilmsLocalVideoTooltip":                   {"shortcut"},
 	"FilmsMoreActions":                         {"film"},
 	"FilmsNewLibraryNote":                      {"platform"},
@@ -800,8 +800,8 @@ type Translation struct {
 	FilmsLinkPlaylist                        func(site string) string
 	FilmsListDate                            func(hc string, when time.Time) string
 	FilmsListPercent                         func(percent int) string
-	FilmsListToday                           func(time_ string) string
-	FilmsListYesterday                       func(time_ string) string
+	FilmsListToday                           func(hc string, when time.Time) string
+	FilmsListYesterday                       func(hc string, when time.Time) string
 	FilmsLocalVideoTooltip                   func(shortcut string) string
 	FilmsMoreActions                         func(film string) string
 	FilmsNewLibraryNote                      func(platform string) string
@@ -17907,32 +17907,32 @@ func FilmsListSubtitles(cx *core.Scope) string { return For(cx).FilmsListSubtitl
 // FilmsListSubtitles is the package's FilmsListSubtitles in the language of msgs.
 func (msgs Messages) FilmsListSubtitles() string { return msgs.text(textFilmsListSubtitles) }
 
-// FilmsListToday says "Today, {time}"
+// FilmsListToday says "Today, {when, time, short}"
 // in the language the app shows under cx.
 //
-// In the Last Watched column of the library's list: the film last played today, at time.
-func FilmsListToday(cx *core.Scope, time_ string) string { return For(cx).FilmsListToday(time_) }
+// In the Last Watched column of the library's list: the film last played today, at the time of day when.
+func FilmsListToday(cx *core.Scope, when time.Time) string { return For(cx).FilmsListToday(when) }
 
 // FilmsListToday is the package's FilmsListToday in the language of msgs.
-func (msgs Messages) FilmsListToday(time_ string) string {
+func (msgs Messages) FilmsListToday(when time.Time) string {
 	if i18n.IsPseudo(msgs.lang) {
-		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.FilmsListToday(time_))
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.FilmsListToday(when))
 	}
 	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
 		if f := supplied[lang].FilmsListToday; f != nil {
-			return f(time_)
+			return f(msgs.hc, when)
 		}
 		switch lang {
 		case "", "en":
-			return "Today, " + msgs.arg(time_)
+			return "Today, " + msgs.arg(i18n.FormatDate(msgs.dated("en"), when, i18n.DateOptions{Time: i18n.ShortStyle}))
 		case "ja":
-			return "今日 " + time_
+			return "今日 " + i18n.FormatDate(msgs.dated("ja"), when, i18n.DateOptions{Time: i18n.ShortStyle})
 		case "ko":
-			return "오늘 " + time_
+			return "오늘 " + i18n.FormatDate(msgs.dated("ko"), when, i18n.DateOptions{Time: i18n.ShortStyle})
 		case "zh-Hans":
-			return "今天 " + time_
+			return "今天 " + i18n.FormatDate(msgs.dated("zh-Hans"), when, i18n.DateOptions{Time: i18n.ShortStyle})
 		case "zh-Hant":
-			return "今天 " + time_
+			return "今天 " + i18n.FormatDate(msgs.dated("zh-Hant"), when, i18n.DateOptions{Time: i18n.ShortStyle})
 		}
 	}
 }
@@ -17946,34 +17946,34 @@ func FilmsListWatched(cx *core.Scope) string { return For(cx).FilmsListWatched()
 // FilmsListWatched is the package's FilmsListWatched in the language of msgs.
 func (msgs Messages) FilmsListWatched() string { return msgs.text(textFilmsListWatched) }
 
-// FilmsListYesterday says "Yesterday, {time}"
+// FilmsListYesterday says "Yesterday, {when, time, short}"
 // in the language the app shows under cx.
 //
-// In the Last Watched column of the library's list: the film last played yesterday, at time.
-func FilmsListYesterday(cx *core.Scope, time_ string) string {
-	return For(cx).FilmsListYesterday(time_)
+// In the Last Watched column of the library's list: the film last played yesterday, at the time of day when.
+func FilmsListYesterday(cx *core.Scope, when time.Time) string {
+	return For(cx).FilmsListYesterday(when)
 }
 
 // FilmsListYesterday is the package's FilmsListYesterday in the language of msgs.
-func (msgs Messages) FilmsListYesterday(time_ string) string {
+func (msgs Messages) FilmsListYesterday(when time.Time) string {
 	if i18n.IsPseudo(msgs.lang) {
-		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.FilmsListYesterday(time_))
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.FilmsListYesterday(when))
 	}
 	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
 		if f := supplied[lang].FilmsListYesterday; f != nil {
-			return f(time_)
+			return f(msgs.hc, when)
 		}
 		switch lang {
 		case "", "en":
-			return "Yesterday, " + msgs.arg(time_)
+			return "Yesterday, " + msgs.arg(i18n.FormatDate(msgs.dated("en"), when, i18n.DateOptions{Time: i18n.ShortStyle}))
 		case "ja":
-			return "昨日 " + time_
+			return "昨日 " + i18n.FormatDate(msgs.dated("ja"), when, i18n.DateOptions{Time: i18n.ShortStyle})
 		case "ko":
-			return "어제 " + time_
+			return "어제 " + i18n.FormatDate(msgs.dated("ko"), when, i18n.DateOptions{Time: i18n.ShortStyle})
 		case "zh-Hans":
-			return "昨天 " + time_
+			return "昨天 " + i18n.FormatDate(msgs.dated("zh-Hans"), when, i18n.DateOptions{Time: i18n.ShortStyle})
 		case "zh-Hant":
-			return "昨天 " + time_
+			return "昨天 " + i18n.FormatDate(msgs.dated("zh-Hant"), when, i18n.DateOptions{Time: i18n.ShortStyle})
 		}
 	}
 }
