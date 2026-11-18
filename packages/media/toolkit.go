@@ -31,6 +31,10 @@ type Kit struct {
 	Size int64
 	// Archive is set for a .tar.gz unpacked into the folder; otherwise URL serves the program itself.
 	Archive bool
+	// Fallback is set for a kit Kando runs only when the computer has no copy of the program that works, and downloads only then. Without it the kit is Kando's own copy of choice: downloaded even when the computer has one, and run before it (Candidates), so a package manager that upgrades what the computer's copy is built on cannot break Kando. On Linux, ffmpeg and whisper-cli are fallbacks: the distribution's packages keep their libraries in step, the computer's ffmpeg usually encodes H.264 (libx264) where the kit's LGPL build may not, and its whisper-cli may run on the graphics card where the kit's runs on the processor.
+	Fallback bool
+	// Updates is set for a kit whose program updates itself in place, as the standalone yt-dlp does with -U: a later Version of the kit does not replace it, as it may be older than what the program updated itself to.
+	Updates bool
 }
 
 // OwnToolsDir is the folder that holds the kits Kando downloaded. main sets it before the tools are looked up; lookTool prefers what is there to what is on PATH. Empty, as in tests, Kando has no folder of its own.
@@ -51,24 +55,24 @@ const ytdlpRelease = "https://github.com/yt-dlp/yt-dlp/releases/download/" + ytd
 // kits is every kit by platform, as GOOS-GOARCH. A platform not listed, such as Windows, gets none, and its user installs the programs.
 var kits = map[string][]Kit{
 	"darwin-arm64": {
-		{ID: "yt-dlp", Program: "yt-dlp", Version: ytdlpVersion, URL: ytdlpRelease + "yt-dlp_macos", SHA256: "0f922c15ccc0b83eefa1c8bc9104e434318c4bf16e408e1ee93b7745a6efe0aa", Size: 37466304},
+		{ID: "yt-dlp", Program: "yt-dlp", Version: ytdlpVersion, URL: ytdlpRelease + "yt-dlp_macos", SHA256: "0f922c15ccc0b83eefa1c8bc9104e434318c4bf16e408e1ee93b7745a6efe0aa", Size: 37466304, Updates: true},
 		{ID: "ffmpeg", Program: "ffmpeg", Version: ffmpegVersion, URL: toolsRelease + "ffmpeg-" + ffmpegVersion + "-darwin-arm64.tar.gz", SHA256: "4f5b8adcee835fc19730d0825bfb08d0571275d64299794096c6a62fea481b02", Size: 21843581, Archive: true},
 		{ID: "whisper", Program: "whisper-cli", Version: whisperVersion, URL: toolsRelease + "whisper-" + whisperVersion + "-darwin-arm64.tar.gz", SHA256: "68c198fe26d55f9e896b3954b44331a09217eae0688e9c476344735f86ffde5b", Size: 2076700, Archive: true},
 	},
 	"darwin-amd64": {
-		{ID: "yt-dlp", Program: "yt-dlp", Version: ytdlpVersion, URL: ytdlpRelease + "yt-dlp_macos", SHA256: "0f922c15ccc0b83eefa1c8bc9104e434318c4bf16e408e1ee93b7745a6efe0aa", Size: 37466304},
+		{ID: "yt-dlp", Program: "yt-dlp", Version: ytdlpVersion, URL: ytdlpRelease + "yt-dlp_macos", SHA256: "0f922c15ccc0b83eefa1c8bc9104e434318c4bf16e408e1ee93b7745a6efe0aa", Size: 37466304, Updates: true},
 		{ID: "ffmpeg", Program: "ffmpeg", Version: ffmpegVersion, URL: toolsRelease + "ffmpeg-" + ffmpegVersion + "-darwin-amd64.tar.gz", SHA256: "a4039acf7c791771ea69833f210e81206741e866be194b5af8b482e5e61215a9", Size: 24730159, Archive: true},
 		{ID: "whisper", Program: "whisper-cli", Version: whisperVersion, URL: toolsRelease + "whisper-" + whisperVersion + "-darwin-amd64.tar.gz", SHA256: "7fbb244309fa704bd9f9b4d60d9544372545ea5faa3d1bf05220593432912ae0", Size: 2367533, Archive: true},
 	},
 	"linux-amd64": {
-		{ID: "yt-dlp", Program: "yt-dlp", Version: ytdlpVersion, URL: ytdlpRelease + "yt-dlp_linux", SHA256: "767ba9dce7052aa196f8b12652f433d76de128ba168966fa84b6394d5e6c6795", Size: 41166968},
-		{ID: "ffmpeg", Program: "ffmpeg", Version: ffmpegVersion, URL: toolsRelease + "ffmpeg-" + ffmpegVersion + "-linux-amd64.tar.gz", SHA256: "c8c7c08510b22177854931c685a83fe24188b6f0eaff831c3aaddd3fef8743a3", Size: 58572283, Archive: true},
-		{ID: "whisper", Program: "whisper-cli", Version: whisperVersion, URL: toolsRelease + "whisper-" + whisperVersion + "-linux-amd64.tar.gz", SHA256: "852ec0ed30acda5ab8be6f9e821d3a49f9a5dd1387de9d63a9d0c3a7ecf4a7b3", Size: 7272399, Archive: true},
+		{ID: "yt-dlp", Program: "yt-dlp", Version: ytdlpVersion, URL: ytdlpRelease + "yt-dlp_linux", SHA256: "767ba9dce7052aa196f8b12652f433d76de128ba168966fa84b6394d5e6c6795", Size: 41166968, Updates: true},
+		{ID: "ffmpeg", Program: "ffmpeg", Version: ffmpegVersion, URL: toolsRelease + "ffmpeg-" + ffmpegVersion + "-linux-amd64.tar.gz", SHA256: "c8c7c08510b22177854931c685a83fe24188b6f0eaff831c3aaddd3fef8743a3", Size: 58572283, Archive: true, Fallback: true},
+		{ID: "whisper", Program: "whisper-cli", Version: whisperVersion, URL: toolsRelease + "whisper-" + whisperVersion + "-linux-amd64.tar.gz", SHA256: "852ec0ed30acda5ab8be6f9e821d3a49f9a5dd1387de9d63a9d0c3a7ecf4a7b3", Size: 7272399, Archive: true, Fallback: true},
 	},
 	"linux-arm64": {
-		{ID: "yt-dlp", Program: "yt-dlp", Version: ytdlpVersion, URL: ytdlpRelease + "yt-dlp_linux_aarch64", SHA256: "e87e9533e89fe5889abaa21f5114dfe7756d6aa6219b83551add04d48b18e483", Size: 40789792},
-		{ID: "ffmpeg", Program: "ffmpeg", Version: ffmpegVersion, URL: toolsRelease + "ffmpeg-" + ffmpegVersion + "-linux-arm64.tar.gz", SHA256: "2a5a384c8e79e97e0f35b7915ce7d81295bf3168230aaab26dd3946655f68c79", Size: 53741884, Archive: true},
-		{ID: "whisper", Program: "whisper-cli", Version: whisperVersion, URL: toolsRelease + "whisper-" + whisperVersion + "-linux-arm64.tar.gz", SHA256: "7273286ed3ba373477e394609a9856482a67c588829f09a349888bec2fb8ac71", Size: 1172279, Archive: true},
+		{ID: "yt-dlp", Program: "yt-dlp", Version: ytdlpVersion, URL: ytdlpRelease + "yt-dlp_linux_aarch64", SHA256: "e87e9533e89fe5889abaa21f5114dfe7756d6aa6219b83551add04d48b18e483", Size: 40789792, Updates: true},
+		{ID: "ffmpeg", Program: "ffmpeg", Version: ffmpegVersion, URL: toolsRelease + "ffmpeg-" + ffmpegVersion + "-linux-arm64.tar.gz", SHA256: "2a5a384c8e79e97e0f35b7915ce7d81295bf3168230aaab26dd3946655f68c79", Size: 53741884, Archive: true, Fallback: true},
+		{ID: "whisper", Program: "whisper-cli", Version: whisperVersion, URL: toolsRelease + "whisper-" + whisperVersion + "-linux-arm64.tar.gz", SHA256: "7273286ed3ba373477e394609a9856482a67c588829f09a349888bec2fb8ac71", Size: 1172279, Archive: true, Fallback: true},
 	},
 }
 
@@ -121,8 +125,8 @@ func sourceOn(goos, program string) (Source, bool) {
 	return Source{}, false
 }
 
-// ownTool is program in the folder of the kit that provides it, or "" when Kando has not downloaded it.
-func ownTool(program string) string {
+// OwnTool is program in the folder of the kit that provides it, or "" when Kando has not downloaded it.
+func OwnTool(program string) string {
 	if OwnToolsDir == "" {
 		return ""
 	}
@@ -135,6 +139,21 @@ func ownTool(program string) string {
 		return ""
 	}
 	return path
+}
+
+// kitVersionFile is the file in a kit's folder that says which Version of the kit InstallKit put there.
+const kitVersionFile = ".kit-version"
+
+// KitStale reports whether the copy of kit Kando downloaded is of an earlier Version than this Kando pins, so it downloads it again. A copy downloaded before Kando wrote the version beside it is taken for the one pinned, as the pins have not changed since; one of a kit that Updates itself is never stale.
+func KitStale(kit Kit) bool {
+	if OwnToolsDir == "" || kit.Updates {
+		return false
+	}
+	data, err := os.ReadFile(filepath.Join(OwnToolsDir, kit.ID, kitVersionFile))
+	if err != nil {
+		return false
+	}
+	return strings.TrimSpace(string(data)) != kit.Version
 }
 
 // InstallKit downloads kit into its folder under dir, checks it against its checksum and returns the program's path. The folder is replaced only once the download is complete and checked, so a canceled or failed one leaves what was there.
@@ -170,6 +189,9 @@ func InstallKit(ctx context.Context, kit Kit, dir string, progress func(written,
 	program := filepath.Join(unpacked, kit.Program)
 	if err := os.Chmod(program, 0o755); err != nil {
 		return "", fmt.Errorf("%s: %s is not in the download", kit.ID, kit.Program)
+	}
+	if err := os.WriteFile(filepath.Join(unpacked, kitVersionFile), []byte(kit.Version+"\n"), 0o644); err != nil {
+		return "", err
 	}
 	final := filepath.Join(dir, kit.ID)
 	if err := os.RemoveAll(final); err != nil {

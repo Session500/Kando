@@ -5,6 +5,7 @@ import (
 	"kando/apps/kando/films"
 	"kando/apps/kando/locales"
 	"kando/apps/kando/settings"
+	"kando/apps/kando/toolhealth"
 	"kando/packages/media"
 
 	"github.com/nsgo-dev/nsgo/core"
@@ -85,12 +86,21 @@ func (a *app) ToolDownload(program string) settings.ToolFetch {
 
 func (a *app) DownloadTool(program string) { a.kitsInstall(program) }
 
-func (a *app) ToolVersion(path string) string {
-	if a.prefs.toolVersions == nil {
-		return ""
-	}
-	return a.prefs.toolVersions[path]
+func (a *app) ToolHealth(program string) settings.ToolHealth {
+	path, health := a.toolHealth(program)
+	own := media.OwnTool(program)
+	return settings.ToolHealth{Path: path, Own: path != "" && path == own, Health: health, Other: a.tools.others[program]}
 }
+
+func (a *app) UseComputerTool(program string, computer bool) {
+	if computer {
+		a.toolsUse(program, toolhealth.Computer)
+	} else {
+		a.toolsUse(program, toolhealth.Own)
+	}
+}
+
+func (a *app) UseOwnTool(program string) { a.toolsUseOwn(program) }
 
 func (a *app) InstalledSpeechModel(id string) string { return a.prefs.speechModels[id] }
 

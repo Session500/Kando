@@ -30,6 +30,8 @@ type fakeApp struct {
 	tools                   media.Tools
 	known                   bool
 	versions                map[string]string
+	// health, by program, stands in for the copy ToolHealth reports, which is otherwise the tools' path of it, working at the version versions gives.
+	health                  map[string]ToolHealth
 	fetch                   map[string]ToolFetch
 	cli                     CLI
 	ext                     BrowserExtension
@@ -116,15 +118,28 @@ func (f *fakeApp) LibraryLabels(dirs []string) []string {
 	}
 	return out
 }
-func (f *fakeApp) DisplayPath(path string) string        { return path }
-func (f *fakeApp) Choose(dir string)                     { f.call("choose " + dir); f.dir = dir }
-func (f *fakeApp) BeginNew()                             { f.call("new") }
-func (f *fakeApp) PickLibrary()                          { f.call("pick") }
-func (f *fakeApp) Reveal(path string)                    { f.call("reveal " + path) }
-func (f *fakeApp) Forget(dir string)                     { f.call("forget " + dir) }
-func (f *fakeApp) Tools() (media.Tools, bool)            { return f.tools, f.known }
-func (f *fakeApp) Redetect()                             { f.call("redetect") }
-func (f *fakeApp) ToolVersion(path string) string        { return f.versions[path] }
+func (f *fakeApp) DisplayPath(path string) string { return path }
+func (f *fakeApp) Choose(dir string)              { f.call("choose " + dir); f.dir = dir }
+func (f *fakeApp) BeginNew()                      { f.call("new") }
+func (f *fakeApp) PickLibrary()                   { f.call("pick") }
+func (f *fakeApp) Reveal(path string)             { f.call("reveal " + path) }
+func (f *fakeApp) Forget(dir string)              { f.call("forget " + dir) }
+func (f *fakeApp) Tools() (media.Tools, bool)     { return f.tools, f.known }
+func (f *fakeApp) Redetect()                      { f.call("redetect") }
+func (f *fakeApp) ToolHealth(program string) ToolHealth {
+	if h, ok := f.health[program]; ok {
+		return h
+	}
+	path := map[string]string{"yt-dlp": f.tools.YTDLP, "ffmpeg": f.tools.FFmpeg, "whisper-cli": f.tools.Whisper}[program]
+	if path == "" {
+		return ToolHealth{}
+	}
+	return ToolHealth{Path: path, Health: media.Health{State: media.HealthReady, Version: f.versions[path]}}
+}
+func (f *fakeApp) UseComputerTool(program string, computer bool) {
+	f.call(fmt.Sprintf("use computer %s %v", program, computer))
+}
+func (f *fakeApp) UseOwnTool(program string)             { f.call("use own " + program) }
 func (f *fakeApp) ToolDownload(program string) ToolFetch { return f.fetch[program] }
 func (f *fakeApp) DownloadTool(program string)           { f.call("download " + program) }
 func (f *fakeApp) CLI() CLI                              { return f.cli }

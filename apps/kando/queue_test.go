@@ -1525,10 +1525,10 @@ func TestDownloadingKandosYTDLPRunsTheOutdatedDownloadsAgain(t *testing.T) {
 		t.Skip("Kando downloads no yt-dlp on this platform")
 	}
 	a, tt, updates := newTestApp(t, toolsForRemedies(t, recordingYTDLP(t, filepath.Join(t.TempDir(), "system-args"), "")))
-	// The tools are looked up again with ffmpeg and whisper-cli first on PATH; Kando's own yt-dlp comes before any on PATH. They are scripts of their own rather than links to /bin/false, which macOS does not have: a dangling link is no program, so the lookup would fall through to whatever the machine has, or find none and fail the job's check before its download.
+	// The tools are looked up again with ffmpeg and whisper-cli first on PATH; Kando's own yt-dlp comes before any on PATH. They are scripts of their own rather than links to /bin/false, which macOS does not have: a dangling link is no program, so the lookup would fall through to whatever the machine has, or find none and fail the job's check before its download. They answer their version, as the check of the tools asks it (toolsCheck), which would otherwise hold the jobs back as programs that do not start, and fail at anything else.
 	bin := t.TempDir()
 	for _, name := range []string{"ffmpeg", "whisper-cli"} {
-		if err := os.WriteFile(filepath.Join(bin, name), []byte("#!/bin/sh\nexit 1\n"), 0o755); err != nil {
+		if err := os.WriteFile(filepath.Join(bin, name), []byte("#!/bin/sh\ncase \"$1\" in -version|--version) echo 1.0; exit 0;; esac\nexit 1\n"), 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}

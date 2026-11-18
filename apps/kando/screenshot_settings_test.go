@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net/netip"
 	"os"
@@ -14,6 +15,7 @@ import (
 	"kando/apps/kando/locales/testlocale"
 	"kando/apps/kando/phonesync"
 	"kando/apps/kando/settings"
+	"kando/apps/kando/toolhealth"
 	"kando/packages/media"
 	psync "kando/packages/sync"
 
@@ -78,6 +80,33 @@ func TestScreenshotsSettings(t *testing.T) {
 		a.kits.running = map[string]*kitDownload{"ffmpeg": {written: 13 << 20, total: 31 << 20, cancel: func() {}}}
 		a.kits.errs = map[string]error{"whisper-cli": media.ErrStalled}
 	})
+	// A Homebrew ffmpeg that cannot load a library Homebrew upgraded under it: the row says it does not run and why, and offers Kando's own.
+	shootSettings(t, f, settings.SectionGeneral, "settings-general-broken", shown, models, turbo, func(a *app) {
+		shotOwnToolsDir(t, f)
+		tools := a.pipeline.(media.Tools)
+		a.tools.health[tools.FFmpeg] = media.Health{State: media.HealthBroken, Problem: media.ProblemLibrary, Library: "libbluray"}
+	})
+	// Kando runs its own ffmpeg, and the computer has one that works too: which copy runs is a choice under the name.
+	shootSettings(t, f, settings.SectionGeneral, "settings-general-copy", shown, models, turbo, func(a *app) {
+		dir := shotOwnToolsDir(t, f)
+		tools := a.pipeline.(media.Tools)
+		kit, _ := media.KitFor("ffmpeg")
+		own := filepath.Join(dir, kit.ID, "ffmpeg")
+		data, err := os.ReadFile(tools.FFmpeg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.MkdirAll(filepath.Dir(own), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(own, data, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		a.tools.health[own] = a.tools.health[tools.FFmpeg]
+		a.tools.others["ffmpeg"] = tools.FFmpeg
+		tools.FFmpeg = own
+		a.pipeline = tools
+	})
 	// A speech model's download from Hugging Face that lost its connection: the page says so, with 从 hf-mirror.com 下载 next to it.
 	shootSettingsScrolled(t, f, settings.SectionSpeech, "settings-speech-download-failed", shown, models, turbo, func(a *app) {
 		a.prefs.downloadErr = settings.DownloadError{ID: "large-v3-turbo-q5", Err: fmt.Errorf("%w: unexpected EOF", media.ErrDisconnected)}
@@ -92,12 +121,32 @@ func TestScreenshotsSettings(t *testing.T) {
 	shootSettings(t, f, settings.SectionShortcuts, "settings-shortcuts-mpv", shown, models, turbo, func(a *app) { a.prefs.shortcutPreset = hotkey.PresetMPV })
 }
 
-// shotKitsDownloading takes ffmpeg and whisper-cli out of a's tools and gives Kando a folder of its own in the fixture's fake home, as on a computer that lacks them, for the scenes of their downloads.
-func shotKitsDownloading(t *testing.T, f *screenshotFixture, a *app) {
+// shotToolsChecked runs the copies of the programs a's pipeline names, the fixture's fake tools, as the check once the window is ready does (toolsCheck), but at once, as the scenes' updates are dropped: the rows show their versions rather than 检查中.
+func shotToolsChecked(a *app) {
+	tools, ok := a.pipeline.(media.Tools)
+	if !ok {
+		return
+	}
+	for _, program := range toolhealth.Programs {
+		if path := *toolPath(&tools, program); path != "" {
+			a.tools.health[path] = media.Probe(context.Background(), program, path)
+		}
+	}
+}
+
+// shotOwnToolsDir gives Kando a folder of its own for the programs it downloads, in the fixture's fake home, until the scene ends, and returns it.
+func shotOwnToolsDir(t *testing.T, f *screenshotFixture) string {
 	t.Helper()
 	saved := media.OwnToolsDir
 	media.OwnToolsDir = filepath.Join(f.home, "Library", "Application Support", "Kando", "tools")
 	t.Cleanup(func() { media.OwnToolsDir = saved })
+	return media.OwnToolsDir
+}
+
+// shotKitsDownloading takes ffmpeg and whisper-cli out of a's tools and gives Kando a folder of its own in the fixture's fake home, as on a computer that lacks them, for the scenes of their downloads.
+func shotKitsDownloading(t *testing.T, f *screenshotFixture, a *app) {
+	t.Helper()
+	shotOwnToolsDir(t, f)
 	tools := a.pipeline.(media.Tools)
 	tools.FFmpeg, tools.Whisper = "", ""
 	a.pipeline = tools
@@ -158,6 +207,7 @@ func shootSettingsAt(t *testing.T, f *screenshotFixture, section, name, shown, m
 	t.Helper()
 	t.Run(name, func(t *testing.T) {
 		a := newApp(f.pipeline, func(func()) {})
+		a.tools.candidates = noCandidates
 		a.prefs.listModels = offlineModels
 		a.prefs.interfaceLanguage = testlocale.Current()
 		a.edit(func(s *session) {
@@ -175,6 +225,7 @@ func shootSettingsAt(t *testing.T, f *screenshotFixture, section, name, shown, m
 			tools.EveryAPI = writeFakeEveryAPI(t, filepath.Join(f.home, "bin"), true)
 			a.syncLLM(tools.UseEveryAPICLI())
 		}
+		shotToolsChecked(a)
 		for _, fn := range setup {
 			fn(a)
 		}

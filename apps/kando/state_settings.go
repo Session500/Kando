@@ -70,8 +70,6 @@ type settingsUI struct {
 	llmWaiting       bool
 	listModels       func(context.Context, media.ChatTranslator) ([]string, error)
 	pingLLM          func(context.Context, media.ChatTranslator) error
-	toolVersions     map[string]string
-	versionGen       int
 	// open and section are the settings the user asked for: OpenSettings sets open and the settings.Section value it was given, the window's sidebar changes section, and closing the window clears open. Code and tests outside the settings area read these, never app.page, which the settings window leaves alone (D2). section "" is 通用.
 	open    bool
 	section string
@@ -197,7 +195,7 @@ func (a *app) restoreTranslate(saved savedSettings) {
 	a.prefs.translateContextLines = saved.TranslateContextLines
 }
 
-// settingsHooks: the settings window saves the speech model, the AI service and the translation, shows the interface in its saved language and asks the tools for their versions once the main window exists, looks for the whisper models on disk again when the tools change, and after every change opens for a settings page chosen in the main sidebar, gives back the trash confirmation's modal flag once it closed and fetches the AI service's models when its settings changed.
+// settingsHooks: the settings window saves the speech model, the AI service and the translation, shows the interface in its saved language and appearance once the main window exists, looks for the whisper models on disk again when the tools change, and after every change opens for a settings page chosen in the main sidebar, gives back the trash confirmation's modal flag once it closed and fetches the AI service's models when its settings changed.
 func (a *app) settingsHooks() areaHooks {
 	return areaHooks{
 		save: func(saved *savedSettings) {
@@ -217,7 +215,6 @@ func (a *app) settingsHooks() areaHooks {
 		ready: func() {
 			a.SetInterfaceLanguage(a.prefs.interfaceLanguage)
 			a.cx.SetAppearance(a.settingsAppearance())
-			a.loadToolVersions()
 		},
 		toolsChanged: func(redetected bool) {
 			a.findSpeechModels()

@@ -181,11 +181,12 @@ func (a *app) queueProgressBar() queueBar {
 	return queueBar{Shown: true, Value: math.Round(job.Progress.Fraction*100) / 100}
 }
 
-// queueBecameActive removes the queue's notifications as the app comes to the front, where the window shows what they said.
+// queueBecameActive removes the queue's notifications as the app comes to the front, where the window shows what they said, and updates Kando's own yt-dlp when a day has passed since it last did (queueFreshenYTDLP).
 func (a *app) queueBecameActive() {
 	if clear := a.queue.sys.desktop.clear; clear != nil {
 		clear()
 	}
+	a.queueFreshenYTDLP()
 }
 
 // The queue's part of settings.App, for Settings › 通用.

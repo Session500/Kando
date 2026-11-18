@@ -240,6 +240,7 @@ func TestLookToolPrefersOwnKit(t *testing.T) {
 	if !ok {
 		t.Skip("no kits on this platform")
 	}
+	noPackageManagerDirs(t)
 	own := t.TempDir()
 	onPath := t.TempDir()
 	for _, path := range []string{filepath.Join(own, kit.ID, "ffmpeg"), filepath.Join(onPath, "ffmpeg")} {
@@ -259,12 +260,64 @@ func TestLookToolPrefersOwnKit(t *testing.T) {
 		t.Fatalf("without a folder of its own, lookTool = %q", got)
 	}
 	OwnToolsDir = own
-	if got := lookTool("ffmpeg"); got != filepath.Join(own, kit.ID, "ffmpeg") {
-		t.Fatalf("lookTool = %q, want Kando's own", got)
+	// Kando's own comes first, unless its kit is a fallback, which comes after every copy the computer has.
+	first, last := filepath.Join(own, kit.ID, "ffmpeg"), filepath.Join(onPath, "ffmpeg")
+	if kit.Fallback {
+		first, last = last, first
+	}
+	if got := Candidates("ffmpeg"); len(got) != 2 || got[0] != first || got[1] != last {
+		t.Fatalf("Candidates = %q, want [%s %s]", got, first, last)
+	}
+	if got := lookTool("ffmpeg"); got != first {
+		t.Fatalf("lookTool = %q, want %s", got, first)
 	}
 	// Programs no kit provides are looked up as before.
 	if got := lookTool("whisper-cli"); got != "" && strings.HasPrefix(got, own) {
 		t.Fatalf("lookTool found whisper-cli in an empty kit folder: %q", got)
+	}
+}
+
+// TestKitsFallBackOnlyOnLinuxForFFmpegAndWhisper checks which kits are fallbacks: on Linux ffmpeg and whisper-cli, which the distribution keeps working and may build with more than the kit (Kit.Fallback); everywhere else Kando runs its own copy first.
+// TestKitStale checks that a kit Kando downloaded is stale once this Kando pins a later version of it, that one downloaded before Kando wrote its version is taken for the pinned one, and that yt-dlp, which updates itself, never is.
+func TestKitStale(t *testing.T) {
+	saved := OwnToolsDir
+	OwnToolsDir = t.TempDir()
+	t.Cleanup(func() { OwnToolsDir = saved })
+	data := tarGz(t, tarEntry{name: "./ffmpeg", mode: 0o755, body: "#!/bin/sh\n"})
+	kit := Kit{ID: "ffmpeg", Program: "ffmpeg", Version: "9.0.2", URL: serve(t, data), SHA256: sha(data), Archive: true}
+	if _, err := InstallKit(context.Background(), kit, OwnToolsDir, nil); err != nil {
+		t.Fatal(err)
+	}
+	if KitStale(kit) {
+		t.Fatal("the kit just downloaded is stale")
+	}
+	newer := kit
+	newer.Version = "9.1"
+	if !KitStale(newer) {
+		t.Fatal("a kit of an earlier version is not stale")
+	}
+	if newer.Updates = true; KitStale(newer) {
+		t.Fatal("a kit that updates itself is stale")
+	}
+	if err := os.Remove(filepath.Join(OwnToolsDir, "ffmpeg", kitVersionFile)); err != nil {
+		t.Fatal(err)
+	}
+	if newer.Updates = false; KitStale(newer) {
+		t.Fatal("a kit downloaded before Kando wrote its version is stale")
+	}
+}
+
+func TestKitsFallBackOnlyOnLinuxForFFmpegAndWhisper(t *testing.T) {
+	for platform, list := range kits {
+		for _, kit := range list {
+			want := strings.HasPrefix(platform, "linux-") && kit.Program != "yt-dlp"
+			if kit.Fallback != want {
+				t.Errorf("%s %s: Fallback = %v, want %v", platform, kit.Program, kit.Fallback, want)
+			}
+			if kit.Updates != (kit.Program == "yt-dlp") {
+				t.Errorf("%s %s: Updates = %v, want it only for yt-dlp, which updates itself with -U", platform, kit.Program, kit.Updates)
+			}
+		}
 	}
 }
 

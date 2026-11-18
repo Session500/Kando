@@ -134,10 +134,14 @@ func newTestApp(t *testing.T, p media.Pipeline, opts ...nsgotest.Option) (*app, 
 	a.prefs.pingLLM = offlinePing
 	a.prefs.interfaceLanguage = testlocale.Current()
 	a.prefs.overMain = true
+	a.tools.candidates = noCandidates
 	a.edit(func(s *session) { s.LibraryDir = "/videos" })
 	opts = append([]nsgotest.Option{nsgotest.Size(1100, 720), nsgotest.Environment(testEnvironment())}, opts...)
 	return a, nsgotest.Start(t, a.testView, opts...), updates
 }
+
+// noCandidates stands in for media.Candidates in the tests: the copies of the programs on the machine running them, in its PATH and Homebrew's folder, are not the test's, so a check of the tools (toolsCheck) runs only the copies the test's pipeline names.
+func noCandidates(string) []string { return nil }
 
 // testView is the app as run starts it, for nsgotest: the revision on the test's graph, the test's root as the app's scope, and the main view. The areas' ready does not run, as in MyGo's tests, so the menu bar is not installed and wireKeys binds the ⌘ rows too: a test of the menu bar calls a.installMenu(a.cx) and reads tt.Menu, and a test that needs another ready calls what it needs.
 func (a *app) testView(cx *ns.Scope) ns.Node {

@@ -68,7 +68,7 @@ func (a *app) precheckTools() func(m locales.Messages) (msg, section string) {
 	if !ok {
 		return nil
 	}
-	// It asks for every tool media.Tools.Check asks for, so a job it lets through does not fail at its first step. That includes yt-dlp for a local video, which the pipeline reads where it is without downloading, because Check still asks for yt-dlp for every job.
+	// It asks for every tool media.Tools.Check asks for, so a job it lets through does not fail at its first step, and holds a job back while a tool's copy is known not to start (toolsBroken), which would fail it at the stage that runs it, or give yt-dlp an ffmpeg that cannot merge. That includes yt-dlp for a local video, which the pipeline reads where it is without downloading, because Check still asks for yt-dlp for every job.
 	var missing []string
 	if tools.YTDLP == "" {
 		missing = append(missing, "yt-dlp")
@@ -80,7 +80,17 @@ func (a *app) precheckTools() func(m locales.Messages) (msg, section string) {
 		missing = append(missing, "whisper-cli")
 	}
 	downloading := len(a.kitsDownloading()) > 0
+	broken := a.toolsBroken()
 	switch {
+	case len(broken) > 0 && !downloading:
+		return func(m locales.Messages) (string, string) {
+			return m.PrecheckToolsBroken(strings.Join(broken, m.PrecheckToolSeparator())), settings.SectionGeneral
+		}
+	case len(broken) > 0:
+		missing = append(missing, broken...)
+		return func(m locales.Messages) (string, string) {
+			return m.PrecheckToolsDownloading(strings.Join(missing, m.PrecheckToolSeparator())), settings.SectionGeneral
+		}
 	case len(missing) > 0 && downloading:
 		return func(m locales.Messages) (string, string) {
 			return m.PrecheckToolsDownloading(strings.Join(missing, m.PrecheckToolSeparator())), settings.SectionGeneral

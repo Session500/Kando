@@ -4,27 +4,32 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"slices"
 	"strings"
+	"time"
 
 	"kando/apps/kando/desktop"
 	"kando/apps/kando/films"
 	"kando/apps/kando/locales"
 	"kando/apps/kando/settings"
+	"kando/apps/kando/toolhealth"
 	"kando/packages/core"
 	"kando/packages/media"
 )
 
 // What a failed download's card offers, by why it failed (core.FailKind), in the prototype's words: the remedies a card can run, and the yt-dlp update 更新并重试 runs.
 
-// ytdlpState is what the queue knows of the yt-dlp it downloads with: its version and how it was installed, and the browsers whose logins it can borrow, read off the UI thread when the window is ready and when the tools change, so a card only reads them; whether 更新并重试 is updating it now; latest, the version an update found to be the newest there is; and kitRetry, set by 下载 yt-dlp 并重试 until the yt-dlp Kando downloads for itself is in, when it is updated with -U, as the release it is pinned to may be too old for the site as well, and the downloads yt-dlp was too old for run again with it.
+// ytdlpState is what the queue knows of the yt-dlp it downloads with: its version and how it was installed, and the browsers whose logins it can borrow, read off the UI thread when the window is ready and when the tools change, so a card only reads them; whether 更新并重试, or the daily update of Kando's own yt-dlp, is updating it now; latest, the version an update found to be the newest there is; and kitRetry, set by 下载 yt-dlp 并重试 until the yt-dlp Kando downloads for itself is in, when it is updated with -U, as the release it is pinned to may be too old for the site as well, and the downloads yt-dlp was too old for run again with it. freshened is when the daily update last brought Kando's own yt-dlp up to date, which settings.json keeps, and freshenTried when it last tried (queueFreshenYTDLP).
 type ytdlpState struct {
-	path     string
-	version  string
-	install  media.YTDLPInstall
-	browsers []media.Browser
-	updating bool
-	latest   string
-	kitRetry bool
+	path         string
+	version      string
+	install      media.YTDLPInstall
+	browsers     []media.Browser
+	updating     bool
+	latest       string
+	kitRetry     bool
+	freshened    time.Time
+	freshenTried time.Time
 }
 
 // The remedies' action IDs (films.RemedyAction.ID). A borrowed login is remedyBorrow followed by the browser's --cookies-from-browser name.
@@ -43,6 +48,9 @@ const (
 	remedyDownloadYTDLP = "download-ytdlp"
 	// remedyChooseBrowser opens Settings › 通用, whose 浏览器登录 chooses the browser every download borrows the login of, for a card whose browser's login could not be read.
 	remedyChooseBrowser = "choose-browser"
+	// remedyOwnTool is followed by a program's name: it runs Kando's own copy of the program, downloading it when needed (toolsUseOwn), for a card of a job that failed because the copy it ran does not start, and runs that job again, and every other one it stopped, once the program works. remedyToolSettings opens Settings › 通用, whose row of the program links to its page, where Kando downloads no copy of its own.
+	remedyOwnTool      = "own-tool:"
+	remedyToolSettings = "tool-settings"
 )
 
 // installedBrowsers looks on disk for the browsers whose logins the cards offer to borrow; it runs off the UI thread. Tests replace it.
@@ -98,10 +106,16 @@ func (a *app) queueFindBrowsers() {
 	}()
 }
 
-// FailureRemedy is what the card of a job whose download failed says and offers, by why it failed. A failure of another stage, or one yt-dlp did not say enough about, has none, and the card says FailureHint's reason instead.
+// FailureRemedy is what the card of a job whose download failed says and offers, by why it failed, and of a job of any stage that failed because the copy of a program it ran does not start (toolRemedy). A failure of another stage, or one yt-dlp did not say enough about, has none, and the card says FailureHint's reason instead.
 func (a *app) FailureRemedy(item films.Film) (films.Remedy, bool) {
 	job, ok := a.library.Find(item.JobID)
-	if !ok || job.Stage != core.StageFailed || job.FailKind == "" {
+	if !ok {
+		return films.Remedy{}, false
+	}
+	if r, broken := a.toolRemedy(job); broken {
+		return r, true
+	}
+	if job.Stage != core.StageFailed || job.FailKind == "" {
 		return films.Remedy{}, false
 	}
 	m := a.messages()
@@ -178,6 +192,44 @@ func (a *app) FailureRemedy(item films.Film) (films.Remedy, bool) {
 		return films.Remedy{}, false
 	}
 	return r, true
+}
+
+// toolRemedy is the card of a job that failed at a stage a program runs whose copy does not start now (toolBrokenFor): why, and 下载 … 并重试, or 重新下载 … 并重试 when Kando's own copy is the one that does not start, which runs Kando's own copy and the job again once it works; where Kando downloads no copy of its own, 打开设置, whose row links to the program's page, and 重试. While Kando's own copy downloads, the card says so. A job whose programs all start now has none, as the program was fixed since.
+func (a *app) toolRemedy(job core.Job) (films.Remedy, bool) {
+	program, broken := a.toolBrokenFor(job)
+	if !broken {
+		return films.Remedy{}, false
+	}
+	m := a.messages()
+	path, health := a.toolHealth(program)
+	reason := toolhealth.Why(m, health)
+	if _, downloading := a.kitsProgress(program); downloading {
+		return films.Remedy{Headline: m.QueueRemedyToolDownloading(program), Why: m.QueueRemedyToolDownloadingWhy(), Working: true,
+			Actions: []films.RemedyAction{{ID: remedyOwnTool + program, Label: m.QueueRemedyToolDownloadingAction(), Primary: true, Disabled: true}}}, true
+	}
+	r := films.Remedy{Headline: m.QueueRemedyToolBroken(program)}
+	switch {
+	case !a.kitsCanInstall(program):
+		r.Why = m.QueueRemedyToolManualWhy(reason, program)
+		r.Actions = []films.RemedyAction{{ID: remedyToolSettings, Label: m.QueueRemedyToolSettings(), Primary: true}, {ID: remedyRetry, Label: m.QueueRemedyRetry()}}
+	case path == media.OwnTool(program):
+		r.Why = m.QueueRemedyToolRedownloadWhy(reason, program)
+		r.Actions = []films.RemedyAction{{ID: remedyOwnTool + program, Label: m.QueueRemedyToolRedownload(program), Primary: true}}
+	default:
+		r.Why = m.QueueRemedyToolOwnWhy(reason, program)
+		r.Actions = []films.RemedyAction{{ID: remedyOwnTool + program, Label: m.QueueRemedyToolDownload(program), Primary: true}}
+	}
+	return r, true
+}
+
+// queueOwnToolAndRetry is 下载 … 并重试 on the card of a job a program's copy stopped: every failed job of the open library it stopped runs again once Kando's own copy works (toolsRetryWhenFixed), which it downloads when it has none or its copy does not start (toolsUseOwn).
+func (a *app) queueOwnToolAndRetry(program string) {
+	for _, job := range a.library.Jobs {
+		if broken, ok := a.toolBrokenFor(job); ok && broken == program && films.InLibrary(a.snap().LibraryDir, job) && !slices.Contains(a.tools.retry[program], job.ID) {
+			a.tools.retry[program] = append(a.tools.retry[program], job.ID)
+		}
+	}
+	a.toolsUseOwn(program)
 }
 
 // outdatedRemedy is the card of a site yt-dlp no longer understands: the version it has, and 更新并重试, or how to update it when Kando cannot, with 下载 yt-dlp 并重试 first when Kando can download its own yt-dlp here.
@@ -328,8 +380,10 @@ func (a *app) RunRemedy(item films.Film, action string) {
 		a.OpenSites()
 	case action == remedyDiskAccess:
 		a.queueOpenDiskAccess()
-	case action == remedyChooseBrowser:
+	case action == remedyChooseBrowser, action == remedyToolSettings:
 		a.OpenSettings(settings.SectionGeneral)
+	case strings.HasPrefix(action, remedyOwnTool):
+		a.queueOwnToolAndRetry(strings.TrimPrefix(action, remedyOwnTool))
 	}
 }
 
@@ -388,6 +442,10 @@ func (a *app) queueUpdateYTDLP() {
 				a.warn(a.messages().QueueUpdateFailed(err.Error()), "")
 				return
 			}
+			// Kando's own yt-dlp is up to date for the day (queueFreshenYTDLP).
+			if path == media.OwnTool("yt-dlp") {
+				a.queue.ytdlp.freshened = time.Now()
+			}
 			// The newest yt-dlp there is fails the same way until the site's fix is out: nothing runs again, and the cards say so.
 			if version == before {
 				a.queue.ytdlp.latest = version
@@ -396,6 +454,35 @@ func (a *app) queueUpdateYTDLP() {
 			}
 			a.queue.ytdlp.latest = ""
 			a.tell(a.messages().QueueYtdlpUpdated(version, a.queueRetryOutdated()))
+		})
+	}()
+}
+
+// queueFreshenYTDLP updates Kando's own yt-dlp with -U in the background, quietly, at most once a day: the sites change what yt-dlp must understand every few weeks, and Kando's own is the release this Kando pins until updated, which only the card of a download it was too old for did before, and some of what it says when too old reads as another reason (classify.go); a yt-dlp the computer installed is its package manager's to update. It runs when the window is ready, when the app comes to the front and when the tools changed, as when Kando's own yt-dlp has just landed; not in offline mode, not while an update runs, and not within an hour of one that failed.
+func (a *app) queueFreshenYTDLP() {
+	tools, ok := a.pipeline.(media.Tools)
+	own := media.OwnTool("yt-dlp")
+	if !ok || own == "" || tools.YTDLP != own || a.queue.ytdlp.updating || a.privacy.offline || a.update == nil {
+		return
+	}
+	now := time.Now()
+	if now.Sub(a.queue.ytdlp.freshened) < 24*time.Hour || now.Sub(a.queue.ytdlp.freshenTried) < time.Hour {
+		return
+	}
+	a.queue.ytdlp.freshenTried, a.queue.ytdlp.updating = now, true
+	update := a.update
+	go func() {
+		version, err := media.UpdateYTDLP(context.Background(), own)
+		update(func() {
+			a.queue.ytdlp.updating = false
+			if err != nil {
+				return
+			}
+			a.queue.ytdlp.freshened = time.Now()
+			a.Save()
+			if a.queue.ytdlp.path == own && version != a.queue.ytdlp.version {
+				a.queue.ytdlp.version, a.queue.ytdlp.latest = version, ""
+			}
 		})
 	}()
 }

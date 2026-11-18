@@ -57,7 +57,7 @@ func (a *app) OnboardingToggle(code string) {
 
 func (a *app) OnboardingTools(cx *ns.Scope) []onboarding.Tool { return a.onboardingTools(cx) }
 
-func (a *app) OnboardingDownloadTool(name string) { a.kitsInstall(name) }
+func (a *app) OnboardingDownloadTool(name string) { a.toolsUseOwn(name) }
 
 func (a *app) OnboardingModels(cx *ns.Scope) []onboarding.Model { return a.onboardingModels(cx) }
 

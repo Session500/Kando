@@ -88,7 +88,7 @@ make build
 
 ## Requirements
 
-Kando runs `yt-dlp`, `ffmpeg` and `whisper-cli` (whisper.cpp). On macOS and Linux there is nothing to install: when Kando opens and one of them is missing, it downloads it, and the Getting Started guide shows the progress. Programs you already installed, such as with Homebrew, are used as they are.
+Kando runs `yt-dlp`, `ffmpeg` and `whisper-cli` (whisper.cpp). On macOS and Linux there is nothing to install: when Kando opens and one of them is missing, it downloads it, and the Getting Started guide shows the progress. On macOS Kando runs its own copies even when you installed the programs yourself, such as with Homebrew, so an upgrade of what those are built on cannot break it: until its own have arrived it uses yours, and Settings › General lets you choose yours instead. On Linux it runs its own yt-dlp, and your distribution's `ffmpeg` and `whisper-cli` when they work. Kando runs each program once to check that it starts; one that does not says so and why in Settings › General, the sidebar and the card of a video it stopped, which offer Kando's own copy. Kando keeps its own yt-dlp up to date, checking once a day.
 
 | Program | Used for | What Kando downloads |
 | --- | --- | --- |
