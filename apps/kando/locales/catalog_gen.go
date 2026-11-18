@@ -476,6 +476,7 @@ var Parameters = map[string][]string{
 	"FilmLineOf":                               {"line", "total"},
 	"FilmLoopLines":                            {"from", "to"},
 	"FilmMatchOf":                              {"number", "total"},
+	"FilmOriginalPlatformMixed":                {"count"},
 	"FilmReprocessFailed":                      {"reason"},
 	"FilmRetranslateFailed":                    {"reason"},
 	"FilmRevealFile":                           {"file"},
@@ -862,6 +863,7 @@ type Translation struct {
 	FilmLineOf                               func(line int, total int) string
 	FilmLoopLines                            func(from int, to int) string
 	FilmMatchOf                              func(number int, total int) string
+	FilmOriginalPlatformMixed                func(count int) string
 	FilmReprocessFailed                      func(reason string) string
 	FilmRetranslateFailed                    func(reason string) string
 	FilmRevealFile                           func(file string) string
@@ -1408,6 +1410,9 @@ const (
 	textFilmOpeningVideo
 	textFilmOrderOriginalFirst
 	textFilmOrderTranslationFirst
+	textFilmOriginalHeard
+	textFilmOriginalLines
+	textFilmOriginalPlatform
 	textFilmPause
 	textFilmPauseLines
 	textFilmPauseLinesOff
@@ -2007,7 +2012,13 @@ const (
 	textSettingsGeneralNotInstalled
 	textSettingsGeneralNotify
 	textSettingsGeneralNotifyHint
+	textSettingsGeneralOnline
 	textSettingsGeneralOpenLibrary
+	textSettingsGeneralPlatformSubtitles
+	textSettingsGeneralPlatformSubtitlesHint
+	textSettingsGeneralQuality
+	textSettingsGeneralQuality720
+	textSettingsGeneralQualityBest
 	textSettingsGeneralRedetect
 	textSettingsGeneralRetry
 	textSettingsGeneralSignIn
@@ -2542,6 +2553,9 @@ var keyOfText = [numTexts]string{
 	"filmOpeningVideo",
 	"filmOrderOriginalFirst",
 	"filmOrderTranslationFirst",
+	"filmOriginalHeard",
+	"filmOriginalLines",
+	"filmOriginalPlatform",
 	"filmPause",
 	"filmPauseLines",
 	"filmPauseLinesOff",
@@ -3141,7 +3155,13 @@ var keyOfText = [numTexts]string{
 	"settingsGeneralNotInstalled",
 	"settingsGeneralNotify",
 	"settingsGeneralNotifyHint",
+	"settingsGeneralOnline",
 	"settingsGeneralOpenLibrary",
+	"settingsGeneralPlatformSubtitles",
+	"settingsGeneralPlatformSubtitlesHint",
+	"settingsGeneralQuality",
+	"settingsGeneralQuality720",
+	"settingsGeneralQualityBest",
 	"settingsGeneralRedetect",
 	"settingsGeneralRetry",
 	"settingsGeneralSignIn",
@@ -3674,6 +3694,9 @@ var textsEn = i18n.NewTexts(""+
 	"Opening video…"+
 	"Original on Top"+
 	"Translation on Top"+
+	"Recognized on this computer"+
+	"Original Lines"+
+	"The site's subtitles, checked against the speech"+
 	"Pause"+
 	"Pause After Each Line"+
 	"Pause After Each Line: Off"+
@@ -4273,7 +4296,13 @@ var textsEn = i18n.NewTexts(""+
 	"Not Installed"+
 	"Notify when a video is done"+
 	"While Kando is in the background, a notification says when a video's subtitles are ready or couldn't be made."+
+	"Online Videos"+
 	"Open Library…"+
+	"Prefer the site's own subtitles"+
+	"When the uploader's subtitles are in the language spoken, they become the original lines. They are checked against the speech first, and lines that don't match are recognized on this computer instead. Automatic captions are never used."+
+	"Download quality"+
+	"720p"+
+	"Best"+
 	"Detect Again"+
 	"Retry"+
 	"Browser Sign-In"+
@@ -4803,6 +4832,9 @@ var textsEn = i18n.NewTexts(""+
 		16,
 		15,
 		18,
+		27,
+		14,
+		48,
 		5,
 		21,
 		26,
@@ -5402,7 +5434,13 @@ var textsEn = i18n.NewTexts(""+
 		13,
 		27,
 		109,
+		13,
 		15,
+		31,
+		235,
+		16,
+		4,
+		4,
 		12,
 		5,
 		15,
@@ -5935,6 +5973,9 @@ var textsJa = i18n.NewTexts(""+
 	"動画を開いています…"+
 	"原文を上に"+
 	"訳文を上に"+
+	"このコンピュータで認識"+
+	"原文"+
+	"サイトの字幕（音声と照合済み）"+
 	"一時停止"+
 	"セリフごとに一時停止"+
 	"セリフごとに一時停止：オフ"+
@@ -6534,7 +6575,13 @@ var textsJa = i18n.NewTexts(""+
 	"未インストール"+
 	"動画の処理が終わったら通知"+
 	"Kando がバックグラウンドにあるとき、動画の字幕ができたときや作れなかったときに通知します。"+
+	"オンライン動画"+
 	"ライブラリを開く…"+
+	"サイトの字幕を優先する"+
+	"投稿者の字幕が話されている言語と同じなら原文に使います。先に音声とタイミングを照合し、合わない行はこのコンピュータで認識します。自動字幕は原文に使いません。"+
+	"ダウンロード画質"+
+	"720p"+
+	"最高画質"+
 	"再検出"+
 	"再試行"+
 	"ブラウザのログイン"+
@@ -7064,6 +7111,9 @@ var textsJa = i18n.NewTexts(""+
 		30,
 		15,
 		15,
+		33,
+		6,
+		45,
 		12,
 		30,
 		39,
@@ -7663,7 +7713,13 @@ var textsJa = i18n.NewTexts(""+
 		21,
 		39,
 		132,
+		21,
 		27,
+		33,
+		234,
+		24,
+		4,
+		12,
 		9,
 		9,
 		27,
@@ -8196,6 +8252,9 @@ var textsKo = i18n.NewTexts(""+
 	"동영상을 여는 중…"+
 	"원문을 위에"+
 	"번역을 위에"+
+	"이 컴퓨터에서 인식"+
+	"원문"+
+	"사이트 자막, 음성과 확인됨"+
 	"일시 정지"+
 	"대사마다 일시 정지"+
 	"대사마다 일시 정지: 끔"+
@@ -8795,7 +8854,13 @@ var textsKo = i18n.NewTexts(""+
 	"설치 안 됨"+
 	"동영상 처리가 끝나면 알림"+
 	"Kando가 백그라운드에 있을 때 동영상 자막이 준비되거나 만들지 못하면 알림을 보냅니다."+
+	"온라인 동영상"+
 	"라이브러리 열기…"+
+	"사이트 자체 자막 우선"+
+	"업로더 자막이 말하는 언어와 같으면 원문으로 씁니다. 먼저 음성과 타이밍을 맞춰 보고, 맞지 않는 줄은 이 컴퓨터에서 인식합니다. 자동 자막은 원문으로 쓰지 않습니다."+
+	"다운로드 화질"+
+	"720p"+
+	"최고 화질"+
 	"다시 감지"+
 	"다시 시도"+
 	"브라우저 로그인"+
@@ -9325,6 +9390,9 @@ var textsKo = i18n.NewTexts(""+
 		26,
 		16,
 		16,
+		26,
+		6,
+		37,
 		13,
 		26,
 		31,
@@ -9924,7 +9992,13 @@ var textsKo = i18n.NewTexts(""+
 		14,
 		36,
 		118,
+		19,
 		25,
+		30,
+		227,
+		19,
+		4,
+		13,
 		13,
 		13,
 		22,
@@ -10457,6 +10531,9 @@ var textsZhHans = i18n.NewTexts(""+
 	"正在打开视频…"+
 	"原文在上"+
 	"译文在上"+
+	"本机识别"+
+	"原文"+
+	"平台字幕，已和语音核对"+
 	"暂停"+
 	"逐句暂停"+
 	"逐句暂停：关"+
@@ -11056,7 +11133,13 @@ var textsZhHans = i18n.NewTexts(""+
 	"未安装"+
 	"影片处理完时通知"+
 	"看懂在后台时，影片的字幕做好了或没能做好，都会发一条通知。"+
+	"在线视频"+
 	"打开资料库…"+
+	"优先用平台自带的字幕"+
+	"上传者字幕和原音语言一致时直接用作原文：先和语音核对时间轴，对不上的句子改用本机识别。自动字幕不会当成原文。"+
+	"默认下载"+
+	"720P"+
+	"最高画质"+
 	"重新检测"+
 	"重试"+
 	"浏览器登录"+
@@ -11586,6 +11669,9 @@ var textsZhHans = i18n.NewTexts(""+
 		21,
 		12,
 		12,
+		12,
+		6,
+		33,
 		6,
 		12,
 		18,
@@ -12185,7 +12271,13 @@ var textsZhHans = i18n.NewTexts(""+
 		9,
 		24,
 		87,
+		12,
 		18,
+		30,
+		162,
+		12,
+		4,
+		12,
 		12,
 		6,
 		15,
@@ -12718,6 +12810,9 @@ var textsZhHant = i18n.NewTexts(""+
 	"正在開啟影片…"+
 	"原文在上"+
 	"譯文在上"+
+	"本機辨識"+
+	"原文"+
+	"平台字幕，已和語音核對"+
 	"暫停"+
 	"逐句暫停"+
 	"逐句暫停：關"+
@@ -13317,7 +13412,13 @@ var textsZhHant = i18n.NewTexts(""+
 	"未安裝"+
 	"影片處理完時通知"+
 	"看懂在背景時，影片的字幕做好了或沒能做好，都會發一則通知。"+
+	"線上影片"+
 	"打開資料庫…"+
+	"優先使用平台內建的字幕"+
+	"上傳者字幕和原音語言一致時直接用作原文：先和語音核對時間軸，對不上的句子改用本機辨識。自動字幕不會當成原文。"+
+	"預設下載"+
+	"720P"+
+	"最高畫質"+
 	"重新偵測"+
 	"重試"+
 	"瀏覽器登入"+
@@ -13847,6 +13948,9 @@ var textsZhHant = i18n.NewTexts(""+
 		21,
 		12,
 		12,
+		12,
+		6,
+		33,
 		6,
 		12,
 		18,
@@ -14446,7 +14550,13 @@ var textsZhHant = i18n.NewTexts(""+
 		9,
 		24,
 		87,
+		12,
 		18,
+		33,
+		162,
+		12,
+		4,
+		12,
 		12,
 		6,
 		15,
@@ -14976,6 +15086,9 @@ func Supply(lang string, t Translation) {
 	}
 	if t.FilmMatchOf != nil {
 		s.FilmMatchOf = t.FilmMatchOf
+	}
+	if t.FilmOriginalPlatformMixed != nil {
+		s.FilmOriginalPlatformMixed = t.FilmOriginalPlatformMixed
 	}
 	if t.FilmReprocessFailed != nil {
 		s.FilmReprocessFailed = t.FilmReprocessFailed
@@ -19537,6 +19650,75 @@ func FilmOrderTranslationFirst(cx *core.Scope) string { return For(cx).FilmOrder
 // FilmOrderTranslationFirst is the package's FilmOrderTranslationFirst in the language of msgs.
 func (msgs Messages) FilmOrderTranslationFirst() string {
 	return msgs.text(textFilmOrderTranslationFirst)
+}
+
+// FilmOriginalHeard says "Recognized on this computer"
+// in the language the app shows under cx.
+//
+// Info tab: the film's original lines are what the speech recognition heard.
+func FilmOriginalHeard(cx *core.Scope) string { return For(cx).FilmOriginalHeard() }
+
+// FilmOriginalHeard is the package's FilmOriginalHeard in the language of msgs.
+func (msgs Messages) FilmOriginalHeard() string { return msgs.text(textFilmOriginalHeard) }
+
+// FilmOriginalLines says "Original Lines"
+// in the language the app shows under cx.
+//
+// Heading in the Info tab over where the film's original lines came from: the site's subtitles or the speech recognition.
+func FilmOriginalLines(cx *core.Scope) string { return For(cx).FilmOriginalLines() }
+
+// FilmOriginalLines is the package's FilmOriginalLines in the language of msgs.
+func (msgs Messages) FilmOriginalLines() string { return msgs.text(textFilmOriginalLines) }
+
+// FilmOriginalPlatform says "The site's subtitles, checked against the speech"
+// in the language the app shows under cx.
+//
+// Info tab: the film's original lines are the subtitles the uploader put on the site, and every one matched the speech.
+func FilmOriginalPlatform(cx *core.Scope) string { return For(cx).FilmOriginalPlatform() }
+
+// FilmOriginalPlatform is the package's FilmOriginalPlatform in the language of msgs.
+func (msgs Messages) FilmOriginalPlatform() string { return msgs.text(textFilmOriginalPlatform) }
+
+// FilmOriginalPlatformMixed says "The site's subtitles; {count, plural, one {# line didn't match the speech and was recognized on this computer} other {# lines didn't match the speech and were recognized on this computer}}"
+// in the language the app shows under cx.
+//
+// Info tab: the film's original lines are the site's subtitles, except the lines that did not match the speech, which the speech recognition heard.
+func FilmOriginalPlatformMixed(cx *core.Scope, count int) string {
+	return For(cx).FilmOriginalPlatformMixed(count)
+}
+
+// FilmOriginalPlatformMixed is the package's FilmOriginalPlatformMixed in the language of msgs.
+func (msgs Messages) FilmOriginalPlatformMixed(count int) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.FilmOriginalPlatformMixed(count))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].FilmOriginalPlatformMixed; f != nil {
+			return f(count)
+		}
+		switch lang {
+		case "", "en":
+			var b strings.Builder
+			b.WriteString("The site's subtitles; ")
+			switch i18n.Cardinal("en", float64(count)) {
+			case i18n.One:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+				b.WriteString(" line didn't match the speech and was recognized on this computer")
+			default:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+				b.WriteString(" lines didn't match the speech and were recognized on this computer")
+			}
+			return b.String()
+		case "ja":
+			return "サイトの字幕。" + i18n.FormatNumber("ja", float64(count)) + " 行は音声と合わず、このコンピュータで認識しました"
+		case "ko":
+			return "사이트 자막. " + i18n.FormatNumber("ko", float64(count)) + "줄은 음성과 맞지 않아 이 컴퓨터에서 인식했습니다"
+		case "zh-Hans":
+			return "平台字幕；" + i18n.FormatNumber("zh-Hans", float64(count)) + " 句和语音对不上，已改用本机识别"
+		case "zh-Hant":
+			return "平台字幕；" + i18n.FormatNumber("zh-Hant", float64(count)) + " 句和語音對不上，已改用本機辨識"
+		}
+	}
 }
 
 // FilmPause says "Pause"
@@ -33924,6 +34106,15 @@ func (msgs Messages) SettingsGeneralNotifyHint() string {
 	return msgs.text(textSettingsGeneralNotifyHint)
 }
 
+// SettingsGeneralOnline says "Online Videos"
+// in the language the app shows under cx.
+//
+// Heading in Settings › General over the card of how links are downloaded: whether their own subtitles are used, and the quality.
+func SettingsGeneralOnline(cx *core.Scope) string { return For(cx).SettingsGeneralOnline() }
+
+// SettingsGeneralOnline is the package's SettingsGeneralOnline in the language of msgs.
+func (msgs Messages) SettingsGeneralOnline() string { return msgs.text(textSettingsGeneralOnline) }
+
 // SettingsGeneralOpenLibrary says "Open Library…"
 // in the language the app shows under cx.
 //
@@ -33933,6 +34124,63 @@ func SettingsGeneralOpenLibrary(cx *core.Scope) string { return For(cx).Settings
 // SettingsGeneralOpenLibrary is the package's SettingsGeneralOpenLibrary in the language of msgs.
 func (msgs Messages) SettingsGeneralOpenLibrary() string {
 	return msgs.text(textSettingsGeneralOpenLibrary)
+}
+
+// SettingsGeneralPlatformSubtitles says "Prefer the site's own subtitles"
+// in the language the app shows under cx.
+//
+// Switch in Settings › General › Online Videos: a link's film takes the subtitles the uploader put on YouTube or bilibili as its original lines when they match the speech, instead of only the speech recognition.
+func SettingsGeneralPlatformSubtitles(cx *core.Scope) string {
+	return For(cx).SettingsGeneralPlatformSubtitles()
+}
+
+// SettingsGeneralPlatformSubtitles is the package's SettingsGeneralPlatformSubtitles in the language of msgs.
+func (msgs Messages) SettingsGeneralPlatformSubtitles() string {
+	return msgs.text(textSettingsGeneralPlatformSubtitles)
+}
+
+// SettingsGeneralPlatformSubtitlesHint says "When the uploader's subtitles are in the language spoken, they become the original lines. They are checked against the speech first, and lines that don't match are recognized on this computer instead. Automatic captions are never used."
+// in the language the app shows under cx.
+//
+// Line under the switch that prefers the site's own subtitles in Settings › General.
+func SettingsGeneralPlatformSubtitlesHint(cx *core.Scope) string {
+	return For(cx).SettingsGeneralPlatformSubtitlesHint()
+}
+
+// SettingsGeneralPlatformSubtitlesHint is the package's SettingsGeneralPlatformSubtitlesHint in the language of msgs.
+func (msgs Messages) SettingsGeneralPlatformSubtitlesHint() string {
+	return msgs.text(textSettingsGeneralPlatformSubtitlesHint)
+}
+
+// SettingsGeneralQuality says "Download quality"
+// in the language the app shows under cx.
+//
+// Row and pop-up in Settings › General › Online Videos: how good a picture a link's download asks the site for.
+func SettingsGeneralQuality(cx *core.Scope) string { return For(cx).SettingsGeneralQuality() }
+
+// SettingsGeneralQuality is the package's SettingsGeneralQuality in the language of msgs.
+func (msgs Messages) SettingsGeneralQuality() string { return msgs.text(textSettingsGeneralQuality) }
+
+// SettingsGeneralQuality720 says "720p"
+// in the language the app shows under cx.
+//
+// Download quality: the best picture no taller than 720 lines.
+func SettingsGeneralQuality720(cx *core.Scope) string { return For(cx).SettingsGeneralQuality720() }
+
+// SettingsGeneralQuality720 is the package's SettingsGeneralQuality720 in the language of msgs.
+func (msgs Messages) SettingsGeneralQuality720() string {
+	return msgs.text(textSettingsGeneralQuality720)
+}
+
+// SettingsGeneralQualityBest says "Best"
+// in the language the app shows under cx.
+//
+// Download quality: the best picture and sound the site has.
+func SettingsGeneralQualityBest(cx *core.Scope) string { return For(cx).SettingsGeneralQualityBest() }
+
+// SettingsGeneralQualityBest is the package's SettingsGeneralQualityBest in the language of msgs.
+func (msgs Messages) SettingsGeneralQualityBest() string {
+	return msgs.text(textSettingsGeneralQualityBest)
 }
 
 // SettingsGeneralRedetect says "Detect Again"

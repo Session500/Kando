@@ -14,6 +14,7 @@ import (
 	"kando/apps/kando/locales"
 	"kando/apps/kando/locales/testlocale"
 	"kando/apps/kando/theme"
+	kcore "kando/packages/core"
 	"kando/packages/media"
 
 	"github.com/nsgo-dev/nsgo/core"
@@ -35,6 +36,8 @@ type fakeApp struct {
 	signIn                  SignIn
 	phone                   PhoneSync
 	notify                  bool
+	heardAlone              bool
+	quality                 kcore.Quality
 	models                  map[string]string
 	owned                   map[string]bool
 	downloading             string
@@ -81,6 +84,7 @@ func newFakeApp() *fakeApp {
 		provider:      "everyapi",
 		base:          media.EveryAPIBaseURL,
 		language:      "简体中文",
+		quality:       kcore.QualityBest,
 		context:       true,
 		prompt:        media.DefaultSubtitlePrompt,
 		interfaceLang: locales.Default,
@@ -147,6 +151,10 @@ func (f *fakeApp) SetPhoneAskFirst(ask bool) {
 }
 func (f *fakeApp) JobNotifications() bool                { return f.notify }
 func (f *fakeApp) SetJobNotifications(on bool)           { f.notify = on }
+func (f *fakeApp) PlatformSubtitles() bool               { return !f.heardAlone }
+func (f *fakeApp) SetPlatformSubtitles(on bool)          { f.heardAlone = !on }
+func (f *fakeApp) DownloadQuality() kcore.Quality        { return f.quality }
+func (f *fakeApp) SetDownloadQuality(q kcore.Quality)    { f.quality = q }
 func (f *fakeApp) InstalledSpeechModel(id string) string { return f.models[id] }
 func (f *fakeApp) UseSpeechModel(path string)            { f.call("use " + path); f.tools.WhisperModel = path }
 func (f *fakeApp) PickSpeechModel()                      { f.call("pick model") }
@@ -422,6 +430,40 @@ func TestGeneralPage(t *testing.T) {
 	app.Press("id:settings-library-open")
 	if !slices.Contains(a.calls, "new") || !slices.Contains(a.calls, "pick") {
 		t.Fatalf("calls %q", a.calls)
+	}
+}
+
+// 在线视频 turns the site's subtitles off and on and chooses the picture downloads ask for, saving each change.
+func TestGeneralPageChoosesHowLinksDownload(t *testing.T) {
+	a := newFakeApp()
+	app := start(t, a)
+	msgs := testlocale.Messages()
+	for _, text := range []string{msgs.SettingsGeneralOnline(), msgs.SettingsGeneralPlatformSubtitles(), msgs.SettingsGeneralQualityBest()} {
+		if !app.Exists(whole(text)) {
+			t.Fatalf("missing %q in %q", text, app.Texts())
+		}
+	}
+	saves := func() int {
+		n := 0
+		for _, call := range a.calls {
+			if call == "save" {
+				n++
+			}
+		}
+		return n
+	}
+	app.Press("id:settings-platform-subtitles")
+	if !a.heardAlone || saves() != 1 {
+		t.Fatalf("heard alone %v, saves %d", a.heardAlone, saves())
+	}
+	app.Press("id:settings-platform-subtitles")
+	if a.heardAlone {
+		t.Fatal("the site's subtitles stayed off")
+	}
+	app.Press("id:settings-download-quality")
+	app.Press("role:option " + msgs.SettingsGeneralQuality720())
+	if a.quality != kcore.Quality720 || saves() != 3 {
+		t.Fatalf("quality %q, saves %d", a.quality, saves())
 	}
 }
 
