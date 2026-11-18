@@ -473,6 +473,12 @@ var Parameters = map[string][]string{
 	"FilmSkipForward":                          {"seconds"},
 	"FilmSpeedLabel":                           {"rate"},
 	"FilmSpeedRate":                            {"rate"},
+	"FilmsRemoveConfirmMany":                   {"count"},
+	"FilmsReprocessConfirmMany":                {"count"},
+	"FilmsReprocessManyMessage":                {"language"},
+	"FilmsRetranslateConfirmMany":              {"count", "language"},
+	"FilmsRetranslateManyMessage":              {"count"},
+	"FilmsSelectedCount":                       {"count"},
 	"FilmStatusTranslated":                     {"percent"},
 	"FilmSubtitlesMode":                        {"mode"},
 	"FilmTranscribeAgain":                      {"language"},
@@ -524,6 +530,9 @@ var Parameters = map[string][]string{
 	"KitsDownloadFailedStatus":                 {"status"},
 	"LibraryAddedSome":                         {"count", "error_"},
 	"LibraryAddedStarting":                     {"count"},
+	"LibraryMovedMany":                         {"count", "library"},
+	"LibraryMovedManyLeft":                     {"count", "library", "from"},
+	"LibraryMovedSome":                         {"done", "total", "library", "reason"},
 	"LibraryMoveFailed":                        {"name", "library", "error_"},
 	"LibraryMoveLinesUnread":                   {"library"},
 	"LibraryMoveNoVideo":                       {"name"},
@@ -531,12 +540,19 @@ var Parameters = map[string][]string{
 	"LibraryMoveProcessing":                    {"name"},
 	"LibraryMoveSame":                          {"name", "library"},
 	"LibraryMoveStopped":                       {"name"},
+	"LibraryMoveStoppedMany":                   {"done", "library"},
 	"LibraryMoveUnknown":                       {"path"},
 	"LibraryMoveUnreachable":                   {"library"},
 	"LibraryMoved":                             {"name", "library"},
 	"LibraryMovedLeft":                         {"name", "library", "from"},
 	"LibraryMoving":                            {"name", "library", "percent"},
+	"LibraryMovingMany":                        {"at", "total", "library", "percent"},
 	"LibraryRemoved":                           {"name"},
+	"LibraryRemovedMany":                       {"count"},
+	"LibraryReprocessingMany":                  {"count"},
+	"LibraryReprocessingSome":                  {"done", "total", "reason"},
+	"LibraryRetranslatingMany":                 {"count", "language"},
+	"LibraryRetranslatingSome":                 {"done", "total", "language", "reason"},
 	"LibrarySaveFailed":                        {"error_"},
 	"LibraryShelfDamaged":                      {"error_"},
 	"LibraryShelfDamagedUnsaved":               {"error_"},
@@ -544,6 +560,8 @@ var Parameters = map[string][]string{
 	"LibraryShelfSaveFailed":                   {"error_"},
 	"LibrarySkippedNotVideos":                  {"added", "count"},
 	"LibraryTranslateOffer":                    {"count"},
+	"LibraryTrashedMany":                       {"count"},
+	"LibraryTrashedSome":                       {"done", "total", "reason"},
 	"LibraryTrashFailed":                       {"name"},
 	"LibraryTrashUnsupported":                  {"name"},
 	"LibraryTrashed":                           {"name"},
@@ -789,6 +807,12 @@ type Translation struct {
 	FilmSkipForward                          func(seconds int) string
 	FilmSpeedLabel                           func(rate string) string
 	FilmSpeedRate                            func(rate string) string
+	FilmsRemoveConfirmMany                   func(count int) string
+	FilmsReprocessConfirmMany                func(count int) string
+	FilmsReprocessManyMessage                func(language string) string
+	FilmsRetranslateConfirmMany              func(count int, language string) string
+	FilmsRetranslateManyMessage              func(count int) string
+	FilmsSelectedCount                       func(count int) string
 	FilmStatusTranslated                     func(percent int) string
 	FilmSubtitlesMode                        func(mode string) string
 	FilmTranscribeAgain                      func(language string) string
@@ -840,6 +864,9 @@ type Translation struct {
 	KitsDownloadFailedStatus                 func(status int) string
 	LibraryAddedSome                         func(count int, error_ string) string
 	LibraryAddedStarting                     func(count int) string
+	LibraryMovedMany                         func(count int, library string) string
+	LibraryMovedManyLeft                     func(count int, library string, from string) string
+	LibraryMovedSome                         func(done int, total int, library string, reason string) string
 	LibraryMoveFailed                        func(name string, library string, error_ string) string
 	LibraryMoveLinesUnread                   func(library string) string
 	LibraryMoveNoVideo                       func(name string) string
@@ -847,12 +874,19 @@ type Translation struct {
 	LibraryMoveProcessing                    func(name string) string
 	LibraryMoveSame                          func(name string, library string) string
 	LibraryMoveStopped                       func(name string) string
+	LibraryMoveStoppedMany                   func(done int, library string) string
 	LibraryMoveUnknown                       func(path string) string
 	LibraryMoveUnreachable                   func(library string) string
 	LibraryMoved                             func(name string, library string) string
 	LibraryMovedLeft                         func(name string, library string, from string) string
 	LibraryMoving                            func(name string, library string, percent int) string
+	LibraryMovingMany                        func(at int, total int, library string, percent int) string
 	LibraryRemoved                           func(name string) string
+	LibraryRemovedMany                       func(count int) string
+	LibraryReprocessingMany                  func(count int) string
+	LibraryReprocessingSome                  func(done int, total int, reason string) string
+	LibraryRetranslatingMany                 func(count int, language string) string
+	LibraryRetranslatingSome                 func(done int, total int, language string, reason string) string
 	LibrarySaveFailed                        func(error_ string) string
 	LibraryShelfDamaged                      func(error_ string) string
 	LibraryShelfDamagedUnsaved               func(error_ string) string
@@ -860,6 +894,8 @@ type Translation struct {
 	LibraryShelfSaveFailed                   func(error_ string) string
 	LibrarySkippedNotVideos                  func(added string, count int) string
 	LibraryTranslateOffer                    func(count int) string
+	LibraryTrashedMany                       func(count int) string
+	LibraryTrashedSome                       func(done int, total int, reason string) string
 	LibraryTrashFailed                       func(name string) string
 	LibraryTrashUnsupported                  func(name string) string
 	LibraryTrashed                           func(name string) string
@@ -1267,6 +1303,8 @@ const (
 	textFilmSpeedNormal
 	textFilmSpokenLanguage
 	textFilmSpokenLanguageUnknown
+	textFilmsRemoveManyMessage
+	textFilmsReprocessManyOwnMessage
 	textFilmStyleColor
 	textFilmStyleFont
 	textFilmStyleMenuItem
@@ -2246,6 +2284,8 @@ var keyOfText = [numTexts]string{
 	"filmSpeedNormal",
 	"filmSpokenLanguage",
 	"filmSpokenLanguageUnknown",
+	"filmsRemoveManyMessage",
+	"filmsReprocessManyOwnMessage",
 	"filmStyleColor",
 	"filmStyleFont",
 	"filmStyleMenuItem",
@@ -3223,6 +3263,8 @@ var textsEn = i18n.NewTexts(""+
 	"Normal"+
 	"Spoken Language"+
 	"Unknown"+
+	"Their folders, or their videos and subtitles where a folder holds other files too, will be moved to the Trash, where you can get them back. Videos kept outside the library only leave it."+
+	"Their speech will be transcribed again and every line translated into the language each is translated into now, which uses your AI service."+
 	"Color"+
 	"Font"+
 	"Style…"+
@@ -4197,6 +4239,8 @@ var textsEn = i18n.NewTexts(""+
 		6,
 		15,
 		7,
+		186,
+		139,
 		5,
 		4,
 		8,
@@ -5174,6 +5218,8 @@ var textsJa = i18n.NewTexts(""+
 	"標準"+
 	"認識する言語"+
 	"不明"+
+	"それぞれのフォルダがゴミ箱に入ります。フォルダにほかのファイルもあるときは、動画と字幕だけが入ります。ゴミ箱から戻せます。ライブラリの外にある動画はライブラリから外れるだけです。"+
+	"音声をもう一度文字起こしし、すべての行をそれぞれ今の言語に翻訳し直します。AI サービスを使います。"+
 	"色"+
 	"フォント"+
 	"スタイル…"+
@@ -6148,6 +6194,8 @@ var textsJa = i18n.NewTexts(""+
 		6,
 		18,
 		6,
+		267,
+		144,
 		3,
 		12,
 		15,
@@ -7125,6 +7173,8 @@ var textsKo = i18n.NewTexts(""+
 	"보통"+
 	"인식 언어"+
 	"알 수 없음"+
+	"각 폴더가 휴지통으로 이동합니다. 폴더에 다른 파일도 있으면 동영상과 자막만 이동합니다. 휴지통에서 되돌릴 수 있습니다. 라이브러리 밖에 있는 동영상은 라이브러리에서만 빠집니다."+
+	"음성을 다시 받아쓰고 모든 줄을 각자 지금의 언어로 다시 번역합니다. AI 서비스를 사용합니다."+
 	"색상"+
 	"글꼴"+
 	"스타일…"+
@@ -8099,6 +8149,8 @@ var textsKo = i18n.NewTexts(""+
 		6,
 		13,
 		14,
+		249,
+		127,
 		6,
 		6,
 		12,
@@ -9076,6 +9128,8 @@ var textsZhHans = i18n.NewTexts(""+
 	"正常"+
 	"识别语言"+
 	"未知"+
+	"它们的文件夹会移到废纸篓；文件夹里还有别的文件时，只移走视频和字幕。可以从废纸篓找回。资料库外的视频只从资料库移除。"+
+	"会重新识别它们的语音，并把每一句按各自现在的语言重新翻译，这会用到你的 AI 服务。"+
 	"颜色"+
 	"字体"+
 	"样式…"+
@@ -10050,6 +10104,8 @@ var textsZhHans = i18n.NewTexts(""+
 		6,
 		12,
 		6,
+		174,
+		118,
 		6,
 		6,
 		9,
@@ -11027,6 +11083,8 @@ var textsZhHant = i18n.NewTexts(""+
 	"正常"+
 	"辨識語言"+
 	"未知"+
+	"它們的資料夾會移到垃圾桶；資料夾裡還有別的檔案時，只移走影片和字幕。可以從垃圾桶找回。資料庫外的影片只從資料庫移除。"+
+	"會重新辨識它們的語音，並把每一句按各自現在的語言重新翻譯，這會用到你的 AI 服務。"+
 	"顏色"+
 	"字體"+
 	"樣式…"+
@@ -12001,6 +12059,8 @@ var textsZhHant = i18n.NewTexts(""+
 		6,
 		12,
 		6,
+		174,
+		118,
 		6,
 		6,
 		9,
@@ -12968,6 +13028,24 @@ func Supply(lang string, t Translation) {
 	if t.FilmSpeedRate != nil {
 		s.FilmSpeedRate = t.FilmSpeedRate
 	}
+	if t.FilmsRemoveConfirmMany != nil {
+		s.FilmsRemoveConfirmMany = t.FilmsRemoveConfirmMany
+	}
+	if t.FilmsReprocessConfirmMany != nil {
+		s.FilmsReprocessConfirmMany = t.FilmsReprocessConfirmMany
+	}
+	if t.FilmsReprocessManyMessage != nil {
+		s.FilmsReprocessManyMessage = t.FilmsReprocessManyMessage
+	}
+	if t.FilmsRetranslateConfirmMany != nil {
+		s.FilmsRetranslateConfirmMany = t.FilmsRetranslateConfirmMany
+	}
+	if t.FilmsRetranslateManyMessage != nil {
+		s.FilmsRetranslateManyMessage = t.FilmsRetranslateManyMessage
+	}
+	if t.FilmsSelectedCount != nil {
+		s.FilmsSelectedCount = t.FilmsSelectedCount
+	}
 	if t.FilmStatusTranslated != nil {
 		s.FilmStatusTranslated = t.FilmStatusTranslated
 	}
@@ -13121,6 +13199,15 @@ func Supply(lang string, t Translation) {
 	if t.LibraryAddedStarting != nil {
 		s.LibraryAddedStarting = t.LibraryAddedStarting
 	}
+	if t.LibraryMovedMany != nil {
+		s.LibraryMovedMany = t.LibraryMovedMany
+	}
+	if t.LibraryMovedManyLeft != nil {
+		s.LibraryMovedManyLeft = t.LibraryMovedManyLeft
+	}
+	if t.LibraryMovedSome != nil {
+		s.LibraryMovedSome = t.LibraryMovedSome
+	}
 	if t.LibraryMoveFailed != nil {
 		s.LibraryMoveFailed = t.LibraryMoveFailed
 	}
@@ -13142,6 +13229,9 @@ func Supply(lang string, t Translation) {
 	if t.LibraryMoveStopped != nil {
 		s.LibraryMoveStopped = t.LibraryMoveStopped
 	}
+	if t.LibraryMoveStoppedMany != nil {
+		s.LibraryMoveStoppedMany = t.LibraryMoveStoppedMany
+	}
 	if t.LibraryMoveUnknown != nil {
 		s.LibraryMoveUnknown = t.LibraryMoveUnknown
 	}
@@ -13157,8 +13247,26 @@ func Supply(lang string, t Translation) {
 	if t.LibraryMoving != nil {
 		s.LibraryMoving = t.LibraryMoving
 	}
+	if t.LibraryMovingMany != nil {
+		s.LibraryMovingMany = t.LibraryMovingMany
+	}
 	if t.LibraryRemoved != nil {
 		s.LibraryRemoved = t.LibraryRemoved
+	}
+	if t.LibraryRemovedMany != nil {
+		s.LibraryRemovedMany = t.LibraryRemovedMany
+	}
+	if t.LibraryReprocessingMany != nil {
+		s.LibraryReprocessingMany = t.LibraryReprocessingMany
+	}
+	if t.LibraryReprocessingSome != nil {
+		s.LibraryReprocessingSome = t.LibraryReprocessingSome
+	}
+	if t.LibraryRetranslatingMany != nil {
+		s.LibraryRetranslatingMany = t.LibraryRetranslatingMany
+	}
+	if t.LibraryRetranslatingSome != nil {
+		s.LibraryRetranslatingSome = t.LibraryRetranslatingSome
 	}
 	if t.LibrarySaveFailed != nil {
 		s.LibrarySaveFailed = t.LibrarySaveFailed
@@ -13180,6 +13288,12 @@ func Supply(lang string, t Translation) {
 	}
 	if t.LibraryTranslateOffer != nil {
 		s.LibraryTranslateOffer = t.LibraryTranslateOffer
+	}
+	if t.LibraryTrashedMany != nil {
+		s.LibraryTrashedMany = t.LibraryTrashedMany
+	}
+	if t.LibraryTrashedSome != nil {
+		s.LibraryTrashedSome = t.LibraryTrashedSome
 	}
 	if t.LibraryTrashFailed != nil {
 		s.LibraryTrashFailed = t.LibraryTrashFailed
@@ -17282,6 +17396,273 @@ func (msgs Messages) FilmSpokenLanguageUnknown() string {
 	return msgs.text(textFilmSpokenLanguageUnknown)
 }
 
+// FilmsRemoveConfirmMany says "Remove {count, plural, one {# film} other {# films}} from the library?"
+// in the language the app shows under cx.
+//
+// Title of the dialog confirming that several selected films are removed from the library.
+func FilmsRemoveConfirmMany(cx *core.Scope, count int) string {
+	return For(cx).FilmsRemoveConfirmMany(count)
+}
+
+// FilmsRemoveConfirmMany is the package's FilmsRemoveConfirmMany in the language of msgs.
+func (msgs Messages) FilmsRemoveConfirmMany(count int) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.FilmsRemoveConfirmMany(count))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].FilmsRemoveConfirmMany; f != nil {
+			return f(count)
+		}
+		switch lang {
+		case "", "en":
+			var b strings.Builder
+			b.WriteString("Remove ")
+			switch i18n.Cardinal("en", float64(count)) {
+			case i18n.One:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+				b.WriteString(" film")
+			default:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+				b.WriteString(" films")
+			}
+			b.WriteString(" from the library?")
+			return b.String()
+		case "ja":
+			return i18n.FormatNumber("ja", float64(count)) + " 本をライブラリから取り除きますか？"
+		case "ko":
+			return i18n.FormatNumber("ko", float64(count)) + "편을 라이브러리에서 제거할까요?"
+		case "zh-Hans":
+			return "从资料库移除 " + i18n.FormatNumber("zh-Hans", float64(count)) + " 部影片？"
+		case "zh-Hant":
+			return "從資料庫移除 " + i18n.FormatNumber("zh-Hant", float64(count)) + " 部影片？"
+		}
+	}
+}
+
+// FilmsRemoveManyMessage says "Their folders, or their videos and subtitles where a folder holds other files too, will be moved to the Trash, where you can get them back. Videos kept outside the library only leave it."
+// in the language the app shows under cx.
+//
+// Message of the dialog confirming that several films are removed from the library: what goes to the Trash.
+func FilmsRemoveManyMessage(cx *core.Scope) string { return For(cx).FilmsRemoveManyMessage() }
+
+// FilmsRemoveManyMessage is the package's FilmsRemoveManyMessage in the language of msgs.
+func (msgs Messages) FilmsRemoveManyMessage() string { return msgs.text(textFilmsRemoveManyMessage) }
+
+// FilmsReprocessConfirmMany says "Process {count, plural, one {# film} other {# films}} again?"
+// in the language the app shows under cx.
+//
+// Title of the dialog confirming Process Again on several selected films.
+func FilmsReprocessConfirmMany(cx *core.Scope, count int) string {
+	return For(cx).FilmsReprocessConfirmMany(count)
+}
+
+// FilmsReprocessConfirmMany is the package's FilmsReprocessConfirmMany in the language of msgs.
+func (msgs Messages) FilmsReprocessConfirmMany(count int) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.FilmsReprocessConfirmMany(count))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].FilmsReprocessConfirmMany; f != nil {
+			return f(count)
+		}
+		switch lang {
+		case "", "en":
+			var b strings.Builder
+			b.WriteString("Process ")
+			switch i18n.Cardinal("en", float64(count)) {
+			case i18n.One:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+				b.WriteString(" film")
+			default:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+				b.WriteString(" films")
+			}
+			b.WriteString(" again?")
+			return b.String()
+		case "ja":
+			return i18n.FormatNumber("ja", float64(count)) + " 本を再処理しますか？"
+		case "ko":
+			return i18n.FormatNumber("ko", float64(count)) + "편을 다시 처리할까요?"
+		case "zh-Hans":
+			return "重新处理 " + i18n.FormatNumber("zh-Hans", float64(count)) + " 部影片？"
+		case "zh-Hant":
+			return "重新處理 " + i18n.FormatNumber("zh-Hant", float64(count)) + " 部影片？"
+		}
+	}
+}
+
+// FilmsReprocessManyMessage says "Their speech will be transcribed again and every line translated into {language}, which uses your AI service."
+// in the language the app shows under cx.
+//
+// Message of the dialog confirming Process Again on several films that are all translated into the same language.
+func FilmsReprocessManyMessage(cx *core.Scope, language string) string {
+	return For(cx).FilmsReprocessManyMessage(language)
+}
+
+// FilmsReprocessManyMessage is the package's FilmsReprocessManyMessage in the language of msgs.
+func (msgs Messages) FilmsReprocessManyMessage(language string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.FilmsReprocessManyMessage(language))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].FilmsReprocessManyMessage; f != nil {
+			return f(language)
+		}
+		switch lang {
+		case "", "en":
+			return "Their speech will be transcribed again and every line translated into " + msgs.arg(language) + ", which uses your AI service."
+		case "ja":
+			return "音声をもう一度文字起こしし、すべての行を" + language + "に翻訳し直します。AI サービスを使います。"
+		case "ko":
+			return "음성을 다시 받아쓰고 모든 줄을 " + language + "(으)로 다시 번역합니다. AI 서비스를 사용합니다."
+		case "zh-Hans":
+			return "会重新识别它们的语音，并把每一句重新翻译成" + language + "，这会用到你的 AI 服务。"
+		case "zh-Hant":
+			return "會重新辨識它們的語音，並把每一句重新翻譯成" + language + "，這會用到你的 AI 服務。"
+		}
+	}
+}
+
+// FilmsReprocessManyOwnMessage says "Their speech will be transcribed again and every line translated into the language each is translated into now, which uses your AI service."
+// in the language the app shows under cx.
+//
+// Message of the dialog confirming Process Again on several films translated into different languages: each keeps its own.
+func FilmsReprocessManyOwnMessage(cx *core.Scope) string {
+	return For(cx).FilmsReprocessManyOwnMessage()
+}
+
+// FilmsReprocessManyOwnMessage is the package's FilmsReprocessManyOwnMessage in the language of msgs.
+func (msgs Messages) FilmsReprocessManyOwnMessage() string {
+	return msgs.text(textFilmsReprocessManyOwnMessage)
+}
+
+// FilmsRetranslateConfirmMany says "Translate {count, plural, one {# film} other {# films}} into {language}?"
+// in the language the app shows under cx.
+//
+// Title of the dialog confirming Translate Again Into on several selected films when some are translated into another language.
+func FilmsRetranslateConfirmMany(cx *core.Scope, count int, language string) string {
+	return For(cx).FilmsRetranslateConfirmMany(count, language)
+}
+
+// FilmsRetranslateConfirmMany is the package's FilmsRetranslateConfirmMany in the language of msgs.
+func (msgs Messages) FilmsRetranslateConfirmMany(count int, language string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.FilmsRetranslateConfirmMany(count, language))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].FilmsRetranslateConfirmMany; f != nil {
+			return f(count, language)
+		}
+		switch lang {
+		case "", "en":
+			var b strings.Builder
+			b.WriteString("Translate ")
+			switch i18n.Cardinal("en", float64(count)) {
+			case i18n.One:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+				b.WriteString(" film")
+			default:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+				b.WriteString(" films")
+			}
+			b.WriteString(" into ")
+			b.WriteString(msgs.arg(language))
+			b.WriteString("?")
+			return b.String()
+		case "ja":
+			return i18n.FormatNumber("ja", float64(count)) + " 本を" + language + "に翻訳し直しますか？"
+		case "ko":
+			return i18n.FormatNumber("ko", float64(count)) + "편을 " + language + "(으)로 다시 번역할까요?"
+		case "zh-Hans":
+			return "把 " + i18n.FormatNumber("zh-Hans", float64(count)) + " 部影片重新翻译为" + language + "？"
+		case "zh-Hant":
+			return "把 " + i18n.FormatNumber("zh-Hant", float64(count)) + " 部影片重新翻譯為" + language + "？"
+		}
+	}
+}
+
+// FilmsRetranslateManyMessage says "The translations of {count, plural, one {# film} other {# films}} in another language will be replaced. Every line is translated again, which uses your AI service."
+// in the language the app shows under cx.
+//
+// Message of the dialog confirming Translate Again Into on several films: how many translations in another language it replaces, and what it costs.
+func FilmsRetranslateManyMessage(cx *core.Scope, count int) string {
+	return For(cx).FilmsRetranslateManyMessage(count)
+}
+
+// FilmsRetranslateManyMessage is the package's FilmsRetranslateManyMessage in the language of msgs.
+func (msgs Messages) FilmsRetranslateManyMessage(count int) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.FilmsRetranslateManyMessage(count))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].FilmsRetranslateManyMessage; f != nil {
+			return f(count)
+		}
+		switch lang {
+		case "", "en":
+			var b strings.Builder
+			b.WriteString("The translations of ")
+			switch i18n.Cardinal("en", float64(count)) {
+			case i18n.One:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+				b.WriteString(" film")
+			default:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+				b.WriteString(" films")
+			}
+			b.WriteString(" in another language will be replaced. Every line is translated again, which uses your AI service.")
+			return b.String()
+		case "ja":
+			return "そのうち " + i18n.FormatNumber("ja", float64(count)) + " 本のほかの言語の翻訳が置き換わります。すべての行を翻訳し直すので、AI サービスを使います。"
+		case "ko":
+			return "그중 " + i18n.FormatNumber("ko", float64(count)) + "편의 다른 언어 번역이 바뀝니다. 모든 줄을 다시 번역하므로 AI 서비스를 사용합니다."
+		case "zh-Hans":
+			return "其中 " + i18n.FormatNumber("zh-Hans", float64(count)) + " 部影片现有的其他语言翻译会被替换。每一句都会重新翻译，这会用到你的 AI 服务。"
+		case "zh-Hant":
+			return "其中 " + i18n.FormatNumber("zh-Hant", float64(count)) + " 部影片現有的其他語言翻譯會被取代。每一句都會重新翻譯，這會用到你的 AI 服務。"
+		}
+	}
+}
+
+// FilmsSelectedCount says "{count, plural, one {# film selected} other {# films selected}}"
+// in the language the app shows under cx.
+//
+// First row of the menu a right click or ⋯ opens on one of several selected films, dimmed: how many films the menu acts on.
+func FilmsSelectedCount(cx *core.Scope, count int) string { return For(cx).FilmsSelectedCount(count) }
+
+// FilmsSelectedCount is the package's FilmsSelectedCount in the language of msgs.
+func (msgs Messages) FilmsSelectedCount(count int) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.FilmsSelectedCount(count))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].FilmsSelectedCount; f != nil {
+			return f(count)
+		}
+		switch lang {
+		case "", "en":
+			var b strings.Builder
+			switch i18n.Cardinal("en", float64(count)) {
+			case i18n.One:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+				b.WriteString(" film selected")
+			default:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+				b.WriteString(" films selected")
+			}
+			return b.String()
+		case "ja":
+			return i18n.FormatNumber("ja", float64(count)) + " 本を選択中"
+		case "ko":
+			return i18n.FormatNumber("ko", float64(count)) + "편 선택됨"
+		case "zh-Hans":
+			return "已选择 " + i18n.FormatNumber("zh-Hans", float64(count)) + " 部影片"
+		case "zh-Hant":
+			return "已選擇 " + i18n.FormatNumber("zh-Hant", float64(count)) + " 部影片"
+		}
+	}
+}
+
 // FilmStatusTranslated says "{percent}% translated"
 // in the language the app shows under cx.
 //
@@ -20301,6 +20682,145 @@ func LibraryMoveBusy(cx *core.Scope) string { return For(cx).LibraryMoveBusy() }
 // LibraryMoveBusy is the package's LibraryMoveBusy in the language of msgs.
 func (msgs Messages) LibraryMoveBusy() string { return msgs.text(textLibraryMoveBusy) }
 
+// LibraryMovedMany says "Moved {count, plural, one {# film} other {# films}} to {library}"
+// in the language the app shows under cx.
+//
+// Message bar after several selected films were moved to another library.
+func LibraryMovedMany(cx *core.Scope, count int, library string) string {
+	return For(cx).LibraryMovedMany(count, library)
+}
+
+// LibraryMovedMany is the package's LibraryMovedMany in the language of msgs.
+func (msgs Messages) LibraryMovedMany(count int, library string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.LibraryMovedMany(count, library))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].LibraryMovedMany; f != nil {
+			return f(count, library)
+		}
+		switch lang {
+		case "", "en":
+			var b strings.Builder
+			b.WriteString("Moved ")
+			switch i18n.Cardinal("en", float64(count)) {
+			case i18n.One:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+				b.WriteString(" film")
+			default:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+				b.WriteString(" films")
+			}
+			b.WriteString(" to ")
+			b.WriteString(msgs.arg(library))
+			return b.String()
+		case "ja":
+			return i18n.FormatNumber("ja", float64(count)) + " 本を「" + library + "」に移動しました"
+		case "ko":
+			return i18n.FormatNumber("ko", float64(count)) + "편을 ‘" + library + "’(으)로 옮겼습니다"
+		case "zh-Hans":
+			return "已把 " + i18n.FormatNumber("zh-Hans", float64(count)) + " 部影片移到「" + library + "」"
+		case "zh-Hant":
+			return "已把 " + i18n.FormatNumber("zh-Hant", float64(count)) + " 部影片移到「" + library + "」"
+		}
+	}
+}
+
+// LibraryMovedManyLeft says "Moved {count, plural, one {# film} other {# films}} to {library}, but some of their files couldn't be removed from {from}."
+// in the language the app shows under cx.
+//
+// Message bar after several films were copied to a library on another drive but some of their files could not be deleted from the library they came from.
+func LibraryMovedManyLeft(cx *core.Scope, count int, library string, from string) string {
+	return For(cx).LibraryMovedManyLeft(count, library, from)
+}
+
+// LibraryMovedManyLeft is the package's LibraryMovedManyLeft in the language of msgs.
+func (msgs Messages) LibraryMovedManyLeft(count int, library string, from string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.LibraryMovedManyLeft(count, library, from))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].LibraryMovedManyLeft; f != nil {
+			return f(count, library, from)
+		}
+		switch lang {
+		case "", "en":
+			var b strings.Builder
+			b.WriteString("Moved ")
+			switch i18n.Cardinal("en", float64(count)) {
+			case i18n.One:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+				b.WriteString(" film")
+			default:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+				b.WriteString(" films")
+			}
+			b.WriteString(" to ")
+			b.WriteString(msgs.arg(library))
+			b.WriteString(", but some of their files couldn't be removed from ")
+			b.WriteString(msgs.arg(from))
+			b.WriteString(".")
+			return b.String()
+		case "ja":
+			return i18n.FormatNumber("ja", float64(count)) + " 本を「" + library + "」に移動しましたが、一部のファイルを「" + from + "」から削除できませんでした。"
+		case "ko":
+			return i18n.FormatNumber("ko", float64(count)) + "편을 ‘" + library + "’(으)로 옮겼지만 일부 파일을 ‘" + from + "’에서 지우지 못했습니다."
+		case "zh-Hans":
+			return "已把 " + i18n.FormatNumber("zh-Hans", float64(count)) + " 部影片移到「" + library + "」，但有些文件没能从「" + from + "」删除。"
+		case "zh-Hant":
+			return "已把 " + i18n.FormatNumber("zh-Hant", float64(count)) + " 部影片移到「" + library + "」，但有些檔案沒能從「" + from + "」刪除。"
+		}
+	}
+}
+
+// LibraryMovedSome says "Moved {done} of {total, plural, one {# film} other {# films}} to {library}. {reason}"
+// in the language the app shows under cx.
+//
+// Message bar after several films were to be moved to another library and some could not be: how many were, then why the first that was not failed, a sentence of its own.
+func LibraryMovedSome(cx *core.Scope, done int, total int, library string, reason string) string {
+	return For(cx).LibraryMovedSome(done, total, library, reason)
+}
+
+// LibraryMovedSome is the package's LibraryMovedSome in the language of msgs.
+func (msgs Messages) LibraryMovedSome(done int, total int, library string, reason string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.LibraryMovedSome(done, total, library, reason))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].LibraryMovedSome; f != nil {
+			return f(done, total, library, reason)
+		}
+		switch lang {
+		case "", "en":
+			var b strings.Builder
+			b.WriteString("Moved ")
+			b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(done))))
+			b.WriteString(" of ")
+			switch i18n.Cardinal("en", float64(total)) {
+			case i18n.One:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(total))))
+				b.WriteString(" film")
+			default:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(total))))
+				b.WriteString(" films")
+			}
+			b.WriteString(" to ")
+			b.WriteString(msgs.arg(library))
+			b.WriteString(". ")
+			b.WriteString(msgs.arg(reason))
+			return b.String()
+		case "ja":
+			return i18n.FormatNumber("ja", float64(total)) + " 本のうち " + i18n.FormatNumber("ja", float64(done)) + " 本を「" + library + "」に移動しました。" + reason
+		case "ko":
+			return i18n.FormatNumber("ko", float64(total)) + "편 중 " + i18n.FormatNumber("ko", float64(done)) + "편을 ‘" + library + "’(으)로 옮겼습니다. " + reason
+		case "zh-Hans":
+			return i18n.FormatNumber("zh-Hans", float64(total)) + " 部影片中已有 " + i18n.FormatNumber("zh-Hans", float64(done)) + " 部移到「" + library + "」。" + reason
+		case "zh-Hant":
+			return i18n.FormatNumber("zh-Hant", float64(total)) + " 部影片中已有 " + i18n.FormatNumber("zh-Hant", float64(done)) + " 部移到「" + library + "」。" + reason
+		}
+	}
+}
+
 // LibraryMoveFailed says "Couldn't move “{name}” to {library}: {error}. Its files are where they were."
 // in the language the app shows under cx.
 //
@@ -20530,6 +21050,51 @@ func (msgs Messages) LibraryMoveStopped(name string) string {
 	}
 }
 
+// LibraryMoveStoppedMany says "Stopped moving films to {library}. {done, plural, one {# film had moved} other {# films had moved}}; the rest are where they were."
+// in the language the app shows under cx.
+//
+// Message bar after moving several films to a library on another drive was cancelled once some had moved; Undo moves those back.
+func LibraryMoveStoppedMany(cx *core.Scope, done int, library string) string {
+	return For(cx).LibraryMoveStoppedMany(done, library)
+}
+
+// LibraryMoveStoppedMany is the package's LibraryMoveStoppedMany in the language of msgs.
+func (msgs Messages) LibraryMoveStoppedMany(done int, library string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.LibraryMoveStoppedMany(done, library))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].LibraryMoveStoppedMany; f != nil {
+			return f(done, library)
+		}
+		switch lang {
+		case "", "en":
+			var b strings.Builder
+			b.WriteString("Stopped moving films to ")
+			b.WriteString(msgs.arg(library))
+			b.WriteString(". ")
+			switch i18n.Cardinal("en", float64(done)) {
+			case i18n.One:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(done))))
+				b.WriteString(" film had moved")
+			default:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(done))))
+				b.WriteString(" films had moved")
+			}
+			b.WriteString("; the rest are where they were.")
+			return b.String()
+		case "ja":
+			return "「" + library + "」への移動を止めました。" + i18n.FormatNumber("ja", float64(done)) + " 本は移動済みで、残りは元の場所にあります。"
+		case "ko":
+			return "‘" + library + "’(으)로 옮기기를 멈췄습니다. " + i18n.FormatNumber("ko", float64(done)) + "편은 이미 옮겼고 나머지는 원래 자리에 있습니다."
+		case "zh-Hans":
+			return "已停止把影片移到「" + library + "」。已经移过去 " + i18n.FormatNumber("zh-Hans", float64(done)) + " 部，其余的留在原处。"
+		case "zh-Hant":
+			return "已停止把影片移到「" + library + "」。已經移過去 " + i18n.FormatNumber("zh-Hant", float64(done)) + " 部，其餘的留在原處。"
+		}
+	}
+}
+
 // LibraryMoveUnknown says "Kando doesn't know a library at {path}."
 // in the language the app shows under cx.
 //
@@ -20688,6 +21253,38 @@ func (msgs Messages) LibraryMoving(name string, library string, percent int) str
 	}
 }
 
+// LibraryMovingMany says "Moving film {at} of {total} to {library}… {percent}%"
+// in the language the app shows under cx.
+//
+// Message bar while several selected films are moved to a library on another drive, one after another: which one is being copied, of how many, and how much of it is copied.
+func LibraryMovingMany(cx *core.Scope, at int, total int, library string, percent int) string {
+	return For(cx).LibraryMovingMany(at, total, library, percent)
+}
+
+// LibraryMovingMany is the package's LibraryMovingMany in the language of msgs.
+func (msgs Messages) LibraryMovingMany(at int, total int, library string, percent int) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.LibraryMovingMany(at, total, library, percent))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].LibraryMovingMany; f != nil {
+			return f(at, total, library, percent)
+		}
+		switch lang {
+		case "", "en":
+			return "Moving film " + msgs.arg(i18n.FormatNumber("en", float64(at))) + " of " + msgs.arg(i18n.FormatNumber("en", float64(total))) + " to " + msgs.arg(library) + "… " + msgs.arg(i18n.FormatNumber("en", float64(percent))) + "%"
+		case "ja":
+			return "「" + library + "」に移動中（" + i18n.FormatNumber("ja", float64(at)) + " / " + i18n.FormatNumber("ja", float64(total)) + " 本目）… " + i18n.FormatNumber("ja", float64(percent)) + "%"
+		case "ko":
+			return "‘" + library + "’(으)로 옮기는 중(" + i18n.FormatNumber("ko", float64(at)) + " / " + i18n.FormatNumber("ko", float64(total)) + "번째)… " + i18n.FormatNumber("ko", float64(percent)) + "%"
+		case "zh-Hans":
+			return "正在把第 " + i18n.FormatNumber("zh-Hans", float64(at)) + " / " + i18n.FormatNumber("zh-Hans", float64(total)) + " 部影片移到「" + library + "」… " + i18n.FormatNumber("zh-Hans", float64(percent)) + "%"
+		case "zh-Hant":
+			return "正在把第 " + i18n.FormatNumber("zh-Hant", float64(at)) + " / " + i18n.FormatNumber("zh-Hant", float64(total)) + " 部影片移到「" + library + "」… " + i18n.FormatNumber("zh-Hant", float64(percent)) + "%"
+		}
+	}
+}
+
 // LibraryNameEmpty says "Enter a name for the library."
 // in the language the app shows under cx.
 //
@@ -20795,6 +21392,229 @@ func (msgs Messages) LibraryRemoved(name string) string {
 			return "已从资料库移除「" + name + "」"
 		case "zh-Hant":
 			return "已從資料庫移除「" + name + "」"
+		}
+	}
+}
+
+// LibraryRemovedMany says "Removed {count, plural, one {# film} other {# films}} from the library"
+// in the language the app shows under cx.
+//
+// Message bar after several selected films were taken off the library, some or all of them videos kept outside it, which stay where they are.
+func LibraryRemovedMany(cx *core.Scope, count int) string { return For(cx).LibraryRemovedMany(count) }
+
+// LibraryRemovedMany is the package's LibraryRemovedMany in the language of msgs.
+func (msgs Messages) LibraryRemovedMany(count int) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.LibraryRemovedMany(count))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].LibraryRemovedMany; f != nil {
+			return f(count)
+		}
+		switch lang {
+		case "", "en":
+			var b strings.Builder
+			b.WriteString("Removed ")
+			switch i18n.Cardinal("en", float64(count)) {
+			case i18n.One:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+				b.WriteString(" film")
+			default:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+				b.WriteString(" films")
+			}
+			b.WriteString(" from the library")
+			return b.String()
+		case "ja":
+			return i18n.FormatNumber("ja", float64(count)) + " 本をライブラリから取り除きました"
+		case "ko":
+			return "라이브러리에서 " + i18n.FormatNumber("ko", float64(count)) + "편을 제거했습니다"
+		case "zh-Hans":
+			return "已从资料库移除 " + i18n.FormatNumber("zh-Hans", float64(count)) + " 部影片"
+		case "zh-Hant":
+			return "已從資料庫移除 " + i18n.FormatNumber("zh-Hant", float64(count)) + " 部影片"
+		}
+	}
+}
+
+// LibraryReprocessingMany says "Processing {count, plural, one {# film} other {# films}} again"
+// in the language the app shows under cx.
+//
+// Message bar after several selected films were queued to be processed again.
+func LibraryReprocessingMany(cx *core.Scope, count int) string {
+	return For(cx).LibraryReprocessingMany(count)
+}
+
+// LibraryReprocessingMany is the package's LibraryReprocessingMany in the language of msgs.
+func (msgs Messages) LibraryReprocessingMany(count int) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.LibraryReprocessingMany(count))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].LibraryReprocessingMany; f != nil {
+			return f(count)
+		}
+		switch lang {
+		case "", "en":
+			var b strings.Builder
+			b.WriteString("Processing ")
+			switch i18n.Cardinal("en", float64(count)) {
+			case i18n.One:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+				b.WriteString(" film")
+			default:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+				b.WriteString(" films")
+			}
+			b.WriteString(" again")
+			return b.String()
+		case "ja":
+			return i18n.FormatNumber("ja", float64(count)) + " 本を再処理の待ち行列に入れました"
+		case "ko":
+			return i18n.FormatNumber("ko", float64(count)) + "편을 다시 처리하도록 대기열에 넣었습니다"
+		case "zh-Hans":
+			return "已把 " + i18n.FormatNumber("zh-Hans", float64(count)) + " 部影片加入队列重新处理"
+		case "zh-Hant":
+			return "已把 " + i18n.FormatNumber("zh-Hant", float64(count)) + " 部影片加入佇列重新處理"
+		}
+	}
+}
+
+// LibraryReprocessingSome says "Processing {done} of {total, plural, one {# film} other {# films}} again. {reason}"
+// in the language the app shows under cx.
+//
+// Message bar after several films were to be processed again and some could not be queued: how many were, then why the first that was not, a sentence of its own.
+func LibraryReprocessingSome(cx *core.Scope, done int, total int, reason string) string {
+	return For(cx).LibraryReprocessingSome(done, total, reason)
+}
+
+// LibraryReprocessingSome is the package's LibraryReprocessingSome in the language of msgs.
+func (msgs Messages) LibraryReprocessingSome(done int, total int, reason string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.LibraryReprocessingSome(done, total, reason))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].LibraryReprocessingSome; f != nil {
+			return f(done, total, reason)
+		}
+		switch lang {
+		case "", "en":
+			var b strings.Builder
+			b.WriteString("Processing ")
+			b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(done))))
+			b.WriteString(" of ")
+			switch i18n.Cardinal("en", float64(total)) {
+			case i18n.One:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(total))))
+				b.WriteString(" film")
+			default:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(total))))
+				b.WriteString(" films")
+			}
+			b.WriteString(" again. ")
+			b.WriteString(msgs.arg(reason))
+			return b.String()
+		case "ja":
+			return i18n.FormatNumber("ja", float64(total)) + " 本のうち " + i18n.FormatNumber("ja", float64(done)) + " 本を再処理の待ち行列に入れました。" + reason
+		case "ko":
+			return i18n.FormatNumber("ko", float64(total)) + "편 중 " + i18n.FormatNumber("ko", float64(done)) + "편을 다시 처리하도록 대기열에 넣었습니다. " + reason
+		case "zh-Hans":
+			return i18n.FormatNumber("zh-Hans", float64(total)) + " 部影片中已有 " + i18n.FormatNumber("zh-Hans", float64(done)) + " 部加入队列重新处理。" + reason
+		case "zh-Hant":
+			return i18n.FormatNumber("zh-Hant", float64(total)) + " 部影片中已有 " + i18n.FormatNumber("zh-Hant", float64(done)) + " 部加入佇列重新處理。" + reason
+		}
+	}
+}
+
+// LibraryRetranslatingMany says "Translating {count, plural, one {# film} other {# films}} into {language} again"
+// in the language the app shows under cx.
+//
+// Message bar after several selected films were queued to be translated again into a language.
+func LibraryRetranslatingMany(cx *core.Scope, count int, language string) string {
+	return For(cx).LibraryRetranslatingMany(count, language)
+}
+
+// LibraryRetranslatingMany is the package's LibraryRetranslatingMany in the language of msgs.
+func (msgs Messages) LibraryRetranslatingMany(count int, language string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.LibraryRetranslatingMany(count, language))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].LibraryRetranslatingMany; f != nil {
+			return f(count, language)
+		}
+		switch lang {
+		case "", "en":
+			var b strings.Builder
+			b.WriteString("Translating ")
+			switch i18n.Cardinal("en", float64(count)) {
+			case i18n.One:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+				b.WriteString(" film")
+			default:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+				b.WriteString(" films")
+			}
+			b.WriteString(" into ")
+			b.WriteString(msgs.arg(language))
+			b.WriteString(" again")
+			return b.String()
+		case "ja":
+			return i18n.FormatNumber("ja", float64(count)) + " 本を" + language + "に翻訳し直す待ち行列に入れました"
+		case "ko":
+			return i18n.FormatNumber("ko", float64(count)) + "편을 " + language + "(으)로 다시 번역하도록 대기열에 넣었습니다"
+		case "zh-Hans":
+			return "已把 " + i18n.FormatNumber("zh-Hans", float64(count)) + " 部影片加入队列，重新翻译为" + language
+		case "zh-Hant":
+			return "已把 " + i18n.FormatNumber("zh-Hant", float64(count)) + " 部影片加入佇列，重新翻譯為" + language
+		}
+	}
+}
+
+// LibraryRetranslatingSome says "Translating {done} of {total, plural, one {# film} other {# films}} into {language} again. {reason}"
+// in the language the app shows under cx.
+//
+// Message bar after several films were to be translated again and some could not be queued: how many were, then why the first that was not, a sentence of its own.
+func LibraryRetranslatingSome(cx *core.Scope, done int, total int, language string, reason string) string {
+	return For(cx).LibraryRetranslatingSome(done, total, language, reason)
+}
+
+// LibraryRetranslatingSome is the package's LibraryRetranslatingSome in the language of msgs.
+func (msgs Messages) LibraryRetranslatingSome(done int, total int, language string, reason string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.LibraryRetranslatingSome(done, total, language, reason))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].LibraryRetranslatingSome; f != nil {
+			return f(done, total, language, reason)
+		}
+		switch lang {
+		case "", "en":
+			var b strings.Builder
+			b.WriteString("Translating ")
+			b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(done))))
+			b.WriteString(" of ")
+			switch i18n.Cardinal("en", float64(total)) {
+			case i18n.One:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(total))))
+				b.WriteString(" film")
+			default:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(total))))
+				b.WriteString(" films")
+			}
+			b.WriteString(" into ")
+			b.WriteString(msgs.arg(language))
+			b.WriteString(" again. ")
+			b.WriteString(msgs.arg(reason))
+			return b.String()
+		case "ja":
+			return i18n.FormatNumber("ja", float64(total)) + " 本のうち " + i18n.FormatNumber("ja", float64(done)) + " 本を" + language + "に翻訳し直す待ち行列に入れました。" + reason
+		case "ko":
+			return i18n.FormatNumber("ko", float64(total)) + "편 중 " + i18n.FormatNumber("ko", float64(done)) + "편을 " + language + "(으)로 다시 번역하도록 대기열에 넣었습니다. " + reason
+		case "zh-Hans":
+			return i18n.FormatNumber("zh-Hans", float64(total)) + " 部影片中已有 " + i18n.FormatNumber("zh-Hans", float64(done)) + " 部加入队列，重新翻译为" + language + "。" + reason
+		case "zh-Hant":
+			return i18n.FormatNumber("zh-Hant", float64(total)) + " 部影片中已有 " + i18n.FormatNumber("zh-Hant", float64(done)) + " 部加入佇列，重新翻譯為" + language + "。" + reason
 		}
 	}
 }
@@ -21069,6 +21889,93 @@ func (msgs Messages) LibraryTranslateOffer(count int) string {
 			return i18n.FormatNumber("zh-Hans", float64(count)) + " 部影片的字幕只有原文。"
 		case "zh-Hant":
 			return i18n.FormatNumber("zh-Hant", float64(count)) + " 部影片的字幕只有原文。"
+		}
+	}
+}
+
+// LibraryTrashedMany says "Moved {count, plural, one {# film} other {# films}} to the Trash"
+// in the language the app shows under cx.
+//
+// Message bar after several selected films were moved to the Trash.
+func LibraryTrashedMany(cx *core.Scope, count int) string { return For(cx).LibraryTrashedMany(count) }
+
+// LibraryTrashedMany is the package's LibraryTrashedMany in the language of msgs.
+func (msgs Messages) LibraryTrashedMany(count int) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.LibraryTrashedMany(count))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].LibraryTrashedMany; f != nil {
+			return f(count)
+		}
+		switch lang {
+		case "", "en":
+			var b strings.Builder
+			b.WriteString("Moved ")
+			switch i18n.Cardinal("en", float64(count)) {
+			case i18n.One:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+				b.WriteString(" film")
+			default:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+				b.WriteString(" films")
+			}
+			b.WriteString(" to the Trash")
+			return b.String()
+		case "ja":
+			return i18n.FormatNumber("ja", float64(count)) + " 本をゴミ箱に入れました"
+		case "ko":
+			return i18n.FormatNumber("ko", float64(count)) + "편을 휴지통으로 옮겼습니다"
+		case "zh-Hans":
+			return "已把 " + i18n.FormatNumber("zh-Hans", float64(count)) + " 部影片移到废纸篓"
+		case "zh-Hant":
+			return "已把 " + i18n.FormatNumber("zh-Hant", float64(count)) + " 部影片移到垃圾桶"
+		}
+	}
+}
+
+// LibraryTrashedSome says "Removed {done} of {total, plural, one {# film} other {# films}} from the library. {reason}"
+// in the language the app shows under cx.
+//
+// Message bar after several films were to be removed from the library and some could not be: how many were, then why the first that was not failed, a sentence of its own.
+func LibraryTrashedSome(cx *core.Scope, done int, total int, reason string) string {
+	return For(cx).LibraryTrashedSome(done, total, reason)
+}
+
+// LibraryTrashedSome is the package's LibraryTrashedSome in the language of msgs.
+func (msgs Messages) LibraryTrashedSome(done int, total int, reason string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.LibraryTrashedSome(done, total, reason))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].LibraryTrashedSome; f != nil {
+			return f(done, total, reason)
+		}
+		switch lang {
+		case "", "en":
+			var b strings.Builder
+			b.WriteString("Removed ")
+			b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(done))))
+			b.WriteString(" of ")
+			switch i18n.Cardinal("en", float64(total)) {
+			case i18n.One:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(total))))
+				b.WriteString(" film")
+			default:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(total))))
+				b.WriteString(" films")
+			}
+			b.WriteString(" from the library. ")
+			b.WriteString(msgs.arg(reason))
+			return b.String()
+		case "ja":
+			return i18n.FormatNumber("ja", float64(total)) + " 本のうち " + i18n.FormatNumber("ja", float64(done)) + " 本をライブラリから取り除きました。" + reason
+		case "ko":
+			return i18n.FormatNumber("ko", float64(total)) + "편 중 " + i18n.FormatNumber("ko", float64(done)) + "편을 라이브러리에서 제거했습니다. " + reason
+		case "zh-Hans":
+			return i18n.FormatNumber("zh-Hans", float64(total)) + " 部影片中已从资料库移除 " + i18n.FormatNumber("zh-Hans", float64(done)) + " 部。" + reason
+		case "zh-Hant":
+			return i18n.FormatNumber("zh-Hant", float64(total)) + " 部影片中已從資料庫移除 " + i18n.FormatNumber("zh-Hant", float64(done)) + " 部。" + reason
 		}
 	}
 }

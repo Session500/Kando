@@ -887,6 +887,43 @@ filmSpokenLanguage:
 filmSpokenLanguageUnknown:
   message: "Unknown"
   description: "Shown in a film's Spoken Language drop-down when the speech recognition did not say which language it heard and the user named none."
+filmsRemoveConfirmMany:
+  message: "Remove {count, plural, one {# film} other {# films}} from the library?"
+  description: "Title of the dialog confirming that several selected films are removed from the library."
+  placeholders:
+    count: { type: "int", example: "12" }
+filmsRemoveManyMessage:
+  message: "Their folders, or their videos and subtitles where a folder holds other files too, will be moved to the Trash, where you can get them back. Videos kept outside the library only leave it."
+  description: "Message of the dialog confirming that several films are removed from the library: what goes to the Trash."
+filmsReprocessConfirmMany:
+  message: "Process {count, plural, one {# film} other {# films}} again?"
+  description: "Title of the dialog confirming Process Again on several selected films."
+  placeholders:
+    count: { type: "int", example: "12" }
+filmsReprocessManyMessage:
+  message: "Their speech will be transcribed again and every line translated into {language}, which uses your AI service."
+  description: "Message of the dialog confirming Process Again on several films that are all translated into the same language."
+  placeholders:
+    language: { type: "String", example: "Simplified Chinese" }
+filmsReprocessManyOwnMessage:
+  message: "Their speech will be transcribed again and every line translated into the language each is translated into now, which uses your AI service."
+  description: "Message of the dialog confirming Process Again on several films translated into different languages: each keeps its own."
+filmsRetranslateConfirmMany:
+  message: "Translate {count, plural, one {# film} other {# films}} into {language}?"
+  description: "Title of the dialog confirming Translate Again Into on several selected films when some are translated into another language."
+  placeholders:
+    count: { type: "int", example: "12" }
+    language: { type: "String", example: "Japanese" }
+filmsRetranslateManyMessage:
+  message: "The translations of {count, plural, one {# film} other {# films}} in another language will be replaced. Every line is translated again, which uses your AI service."
+  description: "Message of the dialog confirming Translate Again Into on several films: how many translations in another language it replaces, and what it costs."
+  placeholders:
+    count: { type: "int", example: "3" }
+filmsSelectedCount:
+  message: "{count, plural, one {# film selected} other {# films selected}}"
+  description: "First row of the menu a right click or ⋯ opens on one of several selected films, dimmed: how many films the menu acts on."
+  placeholders:
+    count: { type: "int", example: "12" }
 filmStatusTranslated:
   message: "{percent}% translated"
   description: "Line under the film's title in the player: how much of its subtitles is translated."
@@ -1541,6 +1578,27 @@ libraryImportTitle:
 libraryMoveBusy:
   message: "Another film is being moved. Try again once it's done."
   description: "Message bar when a film is to be moved to another library while another one is still being copied to a library on another drive."
+libraryMovedMany:
+  message: "Moved {count, plural, one {# film} other {# films}} to {library}"
+  description: "Message bar after several selected films were moved to another library."
+  placeholders:
+    count: { type: "int", example: "12" }
+    library: { type: "String", example: "English Listening" }
+libraryMovedManyLeft:
+  message: "Moved {count, plural, one {# film} other {# films}} to {library}, but some of their files couldn't be removed from {from}."
+  description: "Message bar after several films were copied to a library on another drive but some of their files could not be deleted from the library they came from."
+  placeholders:
+    count: { type: "int", example: "12" }
+    library: { type: "String", example: "English Listening" }
+    from: { type: "String", example: "My Films" }
+libraryMovedSome:
+  message: "Moved {done} of {total, plural, one {# film} other {# films}} to {library}. {reason}"
+  description: "Message bar after several films were to be moved to another library and some could not be: how many were, then why the first that was not failed, a sentence of its own."
+  placeholders:
+    done: { type: "int", example: "10" }
+    total: { type: "int", example: "12" }
+    library: { type: "String", example: "English Listening" }
+    reason: { type: "String", example: "“Learn Rust” is being processed. Move it once it's done." }
 libraryMoveFailed:
   message: "Couldn't move “{name}” to {library}: {error}. Its files are where they were."
   description: "Message bar when a film could not be moved to another library; nothing moved. error is the system's reason."
@@ -1582,6 +1640,12 @@ libraryMoveStopped:
   description: "Message bar after the copy of a film to a library on another drive was cancelled; nothing moved."
   placeholders:
     name: { type: "String", example: "Learn Rust" }
+libraryMoveStoppedMany:
+  message: "Stopped moving films to {library}. {done, plural, one {# film had moved} other {# films had moved}}; the rest are where they were."
+  description: "Message bar after moving several films to a library on another drive was cancelled once some had moved; Undo moves those back."
+  placeholders:
+    done: { type: "int", example: "3" }
+    library: { type: "String", example: "English Listening" }
 libraryMoveUnknown:
   message: "Kando doesn't know a library at {path}."
   description: "Error when a film is to be moved to a folder that is not one of the libraries Kando knows. path is the folder."
@@ -1610,6 +1674,14 @@ libraryMoving:
   description: "Message bar while a film is being copied to a library on another drive, with how much is copied."
   placeholders:
     name: { type: "String", example: "Learn Rust" }
+    library: { type: "String", example: "English Listening" }
+    percent: { type: "int", example: "42" }
+libraryMovingMany:
+  message: "Moving film {at} of {total} to {library}… {percent}%"
+  description: "Message bar while several selected films are moved to a library on another drive, one after another: which one is being copied, of how many, and how much of it is copied."
+  placeholders:
+    at: { type: "int", example: "3" }
+    total: { type: "int", example: "12" }
     library: { type: "String", example: "English Listening" }
     percent: { type: "int", example: "42" }
 libraryNameEmpty:
@@ -1644,6 +1716,37 @@ libraryRemoved:
   description: "Message bar after a film whose video is outside the library was taken off the library."
   placeholders:
     name: { type: "String", example: "Learn Rust" }
+libraryRemovedMany:
+  message: "Removed {count, plural, one {# film} other {# films}} from the library"
+  description: "Message bar after several selected films were taken off the library, some or all of them videos kept outside it, which stay where they are."
+  placeholders:
+    count: { type: "int", example: "12" }
+libraryReprocessingMany:
+  message: "Processing {count, plural, one {# film} other {# films}} again"
+  description: "Message bar after several selected films were queued to be processed again."
+  placeholders:
+    count: { type: "int", example: "12" }
+libraryReprocessingSome:
+  message: "Processing {done} of {total, plural, one {# film} other {# films}} again. {reason}"
+  description: "Message bar after several films were to be processed again and some could not be queued: how many were, then why the first that was not, a sentence of its own."
+  placeholders:
+    done: { type: "int", example: "10" }
+    total: { type: "int", example: "12" }
+    reason: { type: "String", example: "Choose a subtitle language first." }
+libraryRetranslatingMany:
+  message: "Translating {count, plural, one {# film} other {# films}} into {language} again"
+  description: "Message bar after several selected films were queued to be translated again into a language."
+  placeholders:
+    count: { type: "int", example: "12" }
+    language: { type: "String", example: "Japanese" }
+libraryRetranslatingSome:
+  message: "Translating {done} of {total, plural, one {# film} other {# films}} into {language} again. {reason}"
+  description: "Message bar after several films were to be translated again and some could not be queued: how many were, then why the first that was not, a sentence of its own."
+  placeholders:
+    done: { type: "int", example: "10" }
+    total: { type: "int", example: "12" }
+    language: { type: "String", example: "Japanese" }
+    reason: { type: "String", example: "Choose a subtitle language first." }
 libraryRevealNotOpened:
   message: "Couldn't open the enclosing folder: no app opened it."
   description: "Error when the folder holding a file could not be opened because the system had no app open it."
@@ -1689,6 +1792,18 @@ libraryTranslateOffer:
   description: "Message bar once an AI service is set up while finished films of the open library have no translation, their subtitles being the original lines only. Comes with a Translate button that translates all of them."
   placeholders:
     count: { type: "int", example: "3" }
+libraryTrashedMany:
+  message: "Moved {count, plural, one {# film} other {# films}} to the Trash"
+  description: "Message bar after several selected films were moved to the Trash."
+  placeholders:
+    count: { type: "int", example: "12" }
+libraryTrashedSome:
+  message: "Removed {done} of {total, plural, one {# film} other {# films}} from the library. {reason}"
+  description: "Message bar after several films were to be removed from the library and some could not be: how many were, then why the first that was not failed, a sentence of its own."
+  placeholders:
+    done: { type: "int", example: "10" }
+    total: { type: "int", example: "12" }
+    reason: { type: "String", example: "Couldn't move “Learn Rust” to the Trash. Its files are where they were." }
 libraryTrashFailed:
   message: "Couldn't move “{name}” to the Trash. Its files are where they were."
   description: "Message bar when a film could not be moved to the Trash: its volume has no Trash, a file was gone, or the system refused; nothing was deleted. The system's reason is in Kando's log, not in the sentence."

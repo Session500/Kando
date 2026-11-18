@@ -185,7 +185,7 @@ func listDate(m locales.Messages, at, now time.Time) string {
 	return m.FilmsListDate(at)
 }
 
-// filmList is the done films as a table, Finder's list view: one row a film, a small poster and the title, then how long it is, how far it was watched, its subtitles, the language heard, where it came from and when it last played, the columns that do not fit left out. A click selects a row, a double click or Return opens its film, and a right click offers the film's menu (filmMenu). The headings of the columns that sort sort by them, as the sort menu does, and a heading pressed again turns the order around. The selection follows its film when the order changes. done is in the order chosen already.
+// filmList is the done films as a table, Finder's list view: one row a film, a small poster and the title, then how long it is, how far it was watched, its subtitles, the language heard, where it came from and when it last played, the columns that do not fit left out. A click selects a row, a ⌘-click adds it to the selection or leaves it out, a ⇧-click selects the rows from the one selected last to it, and ⇧↑ and ⇧↓ grow or shrink the rows selected from it, as in Finder (Selection, which the app keeps and the menu bar acts on too); a double click or Return opens a film, and a right click offers the selection's menu on one of several selected, else the film's own (menuOf). The headings of the columns that sort sort by them, as the sort menu does, and a heading pressed again turns the order around. The selection follows its films when the order changes. done is in the order chosen already.
 type filmList struct {
 	a    App
 	done func() []Film
@@ -197,8 +197,10 @@ func (l filmList) Render(cx *core.Scope) core.Node {
 	colors, k := ui.ColorsOf(cx), theme.Of(cx)
 	width := core.NewSignal(cx, core.Points(0))
 	shown := core.NewMemoFunc(cx, func() []string { return listFits(width.Get()) }, slices.Equal[[]string]).Get
-	// selected is the key of the film selected, so the selection stays with it as the films move.
-	selected := core.NewSignal(cx, "")
+	// The table selects a single row, the selection's lead; Kando keeps the films selected by key, so the selection stays with them as they move, and draws the other rows of it selected (RowStyle).
+	// TODO(nsgo): give datatable.DataTable a selection of several rows, which assistive technology reads as selected, and ⇧-arrows that extend it while the table has the keyboard; the table selects one row, the others selected look so (RowStyle) and only it is said to be, and ⇧↑ and ⇧↓ are bound while the list shows rather than while the table has the keyboard
+	sel := a.Selection()
+	ref := &datatable.Ref{}
 	itemAt := func(row int) (Film, bool) {
 		items := done()
 		if row < 0 || row >= len(items) {
@@ -275,24 +277,55 @@ func (l filmList) Render(cx *core.Scope) core.Node {
 			a.SetLibrarySort(current.Then(order))
 		}
 	})
+	rowOf := func(key string) int { return slices.IndexFunc(done(), func(item Film) bool { return item.Key == key }) }
+	lead := live.Func(a, func() string { return sel.Lead() })
 	selection := func() datatable.Selection {
-		key := selected.Get()
-		if row := slices.IndexFunc(done(), func(item Film) bool { return item.Key == key }); key != "" && row >= 0 {
+		if row := rowOf(lead()); row >= 0 {
 			return datatable.Selection{Row: row, Column: -1}
 		}
 		return datatable.NoTableSelection
 	}
-	selectRow := func(row int) {
-		item, _ := itemAt(row)
-		selected.Set(item.Key)
+	selected := live.Func(a, func() []string { return sel.Keys })
+	rowStyle := func(row int) core.Style {
+		if item, ok := itemAt(row); ok && slices.Contains(selected(), item.Key) {
+			return core.Style{Background: ui.Alpha(colors.Accent(), 0.16)}
+		}
+		return core.Style{}
 	}
+	// The table's own selection moves with the arrow keys, and Escape empties it: the selection is then that row alone, or none.
+	selectRow := live.On(a, func(s datatable.Selection) {
+		if item, ok := itemAt(s.Row); ok {
+			sel.Only(item.Key)
+		} else {
+			sel.Clear()
+		}
+	})
+	// A click selects its row alone, which the table does not report when its row is the one it selects already; ⌘ and ⇧ held select as Finder does (selectPress), the table leaving its own selection to Kando (NoSelectOnModifierPress).
+	press := live.On(a, func(p datatable.Press) {
+		item, ok := itemAt(p.Row)
+		if !ok {
+			return
+		}
+		if !selectPress(cx, sel, item.Key, Keys(done()), p.Modifiers) {
+			sel.Only(item.Key)
+		}
+	})
+	step := func(by int) func() {
+		return live.Do(a, func() {
+			if row := rowOf(sel.Step(Keys(core.Untracked(cx, done)), by)); row >= 0 {
+				ref.ScrollToRow(row, false)
+			}
+		})
+	}
+	cx.OnKeyWith("shift+up", core.KeyOptions{When: core.KeyNotEditing, Repeat: true}, step(-1))
+	cx.OnKeyWith("shift+down", core.KeyOptions{When: core.KeyNotEditing, Repeat: true}, step(1))
 	open := live.Do(a, func() {
-		key := core.Untracked(cx, selected.Get)
+		key := sel.Lead()
 		if item, ok := Find(core.Untracked(cx, done), key); ok && key != "" {
 			a.Open(item)
 		}
 	})
-	// Return opens the film selected, as it does in Finder's list; a field or a button with the keyboard keeps its own Return.
+	// Return opens the film selected last, as it does in Finder's list; a field or a button with the keyboard keeps its own Return.
 	cx.OnKey("enter", open)
 	styles := func() datatable.Styles {
 		chevron := core.Style{Color: colors.Faint(), Selected: &core.Style{Color: colors.Text()}}
@@ -330,25 +363,29 @@ func (l filmList) Render(cx *core.Scope) core.Node {
 	}
 	// TODO(nsgo#145): give datatable.DataTable a LabelFunc twin, so the list's accessible name follows the interface language as it changes; it is read once here https://github.com/nsgo-dev/nsgo/issues/145
 	return datatable.DataTable{
-		TestID:            "films-list",
-		Label:             locales.FilmsViewList(cx),
-		Columns:           columns,
-		RowCount:          func() int { return len(done()) },
-		Text:              text,
-		RowHeight:         listRowHeight,
-		HeaderHeight:      28,
-		FontSize:          12,
-		Sort:              sort,
-		OnSortChange:      resort,
-		Selection:         selection,
-		NoColumnSelect:    true,
-		NoResizeColumns:   true,
-		NoMoveColumns:     true,
-		NoBounce:          true,
-		Stripe:            func() bool { return true },
-		StylesFunc:        styles,
-		RenderCell:        cell,
-		OnSelectionChange: func(s datatable.Selection) { selectRow(s.Row) },
+		TestID:                  "films-list",
+		Ref:                     ref,
+		Label:                   locales.FilmsViewList(cx),
+		Columns:                 columns,
+		RowCount:                func() int { return len(done()) },
+		Text:                    text,
+		RowHeight:               listRowHeight,
+		HeaderHeight:            28,
+		FontSize:                12,
+		Sort:                    sort,
+		OnSortChange:            resort,
+		Selection:               selection,
+		RowStyle:                rowStyle,
+		NoSelectOnModifierPress: true,
+		OnRowPress:              press,
+		NoColumnSelect:          true,
+		NoResizeColumns:         true,
+		NoMoveColumns:           true,
+		NoBounce:                true,
+		Stripe:                  func() bool { return true },
+		StylesFunc:              styles,
+		RenderCell:              cell,
+		OnSelectionChange:       selectRow,
 		OnDoublePress: func(row, _ int) {
 			if item, ok := itemAt(row); ok {
 				live.Do(a, func() { a.Open(item) })()
@@ -359,8 +396,7 @@ func (l filmList) Render(cx *core.Scope) core.Node {
 			if !ok {
 				return
 			}
-			selected.Set(item.Key)
-			nsdesktop.PopupMenu(cx, filmMenu(cx, a, item), c.At, nil)
+			nsdesktop.PopupMenu(cx, menuOf(cx, a, item, core.Untracked(cx, done), true), c.At, nil)
 		},
 		Style:    core.Style{FlexGrow: 1, MinHeight: core.Pt(listRowHeight * 2)},
 		OnLayout: func(b core.Bounds) { width.Set(b.Size.Width) },

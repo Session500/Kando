@@ -241,6 +241,8 @@ Move to Library, in a film's ⋯ and in the File menu while it is open, moves th
 
 Removing a film from the library moves the film's folder to the Trash, or only its video and subtitles when that folder holds other videos or folders too; a local video outside the library folder stays where it is and only leaves the list. Removing a library from the list leaves its folder on disk.
 
+Several films can be selected at once, in the posters or in the list, as in Finder: ⌘-click (Ctrl-click on Windows and Linux) adds a film or leaves it out, ⇧-click selects the films up to it, ⇧↑ and ⇧↓ grow or shrink the list's selection, ⌘A selects every film shown and Esc selects none. A plain click on a poster still opens its film. A right click or ⋯ on one of the selected films, and the File menu, then act on them all: Mark as Watched or Unwatched, Process Again, Translate Again Into, Move to Library and Remove from Library, confirmed once for them all with how many they are. Each film is done or queued as it would be alone, one after another; one that cannot be leaves the others to go on, and the message bar says once how many were done and why the first that was not. When the films selected are every video in a folder, they move or go to the Trash with that folder. Undo after moving several moves them all back.
+
 Kando keeps its own files in the user config directory, `~/Library/Application Support/Kando` on macOS, `%AppData%\Kando` on Windows and `~/.config/Kando` on Linux:
 
 - `library.json`: the jobs, finished and in progress, and where each video stopped playing.

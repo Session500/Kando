@@ -46,7 +46,8 @@ type fakeApp struct {
 	view                             string
 	language                         string
 	removeOpen, removeFolder         bool
-	removing                         Film
+	removing                         []Film
+	selection                        Selection
 	renameOpen                       bool
 	renameName, renameOriginal       string
 	calls                            []string
@@ -119,30 +120,34 @@ func (f *fakeApp) Quote(item Film) (string, string) {
 	}
 	return "", ""
 }
-func (f *fakeApp) Open(item Film)                      { f.call("open", item.Key) }
-func (f *fakeApp) OpenAt(item Film, at time.Duration)  { f.call("open-at", item.Key, at.String()) }
-func (f *fakeApp) Reveal(path string)                  { f.call("reveal", path) }
-func (f *fakeApp) Reprocess(item Film)                 { f.call("reprocess", item.Key) }
-func (f *fakeApp) AskReprocess(item Film)              { f.call("ask-reprocess", item.Key) }
-func (f *fakeApp) Reprocessing() (*bool, Film, string) { return new(bool), Film{}, "" }
-func (f *fakeApp) CloseReprocess()                     { f.call("close-reprocess") }
+func (f *fakeApp) Open(item Film)                        { f.call("open", item.Key) }
+func (f *fakeApp) OpenAt(item Film, at time.Duration)    { f.call("open-at", item.Key, at.String()) }
+func (f *fakeApp) Reveal(path string)                    { f.call("reveal", path) }
+func (f *fakeApp) Reprocess(item Film)                   { f.call("reprocess", item.Key) }
+func (f *fakeApp) AskReprocess(items ...Film)            { f.call("ask-reprocess", filmKeys(items)) }
+func (f *fakeApp) Reprocessing() (*bool, []Film, string) { return new(bool), nil, "" }
+func (f *fakeApp) ReprocessFilms(items ...Film)          { f.call("reprocess-films", filmKeys(items)) }
+func (f *fakeApp) CloseReprocess()                       { f.call("close-reprocess") }
 func (f *fakeApp) TranslateAgain(item Film, language string) {
 	f.call("translate-again", item.Key, language)
 }
-func (f *fakeApp) TargetLanguage() string               { return "日本語" }
-func (f *fakeApp) Retranslating() (*bool, Film, string) { return new(bool), Film{}, "" }
-func (f *fakeApp) CloseRetranslate()                    { f.call("close-retranslate") }
-func (f *fakeApp) Retranslate()                         { f.call("retranslate") }
-func (f *fakeApp) TranslateMissing(item Film)           { f.call("translate-missing", item.Key) }
-func (f *fakeApp) CanTranslate() bool                   { return !f.untranslatable }
-func (f *fakeApp) Remove(id string)                     { f.call("remove", id) }
-func (f *fakeApp) Retry(id string)                      { f.call("retry", id) }
-func (f *fakeApp) Failures(string) (int, int)           { return f.retryable, f.failed }
-func (f *fakeApp) FailureDetail(item Film) string       { return f.details[item.JobID] }
-func (f *fakeApp) ReportFailure(id string)              { f.call("report", id) }
-func (f *fakeApp) RetryAll(string)                      { f.call("retry-all") }
-func (f *fakeApp) RemoveFailed(string)                  { f.call("remove-failed") }
-func (f *fakeApp) Withdraw(id string)                   { f.call("withdraw", id) }
+func (f *fakeApp) TargetLanguage() string                 { return "日本語" }
+func (f *fakeApp) Retranslating() (*bool, []Film, string) { return new(bool), nil, "" }
+func (f *fakeApp) TranslateFilmsAgain(items []Film, language string) {
+	f.call("translate-films", filmKeys(items), language)
+}
+func (f *fakeApp) CloseRetranslate()              { f.call("close-retranslate") }
+func (f *fakeApp) Retranslate()                   { f.call("retranslate") }
+func (f *fakeApp) TranslateMissing(item Film)     { f.call("translate-missing", item.Key) }
+func (f *fakeApp) CanTranslate() bool             { return !f.untranslatable }
+func (f *fakeApp) Remove(id string)               { f.call("remove", id) }
+func (f *fakeApp) Retry(id string)                { f.call("retry", id) }
+func (f *fakeApp) Failures(string) (int, int)     { return f.retryable, f.failed }
+func (f *fakeApp) FailureDetail(item Film) string { return f.details[item.JobID] }
+func (f *fakeApp) ReportFailure(id string)        { f.call("report", id) }
+func (f *fakeApp) RetryAll(string)                { f.call("retry-all") }
+func (f *fakeApp) RemoveFailed(string)            { f.call("remove-failed") }
+func (f *fakeApp) Withdraw(id string)             { f.call("withdraw", id) }
 func (f *fakeApp) FailureHint(item Film) (string, string) {
 	return f.hints[item.JobID], ""
 }
@@ -211,13 +216,13 @@ func (f *fakeApp) SetLibrarySort(o Order) {
 	f.call("sort", o.By, direction)
 	f.sort = o
 }
-func (f *fakeApp) AskRemove(item Film) {
-	f.call("ask-remove", item.Key)
-	f.removing, f.removeOpen = item, true
+func (f *fakeApp) AskRemove(items ...Film) {
+	f.call("ask-remove", filmKeys(items))
+	f.removing, f.removeOpen = items, true
 }
-func (f *fakeApp) Removing() (*bool, Film, bool) { return &f.removeOpen, f.removing, f.removeFolder }
-func (f *fakeApp) CloseRemove()                  { f.call("close-remove"); f.removeOpen = false }
-func (f *fakeApp) TrashFilm(item Film)           { f.call("trash", item.Key); f.removeOpen = false }
+func (f *fakeApp) Removing() (*bool, []Film, bool) { return &f.removeOpen, f.removing, f.removeFolder }
+func (f *fakeApp) CloseRemove()                    { f.call("close-remove"); f.removeOpen = false }
+func (f *fakeApp) TrashFilms(items ...Film)        { f.call("trash", filmKeys(items)); f.removeOpen = false }
 func (f *fakeApp) AskRename(item Film) {
 	f.call("ask-rename", item.Key)
 	f.renameOpen, f.renameName, f.renameOriginal = true, item.Name, "original"
@@ -225,12 +230,13 @@ func (f *fakeApp) AskRename(item Film) {
 func (f *fakeApp) Renaming() (*bool, *string, string) {
 	return &f.renameOpen, &f.renameName, f.renameOriginal
 }
-func (f *fakeApp) CloseRename()                                      { f.call("close-rename"); f.renameOpen = false }
-func (f *fakeApp) RenameFilm()                                       { f.call("rename", f.renameName); f.renameOpen = false }
-func (f *fakeApp) MoveFilmMenu(*ns.Scope, Film) []nsdesktop.MenuItem { return nil }
-func (f *fakeApp) UndoMove()                                         { f.call("undo-move") }
-func (f *fakeApp) CancelMove()                                       { f.call("cancel-move") }
-func (f *fakeApp) Choose(dir string)                                 { f.call("choose", dir) }
+func (f *fakeApp) CloseRename()                                         { f.call("close-rename"); f.renameOpen = false }
+func (f *fakeApp) RenameFilm()                                          { f.call("rename", f.renameName); f.renameOpen = false }
+func (f *fakeApp) MoveFilmMenu(*ns.Scope, ...Film) []nsdesktop.MenuItem { return nil }
+func (f *fakeApp) Selection() *Selection                                { return &f.selection }
+func (f *fakeApp) UndoMove()                                            { f.call("undo-move") }
+func (f *fakeApp) CancelMove()                                          { f.call("cancel-move") }
+func (f *fakeApp) Choose(dir string)                                    { f.call("choose", dir) }
 
 // testEnvironment is a Mac desktop in testlocale's language.
 func testEnvironment() ns.Environment {
@@ -1156,3 +1162,6 @@ func TestListDateReadsInNowsTimeZone(t *testing.T) {
 		t.Fatalf("played 08:30 JST, now 21:00 UTC: %q, want yesterday at 23:30", got)
 	}
 }
+
+// filmKeys is the keys of items joined by commas, as the fake's calls record them.
+func filmKeys(items []Film) string { return strings.Join(Keys(items), ",") }

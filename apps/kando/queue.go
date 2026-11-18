@@ -426,19 +426,7 @@ func (a *app) chooseLocal(path string) bool {
 // startFilm processes item, a video found in the library's folder that no job holds, on a card of its own that leaves the film as it was if the job fails or is stopped (queueFromFolder), as 生成字幕 and 重新处理 do from the library and the player. An open film stays open on the job, its picture still playing. When the job cannot be queued the message bar says why; the film page, which draws no message bar, opens the settings that fix it, as Retry does, or else closes the film so the library shows why. A film without subtitles that will have no translator says so too, as adding a video does (untranslatable): its subtitles will be the original lines.
 func (a *app) startFilm(item films.Film) {
 	m := a.messages()
-	msg, section := a.precheck([]string{core.FileURL(item.VideoPath)})
-	id := ""
-	if msg == "" {
-		var err error
-		id, err = a.queueFromFolder(item)
-		var dup *queueDuplicate
-		switch {
-		case errors.As(err, &dup):
-			msg = sourceError(m, err)
-		case err != nil:
-			msg, section = err.Error(), settings.SectionTranslate
-		}
-	}
+	id, msg, section := a.queueFromFolderChecked(item)
 	if msg != "" {
 		a.warn(msg, section)
 		if a.openKey != "" && a.openKey == item.Key {
@@ -458,6 +446,23 @@ func (a *app) startFilm(item films.Film) {
 		job, _ := a.library.Find(id)
 		a.loadSubtitles(id, job.SubtitlePath)
 	}
+}
+
+// queueFromFolderChecked processes item, a video found in the library's folder that no job holds, on a card of its own (queueFromFolder), once precheck lets it through, as startFilm and processing several films again (ReprocessFilms) do, and returns the job's ID, or why it could not, with the settings section that fixes it.
+func (a *app) queueFromFolderChecked(item films.Film) (id, msg, section string) {
+	msg, section = a.precheck([]string{core.FileURL(item.VideoPath)})
+	if msg != "" {
+		return "", msg, section
+	}
+	id, err := a.queueFromFolder(item)
+	var dup *queueDuplicate
+	switch {
+	case errors.As(err, &dup):
+		return "", sourceError(a.messages(), err), ""
+	case err != nil:
+		return "", err.Error(), settings.SectionTranslate
+	}
+	return id, "", ""
 }
 
 // savePositions writes the player's resume positions, when each video last played and its subtitle delays and places into library.json with the jobs.

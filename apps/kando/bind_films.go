@@ -2,7 +2,6 @@ package main
 
 import (
 	"errors"
-	"os"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -185,21 +184,34 @@ func (a *app) OpenAt(item films.Film, at time.Duration) {
 	a.Open(item)
 }
 
-// AskReprocess opens the confirmation of 重新处理 for item, as processing a film again transcribes it and pays for its translation again. With no language to translate it into there is nothing to confirm: Reprocess says so at once. The confirmation holds the window's modal flag until it closes (CloseReprocess).
-func (a *app) AskReprocess(item films.Film) {
-	if a.libraryReprocessLanguage(item) == "" {
-		a.Reprocess(item)
+// AskReprocess opens the confirmation of 重新处理 for items, a film or several selected, as processing a film again transcribes it and pays for its translation again. With no language to translate a single film into there is nothing to confirm: Reprocess says so at once; several are confirmed whatever their languages, and ReprocessFilms says once which could not be queued. The confirmation holds the window's modal flag until it closes (CloseReprocess).
+func (a *app) AskReprocess(items ...films.Film) {
+	if len(items) == 0 {
 		return
 	}
-	a.lib.reprocessing = item
+	if len(items) == 1 && a.libraryReprocessLanguage(items[0]) == "" {
+		a.Reprocess(items[0])
+		return
+	}
+	a.lib.reprocessing = slices.Clone(items)
 	a.lib.reprocessOpen = true
 	if a.lib.reprocessRelease == nil {
 		a.lib.reprocessRelease = a.holdModal()
 	}
 }
 
-func (a *app) Reprocessing() (*bool, films.Film, string) {
-	return &a.lib.reprocessOpen, a.lib.reprocessing, a.libraryReprocessLanguage(a.lib.reprocessing)
+// Reprocessing is the confirmation of 重新处理: whether it is open, the films it asks about and the language they would be translated into, "" when they would not all be translated into the same one.
+func (a *app) Reprocessing() (*bool, []films.Film, string) {
+	language := ""
+	for i, item := range a.lib.reprocessing {
+		switch next := a.libraryReprocessLanguage(item); {
+		case i == 0:
+			language = next
+		case next != language:
+			language = ""
+		}
+	}
+	return &a.lib.reprocessOpen, a.lib.reprocessing, language
 }
 
 // libraryReprocessLanguage is the language 重新处理 translates item into: a job's film keeps its own (queueReprocessLanguage), and a video no job has processed takes the one the settings name.
@@ -251,7 +263,12 @@ func (a *app) TranslateAgain(item films.Film, language string) {
 		a.libraryRetranslate(item, core.RedoTranslation, language)
 		return
 	}
-	a.lib.retranslating, a.lib.retranslateLanguage, a.lib.retranslateOpen = item, language, true
+	a.libraryAskRetranslate([]films.Film{item}, language)
+}
+
+// libraryAskRetranslate opens the confirmation of translating items into language, which replaces a translation in another language, holding the window's modal flag until it closes (CloseRetranslate).
+func (a *app) libraryAskRetranslate(items []films.Film, language string) {
+	a.lib.retranslating, a.lib.retranslateLanguage, a.lib.retranslateOpen = items, language, true
 	if a.lib.retranslateRelease == nil {
 		a.lib.retranslateRelease = a.holdModal()
 	}
@@ -259,7 +276,7 @@ func (a *app) TranslateAgain(item films.Film, language string) {
 
 func (a *app) TargetLanguage() string { return strings.TrimSpace(a.prefs.language) }
 
-func (a *app) Retranslating() (*bool, films.Film, string) {
+func (a *app) Retranslating() (*bool, []films.Film, string) {
 	return &a.lib.retranslateOpen, a.lib.retranslating, a.lib.retranslateLanguage
 }
 
@@ -272,14 +289,18 @@ func (a *app) CloseRetranslate() {
 	}
 }
 
-// Retranslate translates the film the confirmation of 重新翻译为 asked about into its language, and closes it.
+// Retranslate translates the films the confirmation of 重新翻译为 asked about into its language, and closes it.
 func (a *app) Retranslate() {
 	if !a.lib.retranslateOpen {
 		return
 	}
-	item, language := a.lib.retranslating, a.lib.retranslateLanguage
+	items, language := a.lib.retranslating, a.lib.retranslateLanguage
 	a.CloseRetranslate()
-	a.libraryRetranslate(item, core.RedoTranslation, language)
+	if len(items) == 1 {
+		a.libraryRetranslate(items[0], core.RedoTranslation, language)
+		return
+	}
+	a.libraryRetranslateFilms(items, language)
 }
 
 // libraryRetranslateOverlay is the confirmation of 重新翻译为 over the window (overlays), so the film page asks too.
@@ -400,18 +421,25 @@ func (a *app) SetLibraryView(view string) {
 	}
 }
 
-// AskRemove opens the confirmation of 从资料库移除, and reads now, rather than while the dialog is drawn, whether the film's folder or only its files would go to the Trash. The confirmation holds the window's modal flag until it closes (libraryCloseRemove).
-func (a *app) AskRemove(item films.Film) {
-	a.lib.removing = item
-	files := filmFiles(a.snap().LibraryDir, item)
-	a.lib.removeFolder = len(files) == 1 && files[0] == filepath.Dir(item.VideoPath)
+// AskRemove opens the confirmation of 从资料库移除 for items, a film or several selected, and reads now, rather than while the dialog is drawn, whether a single film's folder or only its files would go to the Trash. The confirmation holds the window's modal flag until it closes (libraryCloseRemove).
+func (a *app) AskRemove(items ...films.Film) {
+	if len(items) == 0 {
+		return
+	}
+	a.lib.removing = slices.Clone(items)
+	a.lib.removeFolder = false
+	if len(items) == 1 {
+		item := items[0]
+		files := filmFiles(a.snap().LibraryDir, item)
+		a.lib.removeFolder = len(files) == 1 && files[0] == filepath.Dir(item.VideoPath)
+	}
 	a.lib.removeOpen = true
 	if a.lib.removeRelease == nil {
 		a.lib.removeRelease = a.holdModal()
 	}
 }
 
-func (a *app) Removing() (*bool, films.Film, bool) {
+func (a *app) Removing() (*bool, []films.Film, bool) {
 	return &a.lib.removeOpen, a.lib.removing, a.lib.removeFolder
 }
 
@@ -430,47 +458,6 @@ func (a *app) libraryCloseRemove() {
 // trashItem moves a file or a folder to the Trash, under the scope cx. Tests replace it.
 var trashItem = desktop.Trash
 
-// TrashFilm takes a film off the shelf, as 从资料库移除 confirms. A film inside the library goes to the Trash with its folder, or with only its subtitles when that folder holds other videos or folders too. A local video kept outside the library stays where it is and only leaves the shelf.
-func (a *app) TrashFilm(item films.Film) {
-	a.libraryCloseRemove()
-	m := a.messages()
-	name := item.Name
-	if name == "" {
-		name = item.Title
-	}
-	files := filmFiles(a.snap().LibraryDir, item)
-	for _, path := range files {
-		if err := trashItem(a.cx, path); err != nil {
-			// desktop.Trash fails with errors.ErrUnsupported where there is no Trash it can use, and with desktop.ErrNotTrashed when the item could not go there; it logs what the system said, so the bar says each in a sentence of its own.
-			if errors.Is(err, errors.ErrUnsupported) {
-				a.warn(m.LibraryTrashUnsupported(name), "")
-			} else {
-				a.warn(m.LibraryTrashFailed(name), "")
-			}
-			return
-		}
-	}
-	if a.openKey == item.Key {
-		a.openKey = ""
-		a.stopPlayback()
-	}
-	// The film leaves the shelf, and the title given to it in Kando with it; remove saves library.json for a job, and a video no job processed saves it here.
-	named := a.library.Rename(item.VideoPath, "")
-	if item.JobID != "" {
-		a.remove(item.JobID)
-	} else if named {
-		if err := a.library.Save(); err != nil {
-			a.saveErr = m.LibraryShelfSaveFailed(err.Error())
-		}
-	}
-	a.refreshLibrary()
-	if len(files) > 0 {
-		a.tell(m.LibraryTrashed(name))
-	} else {
-		a.tell(m.LibraryRemoved(name))
-	}
-}
-
 // filmFiles is what moving a film to the Trash moves: the folder of a film inside the library root, or, when that folder holds other videos or any folder too, or is the root itself, the video, its subtitles and the hidden files a job keeps beside it (media.Companions), so none is left behind in the folder. A video outside the library has none.
 func filmFiles(root string, item films.Film) []string {
 	video := item.VideoPath
@@ -478,7 +465,7 @@ func filmFiles(root string, item films.Film) []string {
 		return nil
 	}
 	dir := filepath.Dir(video)
-	if films.InDir(root, dir) && aloneIn(dir, video) {
+	if films.InDir(root, dir) && films.AloneIn(dir, video) {
 		return []string{dir}
 	}
 	files := []string{video}
@@ -488,20 +475,6 @@ func filmFiles(root string, item films.Film) []string {
 		}
 	}
 	return files
-}
-
-// aloneIn reports whether video is the only video in dir and dir has no folder inside it. The shelf lists only the videos directly in a film's folder, so a folder inside may hold videos, or anything else, the user never saw there; the folder then stays, and only the film's files go.
-func aloneIn(dir, video string) bool {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return false
-	}
-	for _, entry := range entries {
-		if entry.IsDir() || (media.IsVideoFile(entry.Name()) && filepath.Join(dir, entry.Name()) != video) {
-			return false
-		}
-	}
-	return true
 }
 
 // films is the open library's films, none while it is locked (lockShut).
@@ -619,10 +592,11 @@ func (a *app) libraryKeys(cx *ns.Scope) []shortcut {
 		}
 		return shortcut{Group: groupView, Label: label, When: a.libraryShown, Checked: func() bool { return a.lib.view == v }, Run: func() { a.SetLibraryView(v) }}
 	}
-	return []shortcut{
+	return slices.Concat([]shortcut{
 		a.libraryOpenVideos(cx),
 		{Group: groupEdit, Label: locales.LibrarySearchMenu(cx), Key: "mod+f", When: a.sidebarSearchable, Run: a.sidebarSearch},
 		a.libraryMoveRow(cx),
+	}, a.librarySelectionKeys(cx), []shortcut{
 		view(films.ViewGrid),
 		view(films.ViewList),
 		{Group: groupView, Label: locales.MenuViewSortBy(cx), When: a.libraryShown, Items: func() []nsdesktop.MenuItem {
@@ -634,7 +608,7 @@ func (a *app) libraryKeys(cx *ns.Scope) []shortcut {
 			}
 			return items
 		}},
-	}
+	})
 }
 
 // libraryShown reports whether the window shows the library's films, so View › 为图标, 为列表 and 排序方式 have something to show: the library page, no film open over it, and a film in the library.

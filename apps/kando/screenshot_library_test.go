@@ -155,6 +155,24 @@ func TestScreenshotsLibrary(t *testing.T) {
 			t.Fatalf("no list with the films watched; texts %q", tt.Texts())
 		}
 	})
+	// Three posters selected, as ⌘-clicks select them, ringed in the accent.
+	f.shoot(t, "library-selected-grid", func(t *testing.T, a *app, tt *nsgotest.App, _ chan func()) {
+		onboarding(a)
+		refresh(tt, a)
+		scrollTo(t, a, tt, "8 部", 315)
+		a.lib.selection.All(films.Keys(a.libraryShownFilms())[:3])
+		refresh(tt, a)
+		if !tt.Find("id:film-" + a.lib.selection.Keys[0]).Props.Selected {
+			t.Fatal("the first poster selected is not")
+		}
+	})
+	// Three rows of the list selected, as ⇧-click selects them.
+	f.shoot(t, "library-selected-list", func(t *testing.T, a *app, tt *nsgotest.App, _ chan func()) {
+		a.SetLibraryView(films.ViewList)
+		refresh(tt, a)
+		a.lib.selection.All(films.Keys(a.libraryShownFilms())[1:4])
+		refresh(tt, a)
+	})
 	f.shoot(t, "library-url-typed", func(t *testing.T, a *app, tt *nsgotest.App, _ chan func()) {
 		onboarding(a)
 		refresh(tt, a)
