@@ -87,3 +87,37 @@ func TestSpreadFixesCorrectsARecurringTerm(t *testing.T) {
 		}
 	}
 }
+
+// TestSpreadFixesKeepsTheWordsAroundACorrection checks that a correction made in two lines in the middle of a line spreads only where the words on both sides of it are the same: "神经网罗是" corrected twice corrects "那个网罗是" but not "张罗是", which shares only the word after it.
+func TestSpreadFixesKeepsTheWordsAroundACorrection(t *testing.T) {
+	heard := []core.Segment{{Text: "神经网罗是基础"}, {Text: "这个网罗是关键"}, {Text: "那个网罗是新的"}, {Text: "他张罗是为了吃饭"}}
+	fixed := []core.Segment{{Text: "神经网络是基础"}, {Text: "这个网络是关键"}, {Text: "那个网罗是新的"}, {Text: "他张罗是为了吃饭"}}
+	spreadFixes(heard, fixed)
+	want := []string{"神经网络是基础", "这个网络是关键", "那个网络是新的", "他张罗是为了吃饭"}
+	for i, s := range fixed {
+		if s.Text != want[i] {
+			t.Errorf("line %d = %q, want %q", i+1, s.Text, want[i])
+		}
+	}
+}
+
+// TestNormalizePunctuation checks which ASCII marks are written full width: those next to Chinese or Japanese characters or their punctuation, a run of marks after them as a whole, but not marks between letters and digits, as in times, numbers and addresses.
+func TestNormalizePunctuation(t *testing.T) {
+	for _, tc := range []struct{ line, want string }{
+		{"好的,我们开始", "好的，我们开始"},
+		{"你好!!", "你好！！"},
+		{"真的?!", "真的？！"},
+		{"「好」,", "「好」，"},
+		{"（笑）,然后", "（笑），然后"},
+		{"比分3:2吗", "比分3:2吗"},
+		{"价格1,000元", "价格1,000元"},
+		{"约1.5倍", "约1.5倍"},
+		{"等等...", "等等..."},
+		{"打开https://kando.app看看", "打开https://kando.app看看"},
+		{"well, ok!", "well, ok!"},
+	} {
+		if got := NormalizePunctuation(tc.line); got != tc.want {
+			t.Errorf("NormalizePunctuation(%q) = %q, want %q", tc.line, got, tc.want)
+		}
+	}
+}

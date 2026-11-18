@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
+	"slices"
 	"strings"
 	"unicode"
 
@@ -212,7 +214,7 @@ func ApplyFixes(line, fixed string) string {
 	return NormalizePunctuation(replaceWords(line, have, replace))
 }
 
-// spreadFixes makes in fixed, the proofread lines of heard, the corrections made in at least two lines wherever else the same words are left: each correction is the words put in place together with the word after them (or before them, at the end of a line), so "网罗" corrected to "网络" twice corrects every other "网罗", while "倒一" corrected once to "退一" corrects no "倒一杯水".
+// spreadFixes makes in fixed, the proofread lines of heard, the corrections made in at least two lines wherever else the same words are left: each correction is the words put in place together with the word before and the word after them (only the one there is, at the start or end of a line), so "网罗" corrected to "网络" at the end of two lines corrects every other "网罗", "神经网罗是" corrected twice corrects no "张罗是", and "倒一" corrected once to "退一" corrects no "倒一杯水".
 func spreadFixes(heard, fixed []core.Segment) {
 	type fix struct {
 		from, to string
@@ -234,15 +236,16 @@ func spreadFixes(heard, fixed []core.Segment) {
 			for b < len(was) && was[b].text != now[b].text {
 				b++
 			}
-			from, to := wordsText(was[a:b]), wordsText(now[a:b])
-			switch {
-			case b < len(was):
-				from, to = from+"\x00"+was[b].text, to+"\x00"+was[b].text
-			case a > 0:
-				from, to = was[a-1].text+"\x00"+from, was[a-1].text+"\x00"+to
-			default:
+			if a == 0 && b == len(was) {
 				a = b
 				continue
+			}
+			from, to := wordsText(was[a:b]), wordsText(now[a:b])
+			if b < len(was) {
+				from, to = from+"\x00"+was[b].text, to+"\x00"+was[b].text
+			}
+			if a > 0 {
+				from, to = was[a-1].text+"\x00"+from, was[a-1].text+"\x00"+to
 			}
 			if f, ok := fixes[from]; !ok {
 				fixes[from] = &fix{from: from, to: to}
@@ -256,7 +259,9 @@ func spreadFixes(heard, fixed []core.Segment) {
 			a = b
 		}
 	}
-	for _, f := range fixes {
+	// The corrections are made in the same order every run, as one may overlap another.
+	for _, key := range slices.Sorted(maps.Keys(fixes)) {
+		f := fixes[key]
 		if f.lines < 2 {
 			continue
 		}
@@ -360,9 +365,14 @@ func NormalizePunctuation(line string) string {
 		if !ok {
 			continue
 		}
-		if (i > 0 && ideographic(runes[i-1])) || (i+1 < len(runes) && ideographic(runes[i+1])) {
+		if (i > 0 && wideNeighbour(runes[i-1])) || (i+1 < len(runes) && wideNeighbour(runes[i+1])) {
 			runes[i] = wide
 		}
 	}
 	return string(runes)
+}
+
+// wideNeighbour reports whether r, next to an ASCII mark, makes it a Chinese or Japanese one: a Chinese or Japanese character, or their punctuation, including a mark just written full width, so "你好!!" becomes "你好！！" and "「好」," becomes "「好」，".
+func wideNeighbour(r rune) bool {
+	return ideographic(r) || (r >= 0x3000 && r <= 0x303F) || (r >= 0xFF01 && r <= 0xFF0F) || (r >= 0xFF1A && r <= 0xFF20) || (r >= 0xFF3B && r <= 0xFF40) || (r >= 0xFF5B && r <= 0xFF65)
 }
