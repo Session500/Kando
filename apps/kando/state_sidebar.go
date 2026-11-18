@@ -12,6 +12,8 @@ type sidebarUI struct {
 	filter string
 	// spoken is the language the sidebar shows the films of, sidebar.SpokenAll or whisper's code for one, together with filter; like filter it is not saved, and another library starts without it (SpokenFilter).
 	spoken string
+	// watch is how far the films the sidebar shows were watched, sidebar.WatchAll or another of its Watch values, together with filter and spoken; like them it is not saved, and another library starts without it. Unlike the language it stays chosen when no film is in that state any longer, as after the last film in progress was marked watched, so the page says there is none rather than showing every film by itself.
+	watch string
 	// query is what the search field under the switcher holds: the library page shows the done films whose names hold it (films.ByTitle). It is not saved, and another library starts without it, as with filter. queryFocus asks the field for the keyboard focus once, as ⌘F does (sidebarSearch).
 	query      string
 	queryFocus bool
@@ -24,7 +26,7 @@ type sidebarUI struct {
 }
 
 func newSidebarUI() sidebarUI {
-	return sidebarUI{filter: sidebar.SourceAll, spoken: sidebar.SpokenAll}
+	return sidebarUI{filter: sidebar.SourceAll, spoken: sidebar.SpokenAll, watch: sidebar.WatchAll}
 }
 
 // savedSidebar is the sidebar's part of settings.json.

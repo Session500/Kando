@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"kando/apps/kando/locales/testlocale"
 	"kando/apps/kando/shelf"
@@ -19,6 +20,7 @@ import (
 //   - sidebar-empty: a new empty library, every count 0 (library_empty)
 //   - sidebar-focused: 全部影片 chosen with a click, so the sidebar holds the focus and rings the chosen row
 //   - sidebar-languages: the films heard in three languages, so the sidebar lists them under the sources, and 英语 chosen, the grid showing the films heard in English
+//   - sidebar-watched: two films watched to their end besides those the prototype stopped partway, and 在看 chosen under 观看进度, the grid showing the films stopped partway
 //   - lock-set-password: the switcher's 设置密码… for 我的影片, its new password typed once
 //   - lock-unlock-wrong: 英语听力 locked and chosen in the switcher, its password dialog after a wrong password
 //   - lock-screen: 我的影片 locked as the app starts, its lock screen over the window
@@ -60,6 +62,18 @@ func TestScreenshotsSidebar(t *testing.T) {
 		}
 		refresh(tt, a)
 		tt.Press("id:spoken-en")
+		tt.HoverOut()
+	})
+	f.shoot(t, "sidebar-watched", func(t *testing.T, a *app, tt *nsgotest.App, _ chan func()) {
+		screenshotReady(t, f, a)
+		// Further than either film plays, so they count as watched whatever length the fake ffmpeg reads.
+		for _, id := range []string{"j3", "j4"} {
+			a.paletteSetFurthest(f.job(t, id).VideoPath, 10*time.Hour)
+		}
+		// The prototype keeps only where j1 stopped; it played that far too, as its progress bar shows.
+		a.paletteSetFurthest(f.job(t, "j1").VideoPath, a.ResumeAt(f.job(t, "j1").VideoPath))
+		refresh(tt, a)
+		tt.Press("id:watch-" + sidebar.WatchInProgress)
 		tt.HoverOut()
 	})
 	f.shoot(t, "library-prototype-size", func(t *testing.T, a *app, tt *nsgotest.App, _ chan func()) {

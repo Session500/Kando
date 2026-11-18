@@ -32,6 +32,8 @@ type fakeApp struct {
 	bySource  map[string]int
 	spoken    string
 	bySpoken  []SpokenCount
+	watch     string
+	byWatch   WatchCounts
 	query     string
 	focus     bool
 	ready     Readiness
@@ -50,6 +52,7 @@ func newFakeApp() *fakeApp {
 		counts:    map[string]int{"/films/课程.kando": 3},
 		filter:    SourceAll,
 		spoken:    SpokenAll,
+		watch:     WatchAll,
 		films:     4,
 		bySource:  map[string]int{SourceAll: 4, SourceYouTube: 1, SourceBilibili: 1, SourceLocal: 2},
 		ready:     Readiness{State: Ready, Message: locales.ReadinessReady},
@@ -87,6 +90,12 @@ func (f *fakeApp) OpenSettings(section string) {
 func (f *fakeApp) SetSourceFilter(source string) {
 	f.calls = append(f.calls, "filter "+source)
 	f.page, f.filter = PageFilms, source
+}
+func (f *fakeApp) WatchCounts() WatchCounts { return f.byWatch }
+func (f *fakeApp) WatchFilter() string      { return f.watch }
+func (f *fakeApp) SetWatchFilter(state string) {
+	f.calls = append(f.calls, "watch "+state)
+	f.page, f.watch = PageFilms, state
 }
 func (f *fakeApp) SetSpokenFilter(code string) {
 	f.calls = append(f.calls, "spoken "+code)
@@ -561,5 +570,53 @@ func TestRowsSayTheirCounts(t *testing.T) {
 	change(app, a, func() { a.bySource[SourceYouTube] = 2 })
 	if got, want := app.Find("id:source-"+SourceYouTube).Props.Label, msgs.SidebarRowCount("YouTube", 2); got != want {
 		t.Fatalf("YouTube is named %q after its count changed, want %q", got, want)
+	}
+}
+
+// TestWatchStatesFilterTheLibrary checks that the sidebar lists the watch states under the languages while the library has done films, each but 全部 with its count, even at 0, and that choosing one filters the library by it, 全部 by none, with the row chosen following the filter on the library page only.
+func TestWatchStatesFilterTheLibrary(t *testing.T) {
+	a := newFakeApp()
+	a.bySpoken = []SpokenCount{{Code: "ja", Count: 3}, {Code: "en", Count: 1}}
+	a.byWatch = WatchCounts{Unwatched: 2, Watched: 2}
+	app := start(t, a)
+	msgs := testlocale.Messages()
+	texts := app.Texts()
+	heading, all, unwatched, inProgress, watched := slices.Index(texts, msgs.SidebarWatched()), slices.Index(texts, msgs.SidebarWatchAll()),
+		slices.Index(texts, msgs.SidebarWatchUnwatched()), slices.Index(texts, msgs.SidebarWatchInProgress()), slices.Index(texts, msgs.SidebarWatchWatched())
+	if heading < slices.Index(texts, msgs.SidebarLanguagesAll()) || all < heading || unwatched < all || inProgress < unwatched || watched < inProgress {
+		t.Fatalf("watch states out of order, or not under the languages, in %q", texts)
+	}
+	for state, want := range map[string]string{WatchUnwatched: "2", WatchInProgress: "0", WatchWatched: "2"} {
+		if got := app.Find("id:watch-count-" + state).Text; got != want {
+			t.Fatalf("%s shows %q, want %q", state, got, want)
+		}
+	}
+	if app.Exists("id:watch-count-" + WatchAll) {
+		t.Fatal("全部 shows a count")
+	}
+	if !app.Find("id:watch-" + WatchAll).Props.Selected {
+		t.Fatal("全部 is not chosen while no watch state is")
+	}
+	app.Press("id:watch-" + WatchInProgress)
+	app.Press("id:watch-" + WatchInProgress)
+	app.Press("id:watch-" + WatchAll)
+	if want := []string{"watch " + WatchInProgress, "watch " + WatchAll}; !slices.Equal(a.calls, want) {
+		t.Fatalf("calls %q, want %q: the state already chosen does nothing", a.calls, want)
+	}
+	if a.filter != SourceAll || a.spoken != SpokenAll {
+		t.Fatalf("choosing a watch state changed the source to %q, the language to %q", a.filter, a.spoken)
+	}
+	change(app, a, func() { a.watch = WatchWatched })
+	if !app.Find("id:watch-"+WatchWatched).Props.Selected || app.Find("id:watch-"+WatchAll).Props.Selected {
+		t.Fatal("已看完 is not the row chosen while the library shows it")
+	}
+	change(app, a, func() { a.page = PageGeneral })
+	if app.Find("id:watch-" + WatchWatched).Props.Selected {
+		t.Fatal("a watch state is chosen on a settings page")
+	}
+	// A library with no done film has nothing to filter.
+	change(app, a, func() { a.bySource[SourceAll] = 0 })
+	if app.Exists("id:sidebar-watched") {
+		t.Fatal("watch states listed in a library with no done film")
 	}
 }

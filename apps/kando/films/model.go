@@ -231,15 +231,15 @@ func ByTitle(items []Film, query string) []Film {
 	return out
 }
 
-// Shown is the films of items the library page's grid shows, in their order: the done ones, no longer in 处理中, from source (BySource), heard in spoken (BySpoken) and whose names hold query (ByTitle). Return in the sidebar's search field acts on the same films, so it never opens one the grid hides.
-func Shown(items []Film, source, spoken, query string) []Film {
+// Shown is the films of items the library page's grid shows, in their order: the done ones, no longer in 处理中, from source (BySource), heard in spoken (BySpoken), watched as far as watch says (ByWatch, by what p knows) and whose names hold query (ByTitle). Return in the sidebar's search field acts on the same films, so it never opens one the grid hides, and the sidebar counts the films each watch state would show among those of the others (sidebar.WatchAll).
+func Shown(items []Film, p Progress, source, spoken, watch, query string) []Film {
 	var done []Film
 	for _, item := range BySource(items, source) {
 		if !InQueue(item) {
 			done = append(done, item)
 		}
 	}
-	return ByTitle(BySpoken(done, spoken), query)
+	return ByTitle(ByWatch(BySpoken(done, spoken), p, watch), query)
 }
 
 func Find(items []Film, key string) (Film, bool) {

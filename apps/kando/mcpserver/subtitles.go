@@ -37,7 +37,7 @@ type subtitlesInput struct {
 var untilSchema = map[string]any{
 	"type":        "string",
 	"enum":        []string{remote.UntilWatched},
-	"description": "watched: only the lines up to the furthest point the user has played the film to (its watched_ms), none of a film not played yet, so nothing after it is given away. Use it to quiz, recap or answer questions about what the user has seen. Leave it out for every line.",
+	"description": "watched: only the lines up to the furthest point the user has played the film to (its watched_ms), all of one they marked watched, none of a film not played yet, so nothing after it is given away. Use it to quiz, recap or answer questions about what the user has seen. Leave it out for every line.",
 }
 
 var subtitlesInputSchema = map[string]any{

@@ -1097,6 +1097,12 @@ filmsLocalVideoTooltip:
 filmsMakeSubtitles:
   message: "Make Subtitles"
   description: "Button under a video found in the library folder that has no subtitles, and the same item in its menu instead of Process Again: transcribes and translates it."
+filmsMarkUnwatched:
+  message: "Mark as Unwatched"
+  description: "Menu item of a film that was played, from ⋯ or a right click on its poster, its row in the list or the large card: forget that it was played, where it stopped and how far, so it shows as never watched."
+filmsMarkWatched:
+  message: "Mark as Watched"
+  description: "Menu item of a film, from ⋯ or a right click on its poster, its row in the list or the large card: mark it as watched to its end without playing it, so the check shows over its poster."
 filmsMoreActions:
   message: "More Actions for {film}"
   description: "Accessible name of the ⋯ button beside a poster's title, naming the film it acts on."
@@ -1474,6 +1480,18 @@ filmsViewGrid:
 filmsViewList:
   message: "List"
   description: "Accessible name of the segment of the view switch that shows the finished films as a list, and of the list itself."
+filmsWatchEmptyInProgress:
+  message: "No films in progress here."
+  description: "Shown in the library when In Progress is chosen under Progress in the sidebar and no film of the source and language chosen was started without being finished."
+filmsWatchEmptyUnwatched:
+  message: "No unwatched films here."
+  description: "Shown in the library when Not Watched is chosen under Progress in the sidebar and every film of the source and language chosen has been started."
+filmsWatchEmptyWatched:
+  message: "No watched films here yet."
+  description: "Shown in the library when Watched is chosen under Progress in the sidebar and no film of the source and language chosen was watched to its end."
+filmsWatchShowAll:
+  message: "Show All Films"
+  description: "Button under the message that no film is in the watch state chosen in the sidebar: show the films however far they were watched."
 filmsWatched:
   message: "Watched"
   description: "Accessible name of the check mark over a poster: the film was played to its end."
@@ -4382,6 +4400,21 @@ sidebarSwitcherLabel:
   description: "Accessible name of the library switcher: what it does and the open library."
   placeholders:
     name: { type: "String", example: "My Films" }
+sidebarWatchAll:
+  message: "All"
+  description: "First row of the sidebar's Progress list: shows the films however far they were watched."
+sidebarWatchInProgress:
+  message: "In Progress"
+  description: "Row of the sidebar's Progress list: shows the films started but not watched to the end."
+sidebarWatchUnwatched:
+  message: "Not Watched"
+  description: "Row of the sidebar's Progress list: shows the films not started yet."
+sidebarWatchWatched:
+  message: "Watched"
+  description: "Row of the sidebar's Progress list: shows the films watched to the end."
+sidebarWatched:
+  message: "Progress"
+  description: "Heading of the sidebar's list that filters the library by how far each film was watched: all, not watched, in progress, watched."
 sitesCaveat:
   message: "Videos that need a sign-in or membership, or that are DRM-encrypted, may not download even from a site on the list."
   description: "Second line under the sheet's title."

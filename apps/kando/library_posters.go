@@ -92,6 +92,17 @@ func (a *app) ensurePoster(item films.Film) {
 	}()
 }
 
+// libraryLearnDuration keeps length as how long the video at path plays when the poster's probe has not told it, as before the probe ends or where it cannot run (no ffmpeg, a cover that was not found), once the player has opened the video and knows it: a film's length is what the check over its poster and 标记为已看完 go by (films.WatchState).
+func (a *app) libraryLearnDuration(path string, length time.Duration) {
+	if path == "" || length <= 0 || a.lib.durations[path] > 0 {
+		return
+	}
+	if a.lib.durations == nil {
+		a.lib.durations = map[string]time.Duration{}
+	}
+	a.lib.durations[path] = length
+}
+
 // coverSources is where a film's cover can come from: the address of the picture its site gives it and where that picture is kept once fetched ("" for a local video), the ffmpeg that reads the video file, and dest, the cover.jpg the cover is kept in.
 type coverSources struct {
 	site, siteCache string

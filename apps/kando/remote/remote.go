@@ -273,7 +273,7 @@ type Film struct {
 	// Subtitles is the bilingual .srt, "" until the film is done; OriginalSubtitles the .srt of the speech alone.
 	Subtitles         string `json:"subtitles,omitempty"`
 	OriginalSubtitles string `json:"original_subtitles,omitempty"`
-	// ResumeMS is where the player stopped last time, which the window offers to continue from, 0 when it was not watched or was watched to the end. WatchedMS is the furthest point the video was played to from its start, which UntilWatched cuts at; a seek past it does not move it. Both are milliseconds of the video.
+	// ResumeMS is where the player stopped last time, which the window offers to continue from, 0 when it was not watched or was watched to the end. WatchedMS is the furthest point the video was played to from its start, which UntilWatched cuts at; a seek past it does not move it, but the user marking the film watched moves it to the end, and marking it unwatched back to 0. Both are milliseconds of the video.
 	ResumeMS  int64 `json:"resume_ms"`
 	WatchedMS int64 `json:"watched_ms"`
 }

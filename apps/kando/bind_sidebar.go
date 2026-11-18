@@ -117,6 +117,19 @@ func (a *app) SetSpokenFilter(code string) {
 	a.side.spoken = code
 }
 
+func (a *app) WatchFilter() string { return a.side.watch }
+
+// SetWatchFilter goes to the library page, closing the open film, and shows the films in state there, among those from the source and in the language chosen.
+func (a *app) SetWatchFilter(state string) {
+	a.Select(pageFilms)
+	a.side.watch = state
+}
+
+// WatchCounts is how many done films are in each watch state among those the library page shows for the source, the language and the search chosen (films.Shown), so a row's count is how many films choosing it shows.
+func (a *app) WatchCounts() sidebar.WatchCounts {
+	return films.WatchCounts(films.Shown(a.films(), a, a.side.filter, a.SpokenFilter(), sidebar.WatchAll, a.side.query), a)
+}
+
 func (a *app) Query() *string { return &a.side.query }
 
 // SetQuery keeps what was typed into the sidebar's search field, and goes to the library page from the browser's, as the films it finds show only there.
@@ -129,14 +142,14 @@ func (a *app) SetQuery(text string) {
 
 func (a *app) QueryFocus() *bool { return &a.side.queryFocus }
 
-// SubmitQuery is Return in the sidebar's search field: when the search leaves a single film in the library page's grid, among those of the source and the language chosen (films.Shown), it plays it, as a click on its poster does.
+// SubmitQuery is Return in the sidebar's search field: when the search leaves a single film in the library page's grid, among those of the source, the language and the watch state chosen (films.Shown), it plays it, as a click on its poster does.
 // TODO(nsgo#348): when the search leaves several films, Return should put the keyboard on the first poster; core.Ref.Focus moves the keyboard only to a text field on macOS (internal/platform/macos/macos.go, ItemFocus), so it does nothing here https://github.com/nsgo-dev/nsgo/issues/348
 func (a *app) SubmitQuery() {
 	query := strings.TrimSpace(a.side.query)
 	if query == "" {
 		return
 	}
-	found := films.Shown(a.films(), a.side.filter, a.SpokenFilter(), query)
+	found := films.Shown(a.films(), a, a.side.filter, a.SpokenFilter(), a.side.watch, query)
 	if len(found) != 1 {
 		return
 	}
@@ -179,10 +192,11 @@ func (a *app) Jobs() sidebar.Jobs {
 // ShowJobs shows 处理中: the library page with every source, the open film closed.
 func (a *app) ShowJobs() { a.SetSourceFilter(sidebar.SourceAll) }
 
-// sidebarLibraryChanged runs after the open library changed (libraryChanged in sidebarHooks): the sidebar shows all of the new library's films, in every language, with no search, and the switcher's counts are read again, the library just left among them.
+// sidebarLibraryChanged runs after the open library changed (libraryChanged in sidebarHooks): the sidebar shows all of the new library's films, in every language, however far they were watched, with no search, and the switcher's counts are read again, the library just left among them.
 func (a *app) sidebarLibraryChanged() {
 	a.side.filter = sidebar.SourceAll
 	a.side.spoken = sidebar.SpokenAll
+	a.side.watch = sidebar.WatchAll
 	a.side.query = ""
 	a.countLibraries()
 }

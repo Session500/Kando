@@ -221,6 +221,14 @@ func (a *app) rememberPosition(play *filmPlay) {
 	a.playerPositionsChanged()
 }
 
+// playerForget forgets where the video at path stopped, so it opens at its start and the library offers no 继续 for it, and with played when it last played too, as for a film never played. The caller has the change saved (playerPositionsChanged).
+func (a *app) playerForget(path string, played bool) {
+	delete(a.player.positions, path)
+	if played {
+		delete(a.player.played, path)
+	}
+}
+
 // resumePositions and setResumePositions are the player's resume positions by video path, for the area that keeps them on disk with the shelf. The map is the player's own; setResumePositions takes positions over as they are.
 func (a *app) resumePositions() map[string]time.Duration { return a.player.positions }
 

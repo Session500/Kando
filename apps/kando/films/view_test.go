@@ -26,6 +26,7 @@ type fakeApp struct {
 	live.Rev
 	dir, page, filter, query, source string
 	spoken                           string
+	watch                            string
 	making                           bool
 	name                             string
 	place                            string
@@ -57,7 +58,7 @@ type fakeApp struct {
 func newFakeApp() *fakeApp {
 	lib := "/films/我的影片.kando"
 	return &fakeApp{
-		dir: lib, page: sidebar.PageFilms, filter: sidebar.SourceAll, spoken: sidebar.SpokenAll, sort: Order{By: SortAdded}, view: ViewGrid, place: "/films", language: "简体中文",
+		dir: lib, page: sidebar.PageFilms, filter: sidebar.SourceAll, spoken: sidebar.SpokenAll, watch: sidebar.WatchAll, sort: Order{By: SortAdded}, view: ViewGrid, place: "/films", language: "简体中文",
 		name: "新资料库",
 		items: []Film{
 			{Key: "done", JobID: "done", Title: "Rivers of Europe", Name: "Rivers of Europe", Source: "https://youtu.be/rivers", Stage: core.StageComplete,
@@ -168,9 +169,21 @@ func (f *fakeApp) Query() *string                     { return &f.query }
 func (f *fakeApp) JobFilm(id string) (Film, bool)     { return Find(f.items, id) }
 func (f *fakeApp) SourceFilter() string               { return f.filter }
 func (f *fakeApp) SpokenFilter() string               { return f.spoken }
-func (f *fakeApp) Enqueue(...string) error            { return nil }
-func (f *fakeApp) Cancel(id string)                   { f.call("cancel", id) }
-func (f *fakeApp) RunningJob() string                 { return "running" }
+func (f *fakeApp) WatchFilter() string                { return f.watch }
+func (f *fakeApp) SetWatchFilter(state string)        { f.call("watch", state); f.watch = state }
+func (f *fakeApp) MarkWatched(items ...Film) {
+	for _, item := range items {
+		f.call("mark-watched", item.Key)
+	}
+}
+func (f *fakeApp) MarkUnwatched(items ...Film) {
+	for _, item := range items {
+		f.call("mark-unwatched", item.Key)
+	}
+}
+func (f *fakeApp) Enqueue(...string) error { return nil }
+func (f *fakeApp) Cancel(id string)        { f.call("cancel", id) }
+func (f *fakeApp) RunningJob() string      { return "running" }
 func (f *fakeApp) QueueFilms() []Film {
 	var out []Film
 	for _, item := range f.items {
@@ -480,7 +493,7 @@ func TestFilmMenuOffersWhatCanBeDone(t *testing.T) {
 		labels = append(labels, it.Label)
 	}
 	// The menu is the first done card's: Linear Algebra, which has untranslated lines, comes after Rivers of Europe in the order added.
-	want := []string{msgs.FilmsPlay(), msgs.FilmsShowInFinder("macOS"), msgs.FilmsRename(), msgs.FilmsReprocess(), msgs.FilmsTranslateAgain(), "", msgs.FilmsRemoveFromLibrary()}
+	want := []string{msgs.FilmsPlay(), msgs.FilmsMarkWatched(), msgs.FilmsShowInFinder("macOS"), msgs.FilmsRename(), msgs.FilmsReprocess(), msgs.FilmsTranslateAgain(), "", msgs.FilmsRemoveFromLibrary()}
 	if !slices.Equal(labels, want) {
 		t.Fatalf("menu %q, want %q", labels, want)
 	}
@@ -522,6 +535,53 @@ func TestFilmMenuOffersWhatCanBeDone(t *testing.T) {
 	}
 	app.Press("id:remove-confirm-trash")
 	wantCalls(t, a, "trash done")
+}
+
+// TestFilmMenuMarksHowFarItWasWatched checks that a film's menu offers 标记为已看完 or 标记为未看, whichever applies, both for a film in progress, 标记为已看完 again for a watched film stopped partway, as while it is watched again, and 标记为已看完 dimmed while its length is not known; and that choosing one marks the film.
+func TestFilmMenuMarksHowFarItWasWatched(t *testing.T) {
+	a := newFakeApp()
+	app := start(t, a)
+	msgs := testlocale.Messages()
+	video := a.items[0].VideoPath
+	marks := func() (watched, unwatched, dimmed bool) {
+		t.Helper()
+		app.RightClick("id:film-done")
+		for _, it := range app.PopupMenu {
+			switch it.Label {
+			case msgs.FilmsMarkWatched():
+				watched, dimmed = true, it.Disabled
+			case msgs.FilmsMarkUnwatched():
+				unwatched = true
+			}
+		}
+		return
+	}
+	cases := []struct {
+		name                       string
+		furthest, resume, length   time.Duration
+		watched, unwatched, dimmed bool
+	}{
+		{name: "never played", length: 125 * time.Second, watched: true},
+		{name: "opened and closed at its start", furthest: 2 * time.Second, length: 125 * time.Second, watched: true},
+		{name: "in progress", furthest: 40 * time.Second, resume: 40 * time.Second, length: 125 * time.Second, watched: true, unwatched: true},
+		{name: "watched", furthest: 124 * time.Second, length: 125 * time.Second, unwatched: true},
+		{name: "watched, playing again", furthest: 125 * time.Second, resume: 30 * time.Second, length: 125 * time.Second, watched: true, unwatched: true},
+		{name: "length not known", furthest: 40 * time.Second, resume: 40 * time.Second, watched: true, unwatched: true, dimmed: true},
+	}
+	for _, c := range cases {
+		change(app, a, func() {
+			a.furthest[video], a.resume[video], a.durations[video] = c.furthest, c.resume, c.length
+		})
+		if watched, unwatched, dimmed := marks(); watched != c.watched || unwatched != c.unwatched || dimmed != c.dimmed {
+			t.Fatalf("%s: 标记为已看完 %v (dimmed %v), 标记为未看 %v, want %v (%v), %v", c.name, watched, dimmed, unwatched, c.watched, c.dimmed, c.unwatched)
+		}
+	}
+	change(app, a, func() { a.durations[video] = 125 * time.Second })
+	app.RightClick("id:film-done")
+	app.ChoosePopup(msgs.FilmsMarkWatched())
+	app.RightClick("id:film-done")
+	app.ChoosePopup(msgs.FilmsMarkUnwatched())
+	wantCalls(t, a, "mark-watched done", "mark-unwatched done")
 }
 
 // A done film that translated none of its lines says so under its title rather than calling itself bilingual, says why, and offers 翻译, which translates its missing lines, and the settings that fix it.
@@ -566,7 +626,7 @@ func TestAFolderVideoOffersToMakeItsSubtitles(t *testing.T) {
 	for _, it := range app.PopupMenu {
 		labels = append(labels, it.Label)
 	}
-	want := []string{msgs.FilmsPlay(), msgs.FilmsShowInFinder("macOS"), msgs.FilmsRename(), msgs.FilmsMakeSubtitles(), "", msgs.FilmsRemoveFromLibrary()}
+	want := []string{msgs.FilmsPlay(), msgs.FilmsMarkWatched(), msgs.FilmsShowInFinder("macOS"), msgs.FilmsRename(), msgs.FilmsMakeSubtitles(), "", msgs.FilmsRemoveFromLibrary()}
 	if !slices.Equal(labels, want) {
 		t.Fatalf("menu %q, want %q", labels, want)
 	}

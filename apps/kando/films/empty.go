@@ -60,6 +60,31 @@ func (e emptySpoken) Render(cx *core.Scope) core.Node {
 	}}
 }
 
+// emptyWatch is what the grid shows when none of the done films of the source and the language chosen in the sidebar is in the watch state chosen under them, state, with 显示全部影片, which shows them however far they were watched.
+type emptyWatch struct {
+	a     App
+	state func() string
+}
+
+// Render implements core.Node.
+func (e emptyWatch) Render(cx *core.Scope) core.Node {
+	a := e.a
+	colors := ui.ColorsOf(cx)
+	say := func() string {
+		switch e.state() {
+		case sidebar.WatchUnwatched:
+			return locales.FilmsWatchEmptyUnwatched(cx)
+		case sidebar.WatchInProgress:
+			return locales.FilmsWatchEmptyInProgress(cx)
+		}
+		return locales.FilmsWatchEmptyWatched(cx)
+	}
+	return core.View{TestID: "films-watch-empty", Style: core.Style{FlexGrow: 1, AlignItems: core.AlignCenter, Gap: 14, Padding: core.Symmetric(80, 28)}, Children: []core.Node{
+		core.Text{ContentFunc: say, Style: ui.TypeBody.Merge(core.Style{TextAlign: core.TextAlignCenter}), StyleFunc: ui.Colored(colors.Muted)},
+		textButton(locales.FilmsWatchShowAll, ui.Button{Variant: ui.ButtonSecondary, TestID: "films-watch-all", OnPress: live.Do(a, func() { a.SetWatchFilter(sidebar.WatchAll) })}),
+	}}
+}
+
 // noMatch is what the grid shows when no done film's name holds the search field's query, with 清除搜索, which empties the field and brings the whole shelf back.
 type noMatch struct {
 	a     App
