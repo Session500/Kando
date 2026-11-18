@@ -79,12 +79,14 @@ func (q *jobQueue) stopActive(cause error) {
 // savedQueue is the queue's part of settings.json. The jobs themselves are in the shelf's library.json. Notify is false when the user turned off the notifications of jobs that end while the app is in the background, and nil while they are on, as they are by default.
 type savedQueue struct {
 	Notify *bool `json:"notify,omitempty"`
+	// YTDLPUpdated is when the daily update last brought Kando's own yt-dlp up to date (queueFreshenYTDLP).
+	YTDLPUpdated time.Time `json:"ytdlp_updated,omitzero"`
 }
 
 func (s *savedQueue) clean() {}
 
 func (a *app) saveQueue(saved *savedSettings) {
-	saved.savedQueue = savedQueue{}
+	saved.savedQueue = savedQueue{YTDLPUpdated: a.queue.ytdlp.freshened}
 	if !a.queue.sys.notify {
 		off := false
 		saved.savedQueue.Notify = &off
@@ -96,6 +98,7 @@ func (a *app) restoreQueue(saved savedSettings) {
 	if saved.Notify != nil {
 		a.queue.sys.notify = *saved.Notify
 	}
+	a.queue.ytdlp.freshened = saved.YTDLPUpdated
 }
 
 // queueHooks: opening another library does not stop the running job, which goes on saving into its own library (queueRun); a job queued in the library opened starts once nothing runs. A quit while a job runs asks first, unless a signal asked for it, and the job still running when the app quits is stopped, left on the shelf as it stood so the next launch runs it again (queue_quit.go). Jobs the app quit in the middle of were read back as queued; they run once the window is ready, so their background updates have a window to land in. The queue starts telling the system about its jobs then too, and removes its notifications whenever the app comes to the front (queue_desktop.go). The version of yt-dlp, which the card of a download it was too old for names, and the browsers whose logins the cards offer to borrow are read then and whenever the tools change; when they were looked up again because the yt-dlp that card asked Kando to download is in, it is updated and the downloads it was too old for run again. The player's resume positions, when each video last played and its subtitle delays are kept with the shelf: read when it is opened and saved when the player remembers one, and keyed by the new paths of videos that moved. From the window being ready, the computer does not sleep while a job runs, and the hold ends as the app quits.
@@ -114,12 +117,14 @@ func (a *app) queueHooks() areaHooks {
 			a.queueKeepAwake()
 			a.queueReadYTDLP()
 			a.queueWatchSignals()
+			a.queueFreshenYTDLP()
 		},
 		toolsChanged: func(redetected bool) {
 			if redetected {
 				a.queueRetryWithKit()
 			}
 			a.queueReadYTDLP()
+			a.queueFreshenYTDLP()
 		},
 		libraryChanged: a.pump,
 		shelfLoaded: func() {

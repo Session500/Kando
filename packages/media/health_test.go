@@ -65,6 +65,7 @@ func TestVersionIn(t *testing.T) {
 		"ffmpeg version 9.0.2 Copyright (c) 2000-2026 the FFmpeg developers\nbuilt with Apple clang": "9.0.2",
 		"2026.10.26\n":                         "2026.10.26",
 		"whisper-cli version 1.9.5\n":          "1.9.5",
+		"whisper.cpp version: 1.9.5\n":         "1.9.5",
 		"error: unknown argument: --version\n": "",
 		"usage: whisper-cli [options] file0\n": "",
 		"":                                     "",

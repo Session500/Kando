@@ -217,6 +217,7 @@ func (f *screenshotFixture) shootSize(t *testing.T, name string, width, height n
 		a := newApp(f.pipeline, func(fn func()) { updates <- fn })
 		a.prefs.listModels = offlineModels
 		a.prefs.interfaceLanguage = testlocale.Current()
+		a.tools.candidates = noCandidates
 		a.edit(func(s *session) {
 			s.LibraryDir = f.lib
 			for _, lib := range protoLibraries {

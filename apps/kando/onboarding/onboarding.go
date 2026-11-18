@@ -70,6 +70,8 @@ type Tool struct {
 	Progress float64
 	// Err is why the last download of this program failed.
 	Err string
+	// Broken is why the copy the computer has does not start, said in the language shown, for a program that is ToolMissing or ToolUnavailable because of it.
+	Broken string
 	// Page is the program's own page of builds, and Install the command that installs it, as Scoop's on Windows, for a program that is ToolUnavailable; either may be "".
 	Page    string
 	Install string

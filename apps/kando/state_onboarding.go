@@ -11,6 +11,7 @@ import (
 	"kando/apps/kando/locales"
 	"kando/apps/kando/onboarding"
 	"kando/apps/kando/settings"
+	"kando/apps/kando/toolhealth"
 	"kando/packages/core"
 	"kando/packages/media"
 
@@ -381,7 +382,7 @@ func (a *app) onboardingDownload(id string) {
 	a.downloadSpeechModel(id)
 }
 
-// onboardingTools is the programs Kando runs as the second step shows them, in the language shown under cx: there, downloading, missing with Kando's download of it, or missing where Kando cannot download it.
+// onboardingTools is the programs Kando runs as the second step shows them, in the language shown under cx: there, downloading, missing with Kando's download of it, or missing where Kando cannot download it. A copy that does not start counts as missing, and says why (onboarding.Tool.Broken).
 func (a *app) onboardingTools(cx *ns.Scope) []onboarding.Tool {
 	tools, own := a.pipeline.(media.Tools)
 	rows := []onboarding.Tool{
@@ -393,9 +394,12 @@ func (a *app) onboardingTools(cx *ns.Scope) []onboarding.Tool {
 	for i := range rows {
 		name := rows[i].Name
 		progress, running := a.kitsProgress(name)
+		if path, health := a.toolHealth(name); path != "" && health.State == media.HealthBroken {
+			rows[i].Broken = toolhealth.Why(locales.For(cx), health)
+		}
 		switch {
 		// Another pipeline, as a test's, runs no programs of its own.
-		case !own, paths[i] != "":
+		case !own, paths[i] != "" && rows[i].Broken == "":
 			rows[i].State = onboarding.ToolReady
 		case running:
 			rows[i].State, rows[i].Progress = onboarding.ToolDownloading, progress

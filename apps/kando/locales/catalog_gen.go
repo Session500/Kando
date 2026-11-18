@@ -526,6 +526,7 @@ var Parameters = map[string][]string{
 	"FeedbackPreviewLabel":                     {"label"},
 	"FeedbackPreviewTitle":                     {"title"},
 	"FeedbackSubsDetail":                       {"time_"},
+	"FeedbackToolBroken":                       {"name"},
 	"FeedbackToolMissing":                      {"name"},
 	"FeedbackToolNoVersion":                    {"name"},
 	"FeedbackToolsDetail":                      {"tools", "speech", "translator"},
@@ -687,6 +688,7 @@ var Parameters = map[string][]string{
 	"OnboardingStepCounter":                    {"step", "steps"},
 	"OnboardingStepOf":                         {"step", "steps"},
 	"OnboardingTipMenu":                        {"menu", "item"},
+	"OnboardingToolBroken":                     {"reason"},
 	"OnboardingToolProgress":                   {"percent"},
 	"OnboardingToolUnavailableCommand":         {"command"},
 	"PaletteAnswerNote":                        {"at", "model"},
@@ -723,6 +725,7 @@ var Parameters = map[string][]string{
 	"PrecheckFailedTranscribe":                 {"detail"},
 	"PrecheckFailedTranslate":                  {"detail"},
 	"PrecheckList":                             {"site"},
+	"PrecheckToolsBroken":                      {"tools"},
 	"PrecheckToolsDownloading":                 {"tools"},
 	"PrecheckToolsMissing":                     {"tools"},
 	"QueueBorrowed":                            {"browser"},
@@ -759,6 +762,13 @@ var Parameters = map[string][]string{
 	"QueueRemedyRateLimit":                     {"site"},
 	"QueueRemedySentences":                     {"first", "second"},
 	"QueueRemedySwitchBrowser":                 {"browser"},
+	"QueueRemedyToolBroken":                    {"tool"},
+	"QueueRemedyToolDownload":                  {"tool"},
+	"QueueRemedyToolDownloading":               {"tool"},
+	"QueueRemedyToolManualWhy":                 {"reason", "tool"},
+	"QueueRemedyToolOwnWhy":                    {"reason", "tool"},
+	"QueueRemedyToolRedownload":                {"tool"},
+	"QueueRemedyToolRedownloadWhy":             {"reason", "tool"},
 	"QueueRemedyUnsupported":                   {"host"},
 	"QueueRemedyXSignedInWhy":                  {"browser"},
 	"QueueReprocessFailed":                     {"name", "reason"},
@@ -772,6 +782,7 @@ var Parameters = map[string][]string{
 	"QueueYtdlpHintSystem":                     {"dir"},
 	"QueueYtdlpLatest":                         {"version"},
 	"QueueYtdlpUpdated":                        {"version", "count"},
+	"ReadinessBrokenTools":                     {"tools"},
 	"ReadinessDownloadingTools":                {"tools"},
 	"ReadinessMissingTools":                    {"tools"},
 	"SavedCount":                               {"count"},
@@ -806,6 +817,8 @@ var Parameters = map[string][]string{
 	"SettingsGeneralShowInFinder":              {"platform"},
 	"SettingsGeneralSignInChecking":            {"browser"},
 	"SettingsGeneralSignInOn":                  {"browser"},
+	"SettingsGeneralToolComputer":              {"path"},
+	"SettingsGeneralToolCopy":                  {"name"},
 	"SettingsGeneralToolDetail":                {"use", "where"},
 	"SettingsGeneralToolPageLabel":             {"program"},
 	"SettingsGeneralToolsNoteScoop":            {"command"},
@@ -874,6 +887,7 @@ var Parameters = map[string][]string{
 	"SubscribeAddOneLabel":                     {"title"},
 	"SubscribeSkipOneLabel":                    {"title"},
 	"SubscribeWhenNewAuto":                     {"count"},
+	"ToolProblemLibrary":                       {"library"},
 	"SubscribeNoteSubscribed":                  {"name"},
 	"SubscribeNoteQueued":                      {"count"},
 	"SubscribeNoteHeld":                        {"count"},
@@ -1014,6 +1028,7 @@ type Translation struct {
 	FeedbackPreviewLabel                     func(label string) string
 	FeedbackPreviewTitle                     func(title string) string
 	FeedbackSubsDetail                       func(time_ string) string
+	FeedbackToolBroken                       func(name string) string
 	FeedbackToolMissing                      func(name string) string
 	FeedbackToolNoVersion                    func(name string) string
 	FeedbackToolsDetail                      func(tools string, speech string, translator string) string
@@ -1175,6 +1190,7 @@ type Translation struct {
 	OnboardingStepCounter                    func(step int, steps int) string
 	OnboardingStepOf                         func(step int, steps int) string
 	OnboardingTipMenu                        func(menu string, item string) string
+	OnboardingToolBroken                     func(reason string) string
 	OnboardingToolProgress                   func(percent int) string
 	OnboardingToolUnavailableCommand         func(command string) string
 	PaletteAnswerNote                        func(at string, model string) string
@@ -1211,6 +1227,7 @@ type Translation struct {
 	PrecheckFailedTranscribe                 func(detail string) string
 	PrecheckFailedTranslate                  func(detail string) string
 	PrecheckList                             func(site string) string
+	PrecheckToolsBroken                      func(tools string) string
 	PrecheckToolsDownloading                 func(tools string) string
 	PrecheckToolsMissing                     func(tools string) string
 	QueueBorrowed                            func(browser string) string
@@ -1247,6 +1264,13 @@ type Translation struct {
 	QueueRemedyRateLimit                     func(site string) string
 	QueueRemedySentences                     func(first string, second string) string
 	QueueRemedySwitchBrowser                 func(browser string) string
+	QueueRemedyToolBroken                    func(tool string) string
+	QueueRemedyToolDownload                  func(tool string) string
+	QueueRemedyToolDownloading               func(tool string) string
+	QueueRemedyToolManualWhy                 func(reason string, tool string) string
+	QueueRemedyToolOwnWhy                    func(reason string, tool string) string
+	QueueRemedyToolRedownload                func(tool string) string
+	QueueRemedyToolRedownloadWhy             func(reason string, tool string) string
 	QueueRemedyUnsupported                   func(host string) string
 	QueueRemedyXSignedInWhy                  func(browser string) string
 	QueueReprocessFailed                     func(name string, reason string) string
@@ -1260,6 +1284,7 @@ type Translation struct {
 	QueueYtdlpHintSystem                     func(dir string) string
 	QueueYtdlpLatest                         func(version string) string
 	QueueYtdlpUpdated                        func(version string, count int) string
+	ReadinessBrokenTools                     func(tools string) string
 	ReadinessDownloadingTools                func(tools string) string
 	ReadinessMissingTools                    func(tools string) string
 	SavedCount                               func(count int) string
@@ -1294,6 +1319,8 @@ type Translation struct {
 	SettingsGeneralShowInFinder              func(platform string) string
 	SettingsGeneralSignInChecking            func(browser string) string
 	SettingsGeneralSignInOn                  func(browser string) string
+	SettingsGeneralToolComputer              func(path string) string
+	SettingsGeneralToolCopy                  func(name string) string
 	SettingsGeneralToolDetail                func(use string, where string) string
 	SettingsGeneralToolPageLabel             func(program string) string
 	SettingsGeneralToolsNoteScoop            func(command string) string
@@ -1362,6 +1389,7 @@ type Translation struct {
 	SubscribeAddOneLabel                     func(title string) string
 	SubscribeSkipOneLabel                    func(title string) string
 	SubscribeWhenNewAuto                     func(count int) string
+	ToolProblemLibrary                       func(library string) string
 	SubscribeNoteSubscribed                  func(name string) string
 	SubscribeNoteQueued                      func(count int) string
 	SubscribeNoteHeld                        func(count int) string
@@ -2229,6 +2257,9 @@ const (
 	textQueueRemedyRetry
 	textQueueRemedySites
 	textQueueRemedySwap
+	textQueueRemedyToolDownloadingAction
+	textQueueRemedyToolDownloadingWhy
+	textQueueRemedyToolSettings
 	textQueueRemedyUnsupportedWhy
 	textQueueRemedyUpdate
 	textQueueRemedyUpdated
@@ -2408,8 +2439,14 @@ const (
 	textSettingsGeneralSignInOffHint
 	textSettingsGeneralSignInReady
 	textSettingsGeneralSignInUse
+	textSettingsGeneralToolBroken
+	textSettingsGeneralToolChecking
+	textSettingsGeneralToolOwn
 	textSettingsGeneralToolPage
+	textSettingsGeneralToolRedownload
+	textSettingsGeneralToolUseOwn
 	textSettingsGeneralToolsNote
+	textSettingsGeneralToolsNoteFallback
 	textSettingsGeneralToolsNoteManual
 	textSettingsGeneralTrayIconHint
 	textSettingsGeneralUseFFmpeg
@@ -2687,6 +2724,10 @@ const (
 	textSubscribeMisfit
 	textSubscribeRules
 	textSubscribeWhenNew
+	textToolProblemCannotStart
+	textToolProblemCrashed
+	textToolProblemFailed
+	textToolProblemLibraryUnnamed
 	textSubscribeWhenNewAsk
 	textSubscribeModeAuto
 	textSubscribeModeAsk
@@ -3585,6 +3626,9 @@ var keyOfText = [numTexts]string{
 	"queueRemedyRetry",
 	"queueRemedySites",
 	"queueRemedySwap",
+	"queueRemedyToolDownloadingAction",
+	"queueRemedyToolDownloadingWhy",
+	"queueRemedyToolSettings",
 	"queueRemedyUnsupportedWhy",
 	"queueRemedyUpdate",
 	"queueRemedyUpdated",
@@ -3764,8 +3808,14 @@ var keyOfText = [numTexts]string{
 	"settingsGeneralSignInOffHint",
 	"settingsGeneralSignInReady",
 	"settingsGeneralSignInUse",
+	"settingsGeneralToolBroken",
+	"settingsGeneralToolChecking",
+	"settingsGeneralToolOwn",
 	"settingsGeneralToolPage",
+	"settingsGeneralToolRedownload",
+	"settingsGeneralToolUseOwn",
 	"settingsGeneralToolsNote",
+	"settingsGeneralToolsNoteFallback",
 	"settingsGeneralToolsNoteManual",
 	"settingsGeneralTrayIconHint",
 	"settingsGeneralUseFFmpeg",
@@ -4043,6 +4093,10 @@ var keyOfText = [numTexts]string{
 	"subscribeMisfit",
 	"subscribeRules",
 	"subscribeWhenNew",
+	"toolProblemCannotStart",
+	"toolProblemCrashed",
+	"toolProblemFailed",
+	"toolProblemLibraryUnnamed",
 	"subscribeWhenNewAsk",
 	"subscribeModeAuto",
 	"subscribeModeAsk",
@@ -4939,6 +4993,9 @@ var textsEn = i18n.NewTexts(""+
 	"Retry"+
 	"See Supported Websites"+
 	"Use Another Link"+
+	"Downloading…"+
+	"The video is processed again once it has arrived."+
+	"Open Settings"+
 	"No video was found on the page. Use another link, or download it to this computer first and drag it in."+
 	"Update and Retry"+
 	"Updated, Retry"+
@@ -5118,8 +5175,14 @@ var textsEn = i18n.NewTexts(""+
 	"Pages in Browse and downloads sign in as you are in that browser, so members-only and age-restricted videos download too."+
 	"Ready"+
 	"Use the sign-in of"+
+	"Doesn't Run"+
+	"Checking…"+
+	"Kando's own"+
 	"Download Page"+
-	"Kando downloads the programs it is missing. Those already installed on this computer are used as they are."+
+	"Download Again"+
+	"Use Kando's Own"+
+	"Kando downloads its own copy of each program and runs it first, so upgrading other software on this computer can't break it. Until a copy has arrived, the one installed on this computer is used."+
+	"Kando downloads the programs it is missing. It runs its own yt-dlp, and the ffmpeg and whisper-cli installed on this computer when they work."+
 	"Kando doesn't download these programs on this system. Install each from its download page and add its folder to PATH, then choose Detect Again."+
 	"See the progress, pause the queue, open or quit Kando."+
 	"Converts audio, grabs covers, decodes frames"+
@@ -5397,6 +5460,10 @@ var textsEn = i18n.NewTexts(""+
 	"doesn't fit the rules now"+
 	"Rules"+
 	"When There Are New Videos"+
+	"This computer can't start it"+
+	"The system stopped it as it started"+
+	"It quit with an error as it started"+
+	"It can't load a library it needs"+
 	"They're listed here first and start once you add them"+
 	"Add Automatically"+
 	"Ask Me First"+
@@ -6290,6 +6357,9 @@ var textsEn = i18n.NewTexts(""+
 		5,
 		22,
 		16,
+		14,
+		49,
+		13,
 		103,
 		16,
 		14,
@@ -6469,8 +6539,14 @@ var textsEn = i18n.NewTexts(""+
 		121,
 		5,
 		18,
+		11,
+		11,
+		11,
 		13,
-		106,
+		14,
+		15,
+		194,
+		141,
 		143,
 		54,
 		44,
@@ -6748,6 +6824,10 @@ var textsEn = i18n.NewTexts(""+
 		25,
 		5,
 		25,
+		28,
+		35,
+		35,
+		32,
 		53,
 		17,
 		12,
@@ -7644,6 +7724,9 @@ var textsJa = i18n.NewTexts(""+
 	"再試行"+
 	"対応サイトを見る"+
 	"別のリンクを使う"+
+	"ダウンロード中…"+
+	"ダウンロードが終わると自動的に処理し直します。"+
+	"設定を開く"+
 	"ページに動画が見つかりませんでした。別のリンクを使うか、先にこのコンピュータにダウンロードしてからドラッグしてください。"+
 	"アップデートして再試行"+
 	"アップデート済み、再試行"+
@@ -7823,8 +7906,14 @@ var textsJa = i18n.NewTexts(""+
 	"ブラウザを選ぶと、「ブラウザ」で開くページとダウンロードがそのブラウザでのログインのままになり、メンバー限定や年齢確認が必要な動画もダウンロードできます。"+
 	"利用可能"+
 	"ログインを借りるブラウザ"+
+	"実行できません"+
+	"確認中…"+
+	"Kando 付属"+
 	"ダウンロードページ"+
-	"足りないプログラムは Kando が自動でダウンロードします。このコンピュータにすでにあるものはそのまま使います。"+
+	"再ダウンロード"+
+	"Kando 付属のものを使う"+
+	"Kando は各プログラムを自分用にダウンロードして優先的に使うため、このコンピュータのほかのソフトウェアを更新しても動かなくなりません。ダウンロードが終わるまでは、このコンピュータにあるものを使います。"+
+	"足りないプログラムは Kando が自動でダウンロードします。yt-dlp は Kando 付属のものを使い、ffmpeg と whisper-cli はこのコンピュータのものが動けばそれを使います。"+
 	"このシステムでは Kando はこれらのプログラムをダウンロードできません。それぞれのダウンロードページからインストールしてフォルダを PATH に追加し、「再検出」を押してください。"+
 	"進み具合の確認、キューの一時停止、Kando を開く・終了する。"+
 	"音声の変換、カバーの取得、映像のデコード"+
@@ -8102,6 +8191,10 @@ var textsJa = i18n.NewTexts(""+
 	"現在のルールに合いません"+
 	"ルール"+
 	"新しい動画があるとき"+
+	"このコンピュータでは起動できません"+
+	"起動した直後にシステムに停止されました"+
+	"起動時にエラーで終了しました"+
+	"起動に必要なライブラリが見つかりません"+
 	"まずここに表示され、追加すると始まります"+
 	"自動で追加"+
 	"先に確認"+
@@ -8995,6 +9088,9 @@ var textsJa = i18n.NewTexts(""+
 		9,
 		24,
 		24,
+		24,
+		69,
+		15,
 		180,
 		33,
 		36,
@@ -9174,8 +9270,14 @@ var textsJa = i18n.NewTexts(""+
 		231,
 		12,
 		36,
+		21,
+		12,
+		12,
 		27,
-		157,
+		21,
+		30,
+		294,
+		218,
 		250,
 		84,
 		60,
@@ -9453,6 +9555,10 @@ var textsJa = i18n.NewTexts(""+
 		36,
 		9,
 		30,
+		51,
+		57,
+		42,
+		57,
 		60,
 		15,
 		12,
@@ -10349,6 +10455,9 @@ var textsKo = i18n.NewTexts(""+
 	"다시 시도"+
 	"지원하는 웹사이트 보기"+
 	"다른 링크 사용"+
+	"다운로드 중…"+
+	"다운로드가 끝나면 자동으로 다시 처리합니다."+
+	"설정 열기"+
 	"페이지에서 동영상을 찾지 못했습니다. 다른 링크를 사용하거나, 먼저 이 컴퓨터에 다운로드한 후 끌어다 놓으십시오."+
 	"업데이트 후 다시 시도"+
 	"업데이트 완료, 다시 시도"+
@@ -10528,8 +10637,14 @@ var textsKo = i18n.NewTexts(""+
 	"브라우저를 선택하면 '브라우저'에서 여는 페이지와 다운로드가 그 브라우저의 로그인으로 진행되어 멤버십 전용 동영상과 연령 확인이 필요한 동영상도 다운로드됩니다."+
 	"사용 가능"+
 	"로그인을 빌릴 브라우저"+
+	"실행 불가"+
+	"확인 중…"+
+	"Kando 내장"+
 	"다운로드 페이지"+
-	"없는 프로그램은 Kando가 자동으로 다운로드합니다. 이 컴퓨터에 이미 설치된 것은 그대로 사용합니다."+
+	"다시 다운로드"+
+	"Kando 내장 버전 사용"+
+	"Kando는 각 프로그램을 직접 다운로드해 우선 사용하므로, 이 컴퓨터의 다른 소프트웨어를 업데이트해도 영향을 받지 않습니다. 다운로드가 끝나기 전에는 이 컴퓨터에 설치된 것을 사용합니다."+
+	"없는 프로그램은 Kando가 자동으로 다운로드합니다. yt-dlp는 Kando 내장 버전을 사용하고, ffmpeg와 whisper-cli는 이 컴퓨터에 설치된 것이 실행되면 그것을 사용합니다."+
 	"이 시스템에서는 Kando가 이 프로그램들을 다운로드할 수 없습니다. 각 다운로드 페이지에서 설치하고 폴더를 PATH에 추가한 다음 ‘다시 감지’를 누르십시오."+
 	"진행 상황 보기, 대기열 일시 정지, Kando 열기 또는 종료."+
 	"오디오 변환, 표지 추출, 화면 디코딩"+
@@ -10807,6 +10922,10 @@ var textsKo = i18n.NewTexts(""+
 	"현재 규칙에 맞지 않아요"+
 	"규칙"+
 	"새 동영상이 있을 때"+
+	"이 컴퓨터에서 실행할 수 없습니다"+
+	"실행하자마자 시스템에 의해 중지되었습니다"+
+	"실행 중 오류로 종료되었습니다"+
+	"실행에 필요한 라이브러리를 찾을 수 없습니다"+
 	"먼저 여기에 표시되고, 추가하면 시작해요"+
 	"자동 추가"+
 	"먼저 묻기"+
@@ -11700,6 +11819,9 @@ var textsKo = i18n.NewTexts(""+
 		13,
 		32,
 		20,
+		19,
+		62,
+		13,
 		157,
 		30,
 		34,
@@ -11879,8 +12001,14 @@ var textsKo = i18n.NewTexts(""+
 		227,
 		13,
 		32,
+		13,
+		13,
+		12,
 		22,
-		135,
+		19,
+		26,
+		255,
+		213,
 		209,
 		74,
 		49,
@@ -12158,6 +12286,10 @@ var textsKo = i18n.NewTexts(""+
 		33,
 		6,
 		27,
+		46,
+		60,
+		42,
+		62,
 		56,
 		13,
 		13,
@@ -13054,6 +13186,9 @@ var textsZhHans = i18n.NewTexts(""+
 	"重试"+
 	"查看支持的网站"+
 	"换个链接"+
+	"下载中…"+
+	"下载完成后会自动重新处理。"+
+	"打开设置"+
 	"没在页面里找到视频。换个链接，或先下载到本机再拖进来。"+
 	"更新并重试"+
 	"已更新，重试"+
@@ -13233,8 +13368,14 @@ var textsZhHans = i18n.NewTexts(""+
 	"选一个浏览器，“浏览”里的网页和下载都会以你在那里的登录进行，会员专享和需要年龄验证的视频也能下载。"+
 	"可用"+
 	"借用此浏览器的登录"+
+	"无法运行"+
+	"检查中…"+
+	"看懂自带"+
 	"下载页面"+
-	"缺少的程序看懂会自动下载；这台电脑上已经装了的，就用已装的那份。"+
+	"重新下载"+
+	"改用看懂自带的"+
+	"看懂会下载自己的一份并优先使用，不受这台电脑上其他软件升级的影响；下载完成之前，先用这台电脑上已经装了的。"+
+	"缺少的程序看懂会自动下载。yt-dlp 用看懂自带的；ffmpeg 和 whisper-cli 只要这台电脑上装的能运行，就用装的那份。"+
 	"看懂无法在这个系统上下载这些程序。请从各自的下载页面安装，并把所在文件夹加进 PATH，然后点「重新检测」。"+
 	"看进度、暂停队列、打开或退出看懂。"+
 	"音频转换、截取封面、解码画面"+
@@ -13512,6 +13653,10 @@ var textsZhHans = i18n.NewTexts(""+
 	"不符合当前规则"+
 	"规则"+
 	"有新视频时"+
+	"这台电脑无法启动它"+
+	"一启动就被系统停止了"+
+	"启动时出错退出了"+
+	"启动时缺少它需要的库"+
 	"先列在这里，你点「加入」才开始"+
 	"自动加入"+
 	"先问我"+
@@ -14405,6 +14550,9 @@ var textsZhHans = i18n.NewTexts(""+
 		6,
 		21,
 		12,
+		12,
+		39,
+		12,
 		81,
 		15,
 		18,
@@ -14585,7 +14733,13 @@ var textsZhHans = i18n.NewTexts(""+
 		6,
 		27,
 		12,
-		96,
+		12,
+		12,
+		12,
+		12,
+		21,
+		159,
+		150,
 		152,
 		51,
 		42,
@@ -14863,6 +15017,10 @@ var textsZhHans = i18n.NewTexts(""+
 		21,
 		6,
 		15,
+		27,
+		30,
+		24,
+		30,
 		45,
 		12,
 		9,
@@ -15759,6 +15917,9 @@ var textsZhHant = i18n.NewTexts(""+
 	"重試"+
 	"查看支援的網站"+
 	"換個連結"+
+	"下載中…"+
+	"下載完成後會自動重新處理。"+
+	"打開設定"+
 	"頁面中找不到影片。換個連結，或先下載到本機再拖進來。"+
 	"更新並重試"+
 	"已更新，重試"+
@@ -15938,8 +16099,14 @@ var textsZhHant = i18n.NewTexts(""+
 	"選一個瀏覽器，「瀏覽」中的網頁和下載都會以你在那裡的登入進行，會員專屬和需要年齡驗證的影片也能下載。"+
 	"可用"+
 	"借用此瀏覽器的登入"+
+	"無法執行"+
+	"檢查中…"+
+	"看懂內建"+
 	"下載頁面"+
-	"缺少的程式看懂會自動下載；這台電腦上已經裝了的，就用已裝的那份。"+
+	"重新下載"+
+	"改用看懂內建的"+
+	"看懂會下載自己的一份並優先使用，不受這台電腦上其他軟體升級的影響；下載完成之前，先用這台電腦上已經裝了的。"+
+	"缺少的程式看懂會自動下載。yt-dlp 用看懂內建的；ffmpeg 和 whisper-cli 只要這台電腦上裝的能執行，就用裝的那份。"+
 	"看懂無法在這個系統上下載這些程式。請從各自的下載頁面安裝，並把所在資料夾加入 PATH，然後按「重新偵測」。"+
 	"看進度、暫停佇列、打開或結束看懂。"+
 	"音訊轉換、擷取封面、解碼畫面"+
@@ -16217,6 +16384,10 @@ var textsZhHant = i18n.NewTexts(""+
 	"不符合目前規則"+
 	"規則"+
 	"有新影片時"+
+	"這台電腦無法啟動它"+
+	"一啟動就被系統停止了"+
+	"啟動時出錯結束了"+
+	"啟動時缺少它需要的函式庫"+
 	"先列在這裡，你點「加入」才開始"+
 	"自動加入"+
 	"先問我"+
@@ -17110,6 +17281,9 @@ var textsZhHant = i18n.NewTexts(""+
 		6,
 		21,
 		12,
+		12,
+		39,
+		12,
 		78,
 		15,
 		18,
@@ -17290,7 +17464,13 @@ var textsZhHant = i18n.NewTexts(""+
 		6,
 		27,
 		12,
-		96,
+		12,
+		12,
+		12,
+		12,
+		21,
+		159,
+		150,
 		152,
 		51,
 		42,
@@ -17568,6 +17748,10 @@ var textsZhHant = i18n.NewTexts(""+
 		21,
 		6,
 		15,
+		27,
+		30,
+		24,
+		36,
 		45,
 		12,
 		9,
@@ -17922,6 +18106,9 @@ func Supply(lang string, t Translation) {
 	}
 	if t.FeedbackSubsDetail != nil {
 		s.FeedbackSubsDetail = t.FeedbackSubsDetail
+	}
+	if t.FeedbackToolBroken != nil {
+		s.FeedbackToolBroken = t.FeedbackToolBroken
 	}
 	if t.FeedbackToolMissing != nil {
 		s.FeedbackToolMissing = t.FeedbackToolMissing
@@ -18406,6 +18593,9 @@ func Supply(lang string, t Translation) {
 	if t.OnboardingTipMenu != nil {
 		s.OnboardingTipMenu = t.OnboardingTipMenu
 	}
+	if t.OnboardingToolBroken != nil {
+		s.OnboardingToolBroken = t.OnboardingToolBroken
+	}
 	if t.OnboardingToolProgress != nil {
 		s.OnboardingToolProgress = t.OnboardingToolProgress
 	}
@@ -18513,6 +18703,9 @@ func Supply(lang string, t Translation) {
 	}
 	if t.PrecheckList != nil {
 		s.PrecheckList = t.PrecheckList
+	}
+	if t.PrecheckToolsBroken != nil {
+		s.PrecheckToolsBroken = t.PrecheckToolsBroken
 	}
 	if t.PrecheckToolsDownloading != nil {
 		s.PrecheckToolsDownloading = t.PrecheckToolsDownloading
@@ -18622,6 +18815,27 @@ func Supply(lang string, t Translation) {
 	if t.QueueRemedySwitchBrowser != nil {
 		s.QueueRemedySwitchBrowser = t.QueueRemedySwitchBrowser
 	}
+	if t.QueueRemedyToolBroken != nil {
+		s.QueueRemedyToolBroken = t.QueueRemedyToolBroken
+	}
+	if t.QueueRemedyToolDownload != nil {
+		s.QueueRemedyToolDownload = t.QueueRemedyToolDownload
+	}
+	if t.QueueRemedyToolDownloading != nil {
+		s.QueueRemedyToolDownloading = t.QueueRemedyToolDownloading
+	}
+	if t.QueueRemedyToolManualWhy != nil {
+		s.QueueRemedyToolManualWhy = t.QueueRemedyToolManualWhy
+	}
+	if t.QueueRemedyToolOwnWhy != nil {
+		s.QueueRemedyToolOwnWhy = t.QueueRemedyToolOwnWhy
+	}
+	if t.QueueRemedyToolRedownload != nil {
+		s.QueueRemedyToolRedownload = t.QueueRemedyToolRedownload
+	}
+	if t.QueueRemedyToolRedownloadWhy != nil {
+		s.QueueRemedyToolRedownloadWhy = t.QueueRemedyToolRedownloadWhy
+	}
 	if t.QueueRemedyUnsupported != nil {
 		s.QueueRemedyUnsupported = t.QueueRemedyUnsupported
 	}
@@ -18660,6 +18874,9 @@ func Supply(lang string, t Translation) {
 	}
 	if t.QueueYtdlpUpdated != nil {
 		s.QueueYtdlpUpdated = t.QueueYtdlpUpdated
+	}
+	if t.ReadinessBrokenTools != nil {
+		s.ReadinessBrokenTools = t.ReadinessBrokenTools
 	}
 	if t.ReadinessDownloadingTools != nil {
 		s.ReadinessDownloadingTools = t.ReadinessDownloadingTools
@@ -18762,6 +18979,12 @@ func Supply(lang string, t Translation) {
 	}
 	if t.SettingsGeneralSignInOn != nil {
 		s.SettingsGeneralSignInOn = t.SettingsGeneralSignInOn
+	}
+	if t.SettingsGeneralToolComputer != nil {
+		s.SettingsGeneralToolComputer = t.SettingsGeneralToolComputer
+	}
+	if t.SettingsGeneralToolCopy != nil {
+		s.SettingsGeneralToolCopy = t.SettingsGeneralToolCopy
 	}
 	if t.SettingsGeneralToolDetail != nil {
 		s.SettingsGeneralToolDetail = t.SettingsGeneralToolDetail
@@ -18966,6 +19189,9 @@ func Supply(lang string, t Translation) {
 	}
 	if t.SubscribeWhenNewAuto != nil {
 		s.SubscribeWhenNewAuto = t.SubscribeWhenNewAuto
+	}
+	if t.ToolProblemLibrary != nil {
+		s.ToolProblemLibrary = t.ToolProblemLibrary
 	}
 	if t.SubscribeNoteSubscribed != nil {
 		s.SubscribeNoteSubscribed = t.SubscribeNoteSubscribed
@@ -23590,6 +23816,36 @@ func FeedbackTitleHintIdea(cx *core.Scope) string { return For(cx).FeedbackTitle
 
 // FeedbackTitleHintIdea is the package's FeedbackTitleHintIdea in the language of msgs.
 func (msgs Messages) FeedbackTitleHintIdea() string { return msgs.text(textFeedbackTitleHintIdea) }
+
+// FeedbackToolBroken says "{name} doesn't run"
+// in the language the app shows under cx.
+//
+// A program in the feedback dialog's list of components whose copy does not start.
+func FeedbackToolBroken(cx *core.Scope, name string) string { return For(cx).FeedbackToolBroken(name) }
+
+// FeedbackToolBroken is the package's FeedbackToolBroken in the language of msgs.
+func (msgs Messages) FeedbackToolBroken(name string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.FeedbackToolBroken(name))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].FeedbackToolBroken; f != nil {
+			return f(name)
+		}
+		switch lang {
+		case "", "en":
+			return msgs.arg(name) + " doesn't run"
+		case "ja":
+			return name + " 実行不可"
+		case "ko":
+			return name + " 실행 불가"
+		case "zh-Hans":
+			return name + " 无法运行"
+		case "zh-Hant":
+			return name + " 無法執行"
+		}
+	}
+}
 
 // FeedbackToolMissing says "{name} not installed"
 // in the language the app shows under cx.
@@ -32839,6 +33095,38 @@ func (msgs Messages) OnboardingTipMenu(menu string, item string) string {
 	}
 }
 
+// OnboardingToolBroken says "Doesn't run: {reason}"
+// in the language the app shows under cx.
+//
+// Line under a program in the first-run guide, in red, whose copy on the computer does not start; {reason} is one of the toolProblem messages.
+func OnboardingToolBroken(cx *core.Scope, reason string) string {
+	return For(cx).OnboardingToolBroken(reason)
+}
+
+// OnboardingToolBroken is the package's OnboardingToolBroken in the language of msgs.
+func (msgs Messages) OnboardingToolBroken(reason string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.OnboardingToolBroken(reason))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].OnboardingToolBroken; f != nil {
+			return f(reason)
+		}
+		switch lang {
+		case "", "en":
+			return "Doesn't run: " + msgs.arg(reason)
+		case "ja":
+			return "実行できません：" + reason
+		case "ko":
+			return "실행 불가: " + reason
+		case "zh-Hans":
+			return "无法运行：" + reason
+		case "zh-Hant":
+			return "無法執行：" + reason
+		}
+	}
+}
+
 // OnboardingToolConnecting says "Connecting…"
 // in the language the app shows under cx.
 //
@@ -34988,6 +35276,38 @@ func PrecheckToolSeparator(cx *core.Scope) string { return For(cx).PrecheckToolS
 // PrecheckToolSeparator is the package's PrecheckToolSeparator in the language of msgs.
 func (msgs Messages) PrecheckToolSeparator() string { return msgs.text(textPrecheckToolSeparator) }
 
+// PrecheckToolsBroken says "Programs that process videos don't run: {tools}. Fix them in Settings › General."
+// in the language the app shows under cx.
+//
+// Message bar when the copies of programs a job needs do not start, with their names joined by precheckToolSeparator.
+func PrecheckToolsBroken(cx *core.Scope, tools string) string {
+	return For(cx).PrecheckToolsBroken(tools)
+}
+
+// PrecheckToolsBroken is the package's PrecheckToolsBroken in the language of msgs.
+func (msgs Messages) PrecheckToolsBroken(tools string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.PrecheckToolsBroken(tools))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].PrecheckToolsBroken; f != nil {
+			return f(tools)
+		}
+		switch lang {
+		case "", "en":
+			return "Programs that process videos don't run: " + msgs.arg(tools) + ". Fix them in Settings › General."
+		case "ja":
+			return "動画を処理するプログラムが実行できません：" + tools + "。「設定 › 一般」で修復してください。"
+		case "ko":
+			return "동영상을 처리하는 프로그램을 실행할 수 없습니다: " + tools + ". 설정 › 일반에서 고치세요."
+		case "zh-Hans":
+			return "处理视频的程序无法运行：" + tools + "，到「设置 › 通用」里修复。"
+		case "zh-Hant":
+			return "處理影片的程式無法執行：" + tools + "，到「設定 › 一般」裡修復。"
+		}
+	}
+}
+
 // PrecheckToolsDownloading says "Still downloading the programs that process videos: {tools}. Try again once they're in."
 // in the language the app shows under cx.
 //
@@ -36833,6 +37153,265 @@ func (msgs Messages) QueueRemedySwitchBrowser(browser string) string {
 	}
 }
 
+// QueueRemedyToolBroken says "{tool} doesn't start"
+// in the language the app shows under cx.
+//
+// Headline of the card of a job that failed because the copy of a program it ran does not start. {tool} is the program, as ffmpeg.
+func QueueRemedyToolBroken(cx *core.Scope, tool string) string {
+	return For(cx).QueueRemedyToolBroken(tool)
+}
+
+// QueueRemedyToolBroken is the package's QueueRemedyToolBroken in the language of msgs.
+func (msgs Messages) QueueRemedyToolBroken(tool string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.QueueRemedyToolBroken(tool))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].QueueRemedyToolBroken; f != nil {
+			return f(tool)
+		}
+		switch lang {
+		case "", "en":
+			return msgs.arg(tool) + " doesn't start"
+		case "ja":
+			return tool + " を起動できません"
+		case "ko":
+			return tool + "을(를) 실행할 수 없습니다"
+		case "zh-Hans":
+			return tool + " 无法启动"
+		case "zh-Hant":
+			return tool + " 無法啟動"
+		}
+	}
+}
+
+// QueueRemedyToolDownload says "Download {tool} and Retry"
+// in the language the app shows under cx.
+//
+// Button of the card of a job that failed because the computer's copy of a program does not start: downloads Kando's own copy and runs the job again with it.
+func QueueRemedyToolDownload(cx *core.Scope, tool string) string {
+	return For(cx).QueueRemedyToolDownload(tool)
+}
+
+// QueueRemedyToolDownload is the package's QueueRemedyToolDownload in the language of msgs.
+func (msgs Messages) QueueRemedyToolDownload(tool string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.QueueRemedyToolDownload(tool))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].QueueRemedyToolDownload; f != nil {
+			return f(tool)
+		}
+		switch lang {
+		case "", "en":
+			return "Download " + msgs.arg(tool) + " and Retry"
+		case "ja":
+			return tool + " をダウンロードして再試行"
+		case "ko":
+			return tool + " 다운로드 후 다시 시도"
+		case "zh-Hans":
+			return "下载 " + tool + " 并重试"
+		case "zh-Hant":
+			return "下載 " + tool + " 並重試"
+		}
+	}
+}
+
+// QueueRemedyToolDownloading says "Downloading {tool}…"
+// in the language the app shows under cx.
+//
+// Headline of the card of a job a program's copy stopped, while Kando downloads its own copy.
+func QueueRemedyToolDownloading(cx *core.Scope, tool string) string {
+	return For(cx).QueueRemedyToolDownloading(tool)
+}
+
+// QueueRemedyToolDownloading is the package's QueueRemedyToolDownloading in the language of msgs.
+func (msgs Messages) QueueRemedyToolDownloading(tool string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.QueueRemedyToolDownloading(tool))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].QueueRemedyToolDownloading; f != nil {
+			return f(tool)
+		}
+		switch lang {
+		case "", "en":
+			return "Downloading " + msgs.arg(tool) + "…"
+		case "ja":
+			return tool + " をダウンロード中…"
+		case "ko":
+			return tool + " 다운로드 중…"
+		case "zh-Hans":
+			return "正在下载 " + tool + "…"
+		case "zh-Hant":
+			return "正在下載 " + tool + "…"
+		}
+	}
+}
+
+// QueueRemedyToolDownloadingAction says "Downloading…"
+// in the language the app shows under cx.
+//
+// Disabled button of the card of a job a program's copy stopped, while Kando downloads its own copy.
+func QueueRemedyToolDownloadingAction(cx *core.Scope) string {
+	return For(cx).QueueRemedyToolDownloadingAction()
+}
+
+// QueueRemedyToolDownloadingAction is the package's QueueRemedyToolDownloadingAction in the language of msgs.
+func (msgs Messages) QueueRemedyToolDownloadingAction() string {
+	return msgs.text(textQueueRemedyToolDownloadingAction)
+}
+
+// QueueRemedyToolDownloadingWhy says "The video is processed again once it has arrived."
+// in the language the app shows under cx.
+//
+// Card of a job a program's copy stopped, while Kando downloads its own copy: the job runs again by itself.
+func QueueRemedyToolDownloadingWhy(cx *core.Scope) string {
+	return For(cx).QueueRemedyToolDownloadingWhy()
+}
+
+// QueueRemedyToolDownloadingWhy is the package's QueueRemedyToolDownloadingWhy in the language of msgs.
+func (msgs Messages) QueueRemedyToolDownloadingWhy() string {
+	return msgs.text(textQueueRemedyToolDownloadingWhy)
+}
+
+// QueueRemedyToolManualWhy says "{reason}. Install {tool} again, then choose Detect Again in Settings."
+// in the language the app shows under cx.
+//
+// Card of a job that failed because the copy of a program does not start, on a system where Kando downloads no copy of its own, as Windows: why, a toolProblem message, then how to fix it.
+func QueueRemedyToolManualWhy(cx *core.Scope, reason string, tool string) string {
+	return For(cx).QueueRemedyToolManualWhy(reason, tool)
+}
+
+// QueueRemedyToolManualWhy is the package's QueueRemedyToolManualWhy in the language of msgs.
+func (msgs Messages) QueueRemedyToolManualWhy(reason string, tool string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.QueueRemedyToolManualWhy(reason, tool))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].QueueRemedyToolManualWhy; f != nil {
+			return f(reason, tool)
+		}
+		switch lang {
+		case "", "en":
+			return msgs.arg(reason) + ". Install " + msgs.arg(tool) + " again, then choose Detect Again in Settings."
+		case "ja":
+			return reason + "。" + tool + " をインストールし直してから、設定で「再検出」を選んでください。"
+		case "ko":
+			return reason + ". " + tool + "을(를) 다시 설치한 뒤 설정에서 다시 감지를 선택하세요."
+		case "zh-Hans":
+			return reason + "。重新安装 " + tool + "，再到设置里点「重新检测」。"
+		case "zh-Hant":
+			return reason + "。重新安裝 " + tool + "，再到設定裡點「重新偵測」。"
+		}
+	}
+}
+
+// QueueRemedyToolOwnWhy says "{reason}. Kando's own {tool} works around it."
+// in the language the app shows under cx.
+//
+// Card of a job that failed because the computer's copy of a program does not start: why, a toolProblem message, then that Kando's own copy fixes it.
+func QueueRemedyToolOwnWhy(cx *core.Scope, reason string, tool string) string {
+	return For(cx).QueueRemedyToolOwnWhy(reason, tool)
+}
+
+// QueueRemedyToolOwnWhy is the package's QueueRemedyToolOwnWhy in the language of msgs.
+func (msgs Messages) QueueRemedyToolOwnWhy(reason string, tool string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.QueueRemedyToolOwnWhy(reason, tool))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].QueueRemedyToolOwnWhy; f != nil {
+			return f(reason, tool)
+		}
+		switch lang {
+		case "", "en":
+			return msgs.arg(reason) + ". Kando's own " + msgs.arg(tool) + " works around it."
+		case "ja":
+			return reason + "。Kando 付属の " + tool + " を使えば続けられます。"
+		case "ko":
+			return reason + ". Kando 내장 " + tool + "을(를) 사용하면 계속할 수 있습니다."
+		case "zh-Hans":
+			return reason + "。改用看懂自带的 " + tool + " 就能继续。"
+		case "zh-Hant":
+			return reason + "。改用看懂內建的 " + tool + " 就能繼續。"
+		}
+	}
+}
+
+// QueueRemedyToolRedownload says "Download {tool} Again and Retry"
+// in the language the app shows under cx.
+//
+// Button of the card of a job that failed because Kando's own copy of a program does not start: downloads it again and runs the job again with it.
+func QueueRemedyToolRedownload(cx *core.Scope, tool string) string {
+	return For(cx).QueueRemedyToolRedownload(tool)
+}
+
+// QueueRemedyToolRedownload is the package's QueueRemedyToolRedownload in the language of msgs.
+func (msgs Messages) QueueRemedyToolRedownload(tool string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.QueueRemedyToolRedownload(tool))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].QueueRemedyToolRedownload; f != nil {
+			return f(tool)
+		}
+		switch lang {
+		case "", "en":
+			return "Download " + msgs.arg(tool) + " Again and Retry"
+		case "ja":
+			return tool + " を再ダウンロードして再試行"
+		case "ko":
+			return tool + " 다시 다운로드 후 다시 시도"
+		case "zh-Hans":
+			return "重新下载 " + tool + " 并重试"
+		case "zh-Hant":
+			return "重新下載 " + tool + " 並重試"
+		}
+	}
+}
+
+// QueueRemedyToolRedownloadWhy says "{reason}. Downloading Kando's own {tool} again fixes it."
+// in the language the app shows under cx.
+//
+// Card of a job that failed because Kando's own copy of a program does not start: why, a toolProblem message, then that downloading it again fixes it.
+func QueueRemedyToolRedownloadWhy(cx *core.Scope, reason string, tool string) string {
+	return For(cx).QueueRemedyToolRedownloadWhy(reason, tool)
+}
+
+// QueueRemedyToolRedownloadWhy is the package's QueueRemedyToolRedownloadWhy in the language of msgs.
+func (msgs Messages) QueueRemedyToolRedownloadWhy(reason string, tool string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.QueueRemedyToolRedownloadWhy(reason, tool))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].QueueRemedyToolRedownloadWhy; f != nil {
+			return f(reason, tool)
+		}
+		switch lang {
+		case "", "en":
+			return msgs.arg(reason) + ". Downloading Kando's own " + msgs.arg(tool) + " again fixes it."
+		case "ja":
+			return reason + "。Kando 付属の " + tool + " を再ダウンロードすれば続けられます。"
+		case "ko":
+			return reason + ". Kando 내장 " + tool + "을(를) 다시 다운로드하면 계속할 수 있습니다."
+		case "zh-Hans":
+			return reason + "。重新下载看懂自带的 " + tool + " 就能继续。"
+		case "zh-Hant":
+			return reason + "。重新下載看懂內建的 " + tool + " 就能繼續。"
+		}
+	}
+}
+
+// QueueRemedyToolSettings says "Open Settings"
+// in the language the app shows under cx.
+//
+// Button of the card of a job that failed because the copy of a program does not start, where Kando downloads no copy of its own: opens Settings › General, whose row of the program links to its download page.
+func QueueRemedyToolSettings(cx *core.Scope) string { return For(cx).QueueRemedyToolSettings() }
+
+// QueueRemedyToolSettings is the package's QueueRemedyToolSettings in the language of msgs.
+func (msgs Messages) QueueRemedyToolSettings() string { return msgs.text(textQueueRemedyToolSettings) }
+
 // QueueRemedyUnsupported says "{host} isn't supported"
 // in the language the app shows under cx.
 //
@@ -37444,6 +38023,38 @@ func (msgs Messages) QueueYtdlpUpdated(version string, count int) string {
 			return "下载组件已更新到 " + version + "，已重新开始下载 " + i18n.FormatNumber("zh-Hans", float64(count)) + " 个视频。"
 		case "zh-Hant":
 			return "下載元件已更新到 " + version + "，已重新開始下載 " + i18n.FormatNumber("zh-Hant", float64(count)) + " 部影片。"
+		}
+	}
+}
+
+// ReadinessBrokenTools says "Components that don't run: {tools}"
+// in the language the app shows under cx.
+//
+// The sidebar's status line when the copies of programs a job needs do not start, with their names joined by precheckToolSeparator. Clicking it opens Settings › General.
+func ReadinessBrokenTools(cx *core.Scope, tools string) string {
+	return For(cx).ReadinessBrokenTools(tools)
+}
+
+// ReadinessBrokenTools is the package's ReadinessBrokenTools in the language of msgs.
+func (msgs Messages) ReadinessBrokenTools(tools string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.ReadinessBrokenTools(tools))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].ReadinessBrokenTools; f != nil {
+			return f(tools)
+		}
+		switch lang {
+		case "", "en":
+			return "Components that don't run: " + msgs.arg(tools)
+		case "ja":
+			return "実行できないコンポーネント：" + tools
+		case "ko":
+			return "실행할 수 없는 구성 요소: " + tools
+		case "zh-Hans":
+			return "组件无法运行：" + tools
+		case "zh-Hant":
+			return "元件無法執行：" + tools
 		}
 	}
 }
@@ -40322,6 +40933,92 @@ func (msgs Messages) SettingsGeneralSignInUse() string {
 	return msgs.text(textSettingsGeneralSignInUse)
 }
 
+// SettingsGeneralToolBroken says "Doesn't Run"
+// in the language the app shows under cx.
+//
+// Status at the end of a program's row in Settings › General, in red, for a copy of the program that does not start.
+func SettingsGeneralToolBroken(cx *core.Scope) string { return For(cx).SettingsGeneralToolBroken() }
+
+// SettingsGeneralToolBroken is the package's SettingsGeneralToolBroken in the language of msgs.
+func (msgs Messages) SettingsGeneralToolBroken() string {
+	return msgs.text(textSettingsGeneralToolBroken)
+}
+
+// SettingsGeneralToolChecking says "Checking…"
+// in the language the app shows under cx.
+//
+// Status at the end of a program's row in Settings › General while Kando runs the copy once to see that it starts, which on its first run on macOS can take a while.
+func SettingsGeneralToolChecking(cx *core.Scope) string { return For(cx).SettingsGeneralToolChecking() }
+
+// SettingsGeneralToolChecking is the package's SettingsGeneralToolChecking in the language of msgs.
+func (msgs Messages) SettingsGeneralToolChecking() string {
+	return msgs.text(textSettingsGeneralToolChecking)
+}
+
+// SettingsGeneralToolComputer says "This computer's ({path})"
+// in the language the app shows under cx.
+//
+// Option of a program's copy in Settings › General: the copy installed on the computer, at {path}, rather than Kando's own.
+func SettingsGeneralToolComputer(cx *core.Scope, path string) string {
+	return For(cx).SettingsGeneralToolComputer(path)
+}
+
+// SettingsGeneralToolComputer is the package's SettingsGeneralToolComputer in the language of msgs.
+func (msgs Messages) SettingsGeneralToolComputer(path string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.SettingsGeneralToolComputer(path))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].SettingsGeneralToolComputer; f != nil {
+			return f(path)
+		}
+		switch lang {
+		case "", "en":
+			return "This computer's (" + msgs.arg(path) + ")"
+		case "ja":
+			return "このコンピュータのもの（" + path + "）"
+		case "ko":
+			return "이 컴퓨터에 설치된 것(" + path + ")"
+		case "zh-Hans":
+			return "这台电脑上的（" + path + "）"
+		case "zh-Hant":
+			return "這台電腦上的（" + path + "）"
+		}
+	}
+}
+
+// SettingsGeneralToolCopy says "Copy of {name} Kando runs"
+// in the language the app shows under cx.
+//
+// Name of the pop-up of a program in Settings › General that chooses between Kando's own copy and the computer's, for assistive technology. {name} is the program, as ffmpeg.
+func SettingsGeneralToolCopy(cx *core.Scope, name string) string {
+	return For(cx).SettingsGeneralToolCopy(name)
+}
+
+// SettingsGeneralToolCopy is the package's SettingsGeneralToolCopy in the language of msgs.
+func (msgs Messages) SettingsGeneralToolCopy(name string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.SettingsGeneralToolCopy(name))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].SettingsGeneralToolCopy; f != nil {
+			return f(name)
+		}
+		switch lang {
+		case "", "en":
+			return "Copy of " + msgs.arg(name) + " Kando runs"
+		case "ja":
+			return "使用する " + name
+		case "ko":
+			return "사용할 " + name
+		case "zh-Hans":
+			return name + " 用哪一份"
+		case "zh-Hant":
+			return name + " 用哪一份"
+		}
+	}
+}
+
 // SettingsGeneralToolDetail says "{use} · {where}"
 // in the language the app shows under cx.
 //
@@ -40353,6 +41050,15 @@ func (msgs Messages) SettingsGeneralToolDetail(use string, where string) string 
 		}
 	}
 }
+
+// SettingsGeneralToolOwn says "Kando's own"
+// in the language the app shows under cx.
+//
+// Where a program in Settings › General comes from when Kando runs the copy it downloaded for itself, after what the program is for; also the option of that copy when the user can choose between it and the computer's.
+func SettingsGeneralToolOwn(cx *core.Scope) string { return For(cx).SettingsGeneralToolOwn() }
+
+// SettingsGeneralToolOwn is the package's SettingsGeneralToolOwn in the language of msgs.
+func (msgs Messages) SettingsGeneralToolOwn() string { return msgs.text(textSettingsGeneralToolOwn) }
 
 // SettingsGeneralToolPage says "Download Page"
 // in the language the app shows under cx.
@@ -40395,15 +41101,52 @@ func (msgs Messages) SettingsGeneralToolPageLabel(program string) string {
 	}
 }
 
-// SettingsGeneralToolsNote says "Kando downloads the programs it is missing. Those already installed on this computer are used as they are."
+// SettingsGeneralToolRedownload says "Download Again"
 // in the language the app shows under cx.
 //
-// Footnote under the programs Kando runs: Kando downloads the missing ones itself.
+// Button beside a program in Settings › General whose copy Kando downloaded for itself does not start: downloads it again.
+func SettingsGeneralToolRedownload(cx *core.Scope) string {
+	return For(cx).SettingsGeneralToolRedownload()
+}
+
+// SettingsGeneralToolRedownload is the package's SettingsGeneralToolRedownload in the language of msgs.
+func (msgs Messages) SettingsGeneralToolRedownload() string {
+	return msgs.text(textSettingsGeneralToolRedownload)
+}
+
+// SettingsGeneralToolUseOwn says "Use Kando's Own"
+// in the language the app shows under cx.
+//
+// Button beside a program in Settings › General whose copy on the computer does not start: downloads Kando's own copy and runs it from then on.
+func SettingsGeneralToolUseOwn(cx *core.Scope) string { return For(cx).SettingsGeneralToolUseOwn() }
+
+// SettingsGeneralToolUseOwn is the package's SettingsGeneralToolUseOwn in the language of msgs.
+func (msgs Messages) SettingsGeneralToolUseOwn() string {
+	return msgs.text(textSettingsGeneralToolUseOwn)
+}
+
+// SettingsGeneralToolsNote says "Kando downloads its own copy of each program and runs it first, so upgrading other software on this computer can't break it. Until a copy has arrived, the one installed on this computer is used."
+// in the language the app shows under cx.
+//
+// Footnote under the programs Kando runs: Kando downloads its own copies and prefers them to the computer's.
 func SettingsGeneralToolsNote(cx *core.Scope) string { return For(cx).SettingsGeneralToolsNote() }
 
 // SettingsGeneralToolsNote is the package's SettingsGeneralToolsNote in the language of msgs.
 func (msgs Messages) SettingsGeneralToolsNote() string {
 	return msgs.text(textSettingsGeneralToolsNote)
+}
+
+// SettingsGeneralToolsNoteFallback says "Kando downloads the programs it is missing. It runs its own yt-dlp, and the ffmpeg and whisper-cli installed on this computer when they work."
+// in the language the app shows under cx.
+//
+// Footnote under the programs Kando runs on Linux, where Kando runs its own yt-dlp but prefers the distribution's ffmpeg and whisper-cli, downloading its own only when they are missing or do not start.
+func SettingsGeneralToolsNoteFallback(cx *core.Scope) string {
+	return For(cx).SettingsGeneralToolsNoteFallback()
+}
+
+// SettingsGeneralToolsNoteFallback is the package's SettingsGeneralToolsNoteFallback in the language of msgs.
+func (msgs Messages) SettingsGeneralToolsNoteFallback() string {
+	return msgs.text(textSettingsGeneralToolsNoteFallback)
 }
 
 // SettingsGeneralToolsNoteManual says "Kando doesn't download these programs on this system. Install each from its download page and add its folder to PATH, then choose Detect Again."
@@ -45784,6 +46527,76 @@ func (msgs Messages) SubscribeWhenNewAuto(count int) string {
 			return "每次檢查最多 " + i18n.FormatNumber("zh-Hant", float64(count)) + " 部自動加入佇列，按規則下載和產生字幕，其餘的在這裡等你確認"
 		}
 	}
+}
+
+// ToolProblemCannotStart says "This computer can't start it"
+// in the language the app shows under cx.
+//
+// Why a copy of a program Kando runs does not start: the system would not start it at all, as a file that is not a program, one built for another processor, or one that is gone.
+func ToolProblemCannotStart(cx *core.Scope) string { return For(cx).ToolProblemCannotStart() }
+
+// ToolProblemCannotStart is the package's ToolProblemCannotStart in the language of msgs.
+func (msgs Messages) ToolProblemCannotStart() string { return msgs.text(textToolProblemCannotStart) }
+
+// ToolProblemCrashed says "The system stopped it as it started"
+// in the language the app shows under cx.
+//
+// Why a copy of a program Kando runs does not start: the system stopped it before it answered, as macOS does a program whose signature it refuses.
+func ToolProblemCrashed(cx *core.Scope) string { return For(cx).ToolProblemCrashed() }
+
+// ToolProblemCrashed is the package's ToolProblemCrashed in the language of msgs.
+func (msgs Messages) ToolProblemCrashed() string { return msgs.text(textToolProblemCrashed) }
+
+// ToolProblemFailed says "It quit with an error as it started"
+// in the language the app shows under cx.
+//
+// Why a copy of a program Kando runs does not start: it exited with an error when Kando asked its version.
+func ToolProblemFailed(cx *core.Scope) string { return For(cx).ToolProblemFailed() }
+
+// ToolProblemFailed is the package's ToolProblemFailed in the language of msgs.
+func (msgs Messages) ToolProblemFailed() string { return msgs.text(textToolProblemFailed) }
+
+// ToolProblemLibrary says "It can't load {library}, a library it needs"
+// in the language the app shows under cx.
+//
+// Why a copy of a program Kando runs does not start: the system could not load a library it was built with, as a Homebrew ffmpeg after Homebrew upgraded that library. Shown under the program in Settings › General, and on a failed job's card before another sentence. {library} is the library's file name without its version, as libbluray, and is not translated.
+func ToolProblemLibrary(cx *core.Scope, library string) string {
+	return For(cx).ToolProblemLibrary(library)
+}
+
+// ToolProblemLibrary is the package's ToolProblemLibrary in the language of msgs.
+func (msgs Messages) ToolProblemLibrary(library string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.ToolProblemLibrary(library))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].ToolProblemLibrary; f != nil {
+			return f(library)
+		}
+		switch lang {
+		case "", "en":
+			return "It can't load " + msgs.arg(library) + ", a library it needs"
+		case "ja":
+			return "起動に必要な " + library + " が見つかりません"
+		case "ko":
+			return "실행에 필요한 " + library + "을(를) 찾을 수 없습니다"
+		case "zh-Hans":
+			return "启动时缺少它需要的 " + library
+		case "zh-Hant":
+			return "啟動時缺少它需要的 " + library
+		}
+	}
+}
+
+// ToolProblemLibraryUnnamed says "It can't load a library it needs"
+// in the language the app shows under cx.
+//
+// Why a copy of a program Kando runs does not start: the system could not load a library it was built with, which the system did not name (as Windows does not).
+func ToolProblemLibraryUnnamed(cx *core.Scope) string { return For(cx).ToolProblemLibraryUnnamed() }
+
+// ToolProblemLibraryUnnamed is the package's ToolProblemLibraryUnnamed in the language of msgs.
+func (msgs Messages) ToolProblemLibraryUnnamed() string {
+	return msgs.text(textToolProblemLibraryUnnamed)
 }
 
 // SubscribeWhenNewAsk says "They're listed here first and start once you add them"

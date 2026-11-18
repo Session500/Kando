@@ -56,7 +56,7 @@ func (a *app) readiness() sidebar.Readiness {
 	return a.privacyReadiness(a.side.ready.status)
 }
 
-// checkReadiness finds the first thing a job would miss, in the order the pipeline needs them: the tools, the speech model, the translation model and the EveryAPI sign-in. It runs at startup, after 重新检测 and when the speech model or the AI service changes. signIn asks the everyapi CLI again even when an earlier answer is kept or a check is running; without it, a running check's answer is waited for.
+// checkReadiness finds the first thing a job would miss, in the order the pipeline needs them: the tools, a copy of one that does not start (toolsBroken) before one that is missing, the speech model, the translation model and the EveryAPI sign-in. It runs at startup, after 重新检测 and when the speech model or the AI service changes. signIn asks the everyapi CLI again even when an earlier answer is kept or a check is running; without it, a running check's answer is waited for.
 func (a *app) checkReadiness(signIn bool) {
 	a.side.ready.checked = true
 	tools, ok := a.pipeline.(media.Tools)
@@ -68,6 +68,13 @@ func (a *app) checkReadiness(signIn bool) {
 			return
 		}
 		a.side.ready.status = sidebar.Readiness{State: sidebar.Ready, Message: readyMessage}
+		return
+	}
+	// A copy that does not start is as good as none, and Settings › 通用 says why and offers Kando's own.
+	if names := a.toolsBroken(); len(names) > 0 {
+		a.side.ready.status = sidebar.Readiness{State: sidebar.Missing, Message: func(cx *ns.Scope) string {
+			return locales.ReadinessBrokenTools(cx, strings.Join(names, locales.PrecheckToolSeparator(cx)))
+		}, Section: settings.SectionGeneral}
 		return
 	}
 	if r, missing := toolsMissing(tools); missing {

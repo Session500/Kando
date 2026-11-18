@@ -65,6 +65,8 @@ func feedbackToolLabel(cx *core.Scope, t feedback.Tool) string {
 	switch {
 	case t.Missing:
 		return locales.FeedbackToolMissing(cx, t.Name)
+	case t.Broken != "":
+		return locales.FeedbackToolBroken(cx, t.Name)
 	case t.Version == "":
 		return locales.FeedbackToolNoVersion(cx, t.Name)
 	}

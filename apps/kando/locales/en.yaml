@@ -1082,6 +1082,11 @@ feedbackTitleHint:
 feedbackTitleHintIdea:
   message: "Say what you'd like in one sentence"
   description: "Placeholder of the title field when suggesting a feature."
+feedbackToolBroken:
+  message: "{name} doesn't run"
+  description: "A program in the feedback dialog's list of components whose copy does not start."
+  placeholders:
+    name: { type: "String", example: "ffmpeg" }
 feedbackToolMissing:
   message: "{name} not installed"
   description: "A tool in the components detail that is not installed."
@@ -3092,6 +3097,11 @@ onboardingTipMenu:
   placeholders:
     menu: { type: "String", example: "Help" }
     item: { type: "String", example: "Show Getting Started Guide" }
+onboardingToolBroken:
+  message: "Doesn't run: {reason}"
+  description: "Line under a program in the first-run guide, in red, whose copy on the computer does not start; {reason} is one of the toolProblem messages."
+  placeholders:
+    reason: { type: "String", example: "It can't load libbluray, a library it needs" }
 onboardingToolConnecting:
   message: "Connecting…"
   description: "Line under a program in the guide while its download waits for the server."
@@ -3565,6 +3575,11 @@ precheckSubtitlesChanged:
 precheckToolSeparator:
   message: ", "
   description: "What goes between the names of missing programs in a list, such as yt-dlp and ffmpeg."
+precheckToolsBroken:
+  message: "Programs that process videos don't run: {tools}. Fix them in Settings › General."
+  description: "Message bar when the copies of programs a job needs do not start, with their names joined by precheckToolSeparator."
+  placeholders:
+    tools: { type: "String", example: "ffmpeg" }
 precheckToolsDownloading:
   message: "Still downloading the programs that process videos: {tools}. Try again once they're in."
   description: "Message bar when programs a job needs are still downloading, with their names joined by precheckToolSeparator."
@@ -3958,6 +3973,53 @@ queueRemedySwitchBrowser:
   description: "Button of a failed download's card: borrow the sign-in of another browser."
   placeholders:
     browser: { type: "String", example: "Chrome" }
+queueRemedyToolBroken:
+  message: "{tool} doesn't start"
+  description: "Headline of the card of a job that failed because the copy of a program it ran does not start. {tool} is the program, as ffmpeg."
+  placeholders:
+    tool: { type: "String", example: "ffmpeg" }
+queueRemedyToolDownload:
+  message: "Download {tool} and Retry"
+  description: "Button of the card of a job that failed because the computer's copy of a program does not start: downloads Kando's own copy and runs the job again with it."
+  placeholders:
+    tool: { type: "String", example: "ffmpeg" }
+queueRemedyToolDownloading:
+  message: "Downloading {tool}…"
+  description: "Headline of the card of a job a program's copy stopped, while Kando downloads its own copy."
+  placeholders:
+    tool: { type: "String", example: "ffmpeg" }
+queueRemedyToolDownloadingAction:
+  message: "Downloading…"
+  description: "Disabled button of the card of a job a program's copy stopped, while Kando downloads its own copy."
+queueRemedyToolDownloadingWhy:
+  message: "The video is processed again once it has arrived."
+  description: "Card of a job a program's copy stopped, while Kando downloads its own copy: the job runs again by itself."
+queueRemedyToolManualWhy:
+  message: "{reason}. Install {tool} again, then choose Detect Again in Settings."
+  description: "Card of a job that failed because the copy of a program does not start, on a system where Kando downloads no copy of its own, as Windows: why, a toolProblem message, then how to fix it."
+  placeholders:
+    reason: { type: "String", example: "It can't load a library it needs" }
+    tool: { type: "String", example: "ffmpeg" }
+queueRemedyToolOwnWhy:
+  message: "{reason}. Kando's own {tool} works around it."
+  description: "Card of a job that failed because the computer's copy of a program does not start: why, a toolProblem message, then that Kando's own copy fixes it."
+  placeholders:
+    reason: { type: "String", example: "It can't load libbluray, a library it needs" }
+    tool: { type: "String", example: "ffmpeg" }
+queueRemedyToolRedownload:
+  message: "Download {tool} Again and Retry"
+  description: "Button of the card of a job that failed because Kando's own copy of a program does not start: downloads it again and runs the job again with it."
+  placeholders:
+    tool: { type: "String", example: "ffmpeg" }
+queueRemedyToolRedownloadWhy:
+  message: "{reason}. Downloading Kando's own {tool} again fixes it."
+  description: "Card of a job that failed because Kando's own copy of a program does not start: why, a toolProblem message, then that downloading it again fixes it."
+  placeholders:
+    reason: { type: "String", example: "The system stopped it as it started" }
+    tool: { type: "String", example: "ffmpeg" }
+queueRemedyToolSettings:
+  message: "Open Settings"
+  description: "Button of the card of a job that failed because the copy of a program does not start, where Kando downloads no copy of its own: opens Settings › General, whose row of the program links to its download page."
 queueRemedyUnsupported:
   message: "{host} isn't supported"
   description: "Headline of a failed download's card when yt-dlp does not know the site."
@@ -4086,6 +4148,11 @@ queueYtdlpUpdated:
   placeholders:
     version: { type: "String", example: "2026.11.03" }
     count: { type: "int", example: "2" }
+readinessBrokenTools:
+  message: "Components that don't run: {tools}"
+  description: "The sidebar's status line when the copies of programs a job needs do not start, with their names joined by precheckToolSeparator. Clicking it opens Settings › General."
+  placeholders:
+    tools: { type: "String", example: "ffmpeg" }
 readinessCheckingSignIn:
   message: "Checking the EveryAPI sign-in…"
   description: "The sidebar's status line while Kando asks the everyapi program whether the user is signed in."
@@ -4739,12 +4806,31 @@ settingsGeneralSignInReady:
 settingsGeneralSignInUse:
   message: "Use the sign-in of"
   description: "Title of the Browser Sign-In row, followed by the pop-up of the browsers whose sign-in downloads can use, and its accessible name."
+settingsGeneralToolBroken:
+  message: "Doesn't Run"
+  description: "Status at the end of a program's row in Settings › General, in red, for a copy of the program that does not start."
+settingsGeneralToolChecking:
+  message: "Checking…"
+  description: "Status at the end of a program's row in Settings › General while Kando runs the copy once to see that it starts, which on its first run on macOS can take a while."
+settingsGeneralToolComputer:
+  message: "This computer's ({path})"
+  description: "Option of a program's copy in Settings › General: the copy installed on the computer, at {path}, rather than Kando's own."
+  placeholders:
+    path: { type: "String", example: "/opt/homebrew/bin/ffmpeg" }
+settingsGeneralToolCopy:
+  message: "Copy of {name} Kando runs"
+  description: "Name of the pop-up of a program in Settings › General that chooses between Kando's own copy and the computer's, for assistive technology. {name} is the program, as ffmpeg."
+  placeholders:
+    name: { type: "String", example: "ffmpeg" }
 settingsGeneralToolDetail:
   message: "{use} · {where}"
   description: "Line under a program's name: what it is for, then where it was found or Not Installed."
   placeholders:
     use: { type: "String", example: "Downloads online videos" }
     where: { type: "String", example: "/opt/homebrew/bin/yt-dlp" }
+settingsGeneralToolOwn:
+  message: "Kando's own"
+  description: "Where a program in Settings › General comes from when Kando runs the copy it downloaded for itself, after what the program is for; also the option of that copy when the user can choose between it and the computer's."
 settingsGeneralToolPage:
   message: "Download Page"
   description: "Link at the end of a program's row in Settings › General and in the guide, on a system where Kando cannot download the program (Windows): opens the program's own page of builds."
@@ -4753,9 +4839,18 @@ settingsGeneralToolPageLabel:
   description: "What assistive technology reads for the Download Page link of a program; {program} is its name, such as ffmpeg."
   placeholders:
     program: { type: "String", example: "ffmpeg" }
+settingsGeneralToolRedownload:
+  message: "Download Again"
+  description: "Button beside a program in Settings › General whose copy Kando downloaded for itself does not start: downloads it again."
+settingsGeneralToolUseOwn:
+  message: "Use Kando's Own"
+  description: "Button beside a program in Settings › General whose copy on the computer does not start: downloads Kando's own copy and runs it from then on."
 settingsGeneralToolsNote:
-  message: "Kando downloads the programs it is missing. Those already installed on this computer are used as they are."
-  description: "Footnote under the programs Kando runs: Kando downloads the missing ones itself."
+  message: "Kando downloads its own copy of each program and runs it first, so upgrading other software on this computer can't break it. Until a copy has arrived, the one installed on this computer is used."
+  description: "Footnote under the programs Kando runs: Kando downloads its own copies and prefers them to the computer's."
+settingsGeneralToolsNoteFallback:
+  message: "Kando downloads the programs it is missing. It runs its own yt-dlp, and the ffmpeg and whisper-cli installed on this computer when they work."
+  description: "Footnote under the programs Kando runs on Linux, where Kando runs its own yt-dlp but prefers the distribution's ffmpeg and whisper-cli, downloading its own only when they are missing or do not start."
 settingsGeneralToolsNoteManual:
   message: "Kando doesn't download these programs on this system. Install each from its download page and add its folder to PATH, then choose Detect Again."
   description: "Footnote under the programs Kando runs, on a system where it does not download them and Scoop does not run: they are the user's to install, and Detect Again finds them."
@@ -5930,6 +6025,23 @@ subscribeWhenNewAuto:
   description: "Note of the When There Are New Videos row while Add Automatically is chosen: a check queues at most count new videos, and lists the others on the page for the user to add or skip."
   placeholders:
     count: { type: "int", example: "3" }
+toolProblemCannotStart:
+  message: "This computer can't start it"
+  description: "Why a copy of a program Kando runs does not start: the system would not start it at all, as a file that is not a program, one built for another processor, or one that is gone."
+toolProblemCrashed:
+  message: "The system stopped it as it started"
+  description: "Why a copy of a program Kando runs does not start: the system stopped it before it answered, as macOS does a program whose signature it refuses."
+toolProblemFailed:
+  message: "It quit with an error as it started"
+  description: "Why a copy of a program Kando runs does not start: it exited with an error when Kando asked its version."
+toolProblemLibrary:
+  message: "It can't load {library}, a library it needs"
+  description: "Why a copy of a program Kando runs does not start: the system could not load a library it was built with, as a Homebrew ffmpeg after Homebrew upgraded that library. Shown under the program in Settings › General, and on a failed job's card before another sentence. {library} is the library's file name without its version, as libbluray, and is not translated."
+  placeholders:
+    library: { type: "String", example: "libbluray" }
+toolProblemLibraryUnnamed:
+  message: "It can't load a library it needs"
+  description: "Why a copy of a program Kando runs does not start: the system could not load a library it was built with, which the system did not name (as Windows does not)."
 subscribeWhenNewAsk:
   message: "They're listed here first and start once you add them"
   description: "Note of the When There Are New Videos row while Ask Me First is chosen."

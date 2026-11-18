@@ -41,7 +41,7 @@ func feedbackFilmApp(t *testing.T) (*app, *nsgotest.App, chan func(), string) {
 	tools := media.Tools{OutputDir: dir, YTDLP: "/opt/tools/yt-dlp", FFmpeg: "/opt/tools/ffmpeg", WhisperModel: "/opt/models/ggml-base.bin",
 		Translator: media.ChatTranslator{BaseURL: media.EveryAPIBaseURL, Model: media.EveryAPIModel}}
 	a, tt, updates := newTestApp(t, tools)
-	a.prefs.toolVersions = map[string]string{tools.YTDLP: "2026.09.14", tools.FFmpeg: "7.1"}
+	a.tools.health = map[string]media.Health{tools.YTDLP: {State: media.HealthReady, Version: "2026.09.14"}, tools.FFmpeg: {State: media.HealthReady, Version: "7.1"}}
 	a.edit(func(s *session) { s.LibraryDir = dir })
 	a.library.Jobs = []core.Job{{
 		ID: "job1", Source: core.FileURL(video), Language: "简体中文", Stage: core.StageComplete,
