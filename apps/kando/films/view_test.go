@@ -41,7 +41,8 @@ type fakeApp struct {
 	details                          map[string]string
 	notice                           Notice
 	expanded, linkFocus              bool
-	sort                             string
+	sort                             Order
+	view                             string
 	language                         string
 	removeOpen, removeFolder         bool
 	removing                         Film
@@ -56,7 +57,7 @@ type fakeApp struct {
 func newFakeApp() *fakeApp {
 	lib := "/films/我的影片.kando"
 	return &fakeApp{
-		dir: lib, page: sidebar.PageFilms, filter: sidebar.SourceAll, spoken: sidebar.SpokenAll, sort: SortAdded, place: "/films", language: "简体中文",
+		dir: lib, page: sidebar.PageFilms, filter: sidebar.SourceAll, spoken: sidebar.SpokenAll, sort: Order{By: SortAdded}, view: ViewGrid, place: "/films", language: "简体中文",
 		name: "新资料库",
 		items: []Film{
 			{Key: "done", JobID: "done", Title: "Rivers of Europe", Name: "Rivers of Europe", Source: "https://youtu.be/rivers", Stage: core.StageComplete,
@@ -185,9 +186,18 @@ func (f *fakeApp) PlayedAt(path string) time.Time     { return f.played[path] }
 func (f *fakeApp) Furthest(path string) time.Duration { return f.furthest[path] }
 func (f *fakeApp) Notice() *Notice                    { return &f.notice }
 func (f *fakeApp) QueueExpanded() *bool               { return &f.expanded }
-func (f *fakeApp) LibrarySort() string                { return f.sort }
+func (f *fakeApp) LibrarySort() Order                 { return f.sort }
+func (f *fakeApp) LibraryView() string                { return f.view }
+func (f *fakeApp) SetLibraryView(view string)         { f.call("view", view); f.view = view }
 func (f *fakeApp) Language() *string                  { return &f.language }
-func (f *fakeApp) SetLibrarySort(order string)        { f.call("sort", order); f.sort = order }
+func (f *fakeApp) SetLibrarySort(o Order) {
+	direction := "ascending"
+	if !o.Ascending() {
+		direction = "descending"
+	}
+	f.call("sort", o.By, direction)
+	f.sort = o
+}
 func (f *fakeApp) AskRemove(item Film) {
 	f.call("ask-remove", item.Key)
 	f.removing, f.removeOpen = item, true
@@ -649,11 +659,14 @@ func TestSortMenuChecksTheOrderShown(t *testing.T) {
 	app := start(t, a)
 	msgs := testlocale.Messages()
 	app.Press("id:films-sort")
-	if len(app.PopupMenu) != len(Sorts) || !app.PopupMenu[0].Checked || app.PopupMenu[1].Checked {
-		t.Fatalf("sort menu %+v", app.PopupMenu)
+	// The orders, the one shown checked, then the two directions, recently added's own (newest first) checked.
+	menu := app.PopupMenu
+	if len(menu) != len(Sorts)+3 || !menu[0].Checked || menu[1].Checked || !menu[len(Sorts)].Separator ||
+		menu[len(Sorts)+1].Label != msgs.FilmsSortAscending() || menu[len(Sorts)+1].Checked || !menu[len(Sorts)+2].Checked {
+		t.Fatalf("sort menu %+v", menu)
 	}
 	app.ChoosePopup(msgs.FilmsSortTitle())
-	wantCalls(t, a, "sort title")
+	wantCalls(t, a, "sort title ascending")
 	if !app.Exists(whole(msgs.FilmsSortButton(msgs.FilmsSortTitle()))) {
 		t.Fatalf("the button does not name the order: %q", app.Texts())
 	}
@@ -989,5 +1002,97 @@ func TestWorkingRemedyFollowsTheAppearance(t *testing.T) {
 	change(app, a, func() { a.remedies["failed"] = Remedy{Headline: "你所在的地区不能看"} })
 	if got := ink(); got != k.DangerInk() {
 		t.Fatalf("the remedy says it in %#x, want the danger ink %#x", uint32(got), uint32(k.DangerInk()))
+	}
+}
+
+// TestListViewShowsTheDoneFilmsAsATable switches the done films to the list: the hero steps aside, each film is a row of its details, a click selects a row and a second click opens its film, as does Return, and a right click offers the film's menu.
+func TestListViewShowsTheDoneFilmsAsATable(t *testing.T) {
+	a := newFakeApp()
+	a.furthest[a.items[0].VideoPath] = 125 * time.Second
+	app := start(t, a)
+	msgs := testlocale.Messages()
+	if !app.Exists("id:films-hero") || app.Exists("id:films-list") {
+		t.Fatalf("the posters' page has no hero or shows the list: %q", app.Texts())
+	}
+	app.Press("id:films-view-list")
+	wantCalls(t, a, "view list")
+	if app.Exists("id:films-grid") || app.Exists("id:films-hero") || !app.Exists("id:films-list") {
+		t.Fatalf("the list did not replace the posters and the hero: %q", app.Texts())
+	}
+	// 处理中 stays above the list.
+	if !app.Exists(whole("Morning Market")) {
+		t.Fatalf("处理中 left with the posters: %q", app.Texts())
+	}
+	for _, text := range []string{msgs.FilmsSortTitle(), msgs.FilmsSortDuration(), msgs.FilmsListProgress(), msgs.FilmsListSubtitles(),
+		"Rivers of Europe", "2:05", msgs.FilmsWatched(), "简体中文", "Linear Algebra", msgs.FilmsUntranslated(3)} {
+		if !app.Exists("id:films-list >> " + whole(text)) {
+			t.Errorf("the list does not show %q: %q", text, app.Texts())
+		}
+	}
+	row := "id:films-list >> " + whole("Linear Algebra")
+	app.Press(row)
+	wantCalls(t, a)
+	app.Press(row)
+	wantCalls(t, a, "open algebra")
+	app.Key("enter")
+	wantCalls(t, a, "open algebra")
+	app.RightClick("id:films-list >> " + whole("Rivers of Europe"))
+	if len(app.PopupMenu) == 0 || app.PopupMenu[0].Label != msgs.FilmsPlay() {
+		t.Fatalf("right click menu %+v", app.PopupMenu)
+	}
+}
+
+// TestListHeadingsSortTheFilms: a column's heading sorts by it in its own direction, the same heading again turns it around, and the order's heading shows which way it goes; recently added, which no column shows, marks none.
+func TestListHeadingsSortTheFilms(t *testing.T) {
+	a := newFakeApp()
+	a.view = ViewList
+	app := start(t, a)
+	app.Press("id:films-list >> id:sort:" + colName)
+	wantCalls(t, a, "sort title ascending")
+	app.Settle()
+	// The table asks the next step of its own cycle; the list turns the order around instead.
+	app.Press("id:films-list >> id:sort:" + colName)
+	wantCalls(t, a, "sort title descending")
+	app.Press("id:films-list >> id:sort:" + colDuration)
+	wantCalls(t, a, "sort duration descending")
+	app.Press("id:films-list >> id:sort:" + colDuration)
+	wantCalls(t, a, "sort duration ascending")
+	app.Press("id:films-list >> id:sort:" + colDuration)
+	wantCalls(t, a, "sort duration descending")
+}
+
+// TestListFitsTheColumnsToTheWidth: a narrow list keeps the name, how long and how far, and leaves out where a film came from first.
+func TestListFitsTheColumnsToTheWidth(t *testing.T) {
+	if got := listFits(2000); !slices.Equal(got, []string{colName, colDuration, colProgress, colSubtitles, colSpoken, colSource, colWatched}) {
+		t.Fatalf("wide %q", got)
+	}
+	if got := listFits(700); !slices.Equal(got, []string{colName, colDuration, colProgress, colSubtitles}) {
+		t.Fatalf("700 points %q", got)
+	}
+	if got := listFits(300); !slices.Equal(got, []string{colName}) {
+		t.Fatalf("300 points %q", got)
+	}
+}
+
+// TestListDateNamesTodayAndYesterday writes the time a film last played as Finder's list does.
+func TestListDateNamesTodayAndYesterday(t *testing.T) {
+	msgs := testlocale.Messages()
+	now := time.Date(2026, 11, 18, 21, 0, 0, 0, time.UTC)
+	if got := listDate(msgs, time.Time{}, now); got != "" {
+		t.Fatalf("never played %q", got)
+	}
+	today, yesterday, before := listDate(msgs, now.Add(-time.Hour), now), listDate(msgs, now.Add(-22*time.Hour), now), listDate(msgs, now.AddDate(0, 0, -3), now)
+	if !strings.HasPrefix(today, "今天") || !strings.Contains(today, "20:00") || !strings.HasPrefix(yesterday, "昨天") || !strings.Contains(before, "15") {
+		t.Fatalf("today %q, yesterday %q, three days before %q", today, yesterday, before)
+	}
+}
+
+// TestListDateReadsInNowsTimeZone: library.json keeps the offset a film played at, so one played in Tokyo the morning of the 18th, the evening of the 17th in UTC, reads as yesterday evening, not as a morning.
+func TestListDateReadsInNowsTimeZone(t *testing.T) {
+	msgs := testlocale.Messages()
+	now := time.Date(2026, 11, 18, 21, 0, 0, 0, time.UTC)
+	tokyo := time.Date(2026, 11, 18, 8, 30, 0, 0, time.FixedZone("JST", 9*60*60))
+	if got := listDate(msgs, tokyo, now); !strings.HasPrefix(got, "昨天") || !strings.Contains(got, "23:30") {
+		t.Fatalf("played 08:30 JST, now 21:00 UTC: %q, want yesterday at 23:30", got)
 	}
 }

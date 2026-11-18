@@ -129,9 +129,12 @@ type App interface {
 	QueueExpanded() *bool
 	// Language is the language the settings translate new films into, such as 简体中文.
 	Language() *string
-	// LibrarySort is the order the done grid shows its films in, one of Sorts; SetLibrarySort shows them in order from now on and keeps it for the next launch.
-	LibrarySort() string
-	SetLibrarySort(order string)
+	// LibrarySort is the order the done films show in; SetLibrarySort shows them in that order from now on and keeps it for the next launch.
+	LibrarySort() Order
+	SetLibrarySort(o Order)
+	// LibraryView is how the done films show, ViewGrid or ViewList; SetLibraryView shows them that way from now on and keeps it for the next launch.
+	LibraryView() string
+	SetLibraryView(view string)
 	// AskRemove asks to confirm moving a film's folder to the Trash.
 	AskRemove(item Film)
 	// Removing is the film AskRemove asked about, whether its confirmation is open, and whether its whole folder goes to the Trash rather than only its video and subtitles. CloseRemove closes the confirmation without moving anything.
@@ -188,17 +191,26 @@ func (v View) Render(cx *core.Scope) core.Node {
 	// dragging is set while files are dragged over the page, which shows the drop zone over it.
 	dragging := core.NewSignal(cx, false)
 	source := live.Memo(cx, a, func() string { return pageSource(a) })
-	// The page is one scroll view from the content column's top, as the prototype's is: the top bar lies over it, and what is under the bar scrolls beneath it and fades into it.
-	content := core.Scroll{Style: core.Style{FlexGrow: 1, MinHeight: core.Pt(0)}, Children: []core.Node{
-		core.View{Style: core.Style{Width: core.Pct(100), Padding: core.Edges{Top: contentTop, Right: PagePadX, Bottom: pagePadBottom, Left: PagePadX}}, Children: []core.Node{
-			notice{a},
-			core.Show{
-				When: live.Func(a, func() bool { return a.LibraryDir() == "" }),
-				Then: func(*core.Scope) core.Node { return noLibrary{a} },
-				Else: func(*core.Scope) core.Node { return shelf{a: a, source: source} },
-			},
-		}},
-	}}
+	model := core.NewMemoFunc(cx, live.Func(a, func() shelfModel {
+		if a.LibraryDir() == "" {
+			return shelfModel{}
+		}
+		return newShelfModel(a, source(), i18n.Language(cx))
+	}), shelfModel.equal).Get
+	// The page is one scroll view from the content column's top, as the prototype's is: the top bar lies over it, and what is under the bar scrolls beneath it and fades into it. The list scrolls itself instead, as Finder's does, its heading staying put, so while it shows the page is a column that gives the list the height left under what is above it.
+	scrolled := func(*core.Scope) core.Node {
+		return core.Scroll{Style: core.Style{FlexGrow: 1, MinHeight: core.Pt(0)}, Children: []core.Node{
+			core.View{Style: core.Style{Width: core.Pct(100), Padding: core.Edges{Top: contentTop, Right: PagePadX, Bottom: pagePadBottom, Left: PagePadX}}, Children: []core.Node{
+				notice{a},
+				core.Show{
+					When: live.Func(a, func() bool { return a.LibraryDir() == "" }),
+					Then: func(*core.Scope) core.Node { return noLibrary{a} },
+					Else: func(*core.Scope) core.Node { return shelf{a: a, source: source, model: model} },
+				},
+			}},
+		}}
+	}
+	content := core.Show{When: func() bool { return model().listed() }, Then: func(*core.Scope) core.Node { return listPage{a: a, source: source, model: model} }, Else: scrolled}
 	return core.View{
 		TestID: "films-page",
 		Style:  core.Style{FlexGrow: 1, FlexShrink: 1, MinHeight: core.Pt(0), AlignItems: core.AlignStretch},
@@ -237,6 +249,8 @@ type shelfModel struct {
 	// heroShown is whether the hero shows, hero being its film.
 	heroShown bool
 	done      []Film
+	// list is whether the done films show as a list (ViewList), which leaves the hero out.
+	list bool
 	// empty is the page of a library that holds no film yet; emptySource that of a source no film comes from; emptySpoken the language, whisper's code, that none of the source's done films was heard in, "" when one was or no language is chosen; query the search no done film matched, "" when it matched one or there is none.
 	empty, emptySource bool
 	emptySpoken        string
@@ -244,7 +258,7 @@ type shelfModel struct {
 }
 
 func (m shelfModel) equal(o shelfModel) bool {
-	return slices.Equal(m.queue, o.queue) && m.hero == o.hero && m.heroShown == o.heroShown && slices.Equal(m.done, o.done) &&
+	return slices.Equal(m.queue, o.queue) && m.hero == o.hero && m.heroShown == o.heroShown && slices.Equal(m.done, o.done) && m.list == o.list &&
 		m.empty == o.empty && m.emptySource == o.emptySource && m.emptySpoken == o.emptySpoken && m.noMatch == o.noMatch
 }
 
@@ -269,27 +283,32 @@ func newShelfModel(a App, source, tag string) shelfModel {
 		return m
 	}
 	query := strings.TrimSpace(*a.Query())
-	if query == "" && source == sidebar.SourceAll && spoken == sidebar.SpokenAll {
+	m.list = a.LibraryView() == ViewList
+	// The list is a table to scan and to sort, as Finder's is, and its own columns say what was watched last; the hero is the posters' opening.
+	if query == "" && source == sidebar.SourceAll && spoken == sidebar.SpokenAll && !m.list {
 		m.hero, m.heroShown = HeroFilm(a, done)
 	}
 	done = ByTitle(heard, query)
-	m.done = Sorted(done, a.LibrarySort(), tag, a.PlayedAt)
+	m.done = Sorted(done, a.LibrarySort(), tag, a.PlayedAt, a.Duration)
 	if len(done) == 0 && query != "" {
 		m.noMatch = query
 	}
 	return m
 }
 
-// shelf is the part of the page under the message bar while a library is open.
+// listed reports whether the page shows the done films as a list: the list was chosen and there are films to list. Otherwise the page shows the posters or what to do when there are none.
+func (m shelfModel) listed() bool { return m.list && len(m.done) > 0 }
+
+// shelf is the part of the page under the message bar while a library is open and the done films show as posters, or there are none.
 type shelf struct {
 	a      App
 	source func() string
+	model  func() shelfModel
 }
 
 // Render implements core.Node.
 func (s shelf) Render(cx *core.Scope) core.Node {
-	a := s.a
-	model := core.NewMemoFunc(cx, live.Func(a, func() shelfModel { return newShelfModel(a, s.source(), i18n.Language(cx)) }), shelfModel.equal).Get
+	a, model := s.a, s.model
 	return core.Group{
 		core.Show{When: func() bool { return model().heroShown }, Then: func(*core.Scope) core.Node {
 			return hero{a: a, item: func() Film { return model().hero }, compact: func() bool { return len(model().queue) > 0 }}
@@ -309,4 +328,32 @@ func (s shelf) Render(cx *core.Scope) core.Node {
 			return noMatch{a: a, query: func() string { return model().noMatch }}
 		}},
 	}
+}
+
+// listPage is the page while the done films show as a list: the message bar and 处理中 over the list's heading, then the list filling the rest of the page down to its foot. What is above the list scrolls by itself once it takes more than half the page, so the list keeps the rest.
+type listPage struct {
+	a      App
+	source func() string
+	model  func() shelfModel
+}
+
+// Render implements core.Node.
+func (l listPage) Render(cx *core.Scope) core.Node {
+	a, model := l.a, l.model
+	above := core.Scroll{Style: core.Style{FlexShrink: 1, MinHeight: core.Pt(0), MaxHeight: core.Pct(50)}, Children: []core.Node{
+		core.View{Style: core.Style{Width: core.Pct(100)}, Children: []core.Node{
+			notice{a},
+			core.Show{When: func() bool { return len(model().queue) > 0 }, Then: func(*core.Scope) core.Node {
+				return queueSection{a: a, source: l.source, queue: func() []Film { return model().queue }}
+			}},
+		}},
+	}}
+	done := func() []Film { return model().done }
+	return core.View{Style: core.Style{FlexGrow: 1, MinHeight: core.Pt(0), Padding: core.Edges{Top: contentTop, Right: PagePadX, Bottom: 12, Left: PagePadX}}, Children: []core.Node{
+		above,
+		core.View{Style: core.Style{FlexGrow: 1, MinHeight: core.Pt(0), Margin: core.Edges{Top: 26}, Gap: 10}, Children: []core.Node{
+			doneHeading{a: a, done: done},
+			filmList{a: a, done: done},
+		}},
+	}}
 }

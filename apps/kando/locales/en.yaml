@@ -1057,6 +1057,35 @@ filmsLinkPlaylist:
   description: "Tag at the end of the link field when the link names a playlist or collection."
   placeholders:
     site: { type: "String", example: "YouTube" }
+filmsListDate:
+  message: "{when}"
+  description: "In the Last Watched column of the library's list: a day before yesterday on which the film last played, with the time."
+  placeholders:
+    when: { type: "DateTime" }
+filmsListPercent:
+  message: "{percent}%"
+  description: "In the Progress column of the library's list: how much of a film has been played, as a percentage."
+  placeholders:
+    percent: { type: "int", example: "37" }
+filmsListProgress:
+  message: "Progress"
+  description: "Heading of the library list's column that says how much of each film has been watched."
+filmsListSubtitles:
+  message: "Subtitles"
+  description: "Heading of the library list's column that says what language each film's subtitles were translated into, or that they are missing."
+filmsListToday:
+  message: "Today, {when, time, short}"
+  description: "In the Last Watched column of the library's list: the film last played today, at the time of day when."
+  placeholders:
+    when: { type: "DateTime" }
+filmsListWatched:
+  message: "Last Watched"
+  description: "Heading of the library list's column that says when each film last played. Pressing it sorts by it."
+filmsListYesterday:
+  message: "Yesterday, {when, time, short}"
+  description: "In the Last Watched column of the library's list: the film last played yesterday, at the time of day when."
+  placeholders:
+    when: { type: "DateTime" }
 filmsLocalVideo:
   message: "Local Video"
   description: "Toolbar button that opens a file dialog to add video files."
@@ -1353,11 +1382,20 @@ filmsSourceEmpty:
 filmsSortAdded:
   message: "Recently Added"
   description: "Sort order of the grid of finished films, and its item in the sort menu: the films added to the library last come first. It is the default order."
+filmsSortAscending:
+  message: "Ascending"
+  description: "Item of the sort menu after the orders: lists the films from A to Z, the oldest or the shortest first. Checked while the films are in that direction."
 filmsSortButton:
   message: "Sort: {order}"
   description: "Pull-down button beside the heading of the grid of finished films that opens the sort menu, naming the order the grid shows now."
   placeholders:
     order: { type: "String", example: "Recently Added" }
+filmsSortDescending:
+  message: "Descending"
+  description: "Item of the sort menu after the orders: lists the films from Z to A, the newest or the longest first. Checked while the films are in that direction."
+filmsSortDuration:
+  message: "Length"
+  description: "Sort order of the finished films, its item in the sort menu, and the heading of the list's column of how long each film plays: the longest first."
 filmsSortSource:
   message: "Source"
   description: "Sort order of the grid of finished films, and its item in the sort menu: films grouped by where they come from (YouTube, Bilibili, other sites, local files), as the sidebar lists the sources."
@@ -1421,6 +1459,15 @@ filmsUntranslated:
   description: "Part of the line under a finished film: how many subtitle lines the translation failed on."
   placeholders:
     count: { type: "int", example: "3" }
+filmsView:
+  message: "View"
+  description: "Accessible name of the switch beside the sort button that shows the finished films as icons or as a list."
+filmsViewGrid:
+  message: "Icons"
+  description: "Accessible name of the segment of the view switch that shows the finished films as posters."
+filmsViewList:
+  message: "List"
+  description: "Accessible name of the segment of the view switch that shows the finished films as a list, and of the list itself."
 filmsWatched:
   message: "Watched"
   description: "Accessible name of the check mark over a poster: the film was played to its end."
@@ -1641,6 +1688,11 @@ librarySortSaveFailed:
 libraryVideoFilter:
   message: "Videos"
   description: "Name of the file type filter of the file dialog that chooses videos."
+libraryViewSaveFailed:
+  message: "Couldn't save the view: {error}"
+  description: "Message bar when the choice of icons or a list for the finished films could not be written to the settings file."
+  placeholders:
+    error: { type: "String", example: "permission denied" }
 libraryWindowTitle:
   message: "Kando"
   description: "Title of the main window: the app's name."
@@ -1848,6 +1900,15 @@ menuToggleFullScreen:
 menuUndo:
   message: "Undo"
   description: "Edit menu item, as macOS names it."
+menuViewAsIcons:
+  message: "as Icons"
+  description: "View menu item that shows the library's finished films as posters, as Finder's View › as Icons. Checked while they show so."
+menuViewAsList:
+  message: "as List"
+  description: "View menu item that shows the library's finished films as a list, as Finder's View › as List. Checked while they show so."
+menuViewSortBy:
+  message: "Sort By"
+  description: "View menu submenu of the orders the library's finished films can be listed in, as the sort button beside them offers."
 menuWebsite:
   message: "Kando Website"
   description: "Help menu item that opens Kando's website, kando.yldm.ai, in the browser."

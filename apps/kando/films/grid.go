@@ -23,7 +23,7 @@ func gridTracks(min core.Points) core.GridTracks {
 	return core.GridTracks(fmt.Sprintf("repeat(auto-fill, minmax(%gpx, 1fr))", min))
 }
 
-// grid is the films that are done, as 16:9 posters across the page, in the order the sort button beside its heading chose (done is in that order already). With a single film there is nothing to order, and the button stays away.
+// grid is the films that are done, as 16:9 posters across the page under their heading (doneHeading), in the order chosen (done is in that order already).
 type grid struct {
 	a    App
 	done func() []Film
@@ -32,33 +32,46 @@ type grid struct {
 // Render implements core.Node.
 func (g grid) Render(cx *core.Scope) core.Node {
 	a := g.a
-	colors := ui.ColorsOf(cx)
-	// The top bar names the source the page shows, so the grid's heading is only how many films it holds.
-	count := func() string { return locales.FilmsGridCount(cx, len(g.done())) }
-	// Past one film shown without a translation, as those made before an AI service was set up, the heading offers to translate them all at once while a service is set up to do it, as 处理中 offers Retry All; a single one has its own 翻译.
-	untranslated := live.Memo(cx, a, func() int {
-		if !a.CanTranslate() {
-			return 0
-		}
-		return len(NotTranslated(g.done()))
-	})
-	translateAll := core.Show{When: func() bool { return untranslated() > 1 }, Then: func(*core.Scope) core.Node {
-		return textButton(func(cx *core.Scope) string { return locales.FilmsTranslateAll(cx, untranslated()) },
-			ui.Button{Variant: ui.ButtonSecondary, Size: ui.SizeSmall, TestID: "films-translate-all", OnPress: live.Do(a, func() { a.TranslateFilms(g.done()) })})
-	}}
-	head := core.View{Style: core.Style{Direction: core.Row, Gap: 12, AlignItems: core.AlignCenter}, Children: []core.Node{
-		core.View{Style: core.Style{FlexGrow: 1, MinWidth: core.Pt(0)}, Children: []core.Node{
-			heading(2, core.Text{ContentFunc: count, Style: core.Style{FontSize: 13, FontWeight: ui.Semibold}, StyleFunc: ui.Colored(colors.Muted)}),
-		}},
-		translateAll,
-		core.Show{When: func() bool { return len(g.done()) > 1 }, Then: func(*core.Scope) core.Node { return sortButton{a} }},
-	}}
 	cards := core.View{TestID: "films-grid",
 		Style: core.Style{Display: core.DisplayGrid, GridTemplateColumns: gridTracks(CardMinWidth), ColumnGap: CardGapX, RowGap: CardGapY, AlignItems: core.AlignStart},
 		Children: []core.Node{core.Each(g.done, func(item Film) string { return item.Key }, func(cx *core.Scope, item func() Film, _ func() int) core.Node {
 			return doneCard{a: a, item: item}
 		})}}
-	return core.View{Style: core.Style{Margin: core.Edges{Top: 26}, Gap: 14}, Children: []core.Node{head, cards}}
+	return core.View{Style: core.Style{Margin: core.Edges{Top: 26}, Gap: 14}, Children: []core.Node{doneHeading{a: a, done: g.done}, cards}}
+}
+
+// doneHeading is the line over the done films, as posters or as a list: how many they are, then Translate N Films while more than one has no translation, the sort button while there is more than one to order, and the switch between posters and the list.
+type doneHeading struct {
+	a    App
+	done func() []Film
+}
+
+// Render implements core.Node.
+func (h doneHeading) Render(cx *core.Scope) core.Node {
+	a := h.a
+	colors := ui.ColorsOf(cx)
+	// The top bar names the source the page shows, so the heading is only how many films it holds.
+	count := func() string { return locales.FilmsGridCount(cx, len(h.done())) }
+	// Past one film shown without a translation, as those made before an AI service was set up, the heading offers to translate them all at once while a service is set up to do it, as 处理中 offers Retry All; a single one has its own 翻译.
+	untranslated := live.Memo(cx, a, func() int {
+		if !a.CanTranslate() {
+			return 0
+		}
+		return len(NotTranslated(h.done()))
+	})
+	translateAll := core.Show{When: func() bool { return untranslated() > 1 }, Then: func(*core.Scope) core.Node {
+		return textButton(func(cx *core.Scope) string { return locales.FilmsTranslateAll(cx, untranslated()) },
+			ui.Button{Variant: ui.ButtonSecondary, Size: ui.SizeSmall, TestID: "films-translate-all", OnPress: live.Do(a, func() { a.TranslateFilms(h.done()) })})
+	}}
+	return core.View{Style: core.Style{Direction: core.Row, Gap: 12, AlignItems: core.AlignCenter}, Children: []core.Node{
+		core.View{Style: core.Style{FlexGrow: 1, MinWidth: core.Pt(0)}, Children: []core.Node{
+			heading(2, core.Text{ContentFunc: count, Style: core.Style{FontSize: 13, FontWeight: ui.Semibold}, StyleFunc: ui.Colored(colors.Muted)}),
+		}},
+		translateAll,
+		// With a single film there is nothing to order, and the sort button stays away.
+		core.Show{When: func() bool { return len(h.done()) > 1 }, Then: func(*core.Scope) core.Node { return sortButton{a} }},
+		viewSwitch{a},
+	}}
 }
 
 // sectionTitle is the heading of a part of the shelf with a dimmed note after it on the same baseline.

@@ -17,7 +17,7 @@ import (
 	"github.com/nsgo-dev/nsgo/nsgotest"
 )
 
-// TestScreenshotsLibrary renders the library page from the prototype's library (screenshot_helpers_test.go) to PNG files in the directory named by KANDO_SCREENSHOTS, in the states the prototype's library screenshots show: the first screen with the message bar the prototype shows after its onboarding and 浏览网站 beside the link field, scrolled to 处理中 and to the grid as far as the prototype scrolls, ⋯ on the first poster, a YouTube link typed into the field, and a new empty library, whose page offers 浏览网站 too. It also renders the grid with a film whose translation left a line untranslated, which offers to translate it, and with two films made without a translation once an AI service is set up, which the message bar and the grid's heading offer to translate. Besides those it renders the grid ordered by title, a query in the sidebar's search field and one that matches no film, the whole page, the page before there is a library, the new-library sheet, the 从资料库移除 confirmation for a film alone in its folder and for one whose folder holds another folder, the 重命名… dialog and the poster it renamed, ⋯ with 移到资料库 and the message bar after a film was moved to another library, a video dropped over an open film, and a library copied without its job records whose videos show the subtitles exported beside them. The prototype's drag-over state is rendered by TestScreenshotDropZone in the films package, because the tester cannot hold files over the window without dropping them. It is skipped when the variable is unset.
+// TestScreenshotsLibrary renders the library page from the prototype's library (screenshot_helpers_test.go) to PNG files in the directory named by KANDO_SCREENSHOTS, in the states the prototype's library screenshots show: the first screen with the message bar the prototype shows after its onboarding and 浏览网站 beside the link field, scrolled to 处理中 and to the grid as far as the prototype scrolls, ⋯ on the first poster, a YouTube link typed into the field, and a new empty library, whose page offers 浏览网站 too. It also renders the grid with a film whose translation left a line untranslated, which offers to translate it, and with two films made without a translation once an AI service is set up, which the message bar and the grid's heading offer to translate. Besides those it renders the grid ordered by title, the films as a list sorted by length, a query in the sidebar's search field and one that matches no film, the whole page, the page before there is a library, the new-library sheet, the 从资料库移除 confirmation for a film alone in its folder and for one whose folder holds another folder, the 重命名… dialog and the poster it renamed, ⋯ with 移到资料库 and the message bar after a film was moved to another library, a video dropped over an open film, and a library copied without its job records whose videos show the subtitles exported beside them. The prototype's drag-over state is rendered by TestScreenshotDropZone in the films package, because the tester cannot hold files over the window without dropping them. It is skipped when the variable is unset.
 func TestScreenshotsLibrary(t *testing.T) {
 	f := newScreenshotFixture(t)
 	// onboarding is the message bar the prototype shows once its onboarding is skipped.
@@ -131,9 +131,29 @@ func TestScreenshotsLibrary(t *testing.T) {
 	// The grid ordered by title, chosen from the sort button beside its heading (whose menu is the system's, which the tester lists rather than draws): Latin names first, then Chinese ones by pinyin.
 	f.shoot(t, "library-sorted-title", func(t *testing.T, a *app, tt *nsgotest.App, _ chan func()) {
 		onboarding(a)
-		a.SetLibrarySort(films.SortTitle)
+		a.SetLibrarySort(films.Order{By: films.SortTitle})
 		refresh(tt, a)
 		scrollTo(t, a, tt, "8 部", 315)
+	})
+	// The done films as a list, chosen with the switch beside the sort button: the hero steps aside, and the list fills the page under 处理中, its columns sorting by length.
+	f.shoot(t, "library-list", func(t *testing.T, a *app, tt *nsgotest.App, _ chan func()) {
+		// Two films watched, one to its end today and one partway yesterday, so the list's Progress and Last Watched columns have something to say.
+		now := time.Now()
+		var done []string
+		for _, item := range a.films() {
+			if !films.InQueue(item) {
+				done = append(done, item.VideoPath)
+			}
+		}
+		ended, partway := done[0], done[1]
+		a.palette.furthest = map[string]time.Duration{ended: a.Duration(ended), partway: a.Duration(partway) * 2 / 5}
+		a.setPlayedTimes(map[string]time.Time{ended: now.Add(-time.Hour), partway: now.AddDate(0, 0, -1)})
+		a.SetLibraryView(films.ViewList)
+		a.SetLibrarySort(films.Order{By: films.SortDuration})
+		refresh(tt, a)
+		if !tt.Exists("id:films-list") || !shows(tt, "已看完") || !shows(tt, "40%") {
+			t.Fatalf("no list with the films watched; texts %q", tt.Texts())
+		}
 	})
 	f.shoot(t, "library-url-typed", func(t *testing.T, a *app, tt *nsgotest.App, _ chan func()) {
 		onboarding(a)

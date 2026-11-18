@@ -483,6 +483,10 @@ var Parameters = map[string][]string{
 	"FilmsLinkChannel":                         {"site"},
 	"FilmsLinkCount":                           {"count"},
 	"FilmsLinkPlaylist":                        {"site"},
+	"FilmsListDate":                            {"when"},
+	"FilmsListPercent":                         {"percent"},
+	"FilmsListToday":                           {"when"},
+	"FilmsListYesterday":                       {"when"},
 	"FilmsLocalVideoTooltip":                   {"shortcut"},
 	"FilmsMoreActions":                         {"film"},
 	"FilmsNewLibraryNote":                      {"platform"},
@@ -543,6 +547,7 @@ var Parameters = map[string][]string{
 	"LibraryTrashUnsupported":                  {"name"},
 	"LibraryTrashed":                           {"name"},
 	"LibrarySortSaveFailed":                    {"error_"},
+	"LibraryViewSaveFailed":                    {"error_"},
 	"LockChangeTitle":                          {"name"},
 	"LockLibraryIsLocked":                      {"name"},
 	"LockLibraryLocked":                        {"name"},
@@ -793,6 +798,10 @@ type Translation struct {
 	FilmsLinkChannel                         func(site string) string
 	FilmsLinkCount                           func(count int) string
 	FilmsLinkPlaylist                        func(site string) string
+	FilmsListDate                            func(hc string, when time.Time) string
+	FilmsListPercent                         func(percent int) string
+	FilmsListToday                           func(hc string, when time.Time) string
+	FilmsListYesterday                       func(hc string, when time.Time) string
 	FilmsLocalVideoTooltip                   func(shortcut string) string
 	FilmsMoreActions                         func(film string) string
 	FilmsNewLibraryNote                      func(platform string) string
@@ -853,6 +862,7 @@ type Translation struct {
 	LibraryTrashUnsupported                  func(name string) string
 	LibraryTrashed                           func(name string) string
 	LibrarySortSaveFailed                    func(error_ string) string
+	LibraryViewSaveFailed                    func(error_ string) string
 	LockChangeTitle                          func(name string) string
 	LockLibraryIsLocked                      func(name string) string
 	LockLibraryLocked                        func(name string) string
@@ -1295,6 +1305,9 @@ const (
 	textFilmsLanguageTagTraditionalChinese
 	textFilmsLinkLabel
 	textFilmsLinkPlaceholder
+	textFilmsListProgress
+	textFilmsListSubtitles
+	textFilmsListWatched
 	textFilmsLocalVideo
 	textFilmsMakeSubtitles
 	textFilmsMoveToLibrary
@@ -1343,6 +1356,9 @@ const (
 	textFilmsSearchClear
 	textFilmsSourceEmpty
 	textFilmsSortAdded
+	textFilmsSortAscending
+	textFilmsSortDescending
+	textFilmsSortDuration
 	textFilmsSortSource
 	textFilmsSortSpoken
 	textFilmsSortTitle
@@ -1359,6 +1375,9 @@ const (
 	textFilmsTranslate
 	textFilmsTranslateAgain
 	textFilmsTranslateMissing
+	textFilmsView
+	textFilmsViewGrid
+	textFilmsViewList
 	textFilmsWatched
 	textKitsDownloadDisconnected
 	textKitsDownloadStalled
@@ -1438,6 +1457,9 @@ const (
 	textMenuSwitchLibrary
 	textMenuToggleFullScreen
 	textMenuUndo
+	textMenuViewAsIcons
+	textMenuViewAsList
+	textMenuViewSortBy
 	textMenuWebsite
 	textMenuWindowLibrary
 	textMenuWindowPlayer
@@ -2250,6 +2272,9 @@ var keyOfText = [numTexts]string{
 	"filmsLanguageTagTraditionalChinese",
 	"filmsLinkLabel",
 	"filmsLinkPlaceholder",
+	"filmsListProgress",
+	"filmsListSubtitles",
+	"filmsListWatched",
 	"filmsLocalVideo",
 	"filmsMakeSubtitles",
 	"filmsMoveToLibrary",
@@ -2298,6 +2323,9 @@ var keyOfText = [numTexts]string{
 	"filmsSearchClear",
 	"filmsSourceEmpty",
 	"filmsSortAdded",
+	"filmsSortAscending",
+	"filmsSortDescending",
+	"filmsSortDuration",
 	"filmsSortSource",
 	"filmsSortSpoken",
 	"filmsSortTitle",
@@ -2314,6 +2342,9 @@ var keyOfText = [numTexts]string{
 	"filmsTranslate",
 	"filmsTranslateAgain",
 	"filmsTranslateMissing",
+	"filmsView",
+	"filmsViewGrid",
+	"filmsViewList",
 	"filmsWatched",
 	"kitsDownloadDisconnected",
 	"kitsDownloadStalled",
@@ -2393,6 +2424,9 @@ var keyOfText = [numTexts]string{
 	"menuSwitchLibrary",
 	"menuToggleFullScreen",
 	"menuUndo",
+	"menuViewAsIcons",
+	"menuViewAsList",
+	"menuViewSortBy",
 	"menuWebsite",
 	"menuWindowLibrary",
 	"menuWindowPlayer",
@@ -3203,6 +3237,9 @@ var textsEn = i18n.NewTexts(""+
 	"CHT"+
 	"Video Link"+
 	"Paste a video link from YouTube, Bilibili and more"+
+	"Progress"+
+	"Subtitles"+
+	"Last Watched"+
 	"Local Video"+
 	"Make Subtitles"+
 	"Move to Library"+
@@ -3251,6 +3288,9 @@ var textsEn = i18n.NewTexts(""+
 	"Clear Search"+
 	"No films from this source yet."+
 	"Recently Added"+
+	"Ascending"+
+	"Descending"+
+	"Length"+
 	"Source"+
 	"Spoken Language"+
 	"Title"+
@@ -3267,6 +3307,9 @@ var textsEn = i18n.NewTexts(""+
 	"Translate"+
 	"Translate Again Into"+
 	"Translate Missing Lines"+
+	"View"+
+	"Icons"+
+	"List"+
 	"Watched"+
 	"the connection dropped"+
 	"the server stopped sending data"+
@@ -3346,6 +3389,9 @@ var textsEn = i18n.NewTexts(""+
 	"Switch Library"+
 	"Toggle Full Screen"+
 	"Undo"+
+	"as Icons"+
+	"as List"+
+	"Sort By"+
 	"Kando Website"+
 	"Library"+
 	"Player"+
@@ -4153,6 +4199,9 @@ var textsEn = i18n.NewTexts(""+
 		3,
 		10,
 		50,
+		8,
+		9,
+		12,
 		11,
 		14,
 		15,
@@ -4201,6 +4250,9 @@ var textsEn = i18n.NewTexts(""+
 		12,
 		30,
 		14,
+		9,
+		10,
+		6,
 		6,
 		15,
 		5,
@@ -4217,6 +4269,9 @@ var textsEn = i18n.NewTexts(""+
 		9,
 		20,
 		23,
+		4,
+		5,
+		4,
 		7,
 		22,
 		31,
@@ -4296,6 +4351,9 @@ var textsEn = i18n.NewTexts(""+
 		14,
 		18,
 		4,
+		8,
+		7,
+		7,
 		13,
 		7,
 		6,
@@ -5106,6 +5164,9 @@ var textsJa = i18n.NewTexts(""+
 	"繁体"+
 	"動画のリンク"+
 	"YouTube や bilibili などの動画リンクを貼り付け"+
+	"視聴状況"+
+	"字幕"+
+	"最終視聴"+
 	"ローカル動画"+
 	"字幕を作成"+
 	"ライブラリへ移動"+
@@ -5154,6 +5215,9 @@ var textsJa = i18n.NewTexts(""+
 	"検索をクリア"+
 	"このソースの動画はまだありません。"+
 	"追加日が新しい順"+
+	"昇順"+
+	"降順"+
+	"長さ"+
 	"ソース"+
 	"音声の言語"+
 	"タイトル"+
@@ -5170,6 +5234,9 @@ var textsJa = i18n.NewTexts(""+
 	"翻訳"+
 	"再翻訳先"+
 	"未翻訳の行を翻訳"+
+	"表示"+
+	"アイコン"+
+	"リスト"+
 	"視聴済み"+
 	"接続が切れました"+
 	"サーバーからデータが届かなくなりました"+
@@ -5249,6 +5316,9 @@ var textsJa = i18n.NewTexts(""+
 	"ライブラリを切り替え"+
 	"フルスクリーンを切り替える"+
 	"取り消す"+
+	"アイコン"+
+	"リスト"+
+	"並べ替え"+
 	"Kando ウェブサイト"+
 	"ライブラリ"+
 	"プレーヤー"+
@@ -6056,6 +6126,9 @@ var textsJa = i18n.NewTexts(""+
 		6,
 		18,
 		60,
+		12,
+		6,
+		12,
 		18,
 		15,
 		24,
@@ -6104,6 +6177,9 @@ var textsJa = i18n.NewTexts(""+
 		18,
 		51,
 		24,
+		6,
+		6,
+		6,
 		9,
 		15,
 		12,
@@ -6120,6 +6196,9 @@ var textsJa = i18n.NewTexts(""+
 		6,
 		12,
 		24,
+		6,
+		12,
+		9,
 		12,
 		24,
 		57,
@@ -6198,6 +6277,9 @@ var textsJa = i18n.NewTexts(""+
 		21,
 		30,
 		39,
+		12,
+		12,
+		9,
 		12,
 		24,
 		15,
@@ -7009,6 +7091,9 @@ var textsKo = i18n.NewTexts(""+
 	"번체"+
 	"동영상 링크"+
 	"YouTube, Bilibili 등의 동영상 링크 붙여넣기"+
+	"진행률"+
+	"자막"+
+	"마지막 시청"+
 	"로컬 동영상"+
 	"자막 만들기"+
 	"라이브러리로 이동"+
@@ -7057,6 +7142,9 @@ var textsKo = i18n.NewTexts(""+
 	"검색 지우기"+
 	"이 출처의 영상이 아직 없습니다."+
 	"최근 추가순"+
+	"오름차순"+
+	"내림차순"+
+	"길이"+
 	"출처"+
 	"음성 언어"+
 	"제목"+
@@ -7073,6 +7161,9 @@ var textsKo = i18n.NewTexts(""+
 	"번역"+
 	"다시 번역할 언어"+
 	"번역 안 된 대사 번역"+
+	"보기"+
+	"아이콘"+
+	"목록"+
 	"시청 완료"+
 	"연결이 끊어졌습니다"+
 	"서버에서 데이터가 더 이상 오지 않습니다"+
@@ -7152,6 +7243,9 @@ var textsKo = i18n.NewTexts(""+
 	"라이브러리 전환"+
 	"전체 화면 전환"+
 	"실행 취소"+
+	"아이콘으로"+
+	"목록으로"+
+	"정렬 기준"+
 	"Kando 웹사이트"+
 	"라이브러리"+
 	"플레이어"+
@@ -7959,6 +8053,9 @@ var textsKo = i18n.NewTexts(""+
 		6,
 		16,
 		54,
+		9,
+		6,
+		16,
 		16,
 		16,
 		25,
@@ -8007,6 +8104,9 @@ var textsKo = i18n.NewTexts(""+
 		16,
 		44,
 		16,
+		12,
+		12,
+		6,
 		6,
 		13,
 		6,
@@ -8023,6 +8123,9 @@ var textsKo = i18n.NewTexts(""+
 		6,
 		23,
 		28,
+		6,
+		9,
+		6,
 		13,
 		28,
 		56,
@@ -8101,6 +8204,9 @@ var textsKo = i18n.NewTexts(""+
 		16,
 		22,
 		20,
+		13,
+		15,
+		12,
 		13,
 		18,
 		15,
@@ -8912,6 +9018,9 @@ var textsZhHans = i18n.NewTexts(""+
 	"繁中"+
 	"视频链接"+
 	"粘贴 YouTube、哔哩哔哩等视频链接"+
+	"进度"+
+	"字幕"+
+	"上次观看"+
 	"本地视频"+
 	"生成字幕"+
 	"移到资料库"+
@@ -8960,6 +9069,9 @@ var textsZhHans = i18n.NewTexts(""+
 	"清除搜索"+
 	"这个来源下还没有影片。"+
 	"最近添加"+
+	"升序"+
+	"降序"+
+	"时长"+
 	"来源"+
 	"原声语言"+
 	"标题"+
@@ -8976,6 +9088,9 @@ var textsZhHans = i18n.NewTexts(""+
 	"翻译"+
 	"重新翻译为"+
 	"补译未译的句子"+
+	"显示方式"+
+	"图标"+
+	"列表"+
 	"已看完"+
 	"连接断了"+
 	"服务器一直没有发来数据"+
@@ -9055,6 +9170,9 @@ var textsZhHans = i18n.NewTexts(""+
 	"切换资料库"+
 	"切换全屏幕"+
 	"撤销"+
+	"为图标"+
+	"为列表"+
+	"排序方式"+
 	"看懂官网"+
 	"资料库"+
 	"播放器"+
@@ -9862,6 +9980,9 @@ var textsZhHans = i18n.NewTexts(""+
 		6,
 		12,
 		44,
+		6,
+		6,
+		12,
 		12,
 		12,
 		15,
@@ -9911,6 +10032,9 @@ var textsZhHans = i18n.NewTexts(""+
 		33,
 		12,
 		6,
+		6,
+		6,
+		6,
 		12,
 		6,
 		12,
@@ -9926,6 +10050,9 @@ var textsZhHans = i18n.NewTexts(""+
 		6,
 		15,
 		21,
+		12,
+		6,
+		6,
 		9,
 		12,
 		33,
@@ -10005,6 +10132,9 @@ var textsZhHans = i18n.NewTexts(""+
 		15,
 		15,
 		6,
+		9,
+		9,
+		12,
 		12,
 		9,
 		9,
@@ -10815,6 +10945,9 @@ var textsZhHant = i18n.NewTexts(""+
 	"繁中"+
 	"影片連結"+
 	"貼上 YouTube、嗶哩嗶哩等影片連結"+
+	"進度"+
+	"字幕"+
+	"上次觀看"+
 	"本機影片"+
 	"產生字幕"+
 	"移到資料庫"+
@@ -10863,6 +10996,9 @@ var textsZhHant = i18n.NewTexts(""+
 	"清除搜尋"+
 	"這個來源下還沒有影片。"+
 	"最近加入"+
+	"遞增"+
+	"遞減"+
+	"時長"+
 	"來源"+
 	"原聲語言"+
 	"標題"+
@@ -10879,6 +11015,9 @@ var textsZhHant = i18n.NewTexts(""+
 	"翻譯"+
 	"重新翻譯為"+
 	"補譯未譯的句子"+
+	"顯示方式"+
+	"圖像"+
+	"列表"+
 	"已看完"+
 	"連線中斷了"+
 	"伺服器一直沒有傳來資料"+
@@ -10958,6 +11097,9 @@ var textsZhHant = i18n.NewTexts(""+
 	"切換資料庫"+
 	"切換全螢幕"+
 	"還原"+
+	"以圖像顯示"+
+	"以列表顯示"+
+	"排序方式"+
 	"看懂官網"+
 	"資料庫"+
 	"播放器"+
@@ -11765,6 +11907,9 @@ var textsZhHant = i18n.NewTexts(""+
 		6,
 		12,
 		44,
+		6,
+		6,
+		12,
 		12,
 		12,
 		15,
@@ -11814,6 +11959,9 @@ var textsZhHant = i18n.NewTexts(""+
 		33,
 		12,
 		6,
+		6,
+		6,
+		6,
 		12,
 		6,
 		12,
@@ -11829,6 +11977,9 @@ var textsZhHant = i18n.NewTexts(""+
 		6,
 		15,
 		21,
+		12,
+		6,
+		6,
 		9,
 		15,
 		33,
@@ -11908,6 +12059,9 @@ var textsZhHant = i18n.NewTexts(""+
 		15,
 		15,
 		6,
+		15,
+		15,
+		12,
 		12,
 		9,
 		9,
@@ -12698,6 +12852,18 @@ func Supply(lang string, t Translation) {
 	if t.FilmsLinkPlaylist != nil {
 		s.FilmsLinkPlaylist = t.FilmsLinkPlaylist
 	}
+	if t.FilmsListDate != nil {
+		s.FilmsListDate = t.FilmsListDate
+	}
+	if t.FilmsListPercent != nil {
+		s.FilmsListPercent = t.FilmsListPercent
+	}
+	if t.FilmsListToday != nil {
+		s.FilmsListToday = t.FilmsListToday
+	}
+	if t.FilmsListYesterday != nil {
+		s.FilmsListYesterday = t.FilmsListYesterday
+	}
 	if t.FilmsLocalVideoTooltip != nil {
 		s.FilmsLocalVideoTooltip = t.FilmsLocalVideoTooltip
 	}
@@ -12877,6 +13043,9 @@ func Supply(lang string, t Translation) {
 	}
 	if t.LibrarySortSaveFailed != nil {
 		s.LibrarySortSaveFailed = t.LibrarySortSaveFailed
+	}
+	if t.LibraryViewSaveFailed != nil {
+		s.LibraryViewSaveFailed = t.LibraryViewSaveFailed
 	}
 	if t.LockChangeTitle != nil {
 		s.LockChangeTitle = t.LockChangeTitle
@@ -17660,6 +17829,155 @@ func (msgs Messages) FilmsLinkPlaylist(site string) string {
 	}
 }
 
+// FilmsListDate says "{when}"
+// in the language the app shows under cx.
+//
+// In the Last Watched column of the library's list: a day before yesterday on which the film last played, with the time.
+func FilmsListDate(cx *core.Scope, when time.Time) string { return For(cx).FilmsListDate(when) }
+
+// FilmsListDate is the package's FilmsListDate in the language of msgs.
+func (msgs Messages) FilmsListDate(when time.Time) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.FilmsListDate(when))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].FilmsListDate; f != nil {
+			return f(msgs.hc, when)
+		}
+		switch lang {
+		case "", "en":
+			return msgs.arg(i18n.FormatDate(msgs.dated("en"), when, i18n.DateOptions{Date: i18n.ShortStyle, Time: i18n.ShortStyle}))
+		case "ja":
+			return i18n.FormatDate(msgs.dated("ja"), when, i18n.DateOptions{Date: i18n.ShortStyle, Time: i18n.ShortStyle})
+		case "ko":
+			return i18n.FormatDate(msgs.dated("ko"), when, i18n.DateOptions{Date: i18n.ShortStyle, Time: i18n.ShortStyle})
+		case "zh-Hans":
+			return i18n.FormatDate(msgs.dated("zh-Hans"), when, i18n.DateOptions{Date: i18n.ShortStyle, Time: i18n.ShortStyle})
+		case "zh-Hant":
+			return i18n.FormatDate(msgs.dated("zh-Hant"), when, i18n.DateOptions{Date: i18n.ShortStyle, Time: i18n.ShortStyle})
+		}
+	}
+}
+
+// FilmsListPercent says "{percent}%"
+// in the language the app shows under cx.
+//
+// In the Progress column of the library's list: how much of a film has been played, as a percentage.
+func FilmsListPercent(cx *core.Scope, percent int) string { return For(cx).FilmsListPercent(percent) }
+
+// FilmsListPercent is the package's FilmsListPercent in the language of msgs.
+func (msgs Messages) FilmsListPercent(percent int) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.FilmsListPercent(percent))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].FilmsListPercent; f != nil {
+			return f(percent)
+		}
+		switch lang {
+		case "", "en":
+			return msgs.arg(i18n.FormatNumber("en", float64(percent))) + "%"
+		case "ja":
+			return i18n.FormatNumber("ja", float64(percent)) + "%"
+		case "ko":
+			return i18n.FormatNumber("ko", float64(percent)) + "%"
+		case "zh-Hans":
+			return i18n.FormatNumber("zh-Hans", float64(percent)) + "%"
+		case "zh-Hant":
+			return i18n.FormatNumber("zh-Hant", float64(percent)) + "%"
+		}
+	}
+}
+
+// FilmsListProgress says "Progress"
+// in the language the app shows under cx.
+//
+// Heading of the library list's column that says how much of each film has been watched.
+func FilmsListProgress(cx *core.Scope) string { return For(cx).FilmsListProgress() }
+
+// FilmsListProgress is the package's FilmsListProgress in the language of msgs.
+func (msgs Messages) FilmsListProgress() string { return msgs.text(textFilmsListProgress) }
+
+// FilmsListSubtitles says "Subtitles"
+// in the language the app shows under cx.
+//
+// Heading of the library list's column that says what language each film's subtitles were translated into, or that they are missing.
+func FilmsListSubtitles(cx *core.Scope) string { return For(cx).FilmsListSubtitles() }
+
+// FilmsListSubtitles is the package's FilmsListSubtitles in the language of msgs.
+func (msgs Messages) FilmsListSubtitles() string { return msgs.text(textFilmsListSubtitles) }
+
+// FilmsListToday says "Today, {when, time, short}"
+// in the language the app shows under cx.
+//
+// In the Last Watched column of the library's list: the film last played today, at the time of day when.
+func FilmsListToday(cx *core.Scope, when time.Time) string { return For(cx).FilmsListToday(when) }
+
+// FilmsListToday is the package's FilmsListToday in the language of msgs.
+func (msgs Messages) FilmsListToday(when time.Time) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.FilmsListToday(when))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].FilmsListToday; f != nil {
+			return f(msgs.hc, when)
+		}
+		switch lang {
+		case "", "en":
+			return "Today, " + msgs.arg(i18n.FormatDate(msgs.dated("en"), when, i18n.DateOptions{Time: i18n.ShortStyle}))
+		case "ja":
+			return "今日 " + i18n.FormatDate(msgs.dated("ja"), when, i18n.DateOptions{Time: i18n.ShortStyle})
+		case "ko":
+			return "오늘 " + i18n.FormatDate(msgs.dated("ko"), when, i18n.DateOptions{Time: i18n.ShortStyle})
+		case "zh-Hans":
+			return "今天 " + i18n.FormatDate(msgs.dated("zh-Hans"), when, i18n.DateOptions{Time: i18n.ShortStyle})
+		case "zh-Hant":
+			return "今天 " + i18n.FormatDate(msgs.dated("zh-Hant"), when, i18n.DateOptions{Time: i18n.ShortStyle})
+		}
+	}
+}
+
+// FilmsListWatched says "Last Watched"
+// in the language the app shows under cx.
+//
+// Heading of the library list's column that says when each film last played. Pressing it sorts by it.
+func FilmsListWatched(cx *core.Scope) string { return For(cx).FilmsListWatched() }
+
+// FilmsListWatched is the package's FilmsListWatched in the language of msgs.
+func (msgs Messages) FilmsListWatched() string { return msgs.text(textFilmsListWatched) }
+
+// FilmsListYesterday says "Yesterday, {when, time, short}"
+// in the language the app shows under cx.
+//
+// In the Last Watched column of the library's list: the film last played yesterday, at the time of day when.
+func FilmsListYesterday(cx *core.Scope, when time.Time) string {
+	return For(cx).FilmsListYesterday(when)
+}
+
+// FilmsListYesterday is the package's FilmsListYesterday in the language of msgs.
+func (msgs Messages) FilmsListYesterday(when time.Time) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.FilmsListYesterday(when))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].FilmsListYesterday; f != nil {
+			return f(msgs.hc, when)
+		}
+		switch lang {
+		case "", "en":
+			return "Yesterday, " + msgs.arg(i18n.FormatDate(msgs.dated("en"), when, i18n.DateOptions{Time: i18n.ShortStyle}))
+		case "ja":
+			return "昨日 " + i18n.FormatDate(msgs.dated("ja"), when, i18n.DateOptions{Time: i18n.ShortStyle})
+		case "ko":
+			return "어제 " + i18n.FormatDate(msgs.dated("ko"), when, i18n.DateOptions{Time: i18n.ShortStyle})
+		case "zh-Hans":
+			return "昨天 " + i18n.FormatDate(msgs.dated("zh-Hans"), when, i18n.DateOptions{Time: i18n.ShortStyle})
+		case "zh-Hant":
+			return "昨天 " + i18n.FormatDate(msgs.dated("zh-Hant"), when, i18n.DateOptions{Time: i18n.ShortStyle})
+		}
+	}
+}
+
 // FilmsLocalVideo says "Local Video"
 // in the language the app shows under cx.
 //
@@ -19181,6 +19499,15 @@ func FilmsSortAdded(cx *core.Scope) string { return For(cx).FilmsSortAdded() }
 // FilmsSortAdded is the package's FilmsSortAdded in the language of msgs.
 func (msgs Messages) FilmsSortAdded() string { return msgs.text(textFilmsSortAdded) }
 
+// FilmsSortAscending says "Ascending"
+// in the language the app shows under cx.
+//
+// Item of the sort menu after the orders: lists the films from A to Z, the oldest or the shortest first. Checked while the films are in that direction.
+func FilmsSortAscending(cx *core.Scope) string { return For(cx).FilmsSortAscending() }
+
+// FilmsSortAscending is the package's FilmsSortAscending in the language of msgs.
+func (msgs Messages) FilmsSortAscending() string { return msgs.text(textFilmsSortAscending) }
+
 // FilmsSortButton says "Sort: {order}"
 // in the language the app shows under cx.
 //
@@ -19210,6 +19537,24 @@ func (msgs Messages) FilmsSortButton(order string) string {
 		}
 	}
 }
+
+// FilmsSortDescending says "Descending"
+// in the language the app shows under cx.
+//
+// Item of the sort menu after the orders: lists the films from Z to A, the newest or the longest first. Checked while the films are in that direction.
+func FilmsSortDescending(cx *core.Scope) string { return For(cx).FilmsSortDescending() }
+
+// FilmsSortDescending is the package's FilmsSortDescending in the language of msgs.
+func (msgs Messages) FilmsSortDescending() string { return msgs.text(textFilmsSortDescending) }
+
+// FilmsSortDuration says "Length"
+// in the language the app shows under cx.
+//
+// Sort order of the finished films, its item in the sort menu, and the heading of the list's column of how long each film plays: the longest first.
+func FilmsSortDuration(cx *core.Scope) string { return For(cx).FilmsSortDuration() }
+
+// FilmsSortDuration is the package's FilmsSortDuration in the language of msgs.
+func (msgs Messages) FilmsSortDuration() string { return msgs.text(textFilmsSortDuration) }
 
 // FilmsSortSource says "Source"
 // in the language the app shows under cx.
@@ -19466,6 +19811,33 @@ func (msgs Messages) FilmsUntranslated(count int) string {
 		}
 	}
 }
+
+// FilmsView says "View"
+// in the language the app shows under cx.
+//
+// Accessible name of the switch beside the sort button that shows the finished films as icons or as a list.
+func FilmsView(cx *core.Scope) string { return For(cx).FilmsView() }
+
+// FilmsView is the package's FilmsView in the language of msgs.
+func (msgs Messages) FilmsView() string { return msgs.text(textFilmsView) }
+
+// FilmsViewGrid says "Icons"
+// in the language the app shows under cx.
+//
+// Accessible name of the segment of the view switch that shows the finished films as posters.
+func FilmsViewGrid(cx *core.Scope) string { return For(cx).FilmsViewGrid() }
+
+// FilmsViewGrid is the package's FilmsViewGrid in the language of msgs.
+func (msgs Messages) FilmsViewGrid() string { return msgs.text(textFilmsViewGrid) }
+
+// FilmsViewList says "List"
+// in the language the app shows under cx.
+//
+// Accessible name of the segment of the view switch that shows the finished films as a list, and of the list itself.
+func FilmsViewList(cx *core.Scope) string { return For(cx).FilmsViewList() }
+
+// FilmsViewList is the package's FilmsViewList in the language of msgs.
+func (msgs Messages) FilmsViewList() string { return msgs.text(textFilmsViewList) }
 
 // FilmsWatched says "Watched"
 // in the language the app shows under cx.
@@ -20595,6 +20967,38 @@ func LibraryVideoFilter(cx *core.Scope) string { return For(cx).LibraryVideoFilt
 // LibraryVideoFilter is the package's LibraryVideoFilter in the language of msgs.
 func (msgs Messages) LibraryVideoFilter() string { return msgs.text(textLibraryVideoFilter) }
 
+// LibraryViewSaveFailed says "Couldn't save the view: {error}"
+// in the language the app shows under cx.
+//
+// Message bar when the choice of icons or a list for the finished films could not be written to the settings file.
+func LibraryViewSaveFailed(cx *core.Scope, error_ string) string {
+	return For(cx).LibraryViewSaveFailed(error_)
+}
+
+// LibraryViewSaveFailed is the package's LibraryViewSaveFailed in the language of msgs.
+func (msgs Messages) LibraryViewSaveFailed(error_ string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.LibraryViewSaveFailed(error_))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].LibraryViewSaveFailed; f != nil {
+			return f(error_)
+		}
+		switch lang {
+		case "", "en":
+			return "Couldn't save the view: " + msgs.arg(error_)
+		case "ja":
+			return "表示方法を保存できませんでした：" + error_
+		case "ko":
+			return "보기 방식을 저장할 수 없습니다: " + error_
+		case "zh-Hans":
+			return "显示方式无法保存：" + error_
+		case "zh-Hant":
+			return "顯示方式無法儲存：" + error_
+		}
+	}
+}
+
 // LibraryWindowTitle says "Kando"
 // in the language the app shows under cx.
 //
@@ -21399,6 +21803,33 @@ func MenuUndo(cx *core.Scope) string { return For(cx).MenuUndo() }
 
 // MenuUndo is the package's MenuUndo in the language of msgs.
 func (msgs Messages) MenuUndo() string { return msgs.text(textMenuUndo) }
+
+// MenuViewAsIcons says "as Icons"
+// in the language the app shows under cx.
+//
+// View menu item that shows the library's finished films as posters, as Finder's View › as Icons. Checked while they show so.
+func MenuViewAsIcons(cx *core.Scope) string { return For(cx).MenuViewAsIcons() }
+
+// MenuViewAsIcons is the package's MenuViewAsIcons in the language of msgs.
+func (msgs Messages) MenuViewAsIcons() string { return msgs.text(textMenuViewAsIcons) }
+
+// MenuViewAsList says "as List"
+// in the language the app shows under cx.
+//
+// View menu item that shows the library's finished films as a list, as Finder's View › as List. Checked while they show so.
+func MenuViewAsList(cx *core.Scope) string { return For(cx).MenuViewAsList() }
+
+// MenuViewAsList is the package's MenuViewAsList in the language of msgs.
+func (msgs Messages) MenuViewAsList() string { return msgs.text(textMenuViewAsList) }
+
+// MenuViewSortBy says "Sort By"
+// in the language the app shows under cx.
+//
+// View menu submenu of the orders the library's finished films can be listed in, as the sort button beside them offers.
+func MenuViewSortBy(cx *core.Scope) string { return For(cx).MenuViewSortBy() }
+
+// MenuViewSortBy is the package's MenuViewSortBy in the language of msgs.
+func (msgs Messages) MenuViewSortBy() string { return msgs.text(textMenuViewSortBy) }
 
 // MenuWebsite says "Kando Website"
 // in the language the app shows under cx.

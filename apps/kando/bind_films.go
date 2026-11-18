@@ -18,6 +18,7 @@ import (
 	"kando/packages/media"
 
 	ns "github.com/nsgo-dev/nsgo/core"
+	nsdesktop "github.com/nsgo-dev/nsgo/desktop"
 	"github.com/yldm-tech/nodra"
 )
 
@@ -371,17 +372,31 @@ func (a *app) Notice() *films.Notice { return &a.lib.notice }
 
 func (a *app) QueueExpanded() *bool { return &a.lib.queueOpen }
 
-func (a *app) LibrarySort() string { return a.lib.sort }
+func (a *app) LibrarySort() films.Order { return a.lib.sort }
 
-// SetLibrarySort shows the done grid in order and keeps the order in settings.json for the next launch; the message bar says so when it cannot be kept.
-func (a *app) SetLibrarySort(order string) {
-	order = films.ValidSort(order)
+// SetLibrarySort shows the done films in order and keeps the order in settings.json for the next launch; the message bar says so when it cannot be kept.
+func (a *app) SetLibrarySort(order films.Order) {
+	order = order.Valid()
 	if order == a.lib.sort {
 		return
 	}
 	a.lib.sort = order
 	if err := a.saveSettings(); err != nil {
 		a.warn(a.messages().LibrarySortSaveFailed(err.Error()), "")
+	}
+}
+
+func (a *app) LibraryView() string { return a.lib.view }
+
+// SetLibraryView shows the done films as a grid or a list and keeps the choice in settings.json for the next launch; the message bar says so when it cannot be kept.
+func (a *app) SetLibraryView(view string) {
+	view = films.ValidView(view)
+	if view == a.lib.view {
+		return
+	}
+	a.lib.view = view
+	if err := a.saveSettings(); err != nil {
+		a.warn(a.messages().LibraryViewSaveFailed(err.Error()), "")
 	}
 }
 
@@ -596,13 +611,36 @@ func (a *app) dropFiles(paths []string) {
 	}
 }
 
-// libraryKeys are the library's shortcuts. ⌘F searches the library's films in the sidebar's search field (sidebarSearch). It shares ⌘F with the player's 搜索字幕: this row holds only while no film is open and that one only while one is, so one of them at most runs it, and the menu bar shows ⌘F by that one (menuSharedKeyCarriers, menu.go). File › 移到资料库 moves the open film to another library (libraryMoveRow).
+// libraryKeys are the library's shortcuts. ⌘F searches the library's films in the sidebar's search field (sidebarSearch). It shares ⌘F with the player's 搜索字幕: this row holds only while no film is open and that one only while one is, so one of them at most runs it, and the menu bar shows ⌘F by that one (menuSharedKeyCarriers, menu.go). File › 移到资料库 moves the open film to another library (libraryMoveRow). View › 为图标 and 为列表 show the done films as posters or as a list, and 排序方式 is the sort button's menu, as Finder's View menu has them; they have no key, ⌘1 and ⌘2 being Window › 资料库 and 播放器.
 func (a *app) libraryKeys(cx *ns.Scope) []shortcut {
+	view := func(v string) shortcut {
+		label := locales.MenuViewAsIcons(cx)
+		if v == films.ViewList {
+			label = locales.MenuViewAsList(cx)
+		}
+		return shortcut{Group: groupView, Label: label, When: a.libraryShown, Checked: func() bool { return a.lib.view == v }, Run: func() { a.SetLibraryView(v) }}
+	}
 	return []shortcut{
 		a.libraryOpenVideos(cx),
 		{Group: groupEdit, Label: locales.LibrarySearchMenu(cx), Key: "mod+f", When: a.sidebarSearchable, Run: a.sidebarSearch},
 		a.libraryMoveRow(cx),
+		view(films.ViewGrid),
+		view(films.ViewList),
+		{Group: groupView, Label: locales.MenuViewSortBy(cx), When: a.libraryShown, Items: func() []nsdesktop.MenuItem {
+			items := films.SortMenu(cx, a)
+			for i := range items {
+				if fn := items[i].OnSelect; fn != nil {
+					items[i].OnSelect = a.menuSelect(false, fn)
+				}
+			}
+			return items
+		}},
 	}
+}
+
+// libraryShown reports whether the window shows the library's films, so View › 为图标, 为列表 and 排序方式 have something to show: the library page, no film open over it, and a film in the library.
+func (a *app) libraryShown() bool {
+	return a.page != pageBrowse && a.openKey == "" && a.FilmCount() > 0
 }
 
 // libraryOpenVideosKey is the key that asks for local videos, ⌘O, which the tooltip of 本地视频 shows (PickVideosShortcut).
