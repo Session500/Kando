@@ -27,6 +27,8 @@ type Actions struct {
 	Film func(catalog.Entry)
 	// Play plays the film kept on the phone under key, from where it was left on the phone.
 	Play func(key string)
+	// Add opens the Add sheet, and Jobs the Jobs page, which a tablet shows as a section of its own instead.
+	Add, Jobs func()
 }
 
 // view is the tab's state: what the user searched for, and the source and the library the list is narrowed to, none for all.
@@ -84,7 +86,27 @@ func Page(cx *core.Scope, s *session.Session, act Actions) base.NavPage {
 			core.Show{When: func() bool { return v.query.Get() == "" && len(v.resumable()) > 0 }, Then: v.carousel},
 			v.list(cx),
 		}}}}
-	return look.TabRoot(cx, base.NavPage{TestID: "films-page", Children: []core.Node{body}}, title, nil, nil)
+	jobsLabel := func() string { return locales.JobsTitle(cx) }
+	addLabel := func() string { return locales.AddTitle(cx) }
+	trailing := []core.Node{ui.IconButton{TestID: "films-add", Icon: lucide.Plus, LabelFunc: addLabel, Size: 44, OnPress: act.Add}}
+	tablet := look.Tablet(cx)
+	if !tablet {
+		trailing = append([]core.Node{ui.IconButton{TestID: "films-jobs", Icon: lucide.ListChecks, LabelFunc: jobsLabel, Size: 44, OnPress: act.Jobs}}, trailing...)
+	}
+	// Jobs and Add matter once a computer is paired; before, the card that asks to pair is the page's one action.
+	paired := func() bool { return len(s.Desktops()) > 0 }
+	shown := []core.Node{core.Show{When: paired, Then: func(*core.Scope) core.Node {
+		return core.View{Style: core.Style{Direction: core.Row, AlignItems: core.AlignCenter}, Children: trailing}
+	}}}
+	return look.TabRoot(cx, base.NavPage{TestID: "films-page", Children: []core.Node{body}}, title, shown, func() []core.HeaderSymbol {
+		switch {
+		case !paired():
+			return nil
+		case tablet:
+			return []core.HeaderSymbol{{Name: "plus", Label: addLabel()}}
+		}
+		return []core.HeaderSymbol{{Name: "checklist", Label: jobsLabel()}, {Name: "plus", Label: addLabel()}}
+	})
 }
 
 // hasLibrary reports whether lib is among the libraries the merged list has.
