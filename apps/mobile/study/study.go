@@ -306,3 +306,33 @@ func Note(l Library, id, film, note string, now time.Time) sync.Record {
 	}
 	return sync.Record{Kind: sync.KindLine, ID: id, Film: film, Fields: map[string]sync.Field{sync.FieldNote: f}}
 }
+
+// IDs are the IDs of l's records of kind as the phone shows them, those the computer has first, then those only the phone made; removed ones among them (View tells them apart).
+func IDs(l Library, kind string) []string {
+	var ids []string
+	for _, rs := range [][]sync.Record{l.Records, l.Pending} {
+		for _, r := range rs {
+			if r.Kind == kind && !slices.Contains(ids, r.ID) {
+				ids = append(ids, r.ID)
+			}
+		}
+	}
+	return ids
+}
+
+// Based is change with each field that names no Base made from the value the computer has (Field.Base), so a change of it made meanwhile on another device is merged as a conflict rather than lost; a record or field the computer does not have yet names none.
+func Based(l Library, change sync.Record) sync.Record {
+	i := find(l.Records, change.Kind, change.ID)
+	if i < 0 || change.Fields == nil {
+		return change
+	}
+	out := clone(change)
+	for name, f := range out.Fields {
+		if had, ok := l.Records[i].Fields[name]; ok && f.Base == nil && !had.Stamp.IsZero() {
+			base := had.Stamp
+			f.Base = &base
+			out.Fields[name] = f
+		}
+	}
+	return out
+}

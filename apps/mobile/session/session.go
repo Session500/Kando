@@ -138,7 +138,7 @@ type Session struct {
 	// prefsMu orders the saves of the preferences as saveMu does the desktops': prefsSaving is the generation SetPrefs last gave out, prefsSaved the one last written.
 	prefsMu                 gosync.Mutex
 	prefsSaving, prefsSaved uint64
-	// studies are the libraries' learning state, by desktop and library (studyKey), each read from disk the first time a film of it opens (study.go); studyLoading the ones being read, studyRuns the syncs running, finding the films whose library is being asked for. studyMu orders their saves as prefsMu does the preferences', by library.
+	// studies are the libraries' learning state, by desktop and library (studyKey), the one store of it the player and the Learn tab both read and change: all read from disk as the session starts (newLearn), or one the first time a film of it opens before then (study.go); studyLoading the ones being read, studyRuns the syncs running, finding the films whose library is being asked for. studyMu orders their saves as prefsMu does the preferences', by library.
 	studies      *core.Signal[map[string]study.Library]
 	studyLoading map[string]bool
 	studyRuns    map[string]*studyRun
@@ -152,6 +152,8 @@ type Session struct {
 	lookupSaving, lookupSaved uint64
 	// remote follows the computers' queues (queue.go).
 	remote *remote
+	// learn is the learner's study (learning.go).
+	learn *learn
 }
 
 // filmSave is what is still to be written of a film's record: next, once pending; or its folder deleted, once removed.
@@ -213,6 +215,7 @@ func New(cx *core.Scope, cfg Config) *Session {
 		lookups: map[string]store.Lookup{},
 	}
 	s.ctx, s.cancel = context.WithCancel(context.Background())
+	s.learn = newLearn(s)
 	cx.Cleanup(func() {
 		close(s.closed)
 		s.cancel()
@@ -366,11 +369,18 @@ func (s *Session) AddDesktop(d store.Desktop) {
 		list = append(list, d)
 	}
 	s.setDesktops(list)
+	// Paired again, a computer that revoked the phone before shows the page that says so if it does again.
+	delete(s.learn.dismissed, d.ID)
+	// The computer takes the language the phone translates into, once the phone has one.
+	if p := s.prefs.Get(); p.Target != "" && !slices.Contains(p.TargetPending, d.ID) {
+		p.TargetPending = append(slices.Clone(p.TargetPending), d.ID)
+		s.SetPrefs(p)
+	}
 	s.RefreshDesktop(d.ID)
 	s.follow(d.ID)
 }
 
-// Unpair forgets desktop id and stops its downloads; the films kept from it stay.
+// Unpair forgets desktop id and what the phone kept of its learning state, and stops its downloads; the films kept from it stay.
 func (s *Session) Unpair(id string) {
 	for key, j := range s.jobs {
 		if f, ok := s.Film(key); ok && f.Desktop == id {
@@ -386,6 +396,7 @@ func (s *Session) Unpair(id string) {
 	}
 	s.forgetShelf(id)
 	s.setDesktops(slices.DeleteFunc(slices.Clone(s.desktops.Get()), func(d store.Desktop) bool { return d.ID == id }))
+	s.learnForget(id)
 }
 
 func (s *Session) setDesktops(list []store.Desktop) {

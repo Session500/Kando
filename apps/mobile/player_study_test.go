@@ -228,6 +228,33 @@ func TestSavedLinesAndNotesSyncWithTheComputer(t *testing.T) {
 	})
 }
 
+// A line saved in the player is among the Learn tab's saved lines at once, away from the computer too, as the two read one learning state; the computer gets it once, when it is back.
+func TestALineSavedInThePlayerShowsInLearn(t *testing.T) {
+	d := newDesktop(t)
+	p, _ := studyPlayer(t, d)
+	d.SetOff(true)
+	p.app.Press("id:player-save")
+	p.app.WaitFor("id:player-toasts >> text:"+msgs.PlayerSavedToast(), wait)
+	p.app.Press("id:player-back")
+	p.openTab(learnTab, msgs.LearnTitle())
+	p.app.WaitFor("id:learn-lines", wait)
+	p.app.Press("id:learn-lines")
+	p.app.WaitUntil(wait, func() bool {
+		return p.app.Exists("id:lines-list") && strings.Contains(p.texts("id:lines-list"), "Good morning.")
+	})
+
+	d.SetOff(false)
+	p.app.HeaderBack("id:lines-page")
+	p.learnRefresh()
+	lines := func() []sync.Record {
+		return slices.DeleteFunc(d.Records("lib", sync.KindLine), func(r sync.Record) bool { return r.Removed != nil })
+	}
+	p.app.WaitUntil(wait, func() bool { return len(lines()) > 0 })
+	if got := lines(); len(got) != 1 || fieldText(got[0], sync.FieldOriginal) != "Good morning." {
+		t.Fatalf("the computer has %+v, want the line saved once", got)
+	}
+}
+
 // Shadowing holds the film after each line, says so over the picture, and plays on when played; the sleep timer set to the line's end holds it there and turns itself off.
 func TestShadowingAndTheSleepTimerHoldAfterALine(t *testing.T) {
 	p, _ := openPlayer(t)

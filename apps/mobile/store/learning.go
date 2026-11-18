@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io/fs"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -33,6 +34,51 @@ func (s *Store) Learning(desktop, lib string) (study.Library, error) {
 // SaveLearning keeps l as library lib of desktop's learning state.
 func (s *Store) SaveLearning(desktop, lib string, l study.Library) error {
 	return writeJSON(s.learningPath(desktop, lib), l)
+}
+
+// LearningKey names library Library of desktop Desktop among the learning states kept.
+type LearningKey struct{ Desktop, Library string }
+
+// Learnings are the learning states of every library of every desktop kept on the phone; a file that cannot be read is left out rather than hide the others.
+func (s *Store) Learnings() (map[LearningKey]study.Library, error) {
+	out := map[LearningKey]study.Library{}
+	desktops, err := os.ReadDir(filepath.Join(s.dir, learningDir))
+	if errors.Is(err, fs.ErrNotExist) {
+		return out, nil
+	}
+	if err != nil {
+		return out, err
+	}
+	for _, d := range desktops {
+		desktop, err := url.PathUnescape(d.Name())
+		if !d.IsDir() || err != nil {
+			continue
+		}
+		files, _ := os.ReadDir(filepath.Join(s.dir, learningDir, d.Name()))
+		for _, f := range files {
+			name, ok := strings.CutSuffix(f.Name(), ".json")
+			lib, err := url.PathUnescape(name)
+			if f.IsDir() || !ok || err != nil {
+				continue
+			}
+			var l study.Library
+			if readJSON(filepath.Join(s.dir, learningDir, d.Name(), f.Name()), &l) == nil {
+				out[LearningKey{desktop, lib}] = l
+			}
+		}
+	}
+	return out, nil
+}
+
+// RemoveLearning forgets library lib of desktop's learning state, and the desktop's folder once it holds no other.
+func (s *Store) RemoveLearning(desktop, lib string) error {
+	path := s.learningPath(desktop, lib)
+	if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	// Fails, as it should, while the folder holds another library's.
+	_ = os.Remove(filepath.Dir(path))
+	return nil
 }
 
 // lookupsFile keeps the words the phone looked up through its computers, so a word looked up once shows again at once, also away from them.

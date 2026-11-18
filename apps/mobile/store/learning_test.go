@@ -25,6 +25,19 @@ func TestTheLearningStateIsKeptByLibrary(t *testing.T) {
 	if other, _ := st.Learning("desk", "x"); len(other.Pending) != 0 {
 		t.Fatal("an ID with a path in it reached another library's file")
 	}
+	if err := st.SaveLearning("other/desk", "lib", study.Library{Epoch: "o"}); err != nil {
+		t.Fatal(err)
+	}
+	all, err := st.Learnings()
+	if err != nil || len(all) != 2 || all[LearningKey{"desk", "lib/../x"}].Rev != 2 || all[LearningKey{"other/desk", "lib"}].Epoch != "o" {
+		t.Fatalf("all of them: %+v, %v", all, err)
+	}
+	if err := st.RemoveLearning("desk", "lib/../x"); err != nil {
+		t.Fatal(err)
+	}
+	if all, _ := st.Learnings(); len(all) != 1 {
+		t.Fatalf("after one was removed: %+v", all)
+	}
 }
 
 func TestLookupsKeepTheLatest(t *testing.T) {

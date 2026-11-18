@@ -13,10 +13,13 @@ import (
 	"kando/packages/sync"
 )
 
-// The learning state of the films kept on the phone (yldm-tech/Kando#222): the lines saved from them and the notes on those lines, which the phone keeps per library of each desktop (study.Library) and syncs with the desktop through protocol v2's learning state (sync.OpStateGet, OpStatePut) whenever the player opens a film of the library or changes something, so a line saved on the phone shows on the computer and the other way round. A change made away from the computer waits on the phone until it can be sent. The words of a line are looked up, and a line explained, through the desktop too (LookUp, Explain): its AI service answers, and its key never leaves it.
+// The learning state of the films kept on the phone (yldm-tech/Kando#222): the lines saved from them and the notes on those lines, which the phone keeps per library of each desktop (study.Library) and syncs with the desktop through protocol v2's learning state (sync.OpStateGet, OpStatePut) whenever the player opens a film of the library or changes something, and every library a computer lists whenever the Learn tab syncs (SyncLearning, learning.go), which lists and reviews the same state, so a line saved on the phone shows on the computer, in the Learn tab at once, and the other way round. A change made away from the computer waits on the phone until it can be sent. The words of a line are looked up, and a line explained, through the desktop too (LookUp, Explain): its AI service answers, and its key never leaves it.
 
-// studyRun is a sync of a library's learning state running on a goroutine of its own; again asks for another once it is done, as for a change made meanwhile.
-type studyRun struct{ again bool }
+// studyRun is a sync of a library's learning state running on a goroutine of its own; again asks for another once it is done, as for a change made meanwhile, and done are told once the last of them is done, with the error it ended with.
+type studyRun struct {
+	again bool
+	done  []func(error)
+}
 
 // studyKey names library lib of desktop.
 func studyKey(desktop, lib string) string { return desktop + "/" + lib }
@@ -214,18 +217,46 @@ type studyPut struct {
 	rejected bool
 }
 
-// syncStudy sends library lib of desktop's pending changes and takes in the desktop's since the revision the phone has, on a goroutine of its own, one sync of a library at a time. The changes go in puts the desktop takes (study.Batches); a put it refuses for good, as one with a change of a film it no longer serves, is put again a change at a time, so only the changes it refuses are dropped. A desktop out of reach leaves the changes not taken pending for the next sync.
-func (s *Session) syncStudy(desktop, lib string) {
+// syncStudy sends library lib of desktop's pending changes and takes in the desktop's since the revision the phone has, on a goroutine of its own, one sync of a library at a time. The changes go in puts the desktop takes (study.Batches); a put it refuses for good, as one with a change of a film it no longer serves, is put again a change at a time, so only the changes it refuses are dropped. A desktop out of reach leaves the changes not taken pending for the next sync, and so does a phone the desktop's user made read-only, which still takes the desktop's changes in.
+func (s *Session) syncStudy(desktop, lib string) { s.syncStudyThen(desktop, lib, nil) }
+
+// syncLibrary syncs library lib of desktop as syncStudy does, and calls done on the engine's goroutine once the sync is done, with the error it ended with. A library the phone keeps nothing of yet starts empty: the session has read every one it kept before it syncs them all (learn.ready).
+func (s *Session) syncLibrary(desktop, lib string, done func(desktop, lib string, err error)) {
+	k := studyKey(desktop, lib)
+	if _, ok := s.studies.GetUntracked()[k]; !ok {
+		if s.studyLoading[k] {
+			// Being read for a film that opened: it syncs once read.
+			done(desktop, lib, nil)
+			return
+		}
+		m := maps.Clone(s.studies.GetUntracked())
+		m[k] = study.Library{}
+		s.studies.Set(m)
+	}
+	s.syncStudyThen(desktop, lib, func(err error) { done(desktop, lib, err) })
+}
+
+// syncStudyThen is syncStudy, telling done, when not nil, once the sync is done.
+func (s *Session) syncStudyThen(desktop, lib string, done func(error)) {
 	k := studyKey(desktop, lib)
 	if run, ok := s.studyRuns[k]; ok {
 		run.again = true
+		if done != nil {
+			run.done = append(run.done, done)
+		}
 		return
 	}
 	c := s.Client(desktop)
 	if c == nil {
+		if done != nil {
+			done(errUnpaired)
+		}
 		return
 	}
 	run := &studyRun{}
+	if done != nil {
+		run.done = append(run.done, done)
+	}
 	s.studyRuns[k] = run
 	l := s.studies.GetUntracked()[k]
 	sent := slices.Clone(l.Pending)
@@ -237,51 +268,81 @@ func (s *Session) syncStudy(desktop, lib string) {
 	s.work.Go(func() {
 		ctx, cancel := context.WithTimeout(s.ctx, studyTimeout)
 		defer cancel()
-		puts, reached := putStudy(ctx, c, lib, sent)
+		puts, err := putStudy(ctx, c, lib, sent)
 		var ch sync.StateChanges
-		var getErr error
-		if reached {
-			ch, getErr = c.State(ctx, lib, l.Epoch, l.Rev)
+		if err == nil {
+			ch, err = c.State(ctx, lib, l.Epoch, l.Rev)
 		}
 		s.cx.Post(func() {
 			delete(s.studyRuns, k)
-			cur := s.studies.GetUntracked()[k]
+			cur, kept := s.studies.GetUntracked()[k]
 			changed := false
 			for _, p := range puts {
 				cur, changed = study.Took(cur, p.sent, p.res, p.rejected), true
 			}
-			if reached && getErr == nil {
+			if err == nil {
 				cur, changed = study.Apply(cur, ch), true
 			}
-			if changed {
+			// A library forgotten meanwhile, as its desktop unpaired, stays forgotten.
+			if changed && kept {
 				s.setStudy(desktop, lib, cur)
 			}
 			if run.again {
-				s.syncStudy(desktop, lib)
+				s.syncStudyThen(desktop, lib, nil)
+				if next, ok := s.studyRuns[k]; ok {
+					next.done = append(next.done, run.done...)
+					return
+				}
+			}
+			for _, done := range run.done {
+				done(err)
 			}
 		})
 	})
 }
 
-// putStudy puts records into library lib through c in batches the desktop takes, a batch it refuses (sync.CodeInvalid) again a record at a time, and reports the puts it answered, and whether it answered them all; it stops at the first it does not.
-func putStudy(ctx context.Context, c *sync.Client, lib string, records []sync.Record) ([]studyPut, bool) {
+// dropStudy forgets library lib of desktop's learning state, in the session at once and on disk after the saves of it handed before.
+func (s *Session) dropStudy(desktop, lib string) {
+	k := studyKey(desktop, lib)
+	m := maps.Clone(s.studies.GetUntracked())
+	delete(m, k)
+	s.studies.Set(m)
+	s.studyMu.Lock()
+	s.studySaving[k]++
+	gen := s.studySaving[k]
+	s.studyMu.Unlock()
+	s.work.Go(func() {
+		s.studyMu.Lock()
+		defer s.studyMu.Unlock()
+		if gen > s.studySaved[k] && s.st.RemoveLearning(desktop, lib) == nil {
+			s.studySaved[k] = gen
+		}
+	})
+}
+
+// putStudy puts records into library lib through c in batches the desktop takes, a batch it refuses (sync.CodeInvalid) again a record at a time, and reports the puts it answered, and the error that stopped it, nil when it answered them all; it stops at the first it does not. A desktop that answers the phone is read-only (sync.CodeReadOnly) stops it too, with no error, as the sync goes on to take the desktop's changes in.
+func putStudy(ctx context.Context, c *sync.Client, lib string, records []sync.Record) ([]studyPut, error) {
 	var out []studyPut
-	put := func(batch []sync.Record) (refused, ok bool) {
+	readOnly := false
+	put := func(batch []sync.Record) (refused bool, err error) {
 		res, err := c.PutState(ctx, lib, batch)
 		var e *sync.Error
 		switch {
 		case err == nil:
 			out = append(out, studyPut{sent: batch, res: res})
-			return false, true
+			return false, nil
 		case errors.As(err, &e) && e.Code == sync.CodeInvalid:
-			return true, true
+			return true, nil
+		case errors.As(err, &e) && e.Code == sync.CodeReadOnly:
+			readOnly = true
+			return false, nil
 		}
-		return false, false
+		return false, err
 	}
 	for _, batch := range study.Batches(records, putBudget) {
-		refused, ok := put(batch)
-		if !ok {
-			return out, false
+		refused, err := put(batch)
+		if err != nil || readOnly {
+			return out, err
 		}
 		if !refused {
 			continue
@@ -292,16 +353,16 @@ func putStudy(ctx context.Context, c *sync.Client, lib string, records []sync.Re
 		}
 		for _, r := range batch {
 			one := []sync.Record{r}
-			refused, ok := put(one)
-			if !ok {
-				return out, false
+			refused, err := put(one)
+			if err != nil || readOnly {
+				return out, err
 			}
 			if refused {
 				out = append(out, studyPut{sent: one, rejected: true})
 			}
 		}
 	}
-	return out, true
+	return out, nil
 }
 
 // StudyProblem is why a lookup or an explanation failed, as the player tells it.

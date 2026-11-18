@@ -68,6 +68,8 @@ type play struct {
 	untranslated bool
 	rate         *core.Persisted[float32]
 	saved        time.Duration
+	// reported is where the video last said it was, and watched how long it played since the time watched was last kept (session.Watch).
+	reported, watched time.Duration
 	// current is the line showing, -1 for none; shown is the line the card shows: the one showing, else the last one heard, else the first.
 	current *core.Memo[int]
 	shown   *core.Memo[int]
@@ -230,6 +232,11 @@ func (p *play) progress(at, length time.Duration) {
 		p.length.Set(length)
 	}
 	p.at.Set(at)
+	// The time watched counts what played between two of the video's reports, at its speed, not a seek.
+	if d := at - p.reported; p.playing.GetUntracked() && d > 0 && d < time.Second {
+		p.watched += time.Duration(float64(d) / float64(max(p.rate.Get(), 0.25)))
+	}
+	p.reported = at
 	list, delay, total := p.list(), p.delay.GetUntracked(), p.length.GetUntracked()
 	sub := at - delay
 	if i := p.loop.GetUntracked(); i >= 0 && i < len(list) && cues.LoopBack(list, i, sub, total) {
@@ -287,6 +294,8 @@ func (p *play) ended() {
 func (p *play) save() {
 	p.saved = p.at.GetUntracked()
 	p.s.SavePosition(p.key, p.saved)
+	p.s.Watch(p.watched)
+	p.watched = 0
 }
 
 // toggle starts or holds the film.
