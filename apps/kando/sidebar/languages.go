@@ -85,7 +85,7 @@ func languageContent(colors ui.Colors, k theme.Colors, r languageRow) core.Node 
 	label := ui.Text(r.label, 13, ui.Regular, colors.Text)
 	label.MaxLines, label.Style.FlexGrow, label.Style.FlexShrink = 1, 1, 1
 	if r.code == SpokenAll {
-		return core.Group{ui.Icon(svg(iconLanguages), 16, colors.Accent), label}
+		return core.Group{ui.Icon(svg(iconLanguages), 16, k.Glyph), label}
 	}
 	tag := ui.Text(strings.ToUpper(r.code), 9, ui.Bold, k.AccentInk)
 	tag.MaxLines, tag.Style.TextAlign = 1, core.TextAlignCenter

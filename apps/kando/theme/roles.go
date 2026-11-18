@@ -10,6 +10,7 @@ const (
 	roleShade       = "kandoShade"
 	roleCard        = "kandoCard"
 	roleCardHover   = "kandoCardHover"
+	roleGlyph       = "kandoGlyph"
 	roleWindow      = "kandoWindow"
 	rolePanel       = "kandoPanel"
 	roleRail        = "kandoRail"
@@ -38,6 +39,7 @@ var lightRoles = map[string]core.Color{
 	roleShade:       core.RGB(0x000000),
 	roleCard:        core.RGB(0xFFFFFF),
 	roleCardHover:   core.RGB(0xFAFAFC),
+	roleGlyph:       Accent,
 	roleWindow:      core.RGB(0xF5F5F7),
 	rolePanel:       core.RGB(0xF5F5F7),
 	roleRail:        core.RGBA(0xECECF0, 0.92),
@@ -66,6 +68,7 @@ var darkRoles = map[string]core.Color{
 	roleShade:       core.RGB(0xFFFFFF),
 	roleCard:        core.RGB(0x2C2C2E),
 	roleCardHover:   core.RGB(0x343437),
+	roleGlyph:       core.RGB(0x0A84FF),
 	roleWindow:      core.RGB(0x1C1C1E),
 	rolePanel:       core.RGB(0x2A2A2C),
 	roleRail:        core.RGBA(0x2A2A2C, 0.92),
@@ -103,6 +106,9 @@ func (c Colors) Shade(alpha float32) core.Color { return ui.Alpha(c.role(roleSha
 // Card is a card's face on the page or the window: white, or a step lighter than the dark page. A translucent one (Card().Faded) is the frosted pills and the sidebar's card. CardHover is a pressable card under the pointer.
 func (c Colors) Card() core.Color      { return c.role(roleCard) }
 func (c Colors) CardHover() core.Color { return c.role(roleCardHover) }
+
+// Glyph is the accent's color for a row's icon: Kando's blue on the light page; on the dark one Apple's lighter blue for the dark (systemBlue), as Kando's blue is too deep to stand out from the dark there.
+func (c Colors) Glyph() core.Color { return c.role(roleGlyph) }
 
 // Window is the settings window's and the onboarding sheet's ground under their cards; Panel a card a step off the page, as a processing job's; Rail the settings window's sidebar; Gutter the main window's sidebar where the window shows no material.
 func (c Colors) Window() core.Color { return c.role(roleWindow) }

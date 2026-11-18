@@ -86,7 +86,7 @@ func TestMaterialShowsThroughTheSidebarOnly(t *testing.T) {
 	}
 }
 
-// TestSidebarFloatsOverThePageOnMac checks that on macOS, whose window shows no material, the window is painted the page's ground, the sidebar's gutter leaves it showing, so the page's ground runs around the card, and the card is glass standing as far in from the page as from the window's edges, as Finder's sidebar does on macOS 26, rather than a column under the page.
+// TestSidebarFloatsOverThePageOnMac checks that on macOS, whose window shows no material, the window is painted the page's ground, the sidebar's gutter leaves it showing, so the page's ground runs around the card, and the card stands as far in from the page as from the window's edges, as Finder's sidebar does on macOS 26, rather than a column under the page: glass in the light, a neutral gray a step lighter than the page in the dark.
 func TestSidebarFloatsOverThePageOnMac(t *testing.T) {
 	_, tt, _ := newTestApp(t, &fakePipeline{})
 	for _, dark := range []bool{false, true} {
@@ -100,11 +100,22 @@ func TestSidebarFloatsOverThePageOnMac(t *testing.T) {
 		if a := windowAlphaOf(side); a != 0 {
 			t.Fatalf("dark %v: the sidebar's gutter is painted at alpha %v over the page's ground", dark, a)
 		}
-		if card.Style.Glass == ns.GlassNone {
-			t.Fatalf("dark %v: the sidebar's card is not glass", dark)
-		}
-		if a := windowAlphaOf(card); a == 0 || a == 1 {
-			t.Fatalf("dark %v: card tint alpha = %v, want it translucent", dark, a)
+		if !dark {
+			if card.Style.Glass == ns.GlassNone {
+				t.Fatal("the sidebar's card is not glass in the light")
+			}
+			if a := windowAlphaOf(card); a == 0 || a == 1 {
+				t.Fatalf("card tint alpha = %v in the light, want it translucent", a)
+			}
+		} else {
+			// In the dark the glass would show the desktop's colors as a gradient beside the page's gray, so the card is a neutral gray a step lighter than the page.
+			if card.Style.Glass != ns.GlassNone {
+				t.Fatal("the sidebar's card is glass in the dark, want the card's neutral gray")
+			}
+			face, page := card.Style.Background, root.Style.Background
+			if windowAlphaOf(card) != 1 || luminance(face) <= luminance(page) {
+				t.Fatalf("card %#x over the page %#x in the dark, want it opaque and lighter", uint32(face), uint32(page))
+			}
 		}
 		left := card.Frame.Origin.X - side.Frame.Origin.X
 		right := side.Frame.Origin.X + side.Frame.Size.Width - (card.Frame.Origin.X + card.Frame.Size.Width)
@@ -389,4 +400,10 @@ func TestWindowTextIsInThePlatformsFont(t *testing.T) {
 			t.Errorf("%v: in Japanese the sidebar's text in %q, want %q (built again: %v)", os, got, want, again.ID != status.ID)
 		}
 	}
+}
+
+// luminance is c's brightness, enough to say which of two grays is the lighter.
+func luminance(c ns.Color) float64 {
+	r, g, b, _ := c.Components()
+	return 0.2126*r + 0.7152*g + 0.0722*b
 }

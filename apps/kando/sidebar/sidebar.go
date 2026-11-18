@@ -106,7 +106,7 @@ type Jobs struct {
 	Active, Failed int
 }
 
-// The card the sidebar is drawn on, 8 points in from the window's edges and from the page on every side, so it stands apart from the page as an object of its own rather than a column beside it, its corners the platform's cards' (theme.RadiiOf). On macOS it floats over the page's own ground as Finder's sidebar does on macOS 26: Liquid Glass, white at 30% over it, and before macOS 26, which has no glass, a frosted face. Elsewhere it is the prototype's white at 42% over the window's material, Mica on Windows, or over the painted gutter. Everywhere it has a white inner hairline, a dark outer one and a soft shadow.
+// The card the sidebar is drawn on, 8 points in from the window's edges and from the page on every side, so it stands apart from the page as an object of its own rather than a column beside it, its corners the platform's cards' (theme.RadiiOf). On macOS it floats over the page's own ground as Finder's sidebar does on macOS 26: in the light, Liquid Glass with white at 30% over it, a frosted face before macOS 26, which has no glass; in the dark, the card's gray, a step lighter than the page, with no glass, since the glass takes on the colors of the desktop behind the window there and shows them as a blue-to-green gradient beside the page's neutral gray, which no tint over it can neutralize: NSGo draws the background under the glass. Elsewhere it is the prototype's white at 42% over the window's material, Mica on Windows, or over the painted gutter. Everywhere it has a white inner hairline, a dark outer one and a soft shadow.
 const (
 	cardMargin ns.Points = 8
 	// inset is how far the switcher, the sources and the status line stand in from the card's sides.
@@ -142,7 +142,10 @@ func (v View) Render(cx *ns.Scope) ns.Node {
 		StyleFunc: func() ns.Style {
 			s := ns.Style{Background: k.Card().Faded(0.42),
 				Shadows: []ns.BoxShadow{{Spread: 0.5, Color: k.Card().Faded(0.85), Inset: true}, {Spread: 0.5, Color: k.Shade(0.06)}, {Offset: ns.Point{Y: 4}, Blur: 14, Color: cardShadow}}}
-			if floats(cx) {
+			switch {
+			case floats(cx) && cx.Dark():
+				s.Background = k.Card()
+			case floats(cx):
 				s.Background, s.GlassEffect, s.BackdropFilters = k.Card().Faded(0.3), ns.GlassRegular, []ns.Filter{ns.Blur(30)}
 			}
 			return s
