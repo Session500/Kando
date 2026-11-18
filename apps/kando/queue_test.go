@@ -2675,8 +2675,8 @@ func TestProcessAgainKeepsTheFilmsLanguage(t *testing.T) {
 	a.library.Upsert(untranslated)
 	film, _ := a.JobFilm("talk")
 	a.AskReprocess(film)
-	if _, item, language := a.Reprocessing(); item.JobID != "talk" || language != "日本語" {
-		t.Fatalf("asks about %+v in %q", item, language)
+	if _, items, language := a.Reprocessing(); len(items) != 1 || items[0].JobID != "talk" || language != "日本語" {
+		t.Fatalf("asks about %+v in %q", items, language)
 	}
 	a.CloseReprocess()
 	a.Retry("talk")

@@ -9,13 +9,14 @@ import (
 	"github.com/nsgo-dev/nsgo/ui"
 )
 
-// removeLook is what the confirmation of 从资料库移除 says: the film's name, and which of its files go to the Trash.
+// removeLook is what the confirmation of 从资料库移除 says: the film's name, and which of its files go to the Trash; or, for several films, how many they are (count).
 type removeLook struct {
 	name            string
 	outside, folder bool
+	count           int
 }
 
-// removeDialog confirms 从资料库移除 before the film's folder, or only its video and subtitles, goes to the Trash. 取消 is the default answer, so Enter keeps the film, as do Escape and closing the dialog.
+// removeDialog confirms 从资料库移除 before the film's folder, or only its video and subtitles, goes to the Trash, or those of each of several films selected. 取消 is the default answer, so Enter keeps the film, as do Escape and closing the dialog.
 type removeDialog struct{ a App }
 
 // Render implements core.Node.
@@ -28,14 +29,18 @@ func (r removeDialog) Render(cx *core.Scope) core.Node {
 	})
 	// The confirmation is built again only when what it says changes, not on every change of the app's state.
 	look := live.Memo(cx, a, func() removeLook {
-		_, item, folder := a.Removing()
-		return removeLook{name: filmName(item), outside: !InDir(a.LibraryDir(), item.VideoPath), folder: folder}
+		_, items, folder := a.Removing()
+		if len(items) != 1 {
+			return removeLook{count: len(items)}
+		}
+		item := items[0]
+		return removeLook{name: filmName(item), outside: !InDir(a.LibraryDir(), item.VideoPath), folder: folder, count: 1}
 	})
 	cancel := live.Do(a, a.CloseRemove)
 	trash := live.Do(a, func() {
-		open, item, _ := a.Removing()
+		open, items, _ := a.Removing()
 		if *open {
-			a.TrashFilm(item)
+			a.TrashFilms(items...)
 		}
 	})
 	return core.Show{When: open, Then: func(cx *core.Scope) core.Node {
@@ -44,8 +49,10 @@ func (r removeDialog) Render(cx *core.Scope) core.Node {
 		return core.Dynamic(func(cx *core.Scope) core.Node {
 			// TODO(nsgo#145): give ui.Dialog and ui.AlertDialog TitleFunc and DescriptionFunc twins so the words follow the film and the language without building the dialog again, then drop this Dynamic https://github.com/nsgo-dev/nsgo/issues/145
 			l := look()
-			message := locales.FilmsRemoveFiles(cx)
+			title, message := locales.FilmsRemoveConfirm(cx, l.name), locales.FilmsRemoveFiles(cx)
 			switch {
+			case l.count > 1:
+				title, message = locales.FilmsRemoveConfirmMany(cx, l.count), locales.FilmsRemoveManyMessage(cx)
 			case l.outside:
 				message = locales.FilmsRemoveOutside(cx)
 			case l.folder:
@@ -56,7 +63,7 @@ func (r removeDialog) Render(cx *core.Scope) core.Node {
 				Role:                   core.RoleAlertDialog,
 				NoCloseOnBackdropPress: true,
 				Open:                   func() bool { return true },
-				Title:                  locales.FilmsRemoveConfirm(cx, l.name),
+				Title:                  title,
 				Description:            message,
 				OnOpenChange: func(open bool, _ base.Reason) {
 					if !open {

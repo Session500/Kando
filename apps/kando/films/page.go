@@ -65,19 +65,22 @@ type App interface {
 	Reveal(path string)
 	// Reprocess makes the subtitles of a done film again, from its download, in the language it was translated into (the target language set now for one that was not translated), or those of a video found in the folder that has none (生成字幕). Either keeps the film as it was if its job fails or is stopped.
 	Reprocess(item Film)
-	// AskReprocess asks to confirm Reprocess, which transcribes the film and pays for its translation again. Reprocessing is whether its confirmation is open, the film it asked about and the language it would be translated into; CloseReprocess closes it without processing anything. The confirmation is drawn over the window (ReprocessDialog), as the film page asks too.
-	AskReprocess(item Film)
-	Reprocessing() (open *bool, item Film, language string)
+	// AskReprocess asks to confirm processing items again (ReprocessFilms), which transcribes each film and pays for its translation again. Reprocessing is whether its confirmation is open, the films it asked about and the language they would be translated into, "" for several in different languages; CloseReprocess closes it without processing anything. The confirmation is drawn over the window (ReprocessDialog), as the film page asks too. ReprocessFilms processes items again as Reprocess does each, one after another, and says in the message bar once how it went.
+	AskReprocess(items ...Film)
+	Reprocessing() (open *bool, items []Film, language string)
 	CloseReprocess()
+	ReprocessFilms(items ...Film)
 	// TranslateAgain translates every line of a done film's subtitles again into language, without downloading or transcribing it, once the user confirms replacing a translation in another language (RetranslateDialog); TranslateMissing translates only the lines its translation left untranslated (Film.Untranslated). TargetLanguage is the target language the settings name, which 重新翻译为 ▸ offers first.
 	TranslateAgain(item Film, language string)
 	TranslateMissing(item Film)
+	// TranslateFilmsAgain translates every line of each done film of items that has a job again into language, as TranslateAgain does one, once the user confirms replacing the translations in another language, and says in the message bar once how it went.
+	TranslateFilmsAgain(items []Film, language string)
 	TargetLanguage() string
 	// TranslateFilms translates every line of each film of items that was not translated at all (NotTranslated), into the target language the settings name, as its own 翻译 does (TranslateMissing), behind the jobs waiting. CanTranslate reports whether an AI service is set up to do it; without one, Translate N Films does not show.
 	TranslateFilms(items []Film)
 	CanTranslate() bool
-	// Retranslating is whether the confirmation of translating a film into another language is open, the film and the language; CloseRetranslate closes it without translating anything, and Retranslate translates the film into it and closes it.
-	Retranslating() (open *bool, item Film, language string)
+	// Retranslating is whether the confirmation of translating films into another language is open, the films and the language; CloseRetranslate closes it without translating anything, and Retranslate translates the films into it and closes it.
+	Retranslating() (open *bool, items []Film, language string)
 	CloseRetranslate()
 	Retranslate()
 	// Remove drops a job's card; its video, if any, stays in the library.
@@ -129,6 +132,8 @@ type App interface {
 	PlayedAt(path string) time.Time
 	// Furthest is how far the video at path has ever played on from its start, 0 when it never did; unlike ResumeAt it stays once the video was watched to the end.
 	Furthest(path string) time.Duration
+	// Selection is the done films selected on the page, which the app keeps so the menu bar acts on them too (Selection).
+	Selection() *Selection
 	// Notice is the message bar under the top bar.
 	Notice() *Notice
 	// QueueExpanded is whether 处理中 shows every card rather than the first QueueShown.
@@ -141,13 +146,13 @@ type App interface {
 	// LibraryView is how the done films show, ViewGrid or ViewList; SetLibraryView shows them that way from now on and keeps it for the next launch.
 	LibraryView() string
 	SetLibraryView(view string)
-	// AskRemove asks to confirm moving a film's folder to the Trash.
-	AskRemove(item Film)
-	// Removing is the film AskRemove asked about, whether its confirmation is open, and whether its whole folder goes to the Trash rather than only its video and subtitles. CloseRemove closes the confirmation without moving anything.
-	Removing() (open *bool, item Film, folder bool)
+	// AskRemove asks to confirm moving the films' folders, or their files, to the Trash.
+	AskRemove(items ...Film)
+	// Removing is the films AskRemove asked about, whether its confirmation is open, and, for a single film, whether its whole folder goes to the Trash rather than only its video and subtitles. CloseRemove closes the confirmation without moving anything.
+	Removing() (open *bool, items []Film, folder bool)
 	CloseRemove()
-	// TrashFilm moves a film's folder to the Trash and takes it off the shelf.
-	TrashFilm(item Film)
+	// TrashFilms moves the films' folders, or their files, to the Trash and takes them off the shelf, and says in the message bar once how it went.
+	TrashFilms(items ...Film)
 	// AskRename opens the dialog that gives a film the title Kando shows for it.
 	AskRename(item Film)
 	// Renaming is whether the rename dialog is open, the title typed into it, and the title the film has without one given in Kando, which an empty field gives it back. CloseRename closes it and keeps the title as it was.
@@ -155,8 +160,8 @@ type App interface {
 	CloseRename()
 	// RenameFilm gives the film AskRename asked about the title typed into the dialog, and closes it. It never renames a file.
 	RenameFilm()
-	// MoveFilmMenu is the submenu 移到资料库 of a film's menu: the other libraries Kando knows, each moving the film there when chosen, those whose folder is not there disabled; none when there is no other library. UndoMove moves the film the message bar says was moved back (Notice.Undo), and CancelMove stops the copy it says is going (Notice.Stop). Choose opens the library at a folder, as the bar's 打开 <library> does (Notice.Library).
-	MoveFilmMenu(cx *core.Scope, item Film) []nsdesktop.MenuItem
+	// MoveFilmMenu is the submenu 移到资料库 of the menu of a film, or of the films selected: the other libraries Kando knows, each moving the films there when chosen, one after another, those whose folder is not there disabled; none when there is no other library. UndoMove moves the film the message bar says was moved back (Notice.Undo), and CancelMove stops the copy it says is going (Notice.Stop). Choose opens the library at a folder, as the bar's 打开 <library> does (Notice.Library).
+	MoveFilmMenu(cx *core.Scope, items ...Film) []nsdesktop.MenuItem
 	UndoMove()
 	CancelMove()
 	Choose(dir string)
@@ -231,6 +236,7 @@ func (v View) Render(cx *core.Scope) core.Node {
 		}),
 		Children: []core.Node{
 			content,
+			selectionKeys(cx, a, func() []Film { return model().done }),
 			topBar{a: a, source: source},
 			core.Show{When: dragging.Get, Then: func(*core.Scope) core.Node { return dropZone{} }},
 			newLibrary{a},
@@ -371,5 +377,15 @@ func (l listPage) Render(cx *core.Scope) core.Node {
 			doneHeading{a: a, done: done},
 			filmList{a: a, done: done},
 		}},
+	}}
+}
+
+// selectionKeys binds the selection's keys while the page shows, under cx, and is the node that binds Escape: ⌘A selects every done film the page shows, in the posters or the list, and Escape, while some are selected, selects none, as in Finder. A text field with the keyboard keeps both (core.KeyNotEditing), so ⌘A selects its text through Edit › 全选 and Escape empties a search; NSGo matches a binding before the menu bar's key equivalents, so ⌘A reaches it rather than the menu.
+// TODO(nsgo#651): let a menu role item run the app's own action while no text has the keyboard, so choosing Edit › 全选 with the pointer selects the films too; it only selects text (selectAll:), and the films only by ⌘A https://github.com/nsgo-dev/nsgo/issues/651
+func selectionKeys(cx *core.Scope, a App, done func() []Film) core.Node {
+	cx.OnKeyWith("mod+a", core.KeyOptions{When: core.KeyNotEditing}, live.Do(a, func() { a.Selection().All(Keys(core.Untracked(cx, done))) }))
+	return core.Show{When: live.Func(a, func() bool { return a.Selection().Len() > 0 }), Then: func(cx *core.Scope) core.Node {
+		cx.OnKeyWith("escape", core.KeyOptions{When: core.KeyNotEditing}, live.Do(a, func() { a.Selection().Clear() }))
+		return core.Group{}
 	}}
 }

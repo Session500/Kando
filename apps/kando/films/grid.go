@@ -35,7 +35,7 @@ func (g grid) Render(cx *core.Scope) core.Node {
 	cards := core.View{TestID: "films-grid",
 		Style: core.Style{Display: core.DisplayGrid, GridTemplateColumns: gridTracks(CardMinWidth), ColumnGap: CardGapX, RowGap: CardGapY, AlignItems: core.AlignStart},
 		Children: []core.Node{core.Each(g.done, func(item Film) string { return item.Key }, func(cx *core.Scope, item func() Film, _ func() int) core.Node {
-			return doneCard{a: a, item: item}
+			return doneCard{a: a, item: item, done: g.done}
 		})}}
 	return core.View{Style: core.Style{Margin: core.Edges{Top: 26}, Gap: 14}, Children: []core.Node{doneHeading{a: a, done: g.done}, cards}}
 }
@@ -91,10 +91,12 @@ var (
 	posterLifted = []core.BoxShadow{{Offset: core.Point{Y: 14}, Blur: 30, Color: core.RGBA(0x000000, 0.22)}}
 )
 
-// doneCard is a film in the grid: the poster opens it where it stopped last time, and ⋯ and a right click offer 播放, 从头播放 for a film stopped partway, 标记为已看完 or 标记为未看 (watchMenu), 在访达中显示, 重命名…, 重新处理, 重新翻译 and 从资料库移除, and 补译未译的句子 for a film whose translation left lines untranslated, which also has that button under its line. A video found in the folder without subtitles has 生成字幕 under its line and in place of 重新处理 (needsSubtitles).
+// doneCard is a film in the grid: the poster opens it where it stopped last time, a ⌘-click selects it or leaves it out and a ⇧-click selects the films from the one selected last to it (pressPoster), the selected ones ringed in the accent color; and ⋯ and a right click offer the selection's menu on one of several selected (menuOf), else 播放, 从头播放 for a film stopped partway, 标记为已看完 or 标记为未看 (watchMenu), 在访达中显示, 重命名…, 重新处理, 重新翻译 and 从资料库移除, and 补译未译的句子 for a film whose translation left lines untranslated, which also has that button under its line. A video found in the folder without subtitles has 生成字幕 under its line and in place of 重新处理 (needsSubtitles).
 type doneCard struct {
 	a    App
 	item func() Film
+	// done is the films the grid shows, in its order, which a ⇧-click selects among.
+	done func() []Film
 }
 
 // Render implements core.Node.
@@ -109,13 +111,22 @@ func (d doneCard) Render(cx *core.Scope) core.Node {
 		return ""
 	})
 	seen := live.Memo(cx, a, func() watched { return watchedOf(a, item()) })
+	selected := live.Func(a, func() bool { return a.Selection().Has(item().Key) })
+	menu := func() []nsdesktop.MenuItem { return menuOf(cx, a, item(), d.done(), false) }
 	poster := base.Button{
 		TestID:    "film-" + item().Key,
 		LabelFunc: name,
-		OnPress:   live.On(a, func(core.PressEvent) { a.Open(item()) }),
-		Style: core.Style{Width: core.Pct(100), AspectRatio: 16.0 / 9, CornerRadius: 13, BorderWidth: 0.5,
+		Selected:  selected,
+		OnPress:   live.On(a, func(e core.PressEvent) { pressPoster(cx, a, item(), d.done(), e) }),
+		Style: core.Style{Width: core.Pct(100), AspectRatio: 16.0 / 9, CornerRadius: 13, BorderWidth: 0.5, OutlineOffset: 3,
 			Shadows: posterShadow, Cursor: core.CursorDefault, Hover: &core.Style{Shadows: posterLifted, Transform: core.Transform{Scale: 1.015}}, FocusVisible: ui.FocusRing(cx, 2)},
-		StyleFunc: func() core.Style { return core.Style{Background: k.Thumb(), BorderColor: k.Shade(0.1)} },
+		StyleFunc: func() core.Style {
+			style := core.Style{Background: k.Thumb(), BorderColor: k.Shade(0.1)}
+			if selected() {
+				style.OutlineWidth, style.OutlineColor = 3, colors.Accent()
+			}
+			return style
+		},
 		Children: []core.Node{clip(13,
 			cover(live.Func(a, func() core.ImageSource { return a.Poster(item().VideoPath) })),
 			core.Show{When: func() bool { return item().Language != "" && item().TranslationErr == "" }, Then: func(*core.Scope) core.Node {
@@ -150,11 +161,11 @@ func (d doneCard) Render(cx *core.Scope) core.Node {
 			missing,
 			makeSubs,
 		}},
-		moreButton{a: a, item: item, testID: "film-more"},
+		moreButton{a: a, item: item, testID: "film-more", menu: menu},
 	}}
 	return core.View{
 		Style:         core.Style{Width: core.Pct(100), MinWidth: core.Pt(0), Gap: 9},
-		OnContextMenu: func(e core.ContextMenuEvent) { nsdesktop.PopupMenu(cx, filmMenu(cx, a, item()), e.PagePosition, nil) },
+		OnContextMenu: func(e core.ContextMenuEvent) { nsdesktop.PopupMenu(cx, menu(), e.PagePosition, nil) },
 		Children:      []core.Node{tip, caption},
 	}
 }
@@ -260,7 +271,7 @@ func filmMenu(cx *core.Scope, a App, item Film) []nsdesktop.MenuItem {
 	if needsSubtitles(item) {
 		items = append(items, nsdesktop.MenuItem{Label: locales.FilmsMakeSubtitles(cx), OnSelect: do(a.Reprocess)})
 	} else {
-		items = append(items, nsdesktop.MenuItem{Label: locales.FilmsReprocess(cx), OnSelect: do(a.AskReprocess)})
+		items = append(items, nsdesktop.MenuItem{Label: locales.FilmsReprocess(cx), OnSelect: live.Do(a, func() { a.AskReprocess(item) })})
 	}
 	if item.JobID != "" {
 		// A film that was not translated at all is in no language yet, whatever its job was asked to translate it into.
@@ -280,7 +291,7 @@ func filmMenu(cx *core.Scope, a App, item Film) []nsdesktop.MenuItem {
 	if move := a.MoveFilmMenu(cx, item); len(move) > 0 {
 		items = append(items, nsdesktop.MenuItem{Label: locales.FilmsMoveToLibrary(cx), Items: move})
 	}
-	return append(items, nsdesktop.MenuItem{Separator: true}, nsdesktop.MenuItem{Label: locales.FilmsRemoveFromLibrary(cx), OnSelect: do(a.AskRemove)})
+	return append(items, nsdesktop.MenuItem{Separator: true}, nsdesktop.MenuItem{Label: locales.FilmsRemoveFromLibrary(cx), OnSelect: live.Do(a, func() { a.AskRemove(item) })})
 }
 
 // watchMenu is the film's 标记为已看完 and 标记为未看, whichever applies (WatchState): a film not started can be marked watched, a watched one unwatched, and one in progress either. A watched film stopped partway again, as while it is watched a second time, can be marked watched too, which forgets where it stopped, as playing it to its end does. 标记为已看完 needs the film's length, which is how far it marks the film watched to, so it is dimmed until the length is known. A film with no video has nothing to mark.
@@ -318,6 +329,8 @@ type moreButton struct {
 	a      App
 	item   func() Film
 	testID string
+	// menu is the menu it opens, the film's own (filmMenu) when nil.
+	menu func() []nsdesktop.MenuItem
 }
 
 // Render implements core.Node.
@@ -332,7 +345,13 @@ func (m moreButton) Render(cx *core.Scope) core.Node {
 			at = core.Point{X: b.Origin.X, Y: b.Origin.Y + b.Size.Height + 4}
 		}
 		open.Set(true)
-		nsdesktop.PopupMenu(cx, filmMenu(cx, a, m.item()), at, func() { open.Set(false) })
+		var items []nsdesktop.MenuItem
+		if m.menu != nil {
+			items = m.menu()
+		} else {
+			items = filmMenu(cx, a, m.item())
+		}
+		nsdesktop.PopupMenu(cx, items, at, func() { open.Set(false) })
 	}
 	button := base.Button{
 		TestID:    m.testID,
@@ -369,4 +388,30 @@ func untranslatedNote(m locales.Messages, item Film) string {
 		return ""
 	}
 	return m.FilmsUntranslated(item.Untranslated)
+}
+
+// pressPoster is a press of item's poster among done, the films the grid shows: a ⌘-click or a ⇧-click selects (selectPress); a plain click, or Space or Return on it, empties the selection and opens the film where it stopped last time, as the Apple TV app's posters do, so a click means the same whatever is selected.
+func pressPoster(cx *core.Scope, a App, item Film, done []Film, e core.PressEvent) {
+	if !e.Keyboard && selectPress(cx, a.Selection(), item.Key, Keys(done), e.Modifiers) {
+		return
+	}
+	a.Selection().Clear()
+	a.Open(item)
+}
+
+// selectPress selects as a click of the film with key among order, the films the page shows, with mods held does in Finder: ⌘ (Ctrl off Apple's systems, as DataTable reads it) selects it or leaves it out, and ⇧ selects the films from the one selected last to it. It reports whether mods held either; a plain click is the caller's.
+func selectPress(cx *core.Scope, sel *Selection, key string, order []string, mods core.Modifiers) bool {
+	command := mods.Control
+	if core.Untracked(cx, cx.Env().AppleKeys) {
+		command = mods.Platform
+	}
+	switch {
+	case command:
+		sel.Toggle(key)
+	case mods.Shift:
+		sel.Extend(order, key)
+	default:
+		return false
+	}
+	return true
 }
