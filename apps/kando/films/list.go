@@ -198,7 +198,7 @@ func (l filmList) Render(cx *core.Scope) core.Node {
 	width := core.NewSignal(cx, core.Points(0))
 	shown := core.NewMemoFunc(cx, func() []string { return listFits(width.Get()) }, slices.Equal[[]string]).Get
 	// The table selects a single row, the selection's lead; Kando keeps the films selected by key, so the selection stays with them as they move, and draws the other rows of it selected (RowStyle).
-	// TODO(nsgo): give datatable.DataTable a selection of several rows, which assistive technology reads as selected, and ⇧-arrows that extend it while the table has the keyboard; the table selects one row, the others selected look so (RowStyle) and only it is said to be, and ⇧↑ and ⇧↓ are bound while the list shows rather than while the table has the keyboard
+	// TODO(nsgo#650): give datatable.DataTable a selection of several rows, which assistive technology reads as selected, and ⇧-arrows that extend it while the table has the keyboard; the table selects one row, the others selected look so (RowStyle) and only it is said to be, and ⇧↑ and ⇧↓ are bound while the list shows rather than while the table has the keyboard https://github.com/nsgo-dev/nsgo/issues/650
 	sel := a.Selection()
 	ref := &datatable.Ref{}
 	itemAt := func(row int) (Film, bool) {

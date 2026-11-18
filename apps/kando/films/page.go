@@ -381,7 +381,7 @@ func (l listPage) Render(cx *core.Scope) core.Node {
 }
 
 // selectionKeys binds the selection's keys while the page shows, under cx, and is the node that binds Escape: ⌘A selects every done film the page shows, in the posters or the list, and Escape, while some are selected, selects none, as in Finder. A text field with the keyboard keeps both (core.KeyNotEditing), so ⌘A selects its text through Edit › 全选 and Escape empties a search; NSGo matches a binding before the menu bar's key equivalents, so ⌘A reaches it rather than the menu.
-// TODO(nsgo): let a menu role item run the app's own action while no text has the keyboard, so choosing Edit › 全选 with the pointer selects the films too; it only selects text (selectAll:), and the films only by ⌘A
+// TODO(nsgo#651): let a menu role item run the app's own action while no text has the keyboard, so choosing Edit › 全选 with the pointer selects the films too; it only selects text (selectAll:), and the films only by ⌘A https://github.com/nsgo-dev/nsgo/issues/651
 func selectionKeys(cx *core.Scope, a App, done func() []Film) core.Node {
 	cx.OnKeyWith("mod+a", core.KeyOptions{When: core.KeyNotEditing}, live.Do(a, func() { a.Selection().All(Keys(core.Untracked(cx, done))) }))
 	return core.Show{When: live.Func(a, func() bool { return a.Selection().Len() > 0 }), Then: func(cx *core.Scope) core.Node {

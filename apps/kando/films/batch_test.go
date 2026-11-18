@@ -20,7 +20,7 @@ func labelsOf(app *nsgotest.App) []string {
 }
 
 // TestSelectPressReadsTheModifiers checks which keys held with a click select: ⌘ selects a film or leaves it out and ⇧ selects up to it on a Mac, where Ctrl is a plain click; elsewhere Ctrl is what ⌘ is on a Mac.
-// TODO(nsgo): let nsgotest press with modifier keys held, so the tests ⌘-click and ⇧-click the posters and the list's rows rather than calling selectPress; App.Report takes an event of the internal driver package, which no app can make
+// TODO(nsgo#349): ⌘-click and ⇧-click the posters and the list's rows with nsgotest's PressWith, rather than calling selectPress, once Kando's NSGo has it; it was added upstream after the version go.mod pins, and App.Report takes an event of the internal driver package, which no app can make https://github.com/nsgo-dev/nsgo/issues/349
 func TestSelectPressReadsTheModifiers(t *testing.T) {
 	for _, mac := range []bool{true, false} {
 		env := testEnvironment()
