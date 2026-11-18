@@ -337,9 +337,9 @@ func stoppedInTranslation(tools Tools, job core.Job) core.Job {
 	return Run(ctx, stopsTranslating{Tools: tools, cancel: cancel}, job, "简体中文", func(core.Job) {})
 }
 
-// A translation that fails as a whole, as with a key the API rejects, still makes the film: its subtitles are the original lines, every one untranslated, and the job keeps why. The transcript is beside the video, the bilingual file holds the original lines alone, and translating the missing lines later goes straight to translating them: the video is not downloaded again and whisper-cli does not run again.
+// A translation that fails as a whole, as with a key the API rejects (once for the proofreading, once for the translation), still makes the film: its subtitles are the original lines, every one untranslated, and the job keeps why. The transcript is beside the video, the bilingual file holds the original lines alone, and translating the missing lines later goes straight to translating them: the video is not downloaded again and whisper-cli does not run again.
 func TestRunCompletesWithTheOriginalLinesWhenTheTranslationFails(t *testing.T) {
-	srv, _ := flakyChat(t, http.StatusUnauthorized)
+	srv, _ := flakyChat(t, http.StatusUnauthorized, http.StatusUnauthorized)
 	tools, ytdlpRuns, whisperRuns := resumeTools(t, srv.URL)
 	job, _ := core.NewJob("https://www.youtube.com/watch?v=jNQXAC9IVRw")
 

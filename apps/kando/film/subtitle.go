@@ -79,7 +79,7 @@ func (s *screen) subtitles() core.Node {
 		case a.SubMode() == SubOff:
 			return nil
 		}
-		return pictureLines(a, list[i].Text)
+		return pictureLines(s.lineSettings(), list[i].Text)
 	}, slices.Equal[[]styledLine]).Get
 	tip := live.Memo(cx, a, a.SubTip)
 	return core.Show{When: func() bool { return len(lines()) > 0 || tip() }, Then: func(cx *core.Scope) core.Node { return s.subtitleLayer(cx, lines, tip) }}
@@ -307,6 +307,30 @@ func pictureLines(a lineSettings, text string) []styledLine {
 	translation, original := splitCue(text)
 	return faced(a.Cue(), kcore.PictureLines(a.SubMode(), a.SubOrder(), a.Untranslated(), translation, original))
 }
+
+// ownLanguage are the line settings of a film heard in the language its subtitles are for (Item.SameLanguage), whose cues are its own lines alone: a mode that would show a translation shows them as 原文 does, rather than dimmed as lines not translated yet.
+type ownLanguage struct{ lineSettings }
+
+func (o ownLanguage) SubMode() string { return ownMode(o.lineSettings.SubMode()) }
+
+// ownMode is the mode a film heard in the language its subtitles are for shows its lines in when mode is chosen: 原文 for any mode that shows them.
+func ownMode(mode string) string {
+	if mode == SubTranslation || mode == SubBilingual {
+		return SubOriginal
+	}
+	return mode
+}
+
+// lineSettings are the settings the open film's lines show by: the player's, or for a film in its own language, ownLanguage's.
+func (s *screen) lineSettings() lineSettings {
+	if s.item().SameLanguage {
+		return ownLanguage{s.a}
+	}
+	return s.a
+}
+
+// subMode is the mode the open film's lines show in (lineSettings).
+func (s *screen) subMode() string { return s.lineSettings().SubMode() }
 
 // bothLines are the settings with both lines of a cue showing, in their order, as for the cue peeked at.
 type bothLines struct{ lineSettings }

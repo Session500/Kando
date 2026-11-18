@@ -66,8 +66,11 @@ func (s *screen) status(cx *ns.Scope) string {
 	if dir := s.a.LibraryDir(); dir != "" {
 		parts = append(parts, sidebar.Title(dir))
 	}
+	// A film in its own language was not translated, so how much of it is says nothing.
 	if subs := s.a.Subs(); subs.Key == item.Key && subs.Ready && subs.Err == "" && len(subs.Cues) > 0 {
-		parts = append(parts, locales.FilmStatusTranslated(cx, translatedPercent(subs.Cues)))
+		if !item.SameLanguage {
+			parts = append(parts, locales.FilmStatusTranslated(cx, translatedPercent(subs.Cues)))
+		}
 	} else if item.Stage != "" {
 		parts = append(parts, s.a.StageLabel(cx, item.Stage))
 	}

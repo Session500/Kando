@@ -46,13 +46,6 @@ func languageName(cx *ns.Scope, code string) string {
 	return code
 }
 
-// targetCodes maps the settings' target languages (settings › 翻译 › 默认目标语言) to the language they are written in.
-var targetCodes = map[string]string{
-	"简体中文": "zh", "繁体中文": "zh", "繁體中文": "zh", "English": "en", "日本語": "ja", "한국어": "ko", "Español": "es", "Français": "fr", "Deutsch": "de",
-	"Português": "pt", "Italiano": "it", "Русский": "ru", "Nederlands": "nl", "Polski": "pl", "Українська": "uk", "Türkçe": "tr", "العربية": "ar", "हिन्दी": "hi",
-	"Bahasa Indonesia": "id", "Tiếng Việt": "vi", "ไทย": "th",
-}
-
 // DefaultLearning is what the first step has chosen before the user changes it, as the prototype starts: English and Japanese.
 var DefaultLearning = []string{"en", "ja"}
 
@@ -60,7 +53,7 @@ var DefaultLearning = []string{"en", "ja"}
 func Known(code string) bool { return slices.Contains(tileCodes, code) }
 
 // LanguageCode is the language the target language target is written in, "" for one Kando does not know.
-func LanguageCode(target string) string { return targetCodes[target] }
+func LanguageCode(target string) string { return core.BaseLanguage(core.TargetTag(target)) }
 
 // Effective is the languages chosen in learning that the first step shows as chosen: those whose tiles it shows for target, in the tiles' order.
 func Effective(learning []string, target string) []string {

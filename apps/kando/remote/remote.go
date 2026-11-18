@@ -261,7 +261,7 @@ type Film struct {
 	// Status is the line under the film's title in the window, in English (Language): its stage, or why it failed.
 	Status string `json:"status,omitempty"`
 	JobID  string `json:"job_id,omitempty"`
-	// Language is what the subtitles are translated into, as the settings name it; "" for a film that was not translated (TranslationError).
+	// Language is what the subtitles are translated into, as the settings name it; "" for a film that was not translated, because the translation failed (TranslationError) or because the film is heard in the language its subtitles are for, whose lines are its own alone.
 	Language string `json:"language,omitempty"`
 	// Untranslated is how many lines of the subtitles the translation left untranslated, every line of a film that was not translated, which MethodTranslate translates. TranslationError is why a done film was not translated at all, as the AI service refusing its key, in English (Language): its subtitles are then the original lines alone.
 	Untranslated     int    `json:"untranslated,omitempty"`

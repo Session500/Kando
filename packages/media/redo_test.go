@@ -333,7 +333,7 @@ func (p hearingPipeline) Transcribe(ctx context.Context, video string) ([]core.S
 func TestRunRetryingAFailedProcessAgainReadsBackItsSpeech(t *testing.T) {
 	job := doneFilm(t, "你好。", "", "再见。")
 	job.Redo, job.RedoLanguage, job.SpokenLanguage = core.RedoAll, "日本語", "en"
-	p := hearingPipeline{reprocessPipeline: &reprocessPipeline{redoPipeline: redoPipeline{t: t, translateErr: errors.New("translation API returned 503")}}, model: "ggml-small.bin", language: "ja", spoken: "ja"}
+	p := hearingPipeline{reprocessPipeline: &reprocessPipeline{redoPipeline: redoPipeline{t: t, translateErr: errors.New("translation API returned 503")}}, model: "ggml-small.bin", language: "ko", spoken: "ko"}
 	failed := Run(context.Background(), p, job, "日本語", func(core.Job) {})
 	if failed.Stage != core.StageFailed || failed.SpokenLanguage != "en" || p.transcriptions != 1 {
 		t.Fatalf("failed %+v, %d transcriptions", failed, p.transcriptions)
@@ -347,7 +347,7 @@ func TestRunRetryingAFailedProcessAgainReadsBackItsSpeech(t *testing.T) {
 	p.translateErr = nil
 	p.spoken = ""
 	done := Run(context.Background(), p, again(failed), "日本語", func(core.Job) {})
-	if done.Stage != core.StageComplete || p.transcriptions != 1 || done.SpokenLanguage != "ja" {
+	if done.Stage != core.StageComplete || p.transcriptions != 1 || done.SpokenLanguage != "ko" {
 		t.Fatalf("done %+v, %d transcriptions", done, p.transcriptions)
 	}
 	for _, path := range []string{pendingTranscriptPath(job.VideoPath), pendingHeardPath(job.VideoPath)} {
@@ -363,7 +363,7 @@ func TestRunRetryingAFailedProcessAgainReadsBackItsSpeech(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			job := doneFilm(t, "你好。", "", "再见。")
 			job.Redo, job.RedoLanguage = core.RedoAll, "日本語"
-			p := hearingPipeline{reprocessPipeline: &reprocessPipeline{redoPipeline: redoPipeline{t: t, translateErr: errors.New("translation API returned 503")}}, model: "ggml-small.bin", language: "ja"}
+			p := hearingPipeline{reprocessPipeline: &reprocessPipeline{redoPipeline: redoPipeline{t: t, translateErr: errors.New("translation API returned 503")}}, model: "ggml-small.bin", language: "ko"}
 			failed := Run(context.Background(), p, job, "日本語", func(core.Job) {})
 			p.translateErr = nil
 			change(&p)

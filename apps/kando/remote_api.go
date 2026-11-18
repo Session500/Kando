@@ -980,8 +980,12 @@ func remoteFilmOfIn(m locales.Messages, item films.Film) remote.Film {
 		VideoPath:      item.VideoPath,
 		Subtitles:      item.SubtitlePath,
 	}
-	if item.TranslationErr != "" {
+	switch {
+	case item.TranslationErr != "":
 		f.TranslationError, _ = translationHint(m, item.TranslationErr)
+		f.Language = ""
+	case item.SameLanguage:
+		// A film heard in the language its subtitles are for was not translated: its lines are its own.
 		f.Language = ""
 	}
 	if !films.Local(item) {

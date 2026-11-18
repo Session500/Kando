@@ -105,7 +105,7 @@ func check(checked func() bool) core.Node {
 // modeMenu is the transport's subtitle button, named for the mode, and the menu it opens above it: the four modes, the subtitle delay and 样式…, which opens the style view in the side panel.
 func (s *screen) modeMenu(cx *core.Scope) core.Node {
 	a := s.a
-	name := live.Func(a, func() string { return ModeName(cx, a.SubMode()) })
+	name := live.Func(a, func() string { return ModeName(cx, s.subMode()) })
 	label := func() string { return locales.FilmSubtitlesMode(cx, name()) }
 	tooltip := func() string {
 		return locales.FilmSubtitles(cx) + " " + cx.KeyLabel("s") + " / " + cx.KeyLabel("v")
@@ -117,6 +117,11 @@ func (s *screen) modeMenu(cx *core.Scope) core.Node {
 	rows := func(cx *core.Scope) []core.Node {
 		out := []core.Node{menuHeading(func() string { return locales.FilmModeHeading(cx) })}
 		for _, choice := range modeChoices {
+			// A film in its own language has no translation to show: 关闭 and 原文 are its modes.
+			if ownMode(choice.mode) != choice.mode {
+				out = append(out, core.Show{When: live.Func(a, func() bool { return !s.item().SameLanguage }), Then: func(cx *core.Scope) core.Node { return s.modeRow(cx, choice.mode, choice.key) }})
+				continue
+			}
 			out = append(out, s.modeRow(cx, choice.mode, choice.key))
 		}
 		out = append(out,
@@ -138,7 +143,7 @@ func (s *screen) modeMenu(cx *core.Scope) core.Node {
 // modeRow is a radio row of the mode menu: a check while chosen, the mode's name with a line under it, and its key at the end.
 func (s *screen) modeRow(cx *core.Scope, mode, key string) core.Node {
 	a := s.a
-	on := live.Func(a, func() bool { return a.SubMode() == mode })
+	on := live.Func(a, func() bool { return s.subMode() == mode })
 	name := func() string { return ModeName(cx, mode) }
 	note := live.Func(a, func() string { return modeNote(cx, mode, a.Untranslated()) })
 	text := core.View{Style: core.Style{FlexGrow: 1, Gap: 1}, Children: []core.Node{

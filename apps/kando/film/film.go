@@ -246,6 +246,8 @@ type Item struct {
 	Untranslated int
 	// TranslationErr is why a done film translated none of its lines, its subtitles being the original lines alone; empty for one that was translated.
 	TranslationErr string
+	// SameLanguage is true for a film heard in the language its subtitles are for, which was not translated: its subtitles are its own lines alone, which every mode but 关闭 shows as 原文 does (ownMode).
+	SameLanguage bool
 }
 
 // title is how the film is named in the title bar.

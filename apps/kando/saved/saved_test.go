@@ -122,13 +122,14 @@ func TestMoveVideosFollowsRenamedFolders(t *testing.T) {
 	}
 }
 
-// TestFillTranslationsCompletesUntranslatedLines fills the lines of one video saved without a translation from the subtitles as they are now: a line whose subtitle line still says its original takes the translation, to the millisecond the book keeps; a line with a translation keeps its own, one whose subtitle line now says something else or has no translation yet stays empty, and the lines of another video are left alone.
-func TestFillTranslationsCompletesUntranslatedLines(t *testing.T) {
+// TestFollowSubtitlesCompletesAndCorrectsLines keeps the lines of one video as its subtitles say them now: a line saved without a translation takes the one its subtitle line has, to the millisecond the book keeps; a line whose original was proofread since takes the corrected original and keeps its translation; a line with a translation keeps its own; one whose subtitle line now says something else, or has no translation yet, stays as it was; and the lines of another video are left alone.
+func TestFollowSubtitlesCompletesAndCorrectsLines(t *testing.T) {
 	b := Book{Lines: []Line{
 		{Video: "Talk/video.mp4", Start: time.Second, Original: "Hello."},
 		{Video: "Talk/video.mp4", Start: 2 * time.Second, Original: "Kept.", Translation: "保留。"},
 		{Video: "Talk/video.mp4", Start: 3 * time.Second, Original: "Changed."},
 		{Video: "Talk/video.mp4", Start: 4 * time.Second, Original: "Later."},
+		{Video: "Talk/video.mp4", Start: 5 * time.Second, Original: "今天讲神经网罗", Translation: "Today: neural networks"},
 		{Video: "Other/video.mp4", Start: time.Second, Original: "Hello."},
 	}}
 	subs := map[time.Duration][2]string{
@@ -136,6 +137,7 @@ func TestFillTranslationsCompletesUntranslatedLines(t *testing.T) {
 		2 * time.Second:                    {"新的。", "Kept."},
 		3 * time.Second:                    {"别的。", "Something else."},
 		4 * time.Second:                    {"", "Later."},
+		5 * time.Second:                    {"Today: neural networks", "今天讲神经网络"},
 	}
 	at := func(start time.Duration) (string, string, bool) {
 		for s, l := range subs {
@@ -145,18 +147,22 @@ func TestFillTranslationsCompletesUntranslatedLines(t *testing.T) {
 		}
 		return "", "", false
 	}
-	if !b.FillTranslations("Talk/video.mp4", at) {
-		t.Fatal("no line was filled")
+	proofreads := func(heard, now string) bool {
+		return heard == "今天讲神经网罗" && now == "今天讲神经网络"
+	}
+	if !b.FollowSubtitles("Talk/video.mp4", at, proofreads) {
+		t.Fatal("no line changed")
 	}
 	var got []string
 	for _, l := range b.Lines {
-		got = append(got, l.Translation)
+		got = append(got, l.Original+"|"+l.Translation)
 	}
-	if want := []string{"你好。", "保留。", "", "", ""}; !slices.Equal(got, want) {
-		t.Fatalf("translations %q, want %q", got, want)
+	want := []string{"Hello.|你好。", "Kept.|保留。", "Changed.|", "Later.|", "今天讲神经网络|Today: neural networks", "Hello.|"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("lines %q, want %q", got, want)
 	}
-	if b.FillTranslations("Talk/video.mp4", at) {
-		t.Fatal("filling again changed a line")
+	if b.FollowSubtitles("Talk/video.mp4", at, proofreads) {
+		t.Fatal("following again changed a line")
 	}
 }
 
