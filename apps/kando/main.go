@@ -70,6 +70,7 @@ type app struct {
 	tray     trayUI      // state_tray.go
 	privacy  privacyUI   // state_privacy.go
 	subs     subscribeUI // state_subscribe.go
+	vocab    vocabUI     // state_vocab.go
 	export   subexportUI // state_subexport.go
 }
 
@@ -108,6 +109,7 @@ func newApp(pipeline media.Pipeline, update func(fn func())) *app {
 		tray:     newTrayUI(),
 		privacy:  newPrivacyUI(),
 		subs:     newSubscribeUI(),
+		vocab:    newVocabUI(),
 		export:   newSubexportUI(),
 	}
 	if a.update == nil {
