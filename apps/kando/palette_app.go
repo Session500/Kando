@@ -135,6 +135,19 @@ func (a *app) paletteNoteFurthest(path string, at time.Duration) bool {
 	return true
 }
 
+// paletteSetFurthest makes at how far the video at path has played, whether further or not than before, 0 forgetting that it played, as marking its film watched or unwatched does (library_watched.go). The palette finds and sends its lines up to there from then on. The caller has it saved (playerPositionsChanged), which writes it as dirty is set.
+func (a *app) paletteSetFurthest(path string, at time.Duration) {
+	if at <= 0 {
+		delete(a.palette.furthest, path)
+	} else {
+		if a.palette.furthest == nil {
+			a.palette.furthest = map[string]time.Duration{}
+		}
+		a.palette.furthest[path] = at
+	}
+	a.palette.dirty = true
+}
+
 // paletteSaveFurthest writes how far each video has played into library.json, beside the resume positions the queue saved just before.
 func (a *app) paletteSaveFurthest() {
 	if !a.palette.dirty {

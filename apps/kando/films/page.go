@@ -107,6 +107,12 @@ type App interface {
 	SourceFilter() string
 	// SpokenFilter is the language heard in the done films the page shows, sidebar.SpokenAll or whisper's code for one, among those of SourceFilter.
 	SpokenFilter() string
+	// WatchFilter is how far the done films the page shows were watched, sidebar.WatchAll or another of the sidebar's Watch values (WatchState), among those of SourceFilter and SpokenFilter; SetWatchFilter shows the films in state from now on, as the sidebar's list does.
+	WatchFilter() string
+	SetWatchFilter(state string)
+	// MarkWatched marks each film of items watched to its end, as playing it to its end would, without saying when it played: the check shows over its poster, and it no longer opens where it stopped. MarkUnwatched forgets that each was ever played, where it stopped, how far it played and when, so it shows as one never played. Both keep it with the library at once. How far a film was played also bounds the lines the command palette finds and sends of it, so marking it watched lets the palette find every line of it, and unwatched none.
+	MarkWatched(items ...Film)
+	MarkUnwatched(items ...Film)
 	// Enqueue adds a job for each source, a link or a local video's file:// URL, to the open library in the language the settings name, and runs them one after another. The error is why a source was not added.
 	Enqueue(sources ...string) error
 	// Cancel stops job id if it is waiting or running. Its card stays, marked 已取消. Enqueue, Cancel and RunningJob are the contract of the job queue; queue.go in the main package says how much of it runs today. Job control is per job: a page cancels the job it shows, never "whatever runs".
@@ -251,18 +257,19 @@ type shelfModel struct {
 	done      []Film
 	// list is whether the done films show as a list (ViewList), which leaves the hero out.
 	list bool
-	// empty is the page of a library that holds no film yet; emptySource that of a source no film comes from; emptySpoken the language, whisper's code, that none of the source's done films was heard in, "" when one was or no language is chosen; query the search no done film matched, "" when it matched one or there is none.
+	// empty is the page of a library that holds no film yet; emptySource that of a source no film comes from; emptySpoken the language, whisper's code, that none of the source's done films was heard in, "" when one was or no language is chosen; emptyWatch the watch state none of the films of the source and the language is in, "" when one is or none is chosen; query the search no done film matched, "" when it matched one or there is none.
 	empty, emptySource bool
 	emptySpoken        string
+	emptyWatch         string
 	noMatch            string
 }
 
 func (m shelfModel) equal(o shelfModel) bool {
 	return slices.Equal(m.queue, o.queue) && m.hero == o.hero && m.heroShown == o.heroShown && slices.Equal(m.done, o.done) && m.list == o.list &&
-		m.empty == o.empty && m.emptySource == o.emptySource && m.emptySpoken == o.emptySpoken && m.noMatch == o.noMatch
+		m.empty == o.empty && m.emptySource == o.emptySource && m.emptySpoken == o.emptySpoken && m.emptyWatch == o.emptyWatch && m.noMatch == o.noMatch
 }
 
-// newShelfModel is what the library shows under the message bar: the hero, 处理中 and the done grid of the films from source, the grid only those heard in the language the sidebar chose (SpokenFilter), or what to do when there are none. 处理中 also holds the jobs the queue runs for other libraries, so a library with no film of its own shows them above what to do. While the search field holds a query, the grid shows only the done films whose names hold it, or says that none does, and the hero, which is no answer to a search, is left out, as it is while a language is chosen; 处理中 shows every job still, so none seems to vanish while a search is on. tag is the interface's language, which orders the grid by title.
+// newShelfModel is what the library shows under the message bar: the hero, 处理中 and the done grid of the films from source, the grid only those heard in the language the sidebar chose (SpokenFilter) and watched as far as it chose (WatchFilter), or what to do when there are none. 处理中 also holds the jobs the queue runs for other libraries, so a library with no film of its own shows them above what to do. While the search field holds a query, the grid shows only the done films whose names hold it, or says that none does, and the hero, which is no answer to a search, is left out, as it is while a language or a watch state is chosen; 处理中 shows every job still, so none seems to vanish while a search is on. tag is the interface's language, which orders the grid by title.
 func newShelfModel(a App, source, tag string) shelfModel {
 	items := a.Films()
 	var m shelfModel
@@ -271,7 +278,7 @@ func newShelfModel(a App, source, tag string) shelfModel {
 		m.empty = true
 		return m
 	}
-	done := Shown(items, source, sidebar.SpokenAll, "")
+	done := Shown(items, a, source, sidebar.SpokenAll, sidebar.WatchAll, "")
 	if len(m.queue) == 0 && len(done) == 0 {
 		m.emptySource = true
 		return m
@@ -282,13 +289,19 @@ func newShelfModel(a App, source, tag string) shelfModel {
 		m.emptySpoken = spoken
 		return m
 	}
+	watch := a.WatchFilter()
+	seen := ByWatch(heard, a, watch)
+	if len(m.queue) == 0 && len(seen) == 0 {
+		m.emptyWatch = watch
+		return m
+	}
 	query := strings.TrimSpace(*a.Query())
 	m.list = a.LibraryView() == ViewList
 	// The list is a table to scan and to sort, as Finder's is, and its own columns say what was watched last; the hero is the posters' opening.
-	if query == "" && source == sidebar.SourceAll && spoken == sidebar.SpokenAll && !m.list {
+	if query == "" && source == sidebar.SourceAll && spoken == sidebar.SpokenAll && watch == sidebar.WatchAll && !m.list {
 		m.hero, m.heroShown = HeroFilm(a, done)
 	}
-	done = ByTitle(heard, query)
+	done = ByTitle(seen, query)
 	m.done = Sorted(done, a.LibrarySort(), tag, a.PlayedAt, a.Duration)
 	if len(done) == 0 && query != "" {
 		m.noMatch = query
@@ -320,6 +333,9 @@ func (s shelf) Render(cx *core.Scope) core.Node {
 		core.Show{When: func() bool { return model().emptySource }, Then: func(*core.Scope) core.Node { return emptySource{} }},
 		core.Show{When: func() bool { return model().emptySpoken != "" }, Then: func(*core.Scope) core.Node {
 			return emptySpoken{code: func() string { return model().emptySpoken }}
+		}},
+		core.Show{When: func() bool { return model().emptyWatch != "" }, Then: func(*core.Scope) core.Node {
+			return emptyWatch{a: a, state: func() string { return model().emptyWatch }}
 		}},
 		core.Show{When: func() bool { return len(model().done) > 0 }, Then: func(*core.Scope) core.Node {
 			return grid{a: a, done: func() []Film { return model().done }}

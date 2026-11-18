@@ -3,12 +3,12 @@ package films
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"kando/apps/kando/desktop"
 	"kando/apps/kando/film/subtitle"
 	"kando/apps/kando/live"
 	"kando/apps/kando/locales"
+	"kando/apps/kando/sidebar"
 	"kando/apps/kando/theme"
 
 	"github.com/nsgo-dev/nsgo/base"
@@ -91,7 +91,7 @@ var (
 	posterLifted = []core.BoxShadow{{Offset: core.Point{Y: 14}, Blur: 30, Color: core.RGBA(0x000000, 0.22)}}
 )
 
-// doneCard is a film in the grid: the poster opens it where it stopped last time, and ⋯ and a right click offer 播放, 从头播放 for a film stopped partway, 在访达中显示, 重命名…, 重新处理, 重新翻译 and 从资料库移除, and 补译未译的句子 for a film whose translation left lines untranslated, which also has that button under its line. A video found in the folder without subtitles has 生成字幕 under its line and in place of 重新处理 (needsSubtitles).
+// doneCard is a film in the grid: the poster opens it where it stopped last time, and ⋯ and a right click offer 播放, 从头播放 for a film stopped partway, 标记为已看完 or 标记为未看 (watchMenu), 在访达中显示, 重命名…, 重新处理, 重新翻译 and 从资料库移除, and 补译未译的句子 for a film whose translation left lines untranslated, which also has that button under its line. A video found in the folder without subtitles has 生成字幕 under its line and in place of 重新处理 (needsSubtitles).
 type doneCard struct {
 	a    App
 	item func() Film
@@ -159,18 +159,25 @@ func (d doneCard) Render(cx *core.Scope) core.Node {
 	}
 }
 
-// watched is how much of a film has been seen: part is the furthest point played over its length, from 0 to 1, and end is set once it played to within 3 seconds of its end, as ResumeFrom counts the end.
+// watched is how much of a film has been seen: part is the furthest point played over its length, from 0 to 1, and end is set once it played to within 3 seconds of its end, as ResumeFrom counts the end. A film played on for less than 3 seconds, which WatchState does not count as started, has seen none of it; its length must be known for either.
 type watched struct {
 	part float64
 	end  bool
 }
 
-func watchedOf(a App, item Film) watched {
-	length, furthest := a.Duration(item.VideoPath), a.Furthest(item.VideoPath)
+func watchedOf(p Progress, item Film) watched {
+	length, furthest := p.Duration(item.VideoPath), p.Furthest(item.VideoPath)
 	if length <= 0 || furthest <= 0 {
 		return watched{}
 	}
-	return watched{part: min(float64(furthest)/float64(length), 1), end: furthest >= length-3*time.Second}
+	part := min(float64(furthest)/float64(length), 1)
+	if furthest >= length-watchSlack {
+		return watched{part: part, end: true}
+	}
+	if furthest < watchSlack {
+		return watched{}
+	}
+	return watched{part: part}
 }
 
 // watchedBar is the accent line along a poster's bottom edge as far as the film has been played, over a faint track the width of the poster.
@@ -245,6 +252,7 @@ func filmMenu(cx *core.Scope, a App, item Film) []nsdesktop.MenuItem {
 	if _, ok := ResumeFrom(a, item); ok {
 		items = append(items, nsdesktop.MenuItem{Label: locales.FilmsPlayFromBeginning(cx), OnSelect: live.Do(a, func() { a.OpenAt(item, 0) })})
 	}
+	items = append(items, watchMenu(cx, a, item)...)
 	items = append(items, nsdesktop.MenuItem{Label: locales.FilmsShowInFinder(cx, desktop.Platform(cx)), OnSelect: live.Do(a, func() { a.Reveal(item.VideoPath) })})
 	if item.VideoPath != "" {
 		items = append(items, nsdesktop.MenuItem{Label: locales.FilmsRename(cx), OnSelect: do(a.AskRename)})
@@ -273,6 +281,23 @@ func filmMenu(cx *core.Scope, a App, item Film) []nsdesktop.MenuItem {
 		items = append(items, nsdesktop.MenuItem{Label: locales.FilmsMoveToLibrary(cx), Items: move})
 	}
 	return append(items, nsdesktop.MenuItem{Separator: true}, nsdesktop.MenuItem{Label: locales.FilmsRemoveFromLibrary(cx), OnSelect: do(a.AskRemove)})
+}
+
+// watchMenu is the film's 标记为已看完 and 标记为未看, whichever applies (WatchState): a film not started can be marked watched, a watched one unwatched, and one in progress either. A watched film stopped partway again, as while it is watched a second time, can be marked watched too, which forgets where it stopped, as playing it to its end does. 标记为已看完 needs the film's length, which is how far it marks the film watched to, so it is dimmed until the length is known. A film with no video has nothing to mark.
+func watchMenu(cx *core.Scope, a App, item Film) []nsdesktop.MenuItem {
+	if item.VideoPath == "" {
+		return nil
+	}
+	state := WatchState(a, item)
+	_, resumable := ResumeFrom(a, item)
+	var items []nsdesktop.MenuItem
+	if state != sidebar.WatchWatched || resumable {
+		items = append(items, nsdesktop.MenuItem{Label: locales.FilmsMarkWatched(cx), Disabled: a.Duration(item.VideoPath) <= 0, OnSelect: live.Do(a, func() { a.MarkWatched(item) })})
+	}
+	if state != sidebar.WatchUnwatched {
+		items = append(items, nsdesktop.MenuItem{Label: locales.FilmsMarkUnwatched(cx), OnSelect: live.Do(a, func() { a.MarkUnwatched(item) })})
+	}
+	return items
 }
 
 // chipShade is the frosted dark glass of the chips over a poster.

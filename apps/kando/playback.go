@@ -153,6 +153,7 @@ func (a *app) playerLoad(info ns.VideoInfo) {
 	if info.Duration > 0 {
 		p.duration = info.Duration
 		a.player.length = info.Duration
+		a.libraryLearnDuration(p.path, info.Duration)
 	}
 	if p.head > 0 {
 		// The player has opened the video at its start, from which it seeks.

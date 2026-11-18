@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -273,6 +274,93 @@ func TestSidebarFiltersByTheSpokenLanguage(t *testing.T) {
 	a.sidebarLibraryChanged()
 	if a.side.spoken != sidebar.SpokenAll {
 		t.Fatalf("another library kept the language %q", a.side.spoken)
+	}
+}
+
+// TestSidebarFiltersByHowFarFilmsWereWatched checks that the sidebar counts the done films in each watch state among those of the source, the language and the search chosen, so a count is how many films choosing it shows; that choosing one shows only those films, without the hero; that marking a film from its menu moves it at once; that Return in the search field opens only a film the filter shows; and that another library starts with every state.
+func TestSidebarFiltersByHowFarFilmsWereWatched(t *testing.T) {
+	a, tt, _ := newTestApp(t, &fakePipeline{})
+	videos := map[string]string{}
+	for _, id := range []string{"yt-done", "yt-new", "file-half", "file-new"} {
+		videos[id] = "/videos/" + id + "/video.mp4"
+	}
+	a.library.Jobs = []core.Job{
+		{ID: "yt-done", Title: "Harbor Tour", Source: "https://youtu.be/TRWgBxVAb1M", Stage: core.StageComplete, VideoPath: videos["yt-done"]},
+		{ID: "yt-new", Title: "Mountain Trail", Source: "https://youtu.be/jNQXAC9IVRw", Stage: core.StageComplete, VideoPath: videos["yt-new"]},
+		{ID: "file-half", Title: "Harbor Lights", Source: core.FileURL(videos["file-half"]), Stage: core.StageComplete, VideoPath: videos["file-half"]},
+		{ID: "file-new", Title: "Quiet Garden", Source: core.FileURL(videos["file-new"]), Stage: core.StageComplete, VideoPath: videos["file-new"]},
+		{ID: "running", Source: "https://youtu.be/running", Stage: core.StageTranscribing},
+	}
+	a.lib.durations = map[string]time.Duration{}
+	for _, video := range videos {
+		a.lib.durations[video] = 100 * time.Second
+	}
+	a.palette.furthest = map[string]time.Duration{videos["yt-done"]: 100 * time.Second, videos["file-half"]: 40 * time.Second}
+	a.player.positions = map[string]time.Duration{videos["file-half"]: 40 * time.Second}
+	refresh(tt, a)
+	counts := func(unwatched, inProgress, watched int) {
+		t.Helper()
+		for state, want := range map[string]int{sidebar.WatchUnwatched: unwatched, sidebar.WatchInProgress: inProgress, sidebar.WatchWatched: watched} {
+			if got := tt.Find("id:watch-count-" + state).Text; got != strconv.Itoa(want) {
+				t.Fatalf("%s counts %s, want %d", state, got, want)
+			}
+		}
+	}
+	shows := func(keys ...string) {
+		t.Helper()
+		for id := range videos {
+			if want := slices.Contains(keys, id); tt.Exists("id:film-"+id) != want {
+				t.Fatalf("film %s shown %v, want %v: %q", id, !want, want, tt.Texts())
+			}
+		}
+	}
+	counts(2, 1, 1)
+	// The counts follow the other filters.
+	tt.Press("id:source-" + sidebar.SourceYouTube)
+	refresh(tt, a)
+	counts(1, 0, 1)
+	tt.Press("id:source-" + sidebar.SourceAll)
+	apply(tt, a, func() { a.SetQuery("harbor") })
+	counts(0, 1, 1)
+	apply(tt, a, func() { a.SetQuery("") })
+
+	tt.Press("id:watch-" + sidebar.WatchUnwatched)
+	refresh(tt, a)
+	if a.WatchFilter() != sidebar.WatchUnwatched || a.page != pageFilms {
+		t.Fatalf("filter %q on page %q", a.WatchFilter(), a.page)
+	}
+	shows("yt-new", "file-new")
+	if tt.Exists("id:films-hero") {
+		t.Fatal("the hero shows while a watch state is chosen")
+	}
+	// Both filters apply.
+	tt.Press("id:source-" + sidebar.SourceLocal)
+	refresh(tt, a)
+	shows("file-new")
+	tt.Press("id:source-" + sidebar.SourceAll)
+	refresh(tt, a)
+	// Marked watched from its menu, a film leaves 未看 at once, and 已看完 counts it.
+	tt.RightClick("id:film-yt-new")
+	tt.ChoosePopup(testlocale.Messages().FilmsMarkWatched())
+	refresh(tt, a)
+	shows("file-new")
+	counts(1, 1, 2)
+	// Return opens the one film the search finds among those the filter shows, not one it hides.
+	apply(tt, a, func() { a.SetQuery("harbor") })
+	apply(tt, a, a.SubmitQuery)
+	if a.openKey != "" {
+		t.Fatalf("Return opened %q, which 未看 hides", a.openKey)
+	}
+	tt.Press("id:watch-" + sidebar.WatchInProgress)
+	apply(tt, a, a.SubmitQuery)
+	if a.openKey != "file-half" {
+		t.Fatalf("Return opened %q, want the one film in progress named Harbor", a.openKey)
+	}
+	a.closeFilm()
+	a.side.watch = sidebar.WatchWatched
+	a.sidebarLibraryChanged()
+	if a.side.watch != sidebar.WatchAll {
+		t.Fatalf("another library kept the watch state %q", a.side.watch)
 	}
 }
 

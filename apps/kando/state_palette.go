@@ -19,7 +19,7 @@ type paletteUI struct {
 	query string
 	// sel is the highlighted row, which Return runs, counting the row that asks the open film first when there is one (paletteAsks), then the lines, then the commands. It goes back to the first row as the query changes. The palette brings the highlighted row into view itself as ↑ and ↓ move it.
 	sel int
-	// furthest is how far each video has been played on from its start, by path (palettePlaying), kept in library.json with the shelf (shelf.Library.Furthest). The palette finds and sends only lines up to it, so it gives nothing away of what has not been watched. dirty is set while it holds more than library.json does.
+	// furthest is how far each video has been played on from its start, by path (palettePlaying), kept in library.json with the shelf (shelf.Library.Furthest). Marking a film watched sets it to the film's length, and unwatched forgets it (library_watched.go). The palette finds and sends only lines up to it, so it gives nothing away of what has not been watched. dirty is set while it holds more than library.json does.
 	furthest map[string]time.Duration
 	dirty    bool
 	// watching is the playback paletteNoteAt saw at the player's last progress report, and watchedAt where its picture was then.

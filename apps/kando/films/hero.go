@@ -55,12 +55,12 @@ func HeroFilm(a App, items []Film) (Film, bool) {
 }
 
 // ResumeFrom is where a film opens or 继续 picks it up: where it stopped, unless that is within 3 seconds of either end. Every way of opening a film but 从头看 and a jump to a line starts there (app.Open).
-func ResumeFrom(a App, item Film) (time.Duration, bool) {
-	at := a.ResumeAt(item.VideoPath)
-	if at < 3*time.Second {
+func ResumeFrom(p Progress, item Film) (time.Duration, bool) {
+	at := p.ResumeAt(item.VideoPath)
+	if at < watchSlack {
 		return 0, false
 	}
-	if d := a.Duration(item.VideoPath); d > 0 && at > d-3*time.Second {
+	if d := p.Duration(item.VideoPath); d > 0 && at > d-watchSlack {
 		return 0, false
 	}
 	return at, true

@@ -1318,6 +1318,8 @@ const (
 	textFilmsListWatched
 	textFilmsLocalVideo
 	textFilmsMakeSubtitles
+	textFilmsMarkUnwatched
+	textFilmsMarkWatched
 	textFilmsMoveToLibrary
 	textFilmsNewLibraryEllipsis
 	textFilmsNewLibraryName
@@ -1386,6 +1388,10 @@ const (
 	textFilmsView
 	textFilmsViewGrid
 	textFilmsViewList
+	textFilmsWatchEmptyInProgress
+	textFilmsWatchEmptyUnwatched
+	textFilmsWatchEmptyWatched
+	textFilmsWatchShowAll
 	textFilmsWatched
 	textKitsDownloadDisconnected
 	textKitsDownloadStalled
@@ -2000,6 +2006,11 @@ const (
 	textSidebarSourceLocal
 	textSidebarSourceWeb
 	textSidebarStatus
+	textSidebarWatchAll
+	textSidebarWatchInProgress
+	textSidebarWatchUnwatched
+	textSidebarWatchWatched
+	textSidebarWatched
 	textSitesCaveat
 	textSitesDone
 	textSitesGridLabel
@@ -2290,6 +2301,8 @@ var keyOfText = [numTexts]string{
 	"filmsListWatched",
 	"filmsLocalVideo",
 	"filmsMakeSubtitles",
+	"filmsMarkUnwatched",
+	"filmsMarkWatched",
 	"filmsMoveToLibrary",
 	"filmsNewLibraryEllipsis",
 	"filmsNewLibraryName",
@@ -2358,6 +2371,10 @@ var keyOfText = [numTexts]string{
 	"filmsView",
 	"filmsViewGrid",
 	"filmsViewList",
+	"filmsWatchEmptyInProgress",
+	"filmsWatchEmptyUnwatched",
+	"filmsWatchEmptyWatched",
+	"filmsWatchShowAll",
 	"filmsWatched",
 	"kitsDownloadDisconnected",
 	"kitsDownloadStalled",
@@ -2972,6 +2989,11 @@ var keyOfText = [numTexts]string{
 	"sidebarSourceLocal",
 	"sidebarSourceWeb",
 	"sidebarStatus",
+	"sidebarWatchAll",
+	"sidebarWatchInProgress",
+	"sidebarWatchUnwatched",
+	"sidebarWatchWatched",
+	"sidebarWatched",
 	"sitesCaveat",
 	"sitesDone",
 	"sitesGridLabel",
@@ -3260,6 +3282,8 @@ var textsEn = i18n.NewTexts(""+
 	"Last Watched"+
 	"Local Video"+
 	"Make Subtitles"+
+	"Mark as Unwatched"+
+	"Mark as Watched"+
 	"Move to Library"+
 	"New Library…"+
 	"Name"+
@@ -3328,6 +3352,10 @@ var textsEn = i18n.NewTexts(""+
 	"View"+
 	"Icons"+
 	"List"+
+	"No films in progress here."+
+	"No unwatched films here."+
+	"No watched films here yet."+
+	"Show All Films"+
 	"Watched"+
 	"the connection dropped"+
 	"the server stopped sending data"+
@@ -3942,6 +3970,11 @@ var textsEn = i18n.NewTexts(""+
 	"Local Files"+
 	"Other Sites"+
 	"Status"+
+	"All"+
+	"In Progress"+
+	"Not Watched"+
+	"Watched"+
+	"Progress"+
 	"Videos that need a sign-in or membership, or that are DRM-encrypted, may not download even from a site on the list."+
 	"Done"+
 	"Websites"+
@@ -4227,6 +4260,8 @@ var textsEn = i18n.NewTexts(""+
 		12,
 		11,
 		14,
+		17,
+		15,
 		15,
 		14,
 		4,
@@ -4295,6 +4330,10 @@ var textsEn = i18n.NewTexts(""+
 		4,
 		5,
 		4,
+		26,
+		24,
+		26,
+		14,
 		7,
 		22,
 		31,
@@ -4909,6 +4948,11 @@ var textsEn = i18n.NewTexts(""+
 		11,
 		11,
 		6,
+		3,
+		11,
+		11,
+		7,
+		8,
 		115,
 		4,
 		8,
@@ -5197,6 +5241,8 @@ var textsJa = i18n.NewTexts(""+
 	"最終視聴"+
 	"ローカル動画"+
 	"字幕を作成"+
+	"未視聴にする"+
+	"視聴済みにする"+
 	"ライブラリへ移動"+
 	"新規ライブラリ…"+
 	"名前"+
@@ -5265,6 +5311,10 @@ var textsJa = i18n.NewTexts(""+
 	"表示"+
 	"アイコン"+
 	"リスト"+
+	"ここには視聴中の動画はありません。"+
+	"ここには未視聴の動画はありません。"+
+	"ここにはまだ視聴済みの動画はありません。"+
+	"すべての動画を表示"+
 	"視聴済み"+
 	"接続が切れました"+
 	"サーバーからデータが届かなくなりました"+
@@ -5879,6 +5929,11 @@ var textsJa = i18n.NewTexts(""+
 	"ローカルファイル"+
 	"その他のサイト"+
 	"ステータス"+
+	"すべて"+
+	"視聴中"+
+	"未視聴"+
+	"視聴済み"+
+	"視聴状況"+
 	"ログインやメンバーシップが必要な動画、DRM で暗号化された動画は、サイトが一覧にあってもダウンロードできないことがあります。"+
 	"完了"+
 	"サイト一覧"+
@@ -6164,6 +6219,8 @@ var textsJa = i18n.NewTexts(""+
 		12,
 		18,
 		15,
+		18,
+		21,
 		24,
 		24,
 		6,
@@ -6232,6 +6289,10 @@ var textsJa = i18n.NewTexts(""+
 		6,
 		12,
 		9,
+		51,
+		51,
+		60,
+		27,
 		12,
 		24,
 		57,
@@ -6846,6 +6907,11 @@ var textsJa = i18n.NewTexts(""+
 		24,
 		21,
 		15,
+		9,
+		9,
+		9,
+		12,
+		12,
 		181,
 		6,
 		15,
@@ -7134,6 +7200,8 @@ var textsKo = i18n.NewTexts(""+
 	"마지막 시청"+
 	"로컬 동영상"+
 	"자막 만들기"+
+	"미시청으로 표시"+
+	"시청 완료로 표시"+
 	"라이브러리로 이동"+
 	"새로운 라이브러리…"+
 	"이름"+
@@ -7202,6 +7270,10 @@ var textsKo = i18n.NewTexts(""+
 	"보기"+
 	"아이콘"+
 	"목록"+
+	"여기에는 시청 중인 영상이 없습니다."+
+	"여기에는 미시청 영상이 없습니다."+
+	"여기에는 아직 시청 완료한 영상이 없습니다."+
+	"모든 영상 보기"+
 	"시청 완료"+
 	"연결이 끊어졌습니다"+
 	"서버에서 데이터가 더 이상 오지 않습니다"+
@@ -7816,6 +7888,11 @@ var textsKo = i18n.NewTexts(""+
 	"로컬 파일"+
 	"기타 사이트"+
 	"상태"+
+	"전체"+
+	"시청 중"+
+	"미시청"+
+	"시청 완료"+
+	"시청 상태"+
 	"로그인이나 멤버십이 필요하거나 DRM으로 암호화된 동영상은 목록에 있는 사이트라도 내려받지 못할 수 있습니다."+
 	"완료"+
 	"웹사이트 목록"+
@@ -8101,6 +8178,8 @@ var textsKo = i18n.NewTexts(""+
 		16,
 		16,
 		16,
+		22,
+		23,
 		25,
 		28,
 		6,
@@ -8169,6 +8248,10 @@ var textsKo = i18n.NewTexts(""+
 		6,
 		9,
 		6,
+		50,
+		46,
+		60,
+		20,
 		13,
 		28,
 		56,
@@ -8783,6 +8866,11 @@ var textsKo = i18n.NewTexts(""+
 		13,
 		16,
 		6,
+		6,
+		10,
+		9,
+		13,
+		13,
 		151,
 		6,
 		19,
@@ -9071,6 +9159,8 @@ var textsZhHans = i18n.NewTexts(""+
 	"上次观看"+
 	"本地视频"+
 	"生成字幕"+
+	"标记为未看"+
+	"标记为已看完"+
 	"移到资料库"+
 	"新建资料库…"+
 	"名称"+
@@ -9139,6 +9229,10 @@ var textsZhHans = i18n.NewTexts(""+
 	"显示方式"+
 	"图标"+
 	"列表"+
+	"这里没有在看的影片。"+
+	"这里没有未看的影片。"+
+	"这里还没有看完的影片。"+
+	"显示全部影片"+
 	"已看完"+
 	"连接断了"+
 	"服务器一直没有发来数据"+
@@ -9753,6 +9847,11 @@ var textsZhHans = i18n.NewTexts(""+
 	"本地文件"+
 	"其他网站"+
 	"状态"+
+	"全部"+
+	"在看"+
+	"未看"+
+	"已看完"+
+	"观看进度"+
 	"需要登录、会员或有 DRM 加密的视频，即使网站在列表里也不一定能下载。"+
 	"完成"+
 	"网站列表"+
@@ -10040,6 +10139,8 @@ var textsZhHans = i18n.NewTexts(""+
 		12,
 		15,
 		18,
+		15,
+		18,
 		6,
 		6,
 		15,
@@ -10106,6 +10207,10 @@ var textsZhHans = i18n.NewTexts(""+
 		12,
 		6,
 		6,
+		30,
+		30,
+		33,
+		18,
 		9,
 		12,
 		33,
@@ -10720,6 +10825,11 @@ var textsZhHans = i18n.NewTexts(""+
 		12,
 		12,
 		6,
+		6,
+		6,
+		6,
+		9,
+		12,
 		98,
 		6,
 		12,
@@ -11008,6 +11118,8 @@ var textsZhHant = i18n.NewTexts(""+
 	"上次觀看"+
 	"本機影片"+
 	"產生字幕"+
+	"標記為未看"+
+	"標記為已看完"+
 	"移到資料庫"+
 	"新增資料庫…"+
 	"名稱"+
@@ -11076,6 +11188,10 @@ var textsZhHant = i18n.NewTexts(""+
 	"顯示方式"+
 	"圖像"+
 	"列表"+
+	"這裡沒有在看的影片。"+
+	"這裡沒有未看的影片。"+
+	"這裡還沒有看完的影片。"+
+	"顯示全部影片"+
 	"已看完"+
 	"連線中斷了"+
 	"伺服器一直沒有傳來資料"+
@@ -11690,6 +11806,11 @@ var textsZhHant = i18n.NewTexts(""+
 	"本機檔案"+
 	"其他網站"+
 	"狀態"+
+	"全部"+
+	"在看"+
+	"未看"+
+	"已看完"+
+	"觀看進度"+
 	"需要登入、會員或有 DRM 加密的影片，即使網站在清單中也不一定能下載。"+
 	"完成"+
 	"網站清單"+
@@ -11977,6 +12098,8 @@ var textsZhHant = i18n.NewTexts(""+
 		12,
 		15,
 		18,
+		15,
+		18,
 		6,
 		6,
 		15,
@@ -12043,6 +12166,10 @@ var textsZhHant = i18n.NewTexts(""+
 		12,
 		6,
 		6,
+		30,
+		30,
+		33,
+		18,
 		9,
 		15,
 		33,
@@ -12657,6 +12784,11 @@ var textsZhHant = i18n.NewTexts(""+
 		12,
 		12,
 		6,
+		6,
+		6,
+		6,
+		9,
+		12,
 		98,
 		6,
 		12,
@@ -18108,6 +18240,24 @@ func FilmsMakeSubtitles(cx *core.Scope) string { return For(cx).FilmsMakeSubtitl
 // FilmsMakeSubtitles is the package's FilmsMakeSubtitles in the language of msgs.
 func (msgs Messages) FilmsMakeSubtitles() string { return msgs.text(textFilmsMakeSubtitles) }
 
+// FilmsMarkUnwatched says "Mark as Unwatched"
+// in the language the app shows under cx.
+//
+// Menu item of a film that was played, from ⋯ or a right click on its poster, its row in the list or the large card: forget that it was played, where it stopped and how far, so it shows as never watched.
+func FilmsMarkUnwatched(cx *core.Scope) string { return For(cx).FilmsMarkUnwatched() }
+
+// FilmsMarkUnwatched is the package's FilmsMarkUnwatched in the language of msgs.
+func (msgs Messages) FilmsMarkUnwatched() string { return msgs.text(textFilmsMarkUnwatched) }
+
+// FilmsMarkWatched says "Mark as Watched"
+// in the language the app shows under cx.
+//
+// Menu item of a film, from ⋯ or a right click on its poster, its row in the list or the large card: mark it as watched to its end without playing it, so the check shows over its poster.
+func FilmsMarkWatched(cx *core.Scope) string { return For(cx).FilmsMarkWatched() }
+
+// FilmsMarkWatched is the package's FilmsMarkWatched in the language of msgs.
+func (msgs Messages) FilmsMarkWatched() string { return msgs.text(textFilmsMarkWatched) }
+
 // FilmsMoreActions says "More Actions for {film}"
 // in the language the app shows under cx.
 //
@@ -19950,6 +20100,46 @@ func FilmsViewList(cx *core.Scope) string { return For(cx).FilmsViewList() }
 
 // FilmsViewList is the package's FilmsViewList in the language of msgs.
 func (msgs Messages) FilmsViewList() string { return msgs.text(textFilmsViewList) }
+
+// FilmsWatchEmptyInProgress says "No films in progress here."
+// in the language the app shows under cx.
+//
+// Shown in the library when In Progress is chosen under Progress in the sidebar and no film of the source and language chosen was started without being finished.
+func FilmsWatchEmptyInProgress(cx *core.Scope) string { return For(cx).FilmsWatchEmptyInProgress() }
+
+// FilmsWatchEmptyInProgress is the package's FilmsWatchEmptyInProgress in the language of msgs.
+func (msgs Messages) FilmsWatchEmptyInProgress() string {
+	return msgs.text(textFilmsWatchEmptyInProgress)
+}
+
+// FilmsWatchEmptyUnwatched says "No unwatched films here."
+// in the language the app shows under cx.
+//
+// Shown in the library when Not Watched is chosen under Progress in the sidebar and every film of the source and language chosen has been started.
+func FilmsWatchEmptyUnwatched(cx *core.Scope) string { return For(cx).FilmsWatchEmptyUnwatched() }
+
+// FilmsWatchEmptyUnwatched is the package's FilmsWatchEmptyUnwatched in the language of msgs.
+func (msgs Messages) FilmsWatchEmptyUnwatched() string {
+	return msgs.text(textFilmsWatchEmptyUnwatched)
+}
+
+// FilmsWatchEmptyWatched says "No watched films here yet."
+// in the language the app shows under cx.
+//
+// Shown in the library when Watched is chosen under Progress in the sidebar and no film of the source and language chosen was watched to its end.
+func FilmsWatchEmptyWatched(cx *core.Scope) string { return For(cx).FilmsWatchEmptyWatched() }
+
+// FilmsWatchEmptyWatched is the package's FilmsWatchEmptyWatched in the language of msgs.
+func (msgs Messages) FilmsWatchEmptyWatched() string { return msgs.text(textFilmsWatchEmptyWatched) }
+
+// FilmsWatchShowAll says "Show All Films"
+// in the language the app shows under cx.
+//
+// Button under the message that no film is in the watch state chosen in the sidebar: show the films however far they were watched.
+func FilmsWatchShowAll(cx *core.Scope) string { return For(cx).FilmsWatchShowAll() }
+
+// FilmsWatchShowAll is the package's FilmsWatchShowAll in the language of msgs.
+func (msgs Messages) FilmsWatchShowAll() string { return msgs.text(textFilmsWatchShowAll) }
 
 // FilmsWatched says "Watched"
 // in the language the app shows under cx.
@@ -33365,6 +33555,51 @@ func (msgs Messages) SidebarSwitcherLabel(name string) string {
 		}
 	}
 }
+
+// SidebarWatchAll says "All"
+// in the language the app shows under cx.
+//
+// First row of the sidebar's Progress list: shows the films however far they were watched.
+func SidebarWatchAll(cx *core.Scope) string { return For(cx).SidebarWatchAll() }
+
+// SidebarWatchAll is the package's SidebarWatchAll in the language of msgs.
+func (msgs Messages) SidebarWatchAll() string { return msgs.text(textSidebarWatchAll) }
+
+// SidebarWatchInProgress says "In Progress"
+// in the language the app shows under cx.
+//
+// Row of the sidebar's Progress list: shows the films started but not watched to the end.
+func SidebarWatchInProgress(cx *core.Scope) string { return For(cx).SidebarWatchInProgress() }
+
+// SidebarWatchInProgress is the package's SidebarWatchInProgress in the language of msgs.
+func (msgs Messages) SidebarWatchInProgress() string { return msgs.text(textSidebarWatchInProgress) }
+
+// SidebarWatchUnwatched says "Not Watched"
+// in the language the app shows under cx.
+//
+// Row of the sidebar's Progress list: shows the films not started yet.
+func SidebarWatchUnwatched(cx *core.Scope) string { return For(cx).SidebarWatchUnwatched() }
+
+// SidebarWatchUnwatched is the package's SidebarWatchUnwatched in the language of msgs.
+func (msgs Messages) SidebarWatchUnwatched() string { return msgs.text(textSidebarWatchUnwatched) }
+
+// SidebarWatchWatched says "Watched"
+// in the language the app shows under cx.
+//
+// Row of the sidebar's Progress list: shows the films watched to the end.
+func SidebarWatchWatched(cx *core.Scope) string { return For(cx).SidebarWatchWatched() }
+
+// SidebarWatchWatched is the package's SidebarWatchWatched in the language of msgs.
+func (msgs Messages) SidebarWatchWatched() string { return msgs.text(textSidebarWatchWatched) }
+
+// SidebarWatched says "Progress"
+// in the language the app shows under cx.
+//
+// Heading of the sidebar's list that filters the library by how far each film was watched: all, not watched, in progress, watched.
+func SidebarWatched(cx *core.Scope) string { return For(cx).SidebarWatched() }
+
+// SidebarWatched is the package's SidebarWatched in the language of msgs.
+func (msgs Messages) SidebarWatched() string { return msgs.text(textSidebarWatched) }
 
 // SitesCaveat says "Videos that need a sign-in or membership, or that are DRM-encrypted, may not download even from a site on the list."
 // in the language the app shows under cx.
