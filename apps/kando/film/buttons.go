@@ -1,6 +1,8 @@
 package film
 
 import (
+	"kando/apps/kando/theme"
+
 	"github.com/nsgo-dev/nsgo/base"
 	"github.com/nsgo-dev/nsgo/core"
 	"github.com/nsgo-dev/nsgo/ui"
@@ -8,29 +10,23 @@ import (
 
 // glassSpec is a glass surface of the player's: what is under it blurred by blur, tinted with fill, inside a half-point white ring of alpha ring, its corners radius.
 type glassSpec struct {
-	fill         core.Color
-	blur, radius core.Points
-	ring         float32
+	glass  theme.Glass
+	radius core.Points
 }
 
 // style is the glass as a view's style.
-func (g glassSpec) style() core.Style {
-	return core.Style{
-		CornerRadius:    g.radius,
-		Background:      g.fill,
-		BackdropFilters: []core.Filter{core.Blur(g.blur)},
-		Shadows:         []core.BoxShadow{{Spread: 0.5, Color: core.RGBA(0xFFFFFF, g.ring), Inset: true}},
-	}
-}
+func (g glassSpec) style() core.Style { return g.glass.Style(g.radius) }
+
+// floating is the glass of a surface that floats over the picture, with the design's shadow for it under it.
+func (g glassSpec) floating() core.Style { return g.glass.Floating(g.radius) }
 
 // capsuleGlass is the glass of the title bar's small buttons and capsules, 34 high.
-var capsuleGlass = glassSpec{fill: core.RGBA(0xFFFFFF, 0.12), blur: 20, ring: 0.25, radius: 17}
+var capsuleGlass = glassSpec{theme.GlassClear, 17}
 
 // tip is the bubble a control shows under the pointer: its label, and the key that does the same when there is one.
 func tip(cx *core.Scope, text func() string) core.Node {
 	return core.View{PointerEvents: core.PointerEventsNone,
-		Style: core.Style{CornerRadius: 6, Padding: core.Symmetric(4, 8), MaxWidth: core.Pt(280), Background: core.RGBA(0x1C1C20, 0.92),
-			Shadows: []core.BoxShadow{{Spread: 0.5, Color: core.RGBA(0xFFFFFF, 0.2), Inset: true}}},
+		Style:    theme.GlassTip.Style(6).Merge(core.Style{Padding: core.Symmetric(4, 8), MaxWidth: core.Pt(280)}),
 		Children: []core.Node{core.Text{ContentFunc: text, Style: core.Style{FontSize: 12, LineHeight: 16, Color: onGlass}}}}
 }
 

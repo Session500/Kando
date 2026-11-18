@@ -110,7 +110,7 @@ func (c Colors) Shade(alpha float32) core.Color { return ui.Alpha(c.role(roleSha
 func (c Colors) Card() core.Color      { return c.role(roleCard) }
 func (c Colors) CardHover() core.Color { return c.role(roleCardHover) }
 
-// Glyph is the accent's color for an icon or mark on the page, as a sidebar row's, the drop zone's and a watched film's check and an empty library's play mark: Kando's blue on the light page; on the dark one Apple's lighter blue for the dark (systemBlue), as Kando's blue is too deep to stand out from the dark there.
+// Glyph is the accent's color for an icon or mark on the page, as a sidebar row's, the drop zone's and a watched film's check and an empty library's play mark: Kando's blue on the light page; on the dark one Apple's lighter blue for the dark (systemBlue), as Kando's blue is too deep to stand out from the dark there. It is not AccentInk, the accent's text: #0A84FF is 3.8:1 on a dark card, under the 4.5:1 small text wants, so the text takes a lighter blue there, as macOS's links do beside its tinted icons.
 func (c Colors) Glyph() core.Color { return c.role(roleGlyph) }
 
 // Window is the settings window's and the onboarding sheet's ground under their cards; Panel a card a step off the page, as a processing job's; Rail the settings window's sidebar; Gutter the main window's sidebar where the window shows no material.

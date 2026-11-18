@@ -86,14 +86,14 @@ func rowContent(cx *ns.Scope, it Item) ns.Node {
 	return ns.Group(children)
 }
 
-// Mark is a site's mark, size points square: YouTube's red with a ▶, bilibili's blue with a B, any other site's grey with a ◎, the white glyph on the site's own color as the sidebar of the design draws them.
+// Mark is a site's mark, size points square: YouTube's red with a ▶, bilibili's blue with a B, any other site's grey with a ◎, the white glyph on the site's own color (theme's source marks) as the sidebar of the design draws them.
 func Mark(platform core.Platform, size ns.Points) ns.Node {
-	glyph, fill := "◎", ns.RGB(0x8E8E93)
+	glyph, fill := "◎", theme.SourceLocal
 	switch platform {
 	case core.PlatformYouTube:
-		glyph, fill = "▶", ns.RGB(0xE62117)
+		glyph, fill = "▶", theme.SourceYouTube
 	case core.PlatformBilibili:
-		glyph, fill = "B", ns.RGB(0x00A1D6)
+		glyph, fill = "B", theme.SourceBilibili
 	}
 	return ns.View{Role: ns.RoleNone, Style: ns.Style{Width: ns.Pt(size), Height: ns.Pt(size), CornerRadius: size * 5 / 18, Background: fill, AlignItems: ns.AlignCenter, JustifyContent: ns.JustifyCenter, FlexShrink: 0},
 		Children: []ns.Node{ns.Text{Content: glyph, Role: ns.RoleNone, MaxLines: 1, Style: ns.Style{FontSize: size * 10 / 18, FontWeight: ui.Bold, Color: ns.RGB(0xFFFFFF)}}}}

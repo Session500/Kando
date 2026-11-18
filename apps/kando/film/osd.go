@@ -2,12 +2,13 @@ package film
 
 import (
 	"kando/apps/kando/live"
+	"kando/apps/kando/theme"
 
 	"github.com/nsgo-dev/nsgo/core"
 )
 
 // osdGlass is the glass of the pill that says what the last action did.
-var osdGlass = glassSpec{fill: core.RGBA(0x1C1C20, 0.62), blur: 20, ring: 0.2, radius: 12}
+var osdGlass = glassSpec{theme.GlassBar, 12}
 
 // osd is the small glass pill at the top left of the picture that says what the last action did, as "−5 秒" or "字幕：双语", for a moment (the app takes the message away).
 func (s *screen) osd() core.Node {

@@ -119,8 +119,7 @@ const (
 	LightsRow ns.Points = 48
 )
 
-// cardShadow is the soft shadow under the card. Its face and its rings are the theme's card color, translucent, and its shade (theme.Of). On macOS the gutter around it is the page's ground, which the window paints (view.go); elsewhere it shows the window's material, and it stands in for it where the window shows none (a test, Linux, a window without one): the prototype's frosted strip.
-var cardShadow = ns.RGBA(0x1E325A, 0.08)
+// The card's face and its rings are the theme's card color, translucent, and its shade, and its shadow a card's (theme.Of, theme.ShadowCard). On macOS the gutter around it is the page's ground, which the window paints (view.go); elsewhere it shows the window's material, and it stands in for it where the window shows none (a test, Linux, a window without one): the prototype's frosted strip.
 
 // glassWash is how much white a view of the card's own lays over the glass in the light. The glass takes on the colors of the desktop behind the window, a cyan-to-green gradient over a blue wallpaper, and the card's background cannot tone it down, as NSGo draws it under the glass; at 70% the panel reads as the near-white of Finder's sidebar and keeps the glass's rim.
 const glassWash = 0.7
@@ -144,7 +143,7 @@ func (v View) Render(cx *ns.Scope) ns.Node {
 		Style: ns.Style{FlexGrow: 1, FlexShrink: 1, MinHeight: ns.Pt(0), AlignItems: ns.AlignStretch, CornerRadius: theme.RadiiOf(cx).Card},
 		StyleFunc: func() ns.Style {
 			s := ns.Style{Background: k.Card().Faded(0.42),
-				Shadows: []ns.BoxShadow{{Spread: 0.5, Color: k.Card().Faded(0.85), Inset: true}, {Spread: 0.5, Color: k.Shade(0.06)}, {Offset: ns.Point{Y: 4}, Blur: 14, Color: cardShadow}}}
+				Shadows: []ns.BoxShadow{{Spread: 0.5, Color: k.Card().Faded(0.85), Inset: true}, {Spread: 0.5, Color: k.Shade(0.06)}, theme.ShadowCard}}
 			switch {
 			case floats(cx) && cx.Dark():
 				s.Background = k.Card()

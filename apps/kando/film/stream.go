@@ -4,6 +4,7 @@ import (
 	"kando/apps/kando/films/sitename"
 	"kando/apps/kando/live"
 	"kando/apps/kando/locales"
+	"kando/apps/kando/theme"
 	kcore "kando/packages/core"
 
 	"github.com/nsgo-dev/nsgo/base"
@@ -52,7 +53,7 @@ func siteName(cx *core.Scope, source string) string {
 }
 
 // streamGlass is the glass of the card over the picture of a film that does not stream, as the prototype's offline card.
-var streamGlass = glassSpec{fill: core.RGBA(0x1C1C20, 0.86), blur: 28, ring: 0.2, radius: 18}
+var streamGlass = glassSpec{theme.GlassCard, 18}
 
 // streamCard is the card over the picture of a film that keeps no video and does not stream now (StreamErr): offline mode is on, its video cannot stream here, or the stream failed. It says why and offers what plays it: turning offline mode off, looking the stream up again, or downloading the video, which says it is scheduled once it is (Item.VideoComing).
 func (s *screen) streamCard() core.Node {

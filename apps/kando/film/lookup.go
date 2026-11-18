@@ -3,6 +3,7 @@ package film
 import (
 	"kando/apps/kando/live"
 	"kando/apps/kando/locales"
+	"kando/apps/kando/theme"
 
 	"github.com/nsgo-dev/nsgo/base"
 	"github.com/nsgo-dev/nsgo/core"
@@ -10,7 +11,7 @@ import (
 )
 
 // lookupGlass is the glass of the card of a word looked up, as the selection bar's.
-var lookupGlass = glassSpec{fill: core.RGBA(0x1C1C20, 0.86), blur: 24, ring: 0.2, radius: 16}
+var lookupGlass = glassSpec{theme.GlassCard, 16}
 
 // lookupCard is the card of the word looked up on the picture (App.Lookup), under the title bar in the middle of the room the side panel leaves, clear of the lines it was clicked in: the word, how it is read and the × that closes it, what it means in the line, or that the AI service is asked, or why no meaning came, and the line itself; then Add to Vocabulary, In Vocabulary once it is there, which takes it out again, and Explain Line, or Open Settings when no AI service can answer. Escape closes it.
 func (s *screen) lookupCard() core.Node {

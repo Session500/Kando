@@ -46,13 +46,6 @@ const (
 )
 
 var (
-	// scrim dims the window under the sheet.
-	scrim = core.RGBA(0x000000, 0.25)
-	// glassTint is the dark glass's color over what the blur shows through.
-	glassTint = core.RGBA(0x1C1C20, 0.86)
-	// rim is the glass's hairline edge, and shadow the shadow it casts.
-	rim    = core.RGBA(0xFFFFFF, 0.2)
-	shadow = core.RGBA(0x000000, 0.5)
 	// ink is the sheet's text, and closeFill the close button's round plate.
 	ink       = core.RGB(0xFFFFFF)
 	closeFill = core.RGBA(0xFFFFFF, 0.12)
@@ -86,12 +79,12 @@ func (s Sheet) Render(cx *core.Scope) core.Node {
 		},
 		Label:         locales.CheatsheetTitle(cx),
 		TestID:        "cheatsheet",
-		BackdropStyle: core.Style{Background: scrim},
+		BackdropStyle: core.Style{Background: theme.Scrim},
 		LayerStyle:    core.Style{JustifyContent: core.JustifyStart, Padding: core.Edges{Top: sheetTop}},
 		PopupStyleFunc: func() core.Style {
 			window := cx.Env().Window()
 			return core.Style{Width: core.Pt(sheetFits(window.Width)), MaxHeight: core.Pt(max(0, window.Height-2*sheetTop)), CornerRadius: sheetRadius,
-				BackdropFilters: []core.Filter{core.Blur(36)}, Shadows: []core.BoxShadow{{Offset: core.Point{Y: 30}, Blur: 80, Color: shadow}}}
+				BackdropFilters: []core.Filter{core.Blur(theme.GlassSheet.Blur)}, Shadows: []core.BoxShadow{theme.ShadowDialog}}
 		},
 		Children: []core.Node{panel{groups: s.Groups, close: closeSheet}},
 	}
@@ -141,8 +134,8 @@ func (p panel) Render(cx *core.Scope) core.Node {
 			return nodes
 		})}}
 	return core.View{
-		Style: core.Style{FlexGrow: 1, FlexShrink: 1, MinHeight: core.Pt(0), Overflow: core.Hidden, CornerRadius: sheetRadius, Background: glassTint,
-			Shadows: []core.BoxShadow{{Spread: 0.5, Color: rim, Inset: true}}, Color: ink,
+		Style: core.Style{FlexGrow: 1, FlexShrink: 1, MinHeight: core.Pt(0), Overflow: core.Hidden, CornerRadius: sheetRadius, Background: theme.GlassSheet.Fill,
+			Shadows: []core.BoxShadow{theme.GlassSheet.Rim()}, Color: ink,
 			Padding: core.Edges{Top: sheetPadTop, Right: sheetPadX, Bottom: sheetPadBot, Left: sheetPadX}},
 		Children: []core.Node{header, core.Scroll{Style: core.Style{FlexShrink: 1, MinHeight: core.Pt(0)}, Children: []core.Node{grid}}},
 	}

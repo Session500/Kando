@@ -32,7 +32,7 @@ func pill(k theme.Colors) ns.Style {
 	return ns.Style{Background: k.Card().Faded(0.75), BorderColor: k.Shade(0.12), Shadows: pillShadow}
 }
 
-var pillShadow = []ns.BoxShadow{{Offset: ns.Point{Y: 2}, Blur: 8, Color: ns.RGBA(0x000000, 0.06)}}
+var pillShadow = []ns.BoxShadow{theme.ShadowRaised}
 
 // topBar is the bar along the top of the library: the source being shown, the link field, 浏览网站, which opens the built-in browser to find a video in, 本地视频 and 开始处理. Enter in the field adds the link as 开始处理 does. It lies over the page's scroll view, which scrolls under it, and drags the window. It takes the prototype's toolbar: 65 points high, its controls 10 from its top and 14 from its end, and its title 24 from its start at 15 points; on macOS the sidebar holds the traffic lights, so none of its room is the window controls', and elsewhere it keeps clear of those at its end and is at least as tall as the title bar.
 type topBar struct {

@@ -5,6 +5,7 @@ import (
 
 	"kando/apps/kando/live"
 	"kando/apps/kando/locales"
+	"kando/apps/kando/theme"
 
 	"github.com/nsgo-dev/nsgo/base"
 	"github.com/nsgo-dev/nsgo/core"
@@ -64,7 +65,7 @@ type Spread struct {
 const nudgeStep = 100 * time.Millisecond
 
 // correctGlass is the glass of the selection bar and of the fields that edit a line (prototype template 609, 631).
-var correctGlass = glassSpec{fill: core.RGBA(0x1C1C20, 0.8), blur: 24, ring: 0.2, radius: 16}
+var correctGlass = glassSpec{theme.GlassCard, 16}
 
 // LineClock is a time in a film as the subtitle list shows a line's start, with its tenth of a second ("0:10.4").
 func LineClock(d time.Duration) string { return cueClockTenths(d) }

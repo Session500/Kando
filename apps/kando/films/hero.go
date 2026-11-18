@@ -7,6 +7,7 @@ import (
 	"kando/apps/kando/desktop"
 	"kando/apps/kando/live"
 	"kando/apps/kando/locales"
+	"kando/apps/kando/theme"
 	"kando/packages/core"
 
 	"github.com/nsgo-dev/nsgo/base"
@@ -177,7 +178,7 @@ func (h hero) Render(cx *ns.Scope) ns.Node {
 		LabelFunc: func() string { return filmName(item()) },
 		OnPress:   live.On(a, func(ns.PressEvent) { a.Open(item()) }),
 		Style: ns.Style{CornerRadius: 18, Cursor: ns.CursorDefault,
-			Shadows: []ns.BoxShadow{{Offset: ns.Point{Y: 12}, Blur: 32, Color: ns.RGBA(0x000000, 0.16)}}, FocusVisible: ui.FocusRing(cx, 2)},
+			Shadows: []ns.BoxShadow{theme.ShadowLifted}, FocusVisible: ui.FocusRing(cx, 2)},
 		StyleFunc: func() ns.Style {
 			height := heroHeight
 			if h.compact() {

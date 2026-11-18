@@ -5,6 +5,7 @@ import (
 
 	"kando/apps/kando/live"
 	"kando/apps/kando/locales"
+	"kando/apps/kando/theme"
 	"kando/packages/core"
 
 	"github.com/nsgo-dev/nsgo/base"
@@ -126,8 +127,7 @@ func (s *screen) scrubber(cx *ns.Scope) ns.Node {
 				return ns.Style{Left: ns.Pt(x)}
 			},
 			Children: []ns.Node{ns.View{
-				Style: ns.Style{FlexShrink: 0, MaxWidth: ns.Pt(280), Gap: 2, Padding: ns.Symmetric(7, 10), CornerRadius: 10, Background: ns.RGBA(0x1C1C20, 0.9),
-					Shadows: []ns.BoxShadow{{Spread: 0.5, Color: ns.RGBA(0xFFFFFF, 0.2), Inset: true}, {Offset: ns.Point{Y: 8}, Blur: 24, Color: ns.RGBA(0x000000, 0.35)}}},
+				Style: theme.GlassTip.Floating(10).Merge(ns.Style{FlexShrink: 0, MaxWidth: ns.Pt(280), Gap: 2, Padding: ns.Symmetric(7, 10)}),
 				Children: []ns.Node{
 					ns.Text{TestID: "film-scrub-time", ContentFunc: func() string { _, when := where(); return cueClock(when) },
 						Style: ns.Style{FontSize: 12, LineHeight: 16, FontWeight: ns.FontWeightBold, FontVariant: ns.FontTabularNums, Color: onGlass}},

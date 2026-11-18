@@ -6,6 +6,7 @@ import (
 
 	"kando/apps/kando/live"
 	"kando/apps/kando/locales"
+	"kando/apps/kando/theme"
 
 	"github.com/nsgo-dev/nsgo/base"
 	"github.com/nsgo-dev/nsgo/core"
@@ -40,7 +41,7 @@ type RecapItem struct {
 }
 
 // recapGlass is the card's glass (design Main 674: rgba(28,28,32,0.82), blur 28, radius 18).
-var recapGlass = glassSpec{fill: core.RGBA(0x1C1C20, 0.82), blur: 28, ring: 0.2, radius: 18}
+var recapGlass = glassSpec{theme.GlassCard, 18}
 
 // recapCard is the 前情提要 card over the top left of the picture while the film opened held where it stopped last time (App.Recap): 上次看到 with the × that closes it, 前情 and its items, each playing from its moment at a click, or that they are being summed up; then 从 X 继续 and 从头看, and the footnote saying what made the items. Escape closes it.
 func (s *screen) recapCard() core.Node {
@@ -92,8 +93,7 @@ func (s *screen) recapCard() core.Node {
 			return core.Text{TestID: "film-recap-note", ContentFunc: func() string { return r().Note(cx) }, Style: core.Style{FontSize: 11, LineHeight: 15, Color: core.RGBA(0xFFFFFF, 0.5)}}
 		}}
 		card := core.View{TestID: "film-recap", Role: core.RoleGroup, LabelFunc: func() string { return locales.RecapCard(cx) },
-			Style: recapGlass.style().Merge(core.Style{Width: core.Pct(100), MaxWidth: core.Pt(400), Gap: 8, Padding: core.Symmetric(14, 16),
-				Shadows: append(recapGlass.style().Shadows, core.BoxShadow{Offset: core.Point{Y: 18}, Blur: 46, Color: core.RGBA(0x000000, 0.4)})}),
+			Style: recapGlass.floating().Merge(core.Style{Width: core.Pct(100), MaxWidth: core.Pt(400), Gap: 8, Padding: core.Symmetric(14, 16)}),
 			Children: []core.Node{
 				head,
 				core.Text{ContentFunc: func() string { return locales.RecapHeading(cx) }, Style: core.Style{FontSize: 11, LineHeight: 14, FontWeight: core.FontWeightBold, Color: muted}},

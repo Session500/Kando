@@ -97,10 +97,10 @@ func sectionTitle(cx *core.Scope, title, note func() string) core.Node {
 	}}
 }
 
-// The poster's shadows at rest and while the pointer is over it, when it lifts toward the pointer. Its face before the picture is there is the theme's thumb, and its hairline the shade (theme.Of).
+// The poster's shadows at rest, a card's, and while the pointer is over it, when it lifts toward the pointer. Its face before the picture is there is the theme's thumb, and its hairline the shade (theme.Of).
 var (
-	posterShadow = []core.BoxShadow{{Offset: core.Point{Y: 4}, Blur: 12, Color: core.RGBA(0x000000, 0.12)}}
-	posterLifted = []core.BoxShadow{{Offset: core.Point{Y: 14}, Blur: 30, Color: core.RGBA(0x000000, 0.22)}}
+	posterShadow = []core.BoxShadow{theme.ShadowCard}
+	posterLifted = []core.BoxShadow{theme.ShadowLifted}
 )
 
 // doneCard is a film in the grid: the poster opens it where it stopped last time, a ⌘-click selects it or leaves it out and a ⇧-click selects the films from the one selected last to it (pressPoster), the selected ones ringed in the accent color; and ⋯ and a right click offer the selection's menu on one of several selected (menuOf), else 播放, 从头播放 for a film stopped partway, 标记为已看完 or 标记为未看 (watchMenu), 在访达中显示, 重命名…, 重新处理, 重新翻译 and 从资料库移除, and 补译未译的句子 for a film whose translation left lines untranslated, which also has that button under its line. A video found in the folder without subtitles has 生成字幕 under its line and in place of 重新处理 (needsSubtitles).

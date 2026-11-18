@@ -5,12 +5,13 @@ import (
 
 	"kando/apps/kando/live"
 	"kando/apps/kando/locales"
+	"kando/apps/kando/theme"
 
 	"github.com/nsgo-dev/nsgo/core"
 )
 
 // transportGlass is the glass of the capsule along the bottom of the picture.
-var transportGlass = glassSpec{fill: core.RGBA(0x1E1E22, 0.5), blur: 28, ring: 0.22, radius: 24}
+var transportGlass = glassSpec{theme.GlassBar, 24}
 
 // transport is the glass capsule along the bottom of the picture: back and forward 5 seconds, play or hold, the time played, the scrubber, the time left, the volume, the speed, the line loop, Pause After Each Line, the subtitle mode, the side panel and full screen. It shows once a video is opening and fades with the title bar.
 func (s *screen) transport() core.Node {
@@ -37,9 +38,8 @@ func (s *screen) transport() core.Node {
 		return core.View{
 			TestID:    "film-transport",
 			OnFocusIn: focusIn, OnFocusOut: focusOut,
-			Style: transportGlass.style().Merge(core.Style{Position: core.Absolute, Left: core.Pt(20), Bottom: core.Pt(18), Direction: core.Row, Gap: 10,
-				Padding: core.Edges{Top: 8, Right: 10, Bottom: 8, Left: 12}, AlignItems: core.AlignCenter}).
-				Merge(core.Style{Shadows: append(transportGlass.style().Shadows, core.BoxShadow{Offset: core.Point{Y: 10}, Blur: 30, Color: core.RGBA(0x000000, 0.3)})}),
+			Style: transportGlass.floating().Merge(core.Style{Position: core.Absolute, Left: core.Pt(20), Bottom: core.Pt(18), Direction: core.Row, Gap: 10,
+				Padding: core.Edges{Top: 8, Right: 10, Bottom: 8, Left: 12}, AlignItems: core.AlignCenter}),
 			StyleFunc: func() core.Style {
 				st := s.faded()
 				st.Right = core.Pt(20)

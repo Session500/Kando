@@ -4,6 +4,7 @@ import (
 	"kando/apps/kando/live"
 	"kando/apps/kando/locales"
 	"kando/apps/kando/settings/sectionid"
+	"kando/apps/kando/theme"
 
 	"github.com/nsgo-dev/nsgo/core"
 	"github.com/nsgo-dev/nsgo/ui"
@@ -19,7 +20,7 @@ var uploadDots = map[string]core.Color{
 }
 
 // uploadGlass is the capsule's glass.
-var uploadGlass = glassSpec{fill: core.RGBA(0x1E1E22, 0.72), blur: 24, ring: 0.2, radius: 18}
+var uploadGlass = glassSpec{theme.GlassCard, 18}
 
 // uploadCapsule says how the film's upload goes, under the title bar: while it runs with a bar of its progress and a button that cancels it, then whether it worked or was canceled, or, when the upload button found nowhere to upload, why and a button to 账号 to fix it. It shows while an upload of this film runs, and after the upload button was clicked until closed; the close button only hides it and leaves an upload running. It is centered in the room the side panel leaves, as the big play button is: over the whole width, a wide capsule in a narrow window reached under the panel, which hid its close button.
 func (s *screen) uploadCapsule() core.Node {
