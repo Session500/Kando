@@ -21,7 +21,7 @@ func (dropZone) Render(cx *core.Scope) core.Node {
 			Shadows: []core.BoxShadow{{Offset: core.Point{Y: 10}, Blur: 30, Color: core.RGBA(0x0A3C8C, 0.18)}}},
 		StyleFunc: func() core.Style { return core.Style{Background: colors.Background().Faded(0.92)} },
 		Children: []core.Node{
-			ui.Icon(svg(dropIcon), 34, colors.Accent),
+			ui.Icon(svg(dropIcon), 34, theme.Of(cx).Glyph),
 			core.Text{ContentFunc: func() string { return locales.FilmsDropTitle(cx) }, Style: core.Style{FontSize: 15, FontWeight: ui.Bold}, StyleFunc: ui.Colored(accentInk)},
 			core.Text{ContentFunc: func() string { return locales.FilmsDropHint(cx) }, Style: core.Style{FontSize: 12}, StyleFunc: ui.Colored(colors.Muted)},
 		},

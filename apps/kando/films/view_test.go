@@ -1038,7 +1038,7 @@ func startThemed(t *testing.T, a *fakeApp, env ns.Environment) (*nsgotest.App, *
 	return app, k
 }
 
-// TestEmptyLibraryArtFollowsTheAppearance checks that the play tile over an empty library is the theme's tile in both appearances, a step off the dark page rather than a near-white square on it, with its glyph in the accent.
+// TestEmptyLibraryArtFollowsTheAppearance checks that the play tile over an empty library is the theme's tile in both appearances, a step off the dark page rather than a near-white square on it, with its glyph in the accent's glyph color for the dark (theme.Of's Glyph).
 func TestEmptyLibraryArtFollowsTheAppearance(t *testing.T) {
 	a := newFakeApp()
 	a.items = nil
@@ -1061,8 +1061,8 @@ func TestEmptyLibraryArtFollowsTheAppearance(t *testing.T) {
 		if op.Color == 0 {
 			continue
 		}
-		if inked++; ns.Color(op.Color) != theme.Accent {
-			t.Fatalf("the glyph is drawn in %#x, want the accent %#x", uint32(op.Color), uint32(theme.Accent))
+		if inked++; ns.Color(op.Color) != k.Glyph() {
+			t.Fatalf("the glyph is drawn in %#x, want the accent's glyph color %#x", uint32(op.Color), uint32(k.Glyph()))
 		}
 	}
 	if inked == 0 {

@@ -46,7 +46,7 @@ func (l languages) Render(cx *core.Scope) core.Node {
 	return core.Show{When: func() bool { return len(rows.Get()) > 0 }, Then: func(cx *core.Scope) core.Node {
 		return core.View{
 			// The list takes the room its rows need, under the sources, and scrolls when the sidebar is too short for it.
-			Style: core.Style{FlexShrink: 1, MinHeight: core.Pt(0), Padding: core.Edges{Right: insetEnd, Left: insetStart}},
+			Style: core.Style{FlexShrink: 1, MinHeight: core.Pt(0), Padding: core.Symmetric(0, inset)},
 			Children: []core.Node{ui.Sidebar{
 				TestID: "sidebar-languages",
 				SectionsFunc: func() []ui.SidebarSection {
@@ -85,7 +85,7 @@ func languageContent(colors ui.Colors, k theme.Colors, r languageRow) core.Node 
 	label := ui.Text(r.label, 13, ui.Regular, colors.Text)
 	label.MaxLines, label.Style.FlexGrow, label.Style.FlexShrink = 1, 1, 1
 	if r.code == SpokenAll {
-		return core.Group{ui.Icon(svg(iconLanguages), 16, colors.Accent), label}
+		return core.Group{ui.Icon(svg(iconLanguages), 16, k.Glyph), label}
 	}
 	tag := ui.Text(strings.ToUpper(r.code), 9, ui.Bold, k.AccentInk)
 	tag.MaxLines, tag.Style.TextAlign = 1, core.TextAlignCenter

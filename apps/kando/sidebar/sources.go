@@ -5,6 +5,7 @@ import (
 
 	"kando/apps/kando/live"
 	"kando/apps/kando/locales"
+	"kando/apps/kando/theme"
 
 	"github.com/nsgo-dev/nsgo/core"
 	"github.com/nsgo-dev/nsgo/ui"
@@ -45,14 +46,14 @@ func (s sources) Render(cx *core.Scope) core.Node {
 	})
 	colors := ui.ColorsOf(cx)
 	return core.View{
-		Style: core.Style{FlexShrink: 1, MinHeight: core.Pt(0), Padding: core.Edges{Right: insetEnd, Left: insetStart}},
+		Style: core.Style{FlexShrink: 1, MinHeight: core.Pt(0), Padding: core.Symmetric(0, inset)},
 		Children: []core.Node{ui.Sidebar{
 			TestID: "sidebar-sources",
 			SectionsFunc: func() []ui.SidebarSection {
 				list := rows.Get()
 				items := make([]ui.SidebarItem, list.n)
 				for i, r := range list.rows[:list.n] {
-					items[i] = ui.SidebarItem{ID: r.id, Text: rowName(cx, r.label, r.count, r.counted), TestID: "source-" + r.id, Content: sourceContent(colors, r)}
+					items[i] = ui.SidebarItem{ID: r.id, Text: rowName(cx, r.label, r.count, r.counted), TestID: "source-" + r.id, Content: sourceContent(colors, theme.Of(cx).Glyph, r)}
 				}
 				return []ui.SidebarSection{{Items: items}}
 			},
@@ -110,10 +111,10 @@ func rowName(cx *core.Scope, label string, count int, counted bool) string {
 }
 
 // sourceContent is a row's icon, label and count, as ui.Sidebar draws an item's icon and label, with the count at its end.
-func sourceContent(colors ui.Colors, r sourceRow) core.Node {
+func sourceContent(colors ui.Colors, glyph func() core.Color, r sourceRow) core.Node {
 	label := ui.Text(r.label, 13, ui.Regular, colors.Text)
 	label.MaxLines, label.Style.FlexGrow, label.Style.FlexShrink = 1, 1, 1
-	children := []core.Node{ui.Icon(r.icon, 16, colors.Accent), label}
+	children := []core.Node{ui.Icon(r.icon, 16, glyph), label}
 	if r.counted {
 		count := ui.Tabular(ui.Text(strconv.Itoa(r.count), 12, ui.Regular, colors.Muted))
 		count.TestID, count.Style.FlexShrink = "count-"+r.id, 0

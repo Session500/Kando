@@ -5,6 +5,7 @@ import (
 
 	"kando/apps/kando/live"
 	"kando/apps/kando/locales"
+	"kando/apps/kando/theme"
 
 	"github.com/nsgo-dev/nsgo/core"
 	"github.com/nsgo-dev/nsgo/icons/lucide"
@@ -65,14 +66,14 @@ func (w watched) Render(cx *core.Scope) core.Node {
 	return core.Show{When: shown, Then: func(cx *core.Scope) core.Node {
 		return core.View{
 			// The list takes the room its rows need, under the languages, and scrolls when the sidebar is too short for it.
-			Style: core.Style{FlexShrink: 1, MinHeight: core.Pt(0), Padding: core.Edges{Right: insetEnd, Left: insetStart}},
+			Style: core.Style{FlexShrink: 1, MinHeight: core.Pt(0), Padding: core.Symmetric(0, inset)},
 			Children: []core.Node{ui.Sidebar{
 				TestID: "sidebar-watched",
 				SectionsFunc: func() []ui.SidebarSection {
 					list := rows.Get()
 					items := make([]ui.SidebarItem, len(list))
 					for i, r := range list {
-						items[i] = ui.SidebarItem{ID: r.state, Text: rowName(cx, r.label, r.count, r.state != WatchAll), TestID: "watch-" + r.state, Content: watchContent(colors, r)}
+						items[i] = ui.SidebarItem{ID: r.state, Text: rowName(cx, r.label, r.count, r.state != WatchAll), TestID: "watch-" + r.state, Content: watchContent(colors, theme.Of(cx).Glyph, r)}
 					}
 					return []ui.SidebarSection{{Title: locales.SidebarWatched(cx), Items: items}}
 				},
@@ -123,10 +124,10 @@ func watchIcon(state string) func() *core.SVG {
 }
 
 // watchContent is a row's mark, label and count, as sourceContent draws a source's; 全部 has no count.
-func watchContent(colors ui.Colors, r watchRow) core.Node {
+func watchContent(colors ui.Colors, glyph func() core.Color, r watchRow) core.Node {
 	label := ui.Text(r.label, 13, ui.Regular, colors.Text)
 	label.MaxLines, label.Style.FlexGrow, label.Style.FlexShrink = 1, 1, 1
-	children := []core.Node{ui.Icon(watchIcon(r.state), 16, colors.Accent), label}
+	children := []core.Node{ui.Icon(watchIcon(r.state), 16, glyph), label}
 	if r.state != WatchAll {
 		count := ui.Tabular(ui.Text(strconv.Itoa(r.count), 12, ui.Regular, colors.Muted))
 		count.TestID, count.Style.FlexShrink = "watch-count-"+r.state, 0

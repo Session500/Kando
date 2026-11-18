@@ -51,7 +51,7 @@ func (s switcher) Render(cx *core.Scope) core.Node {
 	press := func(core.PressEvent) {
 		at := core.Point{}
 		if b, ok := place.Bounds(); ok {
-			at = core.Point{X: b.Origin.X + insetStart + listPad, Y: b.Origin.Y + b.Size.Height - 10 + 4}
+			at = core.Point{X: b.Origin.X + inset + listPad, Y: b.Origin.Y + b.Size.Height - 10 + 4}
 		}
 		open.Set(true)
 		nsdesktop.PopupMenu(cx, switcherMenu(cx, a), at, func() { open.Set(false) })

@@ -10,6 +10,7 @@ const (
 	roleShade       = "kandoShade"
 	roleCard        = "kandoCard"
 	roleCardHover   = "kandoCardHover"
+	roleGlyph       = "kandoGlyph"
 	roleWindow      = "kandoWindow"
 	rolePanel       = "kandoPanel"
 	roleRail        = "kandoRail"
@@ -38,6 +39,7 @@ var lightRoles = map[string]core.Color{
 	roleShade:       core.RGB(0x000000),
 	roleCard:        core.RGB(0xFFFFFF),
 	roleCardHover:   core.RGB(0xFAFAFC),
+	roleGlyph:       Accent,
 	roleWindow:      core.RGB(0xF5F5F7),
 	rolePanel:       core.RGB(0xF5F5F7),
 	roleRail:        core.RGBA(0xECECF0, 0.92),
@@ -61,11 +63,15 @@ var lightRoles = map[string]core.Color{
 	roleOKText:      core.RGB(0x14532D),
 }
 
+// darkText is the text of NSGo's dark page, which the dark message bars' text is over their faint wash.
+var darkText = core.DefaultTheme().Dark.Text
+
 // darkRoles are the same roles over NSGo's dark page (#1F1F1F): the hairlines and washes white where they are black on the light page, the cards a step lighter than the page, the settings window a step darker than its cards, and the inks lighter so they read on the dark.
 var darkRoles = map[string]core.Color{
 	roleShade:       core.RGB(0xFFFFFF),
 	roleCard:        core.RGB(0x2C2C2E),
 	roleCardHover:   core.RGB(0x343437),
+	roleGlyph:       core.RGB(0x0A84FF),
 	roleWindow:      core.RGB(0x1C1C1E),
 	rolePanel:       core.RGB(0x2A2A2C),
 	roleRail:        core.RGBA(0x2A2A2C, 0.92),
@@ -81,12 +87,12 @@ var darkRoles = map[string]core.Color{
 	roleWarnInk:     core.RGB(0xFFA94D),
 	roleOnWarn:      core.RGB(0x1F1F1F),
 	roleRetryInk:    core.RGB(0xFFA94D),
-	roleWarnFill:    core.RGB(0x3A2F14),
-	roleWarnRing:    core.RGBA(0xFFB340, 0.30),
-	roleWarnText:    core.RGB(0xFFD98A),
-	roleOKFill:      core.RGB(0x163221),
-	roleOKRing:      core.RGBA(0x4CD07A, 0.30),
-	roleOKText:      core.RGB(0xA3E6B8),
+	roleWarnFill:    core.RGBA(0xFFB340, 0.10),
+	roleWarnRing:    core.RGBA(0xFFB340, 0.24),
+	roleWarnText:    darkText,
+	roleOKFill:      core.RGBA(0x4CD07A, 0.10),
+	roleOKRing:      core.RGBA(0x4CD07A, 0.24),
+	roleOKText:      darkText,
 }
 
 // Colors are Kando's own roles where a component is, as ui.Colors are NSGo's: each reads the palette of the component's subtree, so a StyleFunc or a ui.Colored that calls one follows the appearance as it changes. The methods are funcs of no arguments, so they go where ui takes a func() core.Color.
@@ -103,6 +109,9 @@ func (c Colors) Shade(alpha float32) core.Color { return ui.Alpha(c.role(roleSha
 // Card is a card's face on the page or the window: white, or a step lighter than the dark page. A translucent one (Card().Faded) is the frosted pills and the sidebar's card. CardHover is a pressable card under the pointer.
 func (c Colors) Card() core.Color      { return c.role(roleCard) }
 func (c Colors) CardHover() core.Color { return c.role(roleCardHover) }
+
+// Glyph is the accent's color for an icon or mark on the page, as a sidebar row's, the drop zone's and a watched film's check and an empty library's play mark: Kando's blue on the light page; on the dark one Apple's lighter blue for the dark (systemBlue), as Kando's blue is too deep to stand out from the dark there.
+func (c Colors) Glyph() core.Color { return c.role(roleGlyph) }
 
 // Window is the settings window's and the onboarding sheet's ground under their cards; Panel a card a step off the page, as a processing job's; Rail the settings window's sidebar; Gutter the main window's sidebar where the window shows no material.
 func (c Colors) Window() core.Color { return c.role(roleWindow) }
@@ -131,7 +140,7 @@ func (c Colors) RetryInk() core.Color   { return c.role(roleRetryInk) }
 // OnWarn is text on WarnInk used as a fill, as a warning badge's mark: white on the light window's dark orange, dark on the dark window's light orange.
 func (c Colors) OnWarn() core.Color { return c.role(roleOnWarn) }
 
-// The library's message bar, amber for a warning and green for news that something worked: its fill, its hairline and its text.
+// The library's message bar, amber for a warning and green for news that something worked: its fill, its hairline and its text. On the dark page the fill is a faint wash of the color over the page and the text the page's own, as Slack's and Linear's dark banners are: an opaque olive or dark green under tinted text read as muddy there. The mark keeps the color.
 func (c Colors) WarnFill() core.Color { return c.role(roleWarnFill) }
 func (c Colors) WarnRing() core.Color { return c.role(roleWarnRing) }
 func (c Colors) WarnText() core.Color { return c.role(roleWarnText) }
