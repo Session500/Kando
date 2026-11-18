@@ -158,6 +158,7 @@ func (r toolRow) Render(cx *core.Scope) core.Node {
 					{Value: copyOwn, Label: locales.SettingsGeneralToolOwn(cx)},
 					{Value: copyComputer, Label: locales.SettingsGeneralToolComputer(cx, a.DisplayPath(other.Get()))},
 				}
+				// TODO(nsgo#721): a select's Style reaches only the view around its field, which keeps 28 pt and 13 pt type beside the 11 pt line; once Kando's NSGo has the fix, give it Height: core.Pt(ui.SizeSmall.Height()) and FontSize: 12. https://github.com/nsgo-dev/nsgo/issues/721
 				return ui.Select[string]{Options: options, Label: locales.SettingsGeneralToolCopy(cx, r.name), TestID: "settings-tool-copy-" + r.name,
 					Value: live.Func(a, func() string {
 						if health().Own {
