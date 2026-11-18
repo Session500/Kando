@@ -633,6 +633,7 @@ var Parameters = map[string][]string{
 	"PaletteJumpTo":                            {"time_"},
 	"PaletteLibrarySaveFailed":                 {"error_"},
 	"PaletteSettingsSection":                   {"section"},
+	"PaletteSubmenuItem":                       {"menu", "item"},
 	"PaletteSubtitleMode":                      {"mode"},
 	"PaletteSwitchTo":                          {"mode"},
 	"PhoneSyncLinkAsk":                         {"device"},
@@ -1032,6 +1033,7 @@ type Translation struct {
 	PaletteJumpTo                            func(time_ string) string
 	PaletteLibrarySaveFailed                 func(error_ string) string
 	PaletteSettingsSection                   func(section string) string
+	PaletteSubmenuItem                       func(menu string, item string) string
 	PaletteSubtitleMode                      func(mode string) string
 	PaletteSwitchTo                          func(mode string) string
 	PhoneSyncLinkAsk                         func(device string) string
@@ -1312,6 +1314,11 @@ const (
 	textCheatsheetSubtitlesShowHide
 	textCheatsheetTitle
 	textCheatsheetVolume
+	textChromeClose
+	textChromeMaximize
+	textChromeMinimize
+	textChromeRestore
+	textChromeSearch
 	textCloudSignedIn
 	textCloudSignedInTitle
 	textCorrectBar
@@ -2494,6 +2501,11 @@ var keyOfText = [numTexts]string{
 	"cheatsheetSubtitlesShowHide",
 	"cheatsheetTitle",
 	"cheatsheetVolume",
+	"chromeClose",
+	"chromeMaximize",
+	"chromeMinimize",
+	"chromeRestore",
+	"chromeSearch",
 	"cloudSignedIn",
 	"cloudSignedInTitle",
 	"correctBar",
@@ -3674,6 +3686,11 @@ var textsEn = i18n.NewTexts(""+
 	"Show / Hide"+
 	"Keyboard Shortcuts"+
 	"Volume Up / Down"+
+	"Close"+
+	"Maximize"+
+	"Minimize"+
+	"Restore"+
+	"Search commands and lines"+
 	"Signed in. You can close this page."+
 	"Kando"+
 	"Correct Line"+
@@ -4851,6 +4868,11 @@ var textsEn = i18n.NewTexts(""+
 		11,
 		18,
 		16,
+		5,
+		8,
+		8,
+		7,
+		25,
 		35,
 		5,
 		12,
@@ -6031,6 +6053,11 @@ var textsJa = i18n.NewTexts(""+
 	"表示 / 非表示"+
 	"キーボードショートカット"+
 	"音量を上げる / 下げる"+
+	"閉じる"+
+	"最大化"+
+	"最小化"+
+	"元のサイズに戻す"+
+	"コマンドとセリフを検索"+
 	"ログインしました。このページは閉じてかまいません。"+
 	"Kando"+
 	"セリフの修正"+
@@ -7208,6 +7235,11 @@ var textsJa = i18n.NewTexts(""+
 		18,
 		36,
 		30,
+		9,
+		9,
+		9,
+		24,
+		33,
 		75,
 		5,
 		18,
@@ -8388,6 +8420,11 @@ var textsKo = i18n.NewTexts(""+
 	"보기 / 가리기"+
 	"단축키"+
 	"음량 높이기 / 낮추기"+
+	"닫기"+
+	"최대화"+
+	"최소화"+
+	"이전 크기로 복원"+
+	"명령과 대사 검색"+
 	"로그인했습니다. 이 페이지를 닫아도 됩니다."+
 	"Kando"+
 	"대사 수정"+
@@ -9565,6 +9602,11 @@ var textsKo = i18n.NewTexts(""+
 		18,
 		9,
 		28,
+		6,
+		9,
+		9,
+		23,
+		23,
 		60,
 		5,
 		13,
@@ -10745,6 +10787,11 @@ var textsZhHans = i18n.NewTexts(""+
 	"显示 / 隐藏"+
 	"快捷键"+
 	"音量加大 / 减小"+
+	"关闭"+
+	"最大化"+
+	"最小化"+
+	"还原"+
+	"搜索命令和台词"+
 	"登录完成，可以关闭这个页面。"+
 	"看懂"+
 	"选句"+
@@ -11921,6 +11968,11 @@ var textsZhHans = i18n.NewTexts(""+
 		21,
 		15,
 		9,
+		21,
+		6,
+		9,
+		9,
+		6,
 		21,
 		42,
 		6,
@@ -13102,6 +13154,11 @@ var textsZhHant = i18n.NewTexts(""+
 	"顯示 / 隱藏"+
 	"快速鍵"+
 	"音量加大 / 減小"+
+	"關閉"+
+	"最大化"+
+	"最小化"+
+	"還原"+
+	"搜尋指令和台詞"+
 	"登入完成，可以關閉這個頁面。"+
 	"看懂"+
 	"選句"+
@@ -14278,6 +14335,11 @@ var textsZhHant = i18n.NewTexts(""+
 		21,
 		15,
 		9,
+		21,
+		6,
+		9,
+		9,
+		6,
 		21,
 		42,
 		6,
@@ -16049,6 +16111,9 @@ func Supply(lang string, t Translation) {
 	}
 	if t.PaletteSettingsSection != nil {
 		s.PaletteSettingsSection = t.PaletteSettingsSection
+	}
+	if t.PaletteSubmenuItem != nil {
+		s.PaletteSubmenuItem = t.PaletteSubmenuItem
 	}
 	if t.PaletteSubtitleMode != nil {
 		s.PaletteSubtitleMode = t.PaletteSubtitleMode
@@ -18072,6 +18137,51 @@ func CheatsheetVolume(cx *core.Scope) string { return For(cx).CheatsheetVolume()
 
 // CheatsheetVolume is the package's CheatsheetVolume in the language of msgs.
 func (msgs Messages) CheatsheetVolume() string { return msgs.text(textCheatsheetVolume) }
+
+// ChromeClose says "Close"
+// in the language the app shows under cx.
+//
+// Accessible name of the round close button at the right end of the window's header bar on Linux, which closes the window.
+func ChromeClose(cx *core.Scope) string { return For(cx).ChromeClose() }
+
+// ChromeClose is the package's ChromeClose in the language of msgs.
+func (msgs Messages) ChromeClose() string { return msgs.text(textChromeClose) }
+
+// ChromeMaximize says "Maximize"
+// in the language the app shows under cx.
+//
+// Accessible name of the round button in the window's header bar on Linux that maximizes the window, and the command palette's row that does so on Windows and Linux.
+func ChromeMaximize(cx *core.Scope) string { return For(cx).ChromeMaximize() }
+
+// ChromeMaximize is the package's ChromeMaximize in the language of msgs.
+func (msgs Messages) ChromeMaximize() string { return msgs.text(textChromeMaximize) }
+
+// ChromeMinimize says "Minimize"
+// in the language the app shows under cx.
+//
+// Accessible name of the round button in the window's header bar on Linux that minimizes the window.
+func ChromeMinimize(cx *core.Scope) string { return For(cx).ChromeMinimize() }
+
+// ChromeMinimize is the package's ChromeMinimize in the language of msgs.
+func (msgs Messages) ChromeMinimize() string { return msgs.text(textChromeMinimize) }
+
+// ChromeRestore says "Restore"
+// in the language the app shows under cx.
+//
+// Accessible name of the header bar's maximize button on Linux while the window is maximized, and the command palette's row that takes the window back to its size, as Windows names it.
+func ChromeRestore(cx *core.Scope) string { return For(cx).ChromeRestore() }
+
+// ChromeRestore is the package's ChromeRestore in the language of msgs.
+func (msgs Messages) ChromeRestore() string { return msgs.text(textChromeRestore) }
+
+// ChromeSearch says "Search commands and lines"
+// in the language the app shows under cx.
+//
+// Button in the window's title bar on Windows and Linux that opens the command palette, which finds commands, films and subtitle lines already watched. Its shortcut (Ctrl+K) shows after it.
+func ChromeSearch(cx *core.Scope) string { return For(cx).ChromeSearch() }
+
+// ChromeSearch is the package's ChromeSearch in the language of msgs.
+func (msgs Messages) ChromeSearch() string { return msgs.text(textChromeSearch) }
 
 // CloudSignedIn says "Signed in. You can close this page."
 // in the language the app shows under cx.
@@ -29011,6 +29121,38 @@ func (msgs Messages) PaletteSettingsSection(section string) string {
 			return "设置 › " + section
 		case "zh-Hant":
 			return "設定 › " + section
+		}
+	}
+}
+
+// PaletteSubmenuItem says "{menu} › {item}"
+// in the language the app shows under cx.
+//
+// Command palette command, where the app has no menu bar, for an item of a menu bar submenu such as Sort By › Name or Switch Library › a library's name.
+func PaletteSubmenuItem(cx *core.Scope, menu string, item string) string {
+	return For(cx).PaletteSubmenuItem(menu, item)
+}
+
+// PaletteSubmenuItem is the package's PaletteSubmenuItem in the language of msgs.
+func (msgs Messages) PaletteSubmenuItem(menu string, item string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.PaletteSubmenuItem(menu, item))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].PaletteSubmenuItem; f != nil {
+			return f(menu, item)
+		}
+		switch lang {
+		case "", "en":
+			return msgs.arg(menu) + " › " + msgs.arg(item)
+		case "ja":
+			return menu + " › " + item
+		case "ko":
+			return menu + " › " + item
+		case "zh-Hans":
+			return menu + " › " + item
+		case "zh-Hant":
+			return menu + " › " + item
 		}
 	}
 }
