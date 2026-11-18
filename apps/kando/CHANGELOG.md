@@ -2,6 +2,28 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.23.0 - 2026-11-18
+
+### Features
+
+- Encrypt a locked library's files on macOS (#199)
+- Mark films watched or unwatched, and filter the library by how far they were watched (#198)
+- Select several films and act on them at once (#200)
+- Correct lines, kept apart from the machine's subtitles, with undo (#234)
+- Design tokens, platform fonts and radii, and the sidebar's cards (#231)
+- Offline mode, with what each step sends over the network and a cache to clear (#233)
+- Follow channels, collections and playlists on the desktop (#235)
+- Protocol v2 with capabilities, jobs and events; phones send links to the desktop's queue (#230)
+- Keep saved lines in a shared study record with notes, built for sync (#228)
+- Take the site's own subtitles as the original lines, and choose the download quality (#232)
+- Status icon, keep running with the window closed, launch at login and pausing the queue (#229)
+
+### Fixes
+
+- Seed a new vault image so it detaches in seconds, and lighten its tests (#201)
+- Make vault images as before, and test them in a CI job of their own (#202)
+- Try a busy vault image again before giving up on detaching it (#203)
+
 ## 0.22.0 - 2026-11-18
 
 ### Features
