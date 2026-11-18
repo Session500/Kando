@@ -67,22 +67,17 @@ func Film(ctx context.Context, c *sync.Client, st *store.Store, f store.Film, pr
 	return f, st.SaveFilm(f)
 }
 
-// Follow brings f, a film kept on the phone, up to date with its desktop: when the desktop lists it as changed since the phone has it (sync.Film.Updated), as one translated again, or whose transcript was proofread, the phone takes the desktop's record and subtitles and keeps them, and Follow returns the film as it now stands and true. The video stays as it was downloaded, and so does its size in the record, which is the file's. A film the desktop lists in none of its libraries, or has not changed, is left as it is, with false; so is one whose desktop cannot be reached, with the error.
-func Follow(ctx context.Context, c *sync.Client, st *store.Store, f store.Film) (store.Film, bool, error) {
+// Follow asks f's desktop whether it changed f since the phone has it (sync.Film.Updated), as by translating it again or proofreading its transcript, and returns the desktop's record of it and its subtitles, and true, when it did. It keeps nothing: the caller merges the record into the phone's own, whose video and poster stay as they were downloaded, and keeps them. A film the desktop lists in none of its libraries, or has not changed, gives false; so does one whose desktop cannot be reached, with the error.
+func Follow(ctx context.Context, c *sync.Client, f store.Film) (sync.Film, []sync.Cue, bool, error) {
 	listed, ok, err := listedFilm(ctx, c, f.Film.ID)
 	if err != nil || !ok || !listed.Updated.After(f.Film.Updated) {
-		return f, false, err
+		return sync.Film{}, nil, false, err
 	}
 	cues, err := c.Subtitles(ctx, f.Film.ID)
 	if err != nil {
-		return f, false, err
+		return sync.Film{}, nil, false, err
 	}
-	if err := st.SaveCues(f.Desktop, f.Film.ID, cues); err != nil {
-		return f, false, err
-	}
-	listed.VideoSize, listed.Poster = f.Film.VideoSize, f.Film.Poster
-	f.Film = listed
-	return f, true, st.SaveFilm(f)
+	return listed, cues, true, nil
 }
 
 // listedFilm is film id as its desktop lists it, looked for in each of its libraries, as the phone keeps a film's library by the name it had, which may have changed since; false when no library lists it.

@@ -51,6 +51,7 @@ type Desktop struct {
 	libs    []sync.Library
 	films   []Film
 	stall   int64
+	held    chan struct{}
 	ranges  []string
 	modTime time.Time
 }
@@ -131,6 +132,25 @@ func (d *Desktop) Stall(after int64) {
 	d.stall = after
 }
 
+// Hold makes each libraries answer begun from now on wait until release is called or the phone gives up on it, as a desktop slow to answer does.
+func (d *Desktop) Hold() (release func()) {
+	held := make(chan struct{})
+	d.mu.Lock()
+	d.held = held
+	d.mu.Unlock()
+	var once gosync.Once
+	return func() {
+		once.Do(func() {
+			d.mu.Lock()
+			if d.held == held {
+				d.held = nil
+			}
+			d.mu.Unlock()
+			close(held)
+		})
+	}
+}
+
 // Ranges are the video requests' Range headers, oldest first, each with its If-Range after a space when it had one.
 func (d *Desktop) Ranges() []string {
 	d.mu.Lock()
@@ -200,7 +220,17 @@ func (d *Desktop) authed(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-func (d *Desktop) libraries(w http.ResponseWriter, _ *http.Request) {
+func (d *Desktop) libraries(w http.ResponseWriter, r *http.Request) {
+	d.mu.Lock()
+	held := d.held
+	d.mu.Unlock()
+	if held != nil {
+		select {
+		case <-held:
+		case <-r.Context().Done():
+			return
+		}
+	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	writeJSON(w, sync.Libraries{Libraries: slices.Clone(d.libs)})

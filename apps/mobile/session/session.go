@@ -106,7 +106,7 @@ type Session struct {
 	used      *core.Signal[int64]
 	jobs      map[string]*job
 	// following are the films Follow is bringing up to date, by key, so a film opened again meanwhile does not ask its desktop twice.
-	following map[string]bool
+	following map[string]*follow
 	clients   map[string]*sync.Client
 	// work counts the goroutines that read and write the store, which the session waits for as it goes, so none outlives it.
 	work  gosync.WaitGroup
@@ -132,6 +132,13 @@ type job struct {
 	paused, again bool
 }
 
+// follow is a check Follow runs on a goroutine of its own. Its fields belong to the engine's goroutine.
+type follow struct {
+	cancel context.CancelFunc
+	// changed are the calls to make once the film took its desktop's changes: one for each player that asked while the check ran.
+	changed []func()
+}
+
 // New is the session of the app under cx, which reads the store in cfg.Dir off the engine's goroutine: Loaded turns true once it has.
 func New(cx *core.Scope, cfg Config) *Session {
 	if cfg.Now == nil {
@@ -148,13 +155,16 @@ func New(cx *core.Scope, cfg Config) *Session {
 		transfers: core.NewSignalFunc(cx, map[string]Transfer{}, nil),
 		used:      core.NewSignal(cx, int64(0)),
 		jobs:      map[string]*job{},
-		following: map[string]bool{},
+		following: map[string]*follow{},
 		clients:   map[string]*sync.Client{},
 		posters:   map[string][]byte{},
 	}
 	cx.Cleanup(func() {
 		for _, j := range s.jobs {
 			j.cancel()
+		}
+		for _, fw := range s.following {
+			fw.cancel()
 		}
 		for _, c := range s.clients {
 			c.Close()
@@ -346,30 +356,60 @@ const followFor = 15 * time.Second
 // Follow brings the film kept under key, a downloaded one, up to date with its desktop when the desktop can be reached (download.Follow): one translated again or proofread there since takes the desktop's subtitles and record, and changed runs on the engine's goroutine once they are kept, so a player showing the film reads its lines again. A film whose desktop is out of reach, or not paired any more, stays as it is, without a word: it plays as it was downloaded.
 func (s *Session) Follow(key string, changed func()) {
 	f, ok := s.Film(key)
-	if !ok || !f.Done() || s.following[key] {
+	if !ok || !f.Done() {
+		return
+	}
+	if fw, running := s.following[key]; running {
+		fw.changed = append(fw.changed, changed)
 		return
 	}
 	c := s.Client(f.Desktop)
 	if c == nil {
 		return
 	}
-	s.following[key] = true
+	ctx, cancel := context.WithTimeout(context.Background(), followFor)
+	fw := &follow{cancel: cancel, changed: []func(){changed}}
+	s.following[key] = fw
 	s.work.Go(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), followFor)
 		defer cancel()
-		got, updated, _ := download.Follow(ctx, c, s.st, f)
+		listed, cues, updated, _ := download.Follow(ctx, c, f)
 		s.cx.Post(func() {
-			delete(s.following, key)
-			if !updated {
+			cur, ok := s.followed(key, listed)
+			if !updated || !ok {
+				delete(s.following, key)
 				return
 			}
-			// A film deleted meanwhile is not put back.
-			if _, ok := s.Film(key); ok {
-				s.replace(got)
-				changed()
-			}
+			// The subtitles first: a record kept with the desktop's date says they are the desktop's, so an app closed between the two asks for them again.
+			s.work.Go(func() {
+				if err := s.st.SaveCues(cur.Desktop, cur.Film.ID, cues); err != nil {
+					s.cx.Post(func() { delete(s.following, key) })
+					return
+				}
+				_ = s.st.SaveFilm(cur)
+				s.cx.Post(func() {
+					delete(s.following, key)
+					// Taken again as it stands now, so a position kept while the files were written stays.
+					if cur, ok := s.followed(key, listed); ok {
+						s.replace(cur)
+						for _, fn := range fw.changed {
+							fn()
+						}
+					}
+				})
+			})
 		})
 	})
+}
+
+// followed is the film kept under key as it stands now, with its desktop's record listed in place of its own but its video's size and poster, which are the phone's files; false for a film deleted meanwhile, or downloading again, which Follow does not touch.
+func (s *Session) followed(key string, listed sync.Film) (store.Film, bool) {
+	cur, ok := s.Film(key)
+	if !ok || !cur.Done() {
+		return store.Film{}, false
+	}
+	listed.VideoSize, listed.Poster = cur.Film.VideoSize, cur.Film.Poster
+	cur.Film = listed
+	return cur, true
 }
 
 // Pause stops the download of key, keeping what it has, which Resume goes on from.

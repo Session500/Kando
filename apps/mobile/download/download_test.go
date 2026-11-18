@@ -121,7 +121,7 @@ func TestAVideoThatChangedOnTheDesktopStartsOver(t *testing.T) {
 	}
 }
 
-// TestFollowTakesWhatTheDesktopChanged follows a downloaded film three times: while the desktop has not changed it, nothing is asked of its lines and nothing changes; once the desktop says it changed later than the phone has it, the phone takes its lines and record but keeps its own video's size; and a film the desktop no longer lists stays as it is.
+// TestFollowTakesWhatTheDesktopChanged follows a downloaded film three times: while the desktop has not changed it, nothing is asked of its lines; once the desktop says it changed later than the phone has it, Follow gives the desktop's record and lines, keeping nothing itself; and a film the desktop no longer lists stays as it is.
 func TestFollowTakesWhatTheDesktopChanged(t *testing.T) {
 	_, c := paired(t, []byte("video"))
 	st := store.Open(t.TempDir())
@@ -132,27 +132,24 @@ func TestFollowTakesWhatTheDesktopChanged(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if got, changed, err := Follow(context.Background(), c, st, f); err != nil || changed || got.Film != f.Film {
-		t.Fatalf("an unchanged film: %+v, %v, %v", got, changed, err)
-	}
-	if cues, _, _ := st.Cues(f.Desktop, f.Film.ID); cues[0].Original != "high" {
-		t.Fatalf("an unchanged film's lines became %+v", cues)
+	if _, cues, changed, err := Follow(context.Background(), c, f); err != nil || changed || cues != nil {
+		t.Fatalf("an unchanged film: %+v, %v, %v", cues, changed, err)
 	}
 
 	f.Film.Updated = f.Film.Updated.Add(-time.Hour)
-	f.Film.Title, f.Film.VideoSize = "Old title", 3
-	got, changed, err := Follow(context.Background(), c, st, f)
-	if err != nil || !changed || got.Film.Title != "Talk" || got.Film.VideoSize != 3 || got.Video != "video.mp4" {
-		t.Fatalf("a changed film: %+v, %v, %v", got, changed, err)
+	f.Film.Title = "Old title"
+	listed, cues, changed, err := Follow(context.Background(), c, f)
+	if err != nil || !changed || listed.Title != "Talk" || len(cues) != 1 || cues[0].Original != "hi" {
+		t.Fatalf("a changed film: %+v, %+v, %v, %v", listed, cues, changed, err)
 	}
-	if cues, _, _ := st.Cues(f.Desktop, f.Film.ID); cues[0].Original != "hi" {
-		t.Fatalf("a changed film's lines are %+v", cues)
+	if kept, _, _ := st.Cues(f.Desktop, f.Film.ID); kept[0].Original != "high" {
+		t.Fatalf("Follow kept lines itself: %+v", kept)
 	}
 
 	gone := f
 	gone.Film.ID = "f2"
-	if got, changed, err := Follow(context.Background(), c, st, gone); err != nil || changed || got.Film != gone.Film {
-		t.Fatalf("a film the desktop does not list: %+v, %v, %v", got, changed, err)
+	if _, _, changed, err := Follow(context.Background(), c, gone); err != nil || changed {
+		t.Fatalf("a film the desktop does not list: %v, %v", changed, err)
 	}
 }
 

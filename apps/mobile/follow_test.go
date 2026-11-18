@@ -81,3 +81,47 @@ func TestAPlayedFilmFollowsItsDesktopsNewLines(t *testing.T) {
 		t.Fatalf("the phone kept %+v, %v", films, err)
 	}
 }
+
+// A film played while its desktop is slow to answer keeps the position it played to: the desktop's record, once it comes, is merged into the phone's as it then stands, not as it stood when the player opened.
+func TestAFilmFollowedLateKeepsThePositionPlayedMeanwhile(t *testing.T) {
+	d := desktopWith(t, revisedCues, now().Add(time.Hour))
+	dir, f := keptFrom(t, d)
+	release := d.Hold()
+	t.Cleanup(release)
+	p := playKept(t, d, dir)
+	st := store.Open(dir)
+	p.at(7 * time.Second)
+	p.app.WaitUntil(wait, func() bool {
+		films, err := st.Films()
+		return err == nil && len(films) == 1 && films[0].PositionMS == 7000
+	})
+
+	release()
+	p.app.WaitUntil(wait, func() bool {
+		films, err := st.Films()
+		return err == nil && len(films) == 1 && films[0].Film.Updated.Equal(now().Add(time.Hour))
+	})
+	films, _ := st.Films()
+	if films[0].PositionMS != 7000 || films[0].Film.VideoSize != f.Film.VideoSize {
+		t.Fatalf("the phone kept %+v", films[0])
+	}
+	if cues, ok, err := st.Cues(f.Desktop, f.Film.ID); err != nil || !ok || cues[0].Original != "Good morning!" {
+		t.Fatalf("the phone kept lines %+v, %v, %v", cues, ok, err)
+	}
+}
+
+// A desktop that does not answer does not hold the app up as it closes: the check is cancelled with the session rather than left to time out.
+func TestAnUnansweredFollowDoesNotHoldTheAppClosing(t *testing.T) {
+	d := desktopWith(t, revisedCues, now().Add(time.Hour))
+	dir, _ := keptFrom(t, d)
+	t.Cleanup(d.Hold())
+	var closing time.Time
+	// Cleanups run last first: this one runs after the phone has stopped, and the one below just before.
+	t.Cleanup(func() {
+		if took := time.Since(closing); took > 5*time.Second {
+			t.Errorf("the app took %v to close", took)
+		}
+	})
+	playKept(t, d, dir)
+	t.Cleanup(func() { closing = time.Now() })
+}
