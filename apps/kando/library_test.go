@@ -1767,7 +1767,7 @@ func TestLibrarySortOrdersTheGrid(t *testing.T) {
 	choose := func(button, item string) {
 		t.Helper()
 		tt.Press(button)
-		if got, want := popupLabels(tt), []string{"最近添加", "最近观看", "标题", "来源", "原声语言"}; !slices.Equal(got, want) {
+		if got, want := popupLabels(tt), []string{"最近添加", "最近观看", "标题", "时长", "来源", "原声语言", "-", "升序", "降序"}; !slices.Equal(got, want) {
 			t.Fatalf("sort menu %q, want %q", got, want)
 		}
 		tt.ChoosePopup(item)
@@ -1777,8 +1777,8 @@ func TestLibrarySortOrdersTheGrid(t *testing.T) {
 	if got := libraryGridOrder(t, tt, names...); got != "apple,Mango,Zebra" {
 		t.Fatalf("by title %s", got)
 	}
-	if a.LibrarySort() != films.SortTitle || !shows(tt, "排序：标题") {
-		t.Fatalf("sort %q; texts %q", a.LibrarySort(), tt.Texts())
+	if a.LibrarySort() != (films.Order{By: films.SortTitle}) || !shows(tt, "排序：标题") {
+		t.Fatalf("sort %+v; texts %q", a.LibrarySort(), tt.Texts())
 	}
 	if got := libraryHeroOrder(t, tt, names...); got != "Mango" {
 		t.Fatalf("by title the hero shows %q, not the film finished last", got)
@@ -1801,8 +1801,8 @@ func TestLibrarySortOrdersTheGrid(t *testing.T) {
 	b.library.Jobs = a.library.Jobs
 	b.refreshLibrary()
 	refresh(btt, b)
-	if got := libraryGridOrder(t, btt, names...); b.LibrarySort() != films.SortSource || got != "apple,Zebra,Mango" {
-		t.Fatalf("restored sort %q shows %s", b.LibrarySort(), got)
+	if got := libraryGridOrder(t, btt, names...); b.LibrarySort() != (films.Order{By: films.SortSource}) || got != "apple,Zebra,Mango" {
+		t.Fatalf("restored sort %+v shows %s", b.LibrarySort(), got)
 	}
 
 	// By when they played, Zebra played last, then apple, and Mango never.
@@ -1824,20 +1824,62 @@ func TestLibrarySortOrdersTheGrid(t *testing.T) {
 	}
 }
 
-// TestLibrarySortReadsAnUnknownOrderAsRecentlyAdded: an order settings.json holds that Kando does not know, as one another version saved, shows the films as they were added.
+// TestLibrarySortReadsAnUnknownOrderAsRecentlyAdded: an order or a view settings.json holds that Kando does not know, as one another version saved, shows the films as they were added, as posters.
 func TestLibrarySortReadsAnUnknownOrderAsRecentlyAdded(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "settings.json")
-	if err := os.WriteFile(path, []byte(`{"librarySort": "duration"}`), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte(`{"librarySort": "size", "libraryView": "columns"}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	saved := loadSavedSettings(path)
-	if saved.LibrarySort != films.SortAdded {
-		t.Fatalf("read %q", saved.LibrarySort)
+	if saved.LibrarySort != films.SortAdded || saved.LibraryView != films.ViewGrid {
+		t.Fatalf("read %q, %q", saved.LibrarySort, saved.LibraryView)
 	}
 	a, _, _ := newTestApp(t, &fakePipeline{})
-	a.restoreSettings(savedSettings{savedLibrary: savedLibrary{LibrarySort: "duration"}})
-	if a.LibrarySort() != films.SortAdded {
-		t.Fatalf("restored %q", a.LibrarySort())
+	a.restoreSettings(savedSettings{savedLibrary: savedLibrary{LibrarySort: "size", LibraryView: "columns"}})
+	if a.LibrarySort() != (films.Order{By: films.SortAdded}) || a.LibraryView() != films.ViewGrid {
+		t.Fatalf("restored %+v, %q", a.LibrarySort(), a.LibraryView())
+	}
+}
+
+// TestLibraryViewAndDirectionAreKept: the list chosen with the switch beside the sort button, and an order turned around from the sort menu, show from then on and at the next launch; the View menu checks the view shown and switches it too.
+func TestLibraryViewAndDirectionAreKept(t *testing.T) {
+	a, tt := libraryForSort(t)
+	tt.Press("id:films-view-list")
+	refresh(tt, a)
+	if a.LibraryView() != films.ViewList || !tt.Exists("id:films-list") || tt.Exists("id:films-grid") {
+		t.Fatalf("view %q; texts %q", a.LibraryView(), tt.Texts())
+	}
+	tt.Press("排序：最近添加")
+	tt.ChoosePopup("升序")
+	refresh(tt, a)
+	if a.LibrarySort() != (films.Order{By: films.SortAdded, Reversed: true}) {
+		t.Fatalf("sort %+v", a.LibrarySort())
+	}
+	saved := loadSavedSettings(a.settingsPath)
+	if saved.LibraryView != films.ViewList || saved.LibrarySort != films.SortAdded || !saved.LibrarySortReversed {
+		t.Fatalf("saved %+v", saved.savedLibrary)
+	}
+	b, btt, _ := newTestApp(t, &fakePipeline{})
+	b.restoreSettings(saved)
+	b.library.Jobs = a.library.Jobs
+	b.refreshLibrary()
+	refresh(btt, b)
+	if b.LibraryView() != films.ViewList || b.LibrarySort() != a.LibrarySort() || !btt.Exists("id:films-list") {
+		t.Fatalf("restored view %q, sort %+v", b.LibraryView(), b.LibrarySort())
+	}
+
+	// View › 为图标 is checked by the view shown and shows the posters again.
+	bar := a.menuBar(a.cx)
+	asIcons, asList := findMenuItem(t, bar, "显示", "为图标"), findMenuItem(t, bar, "显示", "为列表")
+	if asIcons.Checked || !asList.Checked || asIcons.Disabled {
+		t.Fatalf("view menu: as icons %+v, as list %+v", asIcons, asList)
+	}
+	if sortBy := findMenuItem(t, bar, "显示", "排序方式"); len(sortBy.Items) != len(films.Sorts)+3 || !sortBy.Items[len(films.Sorts)+1].Checked {
+		t.Fatalf("View › 排序方式 %+v", sortBy.Items)
+	}
+	choose(tt, a, asIcons)
+	if a.LibraryView() != films.ViewGrid || !tt.Exists("id:films-grid") {
+		t.Fatalf("view %q after View › 为图标", a.LibraryView())
 	}
 }
 
@@ -1852,8 +1894,8 @@ func TestLibrarySortSaysWhenItCannotBeKept(t *testing.T) {
 	tt.Press("排序：最近添加")
 	tt.ChoosePopup("标题")
 	refresh(tt, a)
-	if a.LibrarySort() != films.SortTitle || !shows(tt, "排序方式无法保存") {
-		t.Fatalf("sort %q; texts %q", a.LibrarySort(), tt.Texts())
+	if a.LibrarySort() != (films.Order{By: films.SortTitle}) || !shows(tt, "排序方式无法保存") {
+		t.Fatalf("sort %+v; texts %q", a.LibrarySort(), tt.Texts())
 	}
 }
 

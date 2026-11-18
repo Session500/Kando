@@ -66,8 +66,9 @@ type libraryUI struct {
 	opened       []string
 	holdOpened   bool
 	openedPosted bool
-	// sort is the order the done grid shows its films in, one of films.Sorts, kept in settings.json (savedLibrary).
-	sort string
+	// sort is the order the done films show in, and view whether they show as a grid or a list (films.ViewGrid, films.ViewList), both kept in settings.json (savedLibrary).
+	sort films.Order
+	view string
 	// move is 移到资料库's state (library_move.go).
 	move libraryMoving
 	// translateOffered is set once the message bar has offered to translate the films that have no translation, or there was nothing to offer, since an AI service was last set up; it is cleared while none is, so setting one up offers it again (libraryOfferTranslate). libraryHooks' ready sets it when the app starts with a service set up, so a launch offers nothing.
@@ -78,23 +79,31 @@ type libraryUI struct {
 type quote struct{ translation, original string }
 
 func newLibraryUI() libraryUI {
-	return libraryUI{sort: films.SortAdded}
+	return libraryUI{sort: films.Order{By: films.SortAdded}, view: films.ViewGrid}
 }
 
-// savedLibrary is the library page's part of settings.json: the order of the done grid. The libraries themselves are the shelf's (savedShelf).
+// savedLibrary is the library page's part of settings.json: the order of the done films, whether it is turned around, and whether they show as a grid or a list. The libraries themselves are the shelf's (savedShelf).
 type savedLibrary struct {
-	LibrarySort string `json:"librarySort,omitempty"`
+	LibrarySort         string `json:"librarySort,omitempty"`
+	LibrarySortReversed bool   `json:"librarySortReversed,omitempty"`
+	LibraryView         string `json:"libraryView,omitempty"`
 }
 
-// clean reads an order Kando does not know, such as one another version saved, as the default.
-func (s *savedLibrary) clean() { s.LibrarySort = films.ValidSort(s.LibrarySort) }
+// clean reads an order or a view Kando does not know, such as one another version saved, as the default.
+func (s *savedLibrary) clean() {
+	s.LibrarySort = films.ValidSort(s.LibrarySort)
+	s.LibraryView = films.ValidView(s.LibraryView)
+}
 
-// libraryHooks: the grid's order is saved and restored with the settings. The shelf's posters, video lengths and hero line are loaded whenever its films change, the hero line also when a film played, as the film played last may be the hero now, and all are held back until the window exists, because the posters report through it. Files the system asked Kando to open before the window existed are held back with them and added to the queue once it does, after every area's ready. After each change the library lets go of an open film it no longer has, and its dialogs hold or give back the window's modal flag. Which libraries' folders are there, for 移到资料库, is read once the window exists, when another library opens and when the app comes to the front; a film still being copied to another library as the app quits stops, its files where they were.
+// libraryHooks: the order of the done films and whether they show as a grid or a list are saved and restored with the settings. The shelf's posters, video lengths and hero line are loaded whenever its films change, the hero line also when a film played, as the film played last may be the hero now, and all are held back until the window exists, because the posters report through it. Files the system asked Kando to open before the window existed are held back with them and added to the queue once it does, after every area's ready. After each change the library lets go of an open film it no longer has, and its dialogs hold or give back the window's modal flag. Which libraries' folders are there, for 移到资料库, is read once the window exists, when another library opens and when the app comes to the front; a film still being copied to another library as the app quits stops, its files where they were.
 func (a *app) libraryHooks() areaHooks {
 	return areaHooks{
-		save: func(saved *savedSettings) { saved.savedLibrary = savedLibrary{LibrarySort: a.lib.sort} },
+		save: func(saved *savedSettings) {
+			saved.savedLibrary = savedLibrary{LibrarySort: a.lib.sort.By, LibrarySortReversed: a.lib.sort.Reversed, LibraryView: a.lib.view}
+		},
 		restore: func(saved savedSettings) {
-			a.lib.sort = films.ValidSort(saved.LibrarySort)
+			a.lib.sort = films.Order{By: saved.LibrarySort, Reversed: saved.LibrarySortReversed}.Valid()
+			a.lib.view = films.ValidView(saved.LibraryView)
 			a.lib.holdExtras = true
 			a.lib.holdOpened = true
 		},

@@ -54,7 +54,7 @@ func TestHeardFallsBackToTheLanguageNamed(t *testing.T) {
 	if got := SpokenCounts(items); !slices.Equal(got, []sidebar.SpokenCount{{Code: "en", Count: 1}, {Code: "ja", Count: 1}}) {
 		t.Fatalf("counts %+v", got)
 	}
-	if got := keysOf(Sorted(items, SortSpoken, testlocale.Current(), neverPlayed)); got != "named,heard,unknown" {
+	if got := keysOf(Sorted(items, Order{By: SortSpoken}, testlocale.Current(), neverPlayed, unknownLength)); got != "named,heard,unknown" {
 		t.Fatalf("by spoken language %s", got)
 	}
 	if got := PosterLanguages(testlocale.Messages(), items[0], "简体中文"); got != "JA" {
