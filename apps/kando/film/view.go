@@ -379,7 +379,7 @@ func (s *screen) bigPlay() core.Node {
 	a, cx := s.a, s.cx
 	held := live.Memo(cx, a, func() bool { return a.Play() != nil && !a.Play().Playing() })
 	return core.Show{When: held, Then: func(cx *core.Scope) core.Node {
-		btn := glassButton(cx, glassSpec{fill: core.RGBA(0xFFFFFF, 0.18), blur: 20, ring: 0.35, radius: 38}, core.Style{Width: core.Pt(76), Height: core.Pt(76), Margin: core.Edges{Top: -38}},
+		btn := glassButton(cx, glassSpec{theme.GlassClear, 38}, core.Style{Width: core.Pt(76), Height: core.Pt(76), Margin: core.Edges{Top: -38}},
 			func() string { return locales.FilmPlay(cx) }, "film-big-play", live.Do(a, s.togglePlay),
 			core.Icon{SVG: iconBigPlay, Style: core.Style{Width: core.Pt(28), Height: core.Pt(30), Color: onGlass}})
 		return core.View{PointerEvents: core.PointerEventsBoxNone,

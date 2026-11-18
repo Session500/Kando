@@ -5,6 +5,7 @@ import (
 
 	"kando/apps/kando/live"
 	"kando/apps/kando/locales"
+	"kando/apps/kando/theme"
 
 	"github.com/nsgo-dev/nsgo/base"
 	"github.com/nsgo-dev/nsgo/core"
@@ -12,7 +13,7 @@ import (
 )
 
 // candidateGlass is the glass of the list of other translations, a little denser than the selection bar's (prototype template 599).
-var candidateGlass = glassSpec{fill: core.RGBA(0x1C1C20, 0.82), blur: 28, ring: 0.2, radius: 18}
+var candidateGlass = glassSpec{theme.GlassCard, 18}
 
 // candidateList is the AI service's other translations of the selected line (这句不对): a heading, the line's original, then the line as it is and each translation, the one highlighted ringed, and a line naming the keys. A click keeps a translation, as ↑↓ and Return do (the app's keys). While the AI service is asked the line as it is shows alone; when no translation came, why, with the AI service's settings when they are the fix.
 func (s *screen) candidateList(cx *core.Scope) core.Node {

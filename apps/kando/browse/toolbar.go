@@ -13,8 +13,7 @@ import (
 // toolbarHeight is the toolbar's height on macOS, where it lies under the window's hidden title bar beside the sidebar's card and drags the window, as a unified toolbar does.
 const toolbarHeight core.Points = 52
 
-// addressShadow is the soft shadow under the address field's pill. The pill is the theme's card color, translucent, over the toolbar with the shade's hairline around it, and the toolbar's hairline under it is the shade too (theme.Of).
-var addressShadow = core.RGBA(0x000000, 0.06)
+// The address field's pill is the theme's card color, translucent, over the toolbar with the shade's hairline around it and a raised pill's shadow under it, and the toolbar's hairline under it is the shade too (theme.Of).
 
 // toolbar is the row along the top of the page: back, forward, reload (stop while the page loads) and home, the address field growing between them and 下载视频 at the end. On macOS it is the window's title bar beside the sidebar and drags the window; elsewhere the content's drag band lies above it.
 type toolbar struct{ a App }
@@ -106,7 +105,7 @@ func (f address) Render(cx *core.Scope) core.Node {
 	return core.View{
 		Style: core.Style{Direction: core.Row, FlexGrow: 1, FlexShrink: 1, MinWidth: core.Pt(160), Height: core.Pt(34), CornerRadius: 17,
 			Padding: core.Edges{Left: 12, Right: 12}, Gap: 8, AlignItems: core.AlignCenter,
-			BorderWidth: 0.5, Shadows: []core.BoxShadow{{Offset: core.Point{Y: 2}, Blur: 8, Color: addressShadow}}},
+			BorderWidth: 0.5, Shadows: []core.BoxShadow{theme.ShadowRaised}},
 		StyleFunc: func() core.Style {
 			k := theme.Of(cx)
 			s := core.Style{Background: k.Card().Faded(0.75), BorderColor: k.Shade(0.12)}

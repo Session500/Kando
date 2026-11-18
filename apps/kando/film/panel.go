@@ -45,7 +45,7 @@ var (
 	panelCard    = ns.RGBA(0xFFFFFF, 0.07)
 	panelCurrent = ns.RGBA(0xFFFFFF, 0.14)
 	panelLine    = ns.RGBA(0xFFFFFF, 0.1)
-	panelGlass   = glassSpec{fill: ns.RGBA(0x1C1C20, 0.6), blur: 34, ring: 0.2, radius: 22}
+	panelGlass   = glassSpec{theme.GlassBar, 22}
 )
 
 // panelMotionStyle moves the panel in from the right and fades it as it comes and goes.
@@ -84,8 +84,7 @@ func (s *screen) panel() ns.Node {
 		}
 		return ns.View{
 			TestID: "film-panel", Role: ns.RoleGroup, LabelFunc: func() string { return locales.FilmSidebar(cx) },
-			Style: panelGlass.style().Merge(ns.Style{Position: ns.Absolute, Right: ns.Pt(16), Top: ns.Pt(62), Bottom: ns.Pt(18), Width: ns.Pt(panelWidth), Overflow: ns.Hidden,
-				Shadows: append(panelGlass.style().Shadows, ns.BoxShadow{Offset: ns.Point{Y: 20}, Blur: 50, Color: ns.RGBA(0x000000, 0.35)})}),
+			Style: panelGlass.floating().Merge(ns.Style{Position: ns.Absolute, Right: ns.Pt(16), Top: ns.Pt(62), Bottom: ns.Pt(18), Width: ns.Pt(panelWidth), Overflow: ns.Hidden}),
 			StyleFunc: func() ns.Style {
 				if in.Get() {
 					return ns.Style{Opacity: ns.Alpha(1), Transition: panelMotionStyle}
@@ -509,7 +508,7 @@ func (s *screen) cueList(cx *ns.Scope, cues func() []core.Segment, shown func() 
 			Children: []ns.Node{base.Button{TestID: "film-cues-current", LabelFunc: label,
 				OnPress: func(ns.PressEvent) { follow(current()) },
 				Style: ns.Style{Height: ns.Pt(28), Padding: ns.Symmetric(0, 12), CornerRadius: 14, JustifyContent: ns.JustifyCenter, Background: ns.RGBA(0x3A3A40, 0.95),
-					Shadows: []ns.BoxShadow{{Spread: 0.5, Color: ns.RGBA(0xFFFFFF, 0.2), Inset: true}, {Offset: ns.Point{Y: 6}, Blur: 18, Color: ns.RGBA(0x000000, 0.35)}},
+					Shadows: []ns.BoxShadow{theme.GlassTip.Rim(), theme.ShadowHUD},
 					Hover:   &ns.Style{Background: ns.RGBA(0x4A4A52, 0.95)}, FocusVisible: ui.FocusRing(cx, -2)},
 				Children: []ns.Node{ns.Text{ContentFunc: label, MaxLines: 1, Style: ns.Style{FontSize: 12, LineHeight: 16, FontWeight: ns.FontWeightSemibold, Color: onGlass}}},
 			}}}

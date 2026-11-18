@@ -110,17 +110,11 @@ const (
 )
 
 var (
-	// scrim dims the window under the palette.
-	scrim = core.RGBA(0x000000, 0.30)
-	// glassTint is the dark glass over what the blur shows through; rim its hairline edge and shadow the shadow it casts.
-	glassTint = core.RGBA(0x1C1C20, 0.88)
-	rim       = core.RGBA(0xFFFFFF, 0.2)
-	shadow    = core.RGBA(0x000000, 0.5)
 	// hairline separates the field and the footer from the list.
 	hairline = core.RGBA(0xFFFFFF, 0.12)
 	ink      = core.RGB(0xFFFFFF)
 	// selected is the highlighted row, Kando's blue.
-	selected = core.RGB(0x0A66D8)
+	selected = theme.Accent
 	// cardFill is the answer card, chipFill its chips.
 	cardFill = core.RGBA(0xFFFFFF, 0.08)
 	chipFill = core.RGBA(0x64AAFF, 0.28)
@@ -149,12 +143,12 @@ func (p Palette) Render(cx *core.Scope) core.Node {
 			}
 		},
 		TestID:        "palette",
-		BackdropStyle: core.Style{Background: scrim},
+		BackdropStyle: core.Style{Background: theme.Scrim},
 		LayerStyle:    core.Style{JustifyContent: core.JustifyStart, Padding: core.Edges{Top: panelTop}},
 		PopupStyleFunc: func() core.Style {
 			window := cx.Env().Window()
 			return core.Style{Width: core.Pt(max(0, min(panelWidth, window.Width-panelInset))), MaxHeight: core.Pt(max(0, window.Height+pageTop-pageMargin-panelTop)),
-				CornerRadius: panelRadius, BackdropFilters: []core.Filter{core.Blur(36)}, Shadows: []core.BoxShadow{{Offset: core.Point{Y: 30}, Blur: 80, Color: shadow}}}
+				CornerRadius: panelRadius, BackdropFilters: []core.Filter{core.Blur(theme.GlassSheet.Blur)}, Shadows: []core.BoxShadow{theme.ShadowDialog}}
 		},
 		Children: []core.Node{panel{a: a, send: send}},
 	}
@@ -255,7 +249,7 @@ func (p panel) Render(cx *core.Scope) core.Node {
 	}}
 	return core.View{
 		Style: core.Style{FlexGrow: 1, FlexShrink: 1, MinHeight: core.Pt(0), AlignItems: core.AlignStretch, Overflow: core.Hidden, CornerRadius: panelRadius,
-			Background: glassTint, Shadows: []core.BoxShadow{{Spread: 0.5, Color: rim, Inset: true}}, Color: ink},
+			Background: theme.GlassSheet.Fill, Shadows: []core.BoxShadow{theme.GlassSheet.Rim()}, Color: ink},
 		Children: []core.Node{
 			field(cx, a, view, send),
 			core.View{Style: core.Style{Height: core.Pt(0.5), Background: hairline}},

@@ -175,7 +175,7 @@ func (v View) Render(cx *core.Scope) core.Node {
 		// Its corners are the platform's dialogs' in the design (sheetRadius), and the sheet's face and rim inside are one point tighter.
 		Style: core.Style{Width: core.Pt(sheetWidth), Height: core.Pt(sheetHeight), CornerRadius: sheetRadius(cx), Background: transparent,
 			BorderWidth: 0.5, BorderColor: transparent,
-			Shadows: []core.BoxShadow{{Offset: core.Point{Y: 24}, Blur: 70, Color: core.RGBA(0x000000, 0.35)}}},
+			Shadows: []core.BoxShadow{theme.ShadowDialog}},
 		Children: []core.Node{sheet{a}},
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"kando/apps/kando/film/subtitle"
 	"kando/apps/kando/live"
 	"kando/apps/kando/locales"
+	"kando/apps/kando/theme"
 
 	"github.com/nsgo-dev/nsgo/base"
 	"github.com/nsgo-dev/nsgo/core"
@@ -46,7 +47,7 @@ func modeNote(cx *core.Scope, mode, untranslated string) string {
 }
 
 // menuGlass is the glass of the transport's menus, which open above it.
-var menuGlass = glassSpec{fill: core.RGBA(0x1C1C20, 0.86), blur: 30, ring: 0.18, radius: 14}
+var menuGlass = glassSpec{theme.GlassCard, 14}
 
 // transportMenu is a transport button that opens a menu above it, as the subtitle and the speed buttons do: open is the app's flag, which the menu sets as it opens and closes; trigger is what the button shows, label its name, and rows what the menu holds. The prototype opens the menu above the button, its right edge 6 past the button's and its bottom 14 above the button's top, over the picture rather than the panel. The button's name is read as it is built, as base.Popover takes a static one, so it is built again when the name changes.
 func (s *screen) transportMenu(cx *core.Scope, id string, open *bool, label func() string, tooltip func() string, width core.Points, trigger []core.Node, rows func(cx *core.Scope) []core.Node) core.Node {
@@ -72,7 +73,7 @@ func (s *screen) transportMenu(cx *core.Scope, id string, open *bool, label func
 				return core.Style{}
 			},
 			Trigger:    core.View{PointerEvents: core.PointerEventsNone, Style: core.Style{Direction: core.Row, AlignItems: core.AlignCenter}, Children: trigger},
-			PopupStyle: menuGlass.style().Merge(core.Style{Padding: core.All(6), Margin: core.Edges{Right: -6}, Shadows: append(menuGlass.style().Shadows, core.BoxShadow{Offset: core.Point{Y: 12}, Blur: 30, Color: core.RGBA(0x000000, 0.35)})}),
+			PopupStyle: menuGlass.floating().Merge(core.Style{Padding: core.All(6), Margin: core.Edges{Right: -6}}),
 			Children:   rows(cx),
 		}
 	})

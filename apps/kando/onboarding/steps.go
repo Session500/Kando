@@ -13,8 +13,8 @@ import (
 	"github.com/nsgo-dev/nsgo/ui"
 )
 
-// cardShadow is the soft shadow under a card or a tile.
-var cardShadow = []core.BoxShadow{{Offset: core.Point{Y: 1}, Blur: 2, Color: core.RGBA(0x000000, 0.04)}}
+// cardShadow is the soft shadow under a card or a tile resting on the sheet.
+var cardShadow = []core.BoxShadow{theme.ShadowRest}
 
 // card is a card in the theme's card color with the prototype's hairline and soft shadow, its rows stacked.
 func card(children ...core.Node) core.Node {
@@ -436,7 +436,7 @@ func (s linkStep) Render(cx *core.Scope) core.Node {
 		Style: core.Style{Direction: core.Row, Height: core.Pt(44), CornerRadius: 10, Padding: core.Edges{Left: 13, Right: 14}, Gap: 8, AlignItems: core.AlignCenter,
 			BorderWidth: 0.5},
 		StyleFunc: func() core.Style {
-			s := core.Style{Background: k.Card(), BorderColor: k.Shade(0.14), Shadows: []core.BoxShadow{{Offset: core.Point{Y: 1}, Blur: 3, Color: core.RGBA(0x000000, 0.05)}}}
+			s := core.Style{Background: k.Card(), BorderColor: k.Shade(0.14), Shadows: cardShadow}
 			if focused.Get() {
 				s.Shadows = []core.BoxShadow{{Spread: 3, Color: theme.Accent.Faded(0.5)}}
 			}
