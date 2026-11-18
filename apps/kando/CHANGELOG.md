@@ -2,6 +2,22 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.24.0 - 2026-11-18
+
+### Features
+
+- New shell with Library, Learn and Settings tabs, a tablet sidebar and an introduction (#240)
+- Export a film's subtitles as SRT, WebVTT or ASS, with the user's corrections (#238)
+- Windows title bar and Linux header bar, with Ctrl+K reaching every menu command (#242)
+- Look up words on the picture, vocabulary, time watched, study stats and vocabulary export (#244)
+- Cut films at the chapters their site marks, with translated titles and a toggle back to even cuts (#243)
+- Film, series and global terms the translation follows, a Terms tab, and series from subscriptions (#241)
+- Learning state over protocol v2, merged field by field with tombstones and conflicts (#239)
+
+### Fixes
+
+- Keep a film's record when it is saved while being read or saved twice at once (#237)
+
 ## 0.23.0 - 2026-11-18
 
 ### Features
