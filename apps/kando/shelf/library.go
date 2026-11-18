@@ -341,6 +341,8 @@ type storedJob struct {
 	// PlatformSubtitles is whether the film's original lines are its site's subtitles, and LocalLines how many of their lines the speech replaced (core.Job.PlatformSubtitles).
 	PlatformSubtitles bool `json:"platformSubtitles,omitempty"`
 	LocalLines        int  `json:"localLines,omitempty"`
+	// SubtitlesOnly is whether the film keeps no video (core.Job.SubtitlesOnly).
+	SubtitlesOnly bool `json:"subtitlesOnly,omitempty"`
 	// Device is the paired phone that sent the job's link (core.Job.Device).
 	Device string `json:"device,omitempty"`
 	// Series is the series the film is part of (core.Job.Series).
@@ -359,6 +361,7 @@ func storeJob(job core.Job) storedJob {
 	}
 	stored.Quality, stored.SubtitleSource = job.Quality, job.SubtitleSource
 	stored.PlatformSubtitles, stored.LocalLines = job.PlatformSubtitles, job.LocalLines
+	stored.SubtitlesOnly = job.SubtitlesOnly
 	stored.Series, stored.PausedBy = job.Series, job.PausedBy
 	switch {
 	case errors.Is(job.Err, context.Canceled):
@@ -381,6 +384,7 @@ func (s storedJob) job() core.Job {
 	}
 	job.Quality, job.SubtitleSource = s.Quality, s.SubtitleSource
 	job.PlatformSubtitles, job.LocalLines = s.PlatformSubtitles, s.LocalLines
+	job.SubtitlesOnly = s.SubtitlesOnly
 	job.Series, job.PausedBy = s.Series, s.PausedBy
 	switch s.Error {
 	case "":

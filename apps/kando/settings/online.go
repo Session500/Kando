@@ -5,12 +5,13 @@ import (
 	"kando/apps/kando/locales"
 	"kando/apps/kando/settings/form"
 	kcore "kando/packages/core"
+	"kando/packages/media"
 
 	"github.com/nsgo-dev/nsgo/core"
 	"github.com/nsgo-dev/nsgo/ui"
 )
 
-// online is the 在线视频 card of 通用: whether a link's film takes the subtitles its uploader put on the site as its original lines, checked against the speech, the picture its download asks for, and whether films are cut at the chapters their site marks.
+// online is the 在线视频 card of 通用: whether a link's film takes the subtitles its uploader put on the site as its original lines, checked against the speech, the picture its download asks for (仅字幕 keeps none, and says so under it), and whether films are cut at the chapters their site marks.
 type online struct{ s screen }
 
 // Render implements core.Node.
@@ -27,6 +28,7 @@ func (o online) Render(cx *core.Scope) core.Node {
 		options := []ui.Option[kcore.Quality]{
 			{Value: kcore.QualityBest, Label: locales.SettingsGeneralQualityBest(cx)},
 			{Value: kcore.Quality720, Label: locales.SettingsGeneralQuality720(cx)},
+			{Value: kcore.QualitySubtitles, Label: locales.SettingsGeneralQualitySubtitles(cx)},
 		}
 		return ui.Select[kcore.Quality]{Options: options, Label: locales.SettingsGeneralQuality(cx), TestID: "settings-download-quality",
 			Value: live.Func(a, a.DownloadQuality),
@@ -46,6 +48,16 @@ func (o online) Render(cx *core.Scope) core.Node {
 		})}
 	return core.Group([]core.Node{
 		form.Label(locales.SettingsGeneralOnline(cx), 14),
-		form.Card(platform, form.Separator(true), form.Row{Title: locales.SettingsGeneralQuality(cx), NoGroup: true, Trailing: []core.Node{quality}}, form.Separator(true), chapters),
+		form.Card(platform, form.Separator(true), form.Row{Title: locales.SettingsGeneralQuality(cx), NoGroup: true, Trailing: []core.Node{quality}, SubtitleFunc: live.Func(a, func() string {
+			// 仅字幕 keeps no video, which the user is told before a download goes without it, and how the film is watched then: streamed where this computer streams it, or after downloading its video (media.Streams).
+			switch {
+			case a.DownloadQuality() != kcore.QualitySubtitles:
+				return ""
+			case media.StreamsHere():
+				return locales.SettingsGeneralQualitySubtitlesHint(cx)
+			default:
+				return locales.SettingsGeneralQualitySubtitlesHintNoStream(cx)
+			}
+		})}, form.Separator(true), chapters),
 	})
 }
