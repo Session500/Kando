@@ -19,6 +19,8 @@ type App interface {
 	live.State
 	Corrector
 	Glossary
+	Reviewer
+	Progresser
 	Notebook
 	Streamer
 	Explainer

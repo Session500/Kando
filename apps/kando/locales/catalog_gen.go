@@ -963,6 +963,17 @@ var Parameters = map[string][]string{
 	"FilmsHandoffWhen":                         {"when"},
 	"FilmsHandoffResume":                       {"time_"},
 	"FilmsHeroKickerContinueOn":                {"device"},
+	"ReviewHeadWaiting":                        {"changes", "waiting"},
+	"ReviewHeadDone":                           {"changes"},
+	"ReviewPlayLine":                           {"time_"},
+	"FilmsQueueReviewingLines":                 {"lines", "total"},
+	"GlossarySeriesConfirmed":                  {"films"},
+	"FilmBadgeRunning":                         {"percent"},
+	"FilmBadgeAttention":                       {"percent", "lines"},
+	"FilmBadgeSubtitles":                       {"percent"},
+	"FilmBadgePercent":                         {"percent"},
+	"FilmBadgeUntranslated":                    {"lines"},
+	"FilmBadgeUntranslatedNote":                {"lines"},
 }
 
 // Translation is a language's messages another package supplies:
@@ -1473,6 +1484,17 @@ type Translation struct {
 	FilmsHandoffWhen                         func(when string) string
 	FilmsHandoffResume                       func(time_ string) string
 	FilmsHeroKickerContinueOn                func(device string) string
+	ReviewHeadWaiting                        func(changes int, waiting int) string
+	ReviewHeadDone                           func(changes int) string
+	ReviewPlayLine                           func(time_ string) string
+	FilmsQueueReviewingLines                 func(lines int, total int) string
+	GlossarySeriesConfirmed                  func(films int) string
+	FilmBadgeRunning                         func(percent int) string
+	FilmBadgeAttention                       func(percent int, lines int) string
+	FilmBadgeSubtitles                       func(percent int) string
+	FilmBadgePercent                         func(percent int) string
+	FilmBadgeUntranslated                    func(lines int) string
+	FilmBadgeUntranslatedNote                func(lines int) string
 }
 
 var supplied = map[string]Translation{}
@@ -2865,6 +2887,43 @@ const (
 	textSettingsPhoneDidUpdateYTDLP
 	textSettingsPhoneDidPair
 	textPhoneSyncAgoNow
+	textSettingsReview
+	textSettingsReviewOn
+	textSettingsReviewOnHint
+	textSettingsReviewAuto
+	textSettingsReviewAutoHint
+	textSettingsReviewAutoConsistency
+	textSettingsReviewAutoAll
+	textSettingsReviewAutoNone
+	textReviewChip
+	textReviewOff
+	textReviewAcceptAll
+	textReviewRollBack
+	textReviewNote
+	textReviewKindConsistency
+	textReviewKindFluency
+	textReviewKindMeaning
+	textReviewStatusMine
+	textReviewStatusApplied
+	textReviewStatusPending
+	textReviewStatusAccepted
+	textReviewStatusRejected
+	textReviewAccept
+	textReviewReject
+	textReviewUndo
+	textReviewRolledBack
+	textReviewNewer
+	textReviewSaveFailed
+	textQueueStatusReviewing
+	textGlossaryGuessTitle
+	textGlossaryGuessHint
+	textGlossaryGuessYes
+	textGlossaryGuessNo
+	textFilmLayerSpeech
+	textFilmLayerTranslation
+	textFilmLayerReview
+	textFilmBadgeTranslateMissing
+	textFilmBadgeSettings
 	numTexts
 )
 
@@ -4257,6 +4316,43 @@ var keyOfText = [numTexts]string{
 	"settingsPhoneDidUpdateYTDLP",
 	"settingsPhoneDidPair",
 	"phoneSyncAgoNow",
+	"settingsReview",
+	"settingsReviewOn",
+	"settingsReviewOnHint",
+	"settingsReviewAuto",
+	"settingsReviewAutoHint",
+	"settingsReviewAutoConsistency",
+	"settingsReviewAutoAll",
+	"settingsReviewAutoNone",
+	"reviewChip",
+	"reviewOff",
+	"reviewAcceptAll",
+	"reviewRollBack",
+	"reviewNote",
+	"reviewKindConsistency",
+	"reviewKindFluency",
+	"reviewKindMeaning",
+	"reviewStatusMine",
+	"reviewStatusApplied",
+	"reviewStatusPending",
+	"reviewStatusAccepted",
+	"reviewStatusRejected",
+	"reviewAccept",
+	"reviewReject",
+	"reviewUndo",
+	"reviewRolledBack",
+	"reviewNewer",
+	"reviewSaveFailed",
+	"queueStatusReviewing",
+	"glossaryGuessTitle",
+	"glossaryGuessHint",
+	"glossaryGuessYes",
+	"glossaryGuessNo",
+	"filmLayerSpeech",
+	"filmLayerTranslation",
+	"filmLayerReview",
+	"filmBadgeTranslateMissing",
+	"filmBadgeSettings",
 }
 
 // textsEn are the messages without arguments in en.
@@ -5269,7 +5365,7 @@ var textsEn = i18n.NewTexts(""+
 	"privacy offline network internet cache clear"+
 	"keyboard keys commands preset IINA mpv"+
 	"whisper models download recognition transcription HuggingFace Hugging Face Vimpo hyperframes spoken language download source mirror hf-mirror.com model file ggml threads proper nouns hints prompt command"+
-	"target language smart translation context prompt restore default context lines"+
+	"target language smart translation context prompt restore default context lines final proofread consistency"+
 	"Arabic"+
 	"Dutch"+
 	"English"+
@@ -5646,7 +5742,44 @@ var textsEn = i18n.NewTexts(""+
 	"Nothing yet since Kando opened."+
 	"Updated yt-dlp"+
 	"Paired"+
-	"Just now",
+	"Just now"+
+	"Final Proofread"+
+	"Read the whole film again after translating"+
+	"Makes names, forms of address and terms the same throughout and smooths the wording. It changes only the machine's translation, never a line you edited."+
+	"Apply Automatically"+
+	"The rest wait for you under Proofread in the subtitle list."+
+	"Consistency Only"+
+	"All"+
+	"Ask for All"+
+	"Proofread"+
+	"The final proofread is off (Settings › Translation)."+
+	"Accept All"+
+	"Roll Back"+
+	"The final proofread changes only the machine's translation; lines you edited stay as you wrote them. Which changes apply by themselves is chosen in Settings › Translation."+
+	"Consistency"+
+	"Fluency"+
+	"Meaning"+
+	"You edited this line, so this change no longer applies"+
+	"Applied automatically"+
+	"Waiting for you"+
+	"Accepted"+
+	"Undone"+
+	"Accept"+
+	"Don't Use"+
+	"Undo This"+
+	"Final proofread rolled back (what you accepted stays)"+
+	"A newer version of Kando saved this film's proofread, so it can't be changed here"+
+	"Couldn't save the final proofread"+
+	"Proofreading the translation…"+
+	"These look like one series"+
+	"Once confirmed, a term can be set to Series, and changing a name or term once changes it in every episode. This was guessed from the file names alone, so you're asked first."+
+	"Same Series"+
+	"Not a Series"+
+	"Original · Speech recognition"+
+	"Translation"+
+	"Final proofread · Whole film"+
+	"Translate"+
+	"Settings…",
 	[]uint16{
 		5,
 		19,
@@ -6656,7 +6789,7 @@ var textsEn = i18n.NewTexts(""+
 		44,
 		38,
 		203,
-		78,
+		106,
 		6,
 		5,
 		7,
@@ -7034,6 +7167,43 @@ var textsEn = i18n.NewTexts(""+
 		14,
 		6,
 		8,
+		15,
+		43,
+		152,
+		19,
+		59,
+		16,
+		3,
+		11,
+		9,
+		54,
+		10,
+		9,
+		173,
+		11,
+		7,
+		7,
+		54,
+		21,
+		15,
+		8,
+		6,
+		6,
+		9,
+		9,
+		53,
+		81,
+		33,
+		31,
+		26,
+		173,
+		11,
+		12,
+		30,
+		11,
+		29,
+		9,
+		11,
 	})
 
 // textsJa are the messages without arguments in ja.
@@ -8046,7 +8216,7 @@ var textsJa = i18n.NewTexts(""+
 	"プライバシー オフライン ネットワーク インターネット キャッシュ 消去"+
 	"キーボード キー コマンド プリセット IINA mpv"+
 	"whisper モデル ダウンロード 認識 文字起こし HuggingFace Hugging Face Vimpo hyperframes 認識する言語 話されている言語 ダウンロード元 ミラー hf-mirror.com モデルファイル ggml スレッド 固有名詞 ヒント コマンド"+
-	"翻訳先の言語 スマート翻訳 文脈 プロンプト デフォルトに戻す 文脈の行数"+
+	"翻訳先の言語 スマート翻訳 文脈 プロンプト デフォルトに戻す 文脈の行数 最終校正 表記統一"+
 	"アラビア語"+
 	"オランダ語"+
 	"英語"+
@@ -8423,7 +8593,44 @@ var textsJa = i18n.NewTexts(""+
 	"Kando を開いてから、まだ操作はありません。"+
 	"yt-dlp を更新"+
 	"ペアリングしました"+
-	"たった今",
+	"たった今"+
+	"最終校正"+
+	"翻訳後に全体を読み直して校正"+
+	"人名・呼び方・用語を全体でそろえ、言い回しを整えます。機械の訳だけを直し、あなたが編集した行には触れません。"+
+	"自動で適用"+
+	"残りは字幕一覧の「校正」であなたの確認を待ちます。"+
+	"表記の統一のみ"+
+	"すべて"+
+	"すべて確認"+
+	"校正"+
+	"最終校正はオフです（設定 › 翻訳）"+
+	"すべて承認"+
+	"すべて元に戻す"+
+	"最終校正は機械の訳だけを直します。あなたが編集した行はそのままです。自動で適用する変更は 設定 › 翻訳 で選べます。"+
+	"表記統一"+
+	"自然さ"+
+	"意味"+
+	"この行は編集済みのため、この変更は使われません"+
+	"自動で適用済み"+
+	"確認待ち"+
+	"承認済み"+
+	"取り消し済み"+
+	"承認"+
+	"使わない"+
+	"これを取り消す"+
+	"最終校正を元に戻しました（承認した変更は残ります）"+
+	"この作品の校正は新しいバージョンの Kando で保存されたため、ここでは変更できません"+
+	"最終校正を保存できませんでした"+
+	"翻訳を最終校正中…"+
+	"これらは同じシリーズのようです"+
+	"確認すると用語を「シリーズ」に設定でき、人名や用語を一度直すと全話に反映されます。ファイル名だけで判断したので、先に確認しています。"+
+	"同じシリーズ"+
+	"違う"+
+	"原文 · 音声認識"+
+	"訳文 · 翻訳"+
+	"最終校正 · 全体"+
+	"翻訳する"+
+	"設定…",
 	[]uint16{
 		5,
 		30,
@@ -9433,7 +9640,7 @@ var textsJa = i18n.NewTexts(""+
 		98,
 		60,
 		268,
-		101,
+		127,
 		15,
 		15,
 		6,
@@ -9811,6 +10018,43 @@ var textsJa = i18n.NewTexts(""+
 		16,
 		27,
 		12,
+		12,
+		42,
+		162,
+		15,
+		75,
+		21,
+		9,
+		15,
+		6,
+		50,
+		15,
+		21,
+		169,
+		12,
+		9,
+		6,
+		69,
+		21,
+		12,
+		12,
+		18,
+		6,
+		12,
+		21,
+		75,
+		118,
+		45,
+		27,
+		45,
+		198,
+		18,
+		6,
+		22,
+		16,
+		22,
+		12,
+		9,
 	})
 
 // textsKo are the messages without arguments in ko.
@@ -10823,7 +11067,7 @@ var textsKo = i18n.NewTexts(""+
 	"개인정보 오프라인 네트워크 인터넷 캐시 지우기"+
 	"키보드 키 명령 프리셋 IINA mpv"+
 	"whisper 모델 다운로드 인식 전사 HuggingFace Hugging Face Vimpo hyperframes 인식 언어 다운로드 소스 미러 hf-mirror.com 모델 파일 ggml 스레드 고유명사 힌트 명령"+
-	"대상 언어 스마트 번역 문맥 프롬프트 기본값 복원 문맥 줄 수"+
+	"대상 언어 스마트 번역 문맥 프롬프트 기본값 복원 문맥 줄 수 최종 교정 일관성"+
 	"아랍어"+
 	"네덜란드어"+
 	"영어"+
@@ -11200,7 +11444,44 @@ var textsKo = i18n.NewTexts(""+
 	"Kando를 연 뒤로 아직 활동이 없습니다."+
 	"yt-dlp 업데이트"+
 	"페어링함"+
-	"방금",
+	"방금"+
+	"최종 교정"+
+	"번역 후 영상 전체를 다시 읽고 교정"+
+	"인명, 호칭, 용어를 통일하고 문장을 다듬습니다. 기계 번역만 고치며 직접 수정한 줄은 건드리지 않습니다."+
+	"자동 적용"+
+	"나머지는 자막 목록의 '교정'에서 확인을 기다립니다."+
+	"일관성만"+
+	"모두"+
+	"모두 확인"+
+	"교정"+
+	"최종 교정이 꺼져 있습니다 (설정 › 번역)"+
+	"모두 수락"+
+	"전체 되돌리기"+
+	"최종 교정은 기계 번역만 고칩니다. 직접 수정한 줄은 그대로입니다. 자동으로 적용할 변경은 설정 › 번역에서 고릅니다."+
+	"일관성"+
+	"자연스러움"+
+	"의미"+
+	"직접 수정한 줄이라 이 변경은 적용되지 않습니다"+
+	"자동 적용됨"+
+	"확인 대기"+
+	"수락함"+
+	"취소됨"+
+	"수락"+
+	"사용 안 함"+
+	"이 변경 취소"+
+	"최종 교정을 되돌렸습니다 (수락한 변경은 유지)"+
+	"이 영상의 교정은 최신 버전의 Kando가 저장해 여기서 바꿀 수 없습니다"+
+	"최종 교정을 저장하지 못했습니다"+
+	"번역 최종 교정 중…"+
+	"같은 시리즈로 보입니다"+
+	"확인하면 용어를 '시리즈'로 지정해 인명이나 용어를 한 번 고치면 모든 화에 적용됩니다. 파일 이름만 보고 추측했으므로 먼저 묻습니다."+
+	"같은 시리즈"+
+	"아님"+
+	"원문 · 음성 인식"+
+	"번역문 · 번역"+
+	"최종 교정 · 전체"+
+	"번역"+
+	"설정…",
 	[]uint16{
 		5,
 		28,
@@ -12210,7 +12491,7 @@ var textsKo = i18n.NewTexts(""+
 		65,
 		39,
 		195,
-		82,
+		106,
 		9,
 		15,
 		6,
@@ -12588,6 +12869,43 @@ var textsKo = i18n.NewTexts(""+
 		19,
 		12,
 		6,
+		13,
+		48,
+		143,
+		13,
+		71,
+		12,
+		6,
+		13,
+		6,
+		56,
+		13,
+		19,
+		162,
+		9,
+		15,
+		6,
+		66,
+		16,
+		13,
+		9,
+		9,
+		6,
+		14,
+		17,
+		64,
+		93,
+		45,
+		27,
+		32,
+		183,
+		16,
+		6,
+		23,
+		19,
+		23,
+		6,
+		9,
 	})
 
 // textsZhHans are the messages without arguments in zh-Hans.
@@ -13600,7 +13918,7 @@ var textsZhHans = i18n.NewTexts(""+
 	"隐私 离线 联网 网络 缓存 清除"+
 	"键盘 按键 命令 预设 键位 IINA mpv"+
 	"whisper 模型 下载 识别 HuggingFace Hugging Face Vimpo hyperframes 识别语言 下载源 镜像 hf-mirror.com 模型文件 ggml 线程 专有名词 提示 命令行"+
-	"目标语言 智能翻译 上下文 提示词 恢复默认 上下文句数"+
+	"目标语言 智能翻译 上下文 提示词 恢复默认 上下文句数 终校 一致性"+
 	"阿拉伯语"+
 	"荷兰语"+
 	"英语"+
@@ -13977,7 +14295,44 @@ var textsZhHans = i18n.NewTexts(""+
 	"看懂打开以来，手机还没有做过操作。"+
 	"更新了 yt-dlp"+
 	"完成配对"+
-	"刚刚",
+	"刚刚"+
+	"全文终校"+
+	"译完后通读全片再校一遍"+
+	"统一人名、称谓和术语，顺一顺语句；只改机器译文，不碰你改过的句子。"+
+	"自动生效"+
+	"其余进字幕侧栏「终校」等你确认"+
+	"仅一致性类"+
+	"全部"+
+	"全部需确认"+
+	"终校"+
+	"全文终校已关闭（设置 › 翻译）"+
+	"全部接受"+
+	"整层回滚"+
+	"终校只改机器译文；你改过的句子不会被动。哪些改动自动生效，在设置 › 翻译里选。"+
+	"一致性"+
+	"流畅"+
+	"意思"+
+	"你改过这句，终校意见作废"+
+	"已自动生效"+
+	"等你确认"+
+	"你已接受"+
+	"已撤销"+
+	"接受"+
+	"不用"+
+	"撤销这处"+
+	"已回滚终校（你接受过的保留）"+
+	"这部影片的终校由更新版本的看懂保存，这里改不了"+
+	"终校的改动没能保存"+
+	"正在终校译文…"+
+	"这几部像是同一个系列"+
+	"确认后，可以把术语设为「系列」，改一处人名或术语，这几集一起生效。只按文件名判断，所以先问你。"+
+	"是同一系列"+
+	"不是"+
+	"原文 · 语音识别"+
+	"译文 · 翻译"+
+	"终校 · 通读全片"+
+	"补译"+
+	"设置…",
 	[]uint16{
 		6,
 		15,
@@ -14987,7 +15342,7 @@ var textsZhHans = i18n.NewTexts(""+
 		41,
 		43,
 		170,
-		74,
+		91,
 		12,
 		9,
 		6,
@@ -15365,6 +15720,43 @@ var textsZhHans = i18n.NewTexts(""+
 		16,
 		12,
 		6,
+		12,
+		33,
+		99,
+		12,
+		45,
+		15,
+		6,
+		15,
+		6,
+		44,
+		12,
+		12,
+		116,
+		9,
+		6,
+		6,
+		36,
+		15,
+		12,
+		12,
+		9,
+		6,
+		6,
+		12,
+		42,
+		69,
+		27,
+		21,
+		30,
+		141,
+		15,
+		6,
+		22,
+		16,
+		22,
+		6,
+		9,
 	})
 
 // textsZhHant are the messages without arguments in zh-Hant.
@@ -16377,7 +16769,7 @@ var textsZhHant = i18n.NewTexts(""+
 	"隱私 離線 連網 網路 快取 清除"+
 	"鍵盤 按鍵 指令 預設 鍵位 IINA mpv"+
 	"whisper 模型 下載 辨識 HuggingFace Hugging Face Vimpo hyperframes 辨識語言 下載來源 鏡像 hf-mirror.com 模型檔案 ggml 執行緒 專有名詞 提示 命令列"+
-	"目標語言 智慧翻譯 上下文 提示詞 恢復預設 上下文句數"+
+	"目標語言 智慧翻譯 上下文 提示詞 恢復預設 上下文句數 終校 一致性"+
 	"阿拉伯語"+
 	"荷蘭語"+
 	"英語"+
@@ -16754,7 +17146,44 @@ var textsZhHant = i18n.NewTexts(""+
 	"看懂開啟以來，手機還沒有做過操作。"+
 	"更新了 yt-dlp"+
 	"完成配對"+
-	"剛剛",
+	"剛剛"+
+	"全文終校"+
+	"譯完後通讀全片再校一遍"+
+	"統一人名、稱謂和術語，順一順語句；只改機器譯文，不碰你改過的句子。"+
+	"自動生效"+
+	"其餘進字幕側欄「終校」等你確認"+
+	"僅一致性類"+
+	"全部"+
+	"全部需確認"+
+	"終校"+
+	"全文終校已關閉（設定 › 翻譯）"+
+	"全部接受"+
+	"整層回滾"+
+	"終校只改機器譯文；你改過的句子不會被動。哪些改動自動生效，在設定 › 翻譯裡選。"+
+	"一致性"+
+	"流暢"+
+	"意思"+
+	"你改過這句，終校意見作廢"+
+	"已自動生效"+
+	"等你確認"+
+	"你已接受"+
+	"已撤銷"+
+	"接受"+
+	"不用"+
+	"撤銷這處"+
+	"已回滾終校（你接受過的保留）"+
+	"這部影片的終校由較新版本的看懂儲存，這裡改不了"+
+	"終校的改動沒能儲存"+
+	"正在終校譯文…"+
+	"這幾部像是同一個系列"+
+	"確認後，可以把術語設為「系列」，改一處人名或術語，這幾集一起生效。只按檔名判斷，所以先問你。"+
+	"是同一系列"+
+	"不是"+
+	"原文 · 語音辨識"+
+	"譯文 · 翻譯"+
+	"終校 · 通讀全片"+
+	"補譯"+
+	"設定…",
 	[]uint16{
 		6,
 		15,
@@ -17764,7 +18193,7 @@ var textsZhHant = i18n.NewTexts(""+
 		41,
 		43,
 		176,
-		74,
+		91,
 		12,
 		9,
 		6,
@@ -18142,6 +18571,43 @@ var textsZhHant = i18n.NewTexts(""+
 		16,
 		12,
 		6,
+		12,
+		33,
+		99,
+		12,
+		45,
+		15,
+		6,
+		15,
+		6,
+		44,
+		12,
+		12,
+		116,
+		9,
+		6,
+		6,
+		36,
+		15,
+		12,
+		12,
+		9,
+		6,
+		6,
+		12,
+		42,
+		69,
+		27,
+		21,
+		30,
+		138,
+		15,
+		6,
+		22,
+		16,
+		22,
+		6,
+		9,
 	})
 
 // texts returns the messages without arguments in lang, nil for a
@@ -19709,6 +20175,39 @@ func Supply(lang string, t Translation) {
 	}
 	if t.FilmsHeroKickerContinueOn != nil {
 		s.FilmsHeroKickerContinueOn = t.FilmsHeroKickerContinueOn
+	}
+	if t.ReviewHeadWaiting != nil {
+		s.ReviewHeadWaiting = t.ReviewHeadWaiting
+	}
+	if t.ReviewHeadDone != nil {
+		s.ReviewHeadDone = t.ReviewHeadDone
+	}
+	if t.ReviewPlayLine != nil {
+		s.ReviewPlayLine = t.ReviewPlayLine
+	}
+	if t.FilmsQueueReviewingLines != nil {
+		s.FilmsQueueReviewingLines = t.FilmsQueueReviewingLines
+	}
+	if t.GlossarySeriesConfirmed != nil {
+		s.GlossarySeriesConfirmed = t.GlossarySeriesConfirmed
+	}
+	if t.FilmBadgeRunning != nil {
+		s.FilmBadgeRunning = t.FilmBadgeRunning
+	}
+	if t.FilmBadgeAttention != nil {
+		s.FilmBadgeAttention = t.FilmBadgeAttention
+	}
+	if t.FilmBadgeSubtitles != nil {
+		s.FilmBadgeSubtitles = t.FilmBadgeSubtitles
+	}
+	if t.FilmBadgePercent != nil {
+		s.FilmBadgePercent = t.FilmBadgePercent
+	}
+	if t.FilmBadgeUntranslated != nil {
+		s.FilmBadgeUntranslated = t.FilmBadgeUntranslated
+	}
+	if t.FilmBadgeUntranslatedNote != nil {
+		s.FilmBadgeUntranslatedNote = t.FilmBadgeUntranslatedNote
 	}
 	supplied[lang] = s
 	Catalog.Add(lang)
@@ -42084,7 +42583,7 @@ func SettingsKeywordsSpeech(cx *core.Scope) string { return For(cx).SettingsKeyw
 // SettingsKeywordsSpeech is the package's SettingsKeywordsSpeech in the language of msgs.
 func (msgs Messages) SettingsKeywordsSpeech() string { return msgs.text(textSettingsKeywordsSpeech) }
 
-// SettingsKeywordsTranslate says "target language smart translation context prompt restore default context lines"
+// SettingsKeywordsTranslate says "target language smart translation context prompt restore default context lines final proofread consistency"
 // in the language the app shows under cx.
 //
 // Search keywords of the Translation settings section, separated by spaces, besides its title. Not shown.
@@ -50752,6 +51251,754 @@ func (msgs Messages) FilmsHeroKickerContinueOn(device string) string {
 		}
 	}
 }
+
+// SettingsReview says "Final Proofread"
+// in the language the app shows under cx.
+//
+// Heading of the Translation settings' group about reading the whole translation through again once a film is translated.
+func SettingsReview(cx *core.Scope) string { return For(cx).SettingsReview() }
+
+// SettingsReview is the package's SettingsReview in the language of msgs.
+func (msgs Messages) SettingsReview() string { return msgs.text(textSettingsReview) }
+
+// SettingsReviewOn says "Read the whole film again after translating"
+// in the language the app shows under cx.
+//
+// Switch in Settings › Translation: once a film is translated, the AI service reads its whole translation through again and suggests changes.
+func SettingsReviewOn(cx *core.Scope) string { return For(cx).SettingsReviewOn() }
+
+// SettingsReviewOn is the package's SettingsReviewOn in the language of msgs.
+func (msgs Messages) SettingsReviewOn() string { return msgs.text(textSettingsReviewOn) }
+
+// SettingsReviewOnHint says "Makes names, forms of address and terms the same throughout and smooths the wording. It changes only the machine's translation, never a line you edited."
+// in the language the app shows under cx.
+//
+// Line under the final proofread switch in Settings › Translation.
+func SettingsReviewOnHint(cx *core.Scope) string { return For(cx).SettingsReviewOnHint() }
+
+// SettingsReviewOnHint is the package's SettingsReviewOnHint in the language of msgs.
+func (msgs Messages) SettingsReviewOnHint() string { return msgs.text(textSettingsReviewOnHint) }
+
+// SettingsReviewAuto says "Apply Automatically"
+// in the language the app shows under cx.
+//
+// Row in Settings › Translation choosing which changes of the final proofread take effect without asking.
+func SettingsReviewAuto(cx *core.Scope) string { return For(cx).SettingsReviewAuto() }
+
+// SettingsReviewAuto is the package's SettingsReviewAuto in the language of msgs.
+func (msgs Messages) SettingsReviewAuto() string { return msgs.text(textSettingsReviewAuto) }
+
+// SettingsReviewAutoHint says "The rest wait for you under Proofread in the subtitle list."
+// in the language the app shows under cx.
+//
+// Line under the row choosing which final proofread changes apply automatically; Proofread is the subtitle list's chip.
+func SettingsReviewAutoHint(cx *core.Scope) string { return For(cx).SettingsReviewAutoHint() }
+
+// SettingsReviewAutoHint is the package's SettingsReviewAutoHint in the language of msgs.
+func (msgs Messages) SettingsReviewAutoHint() string { return msgs.text(textSettingsReviewAutoHint) }
+
+// SettingsReviewAutoConsistency says "Consistency Only"
+// in the language the app shows under cx.
+//
+// Option: only the final proofread's changes that make names and terms consistent apply automatically.
+func SettingsReviewAutoConsistency(cx *core.Scope) string {
+	return For(cx).SettingsReviewAutoConsistency()
+}
+
+// SettingsReviewAutoConsistency is the package's SettingsReviewAutoConsistency in the language of msgs.
+func (msgs Messages) SettingsReviewAutoConsistency() string {
+	return msgs.text(textSettingsReviewAutoConsistency)
+}
+
+// SettingsReviewAutoAll says "All"
+// in the language the app shows under cx.
+//
+// Option: every change of the final proofread applies automatically.
+func SettingsReviewAutoAll(cx *core.Scope) string { return For(cx).SettingsReviewAutoAll() }
+
+// SettingsReviewAutoAll is the package's SettingsReviewAutoAll in the language of msgs.
+func (msgs Messages) SettingsReviewAutoAll() string { return msgs.text(textSettingsReviewAutoAll) }
+
+// SettingsReviewAutoNone says "Ask for All"
+// in the language the app shows under cx.
+//
+// Option: no change of the final proofread applies automatically; each waits for the user.
+func SettingsReviewAutoNone(cx *core.Scope) string { return For(cx).SettingsReviewAutoNone() }
+
+// SettingsReviewAutoNone is the package's SettingsReviewAutoNone in the language of msgs.
+func (msgs Messages) SettingsReviewAutoNone() string { return msgs.text(textSettingsReviewAutoNone) }
+
+// ReviewChip says "Proofread"
+// in the language the app shows under cx.
+//
+// Chip over the subtitle list that shows the changes of the film's final proofread in place of the lines; its count follows it.
+func ReviewChip(cx *core.Scope) string { return For(cx).ReviewChip() }
+
+// ReviewChip is the package's ReviewChip in the language of msgs.
+func (msgs Messages) ReviewChip() string { return msgs.text(textReviewChip) }
+
+// ReviewOff says "The final proofread is off (Settings › Translation)."
+// in the language the app shows under cx.
+//
+// Head of the subtitle list's Proofread view while the final proofread is turned off in the settings.
+func ReviewOff(cx *core.Scope) string { return For(cx).ReviewOff() }
+
+// ReviewOff is the package's ReviewOff in the language of msgs.
+func (msgs Messages) ReviewOff() string { return msgs.text(textReviewOff) }
+
+// ReviewHeadWaiting says "{changes, plural, one {# change} other {# changes}} · {waiting} waiting for you"
+// in the language the app shows under cx.
+//
+// Head of the subtitle list's Proofread view: how many changes the final proofread made or suggested, and how many wait for the user.
+func ReviewHeadWaiting(cx *core.Scope, changes int, waiting int) string {
+	return For(cx).ReviewHeadWaiting(changes, waiting)
+}
+
+// ReviewHeadWaiting is the package's ReviewHeadWaiting in the language of msgs.
+func (msgs Messages) ReviewHeadWaiting(changes int, waiting int) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.ReviewHeadWaiting(changes, waiting))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].ReviewHeadWaiting; f != nil {
+			return f(changes, waiting)
+		}
+		switch lang {
+		case "", "en":
+			var b strings.Builder
+			switch i18n.Cardinal("en", float64(changes)) {
+			case i18n.One:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(changes))))
+				b.WriteString(" change")
+			default:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(changes))))
+				b.WriteString(" changes")
+			}
+			b.WriteString(" · ")
+			b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(waiting))))
+			b.WriteString(" waiting for you")
+			return b.String()
+		case "ja":
+			return i18n.FormatNumber("ja", float64(changes)) + " か所を変更 · " + i18n.FormatNumber("ja", float64(waiting)) + " か所が確認待ち"
+		case "ko":
+			return i18n.FormatNumber("ko", float64(changes)) + "곳 변경 · " + i18n.FormatNumber("ko", float64(waiting)) + "곳 확인 대기"
+		case "zh-Hans":
+			return "改了 " + i18n.FormatNumber("zh-Hans", float64(changes)) + " 处 · " + i18n.FormatNumber("zh-Hans", float64(waiting)) + " 处等你确认"
+		case "zh-Hant":
+			return "改了 " + i18n.FormatNumber("zh-Hant", float64(changes)) + " 處 · " + i18n.FormatNumber("zh-Hant", float64(waiting)) + " 處等你確認"
+		}
+	}
+}
+
+// ReviewHeadDone says "{changes, plural, one {# change} other {# changes}} · all decided"
+// in the language the app shows under cx.
+//
+// Head of the subtitle list's Proofread view once no change waits for the user.
+func ReviewHeadDone(cx *core.Scope, changes int) string { return For(cx).ReviewHeadDone(changes) }
+
+// ReviewHeadDone is the package's ReviewHeadDone in the language of msgs.
+func (msgs Messages) ReviewHeadDone(changes int) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.ReviewHeadDone(changes))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].ReviewHeadDone; f != nil {
+			return f(changes)
+		}
+		switch lang {
+		case "", "en":
+			var b strings.Builder
+			switch i18n.Cardinal("en", float64(changes)) {
+			case i18n.One:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(changes))))
+				b.WriteString(" change")
+			default:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(changes))))
+				b.WriteString(" changes")
+			}
+			b.WriteString(" · all decided")
+			return b.String()
+		case "ja":
+			return i18n.FormatNumber("ja", float64(changes)) + " か所を変更 · すべて処理済み"
+		case "ko":
+			return i18n.FormatNumber("ko", float64(changes)) + "곳 변경 · 모두 처리됨"
+		case "zh-Hans":
+			return "改了 " + i18n.FormatNumber("zh-Hans", float64(changes)) + " 处 · 都已处理"
+		case "zh-Hant":
+			return "改了 " + i18n.FormatNumber("zh-Hant", float64(changes)) + " 處 · 都已處理"
+		}
+	}
+}
+
+// ReviewAcceptAll says "Accept All"
+// in the language the app shows under cx.
+//
+// Button accepting every change of the final proofread that waits for the user.
+func ReviewAcceptAll(cx *core.Scope) string { return For(cx).ReviewAcceptAll() }
+
+// ReviewAcceptAll is the package's ReviewAcceptAll in the language of msgs.
+func (msgs Messages) ReviewAcceptAll() string { return msgs.text(textReviewAcceptAll) }
+
+// ReviewRollBack says "Roll Back"
+// in the language the app shows under cx.
+//
+// Button taking back the whole final proofread: the changes that applied by themselves are undone and those waiting are turned down; those the user accepted stay.
+func ReviewRollBack(cx *core.Scope) string { return For(cx).ReviewRollBack() }
+
+// ReviewRollBack is the package's ReviewRollBack in the language of msgs.
+func (msgs Messages) ReviewRollBack() string { return msgs.text(textReviewRollBack) }
+
+// ReviewNote says "The final proofread changes only the machine's translation; lines you edited stay as you wrote them. Which changes apply by themselves is chosen in Settings › Translation."
+// in the language the app shows under cx.
+//
+// Note under the changes of the final proofread in the subtitle list.
+func ReviewNote(cx *core.Scope) string { return For(cx).ReviewNote() }
+
+// ReviewNote is the package's ReviewNote in the language of msgs.
+func (msgs Messages) ReviewNote() string { return msgs.text(textReviewNote) }
+
+// ReviewKindConsistency says "Consistency"
+// in the language the app shows under cx.
+//
+// Kind of a final proofread change that makes a name, form of address or term match the rest of the film.
+func ReviewKindConsistency(cx *core.Scope) string { return For(cx).ReviewKindConsistency() }
+
+// ReviewKindConsistency is the package's ReviewKindConsistency in the language of msgs.
+func (msgs Messages) ReviewKindConsistency() string { return msgs.text(textReviewKindConsistency) }
+
+// ReviewKindFluency says "Fluency"
+// in the language the app shows under cx.
+//
+// Kind of a final proofread change that makes a line read naturally.
+func ReviewKindFluency(cx *core.Scope) string { return For(cx).ReviewKindFluency() }
+
+// ReviewKindFluency is the package's ReviewKindFluency in the language of msgs.
+func (msgs Messages) ReviewKindFluency() string { return msgs.text(textReviewKindFluency) }
+
+// ReviewKindMeaning says "Meaning"
+// in the language the app shows under cx.
+//
+// Kind of a final proofread change that corrects what a line says.
+func ReviewKindMeaning(cx *core.Scope) string { return For(cx).ReviewKindMeaning() }
+
+// ReviewKindMeaning is the package's ReviewKindMeaning in the language of msgs.
+func (msgs Messages) ReviewKindMeaning() string { return msgs.text(textReviewKindMeaning) }
+
+// ReviewStatusMine says "You edited this line, so this change no longer applies"
+// in the language the app shows under cx.
+//
+// Where a final proofread change stands when the user corrected the line's translation themselves.
+func ReviewStatusMine(cx *core.Scope) string { return For(cx).ReviewStatusMine() }
+
+// ReviewStatusMine is the package's ReviewStatusMine in the language of msgs.
+func (msgs Messages) ReviewStatusMine() string { return msgs.text(textReviewStatusMine) }
+
+// ReviewStatusApplied says "Applied automatically"
+// in the language the app shows under cx.
+//
+// Where a final proofread change stands: it took effect by itself.
+func ReviewStatusApplied(cx *core.Scope) string { return For(cx).ReviewStatusApplied() }
+
+// ReviewStatusApplied is the package's ReviewStatusApplied in the language of msgs.
+func (msgs Messages) ReviewStatusApplied() string { return msgs.text(textReviewStatusApplied) }
+
+// ReviewStatusPending says "Waiting for you"
+// in the language the app shows under cx.
+//
+// Where a final proofread change stands: it waits for the user to accept or turn it down.
+func ReviewStatusPending(cx *core.Scope) string { return For(cx).ReviewStatusPending() }
+
+// ReviewStatusPending is the package's ReviewStatusPending in the language of msgs.
+func (msgs Messages) ReviewStatusPending() string { return msgs.text(textReviewStatusPending) }
+
+// ReviewStatusAccepted says "Accepted"
+// in the language the app shows under cx.
+//
+// Where a final proofread change stands: the user accepted it.
+func ReviewStatusAccepted(cx *core.Scope) string { return For(cx).ReviewStatusAccepted() }
+
+// ReviewStatusAccepted is the package's ReviewStatusAccepted in the language of msgs.
+func (msgs Messages) ReviewStatusAccepted() string { return msgs.text(textReviewStatusAccepted) }
+
+// ReviewStatusRejected says "Undone"
+// in the language the app shows under cx.
+//
+// Where a final proofread change stands: the user turned it down or rolled it back.
+func ReviewStatusRejected(cx *core.Scope) string { return For(cx).ReviewStatusRejected() }
+
+// ReviewStatusRejected is the package's ReviewStatusRejected in the language of msgs.
+func (msgs Messages) ReviewStatusRejected() string { return msgs.text(textReviewStatusRejected) }
+
+// ReviewAccept says "Accept"
+// in the language the app shows under cx.
+//
+// Button accepting one change of the final proofread.
+func ReviewAccept(cx *core.Scope) string { return For(cx).ReviewAccept() }
+
+// ReviewAccept is the package's ReviewAccept in the language of msgs.
+func (msgs Messages) ReviewAccept() string { return msgs.text(textReviewAccept) }
+
+// ReviewReject says "Don't Use"
+// in the language the app shows under cx.
+//
+// Button turning down one change of the final proofread.
+func ReviewReject(cx *core.Scope) string { return For(cx).ReviewReject() }
+
+// ReviewReject is the package's ReviewReject in the language of msgs.
+func (msgs Messages) ReviewReject() string { return msgs.text(textReviewReject) }
+
+// ReviewUndo says "Undo This"
+// in the language the app shows under cx.
+//
+// Button rolling back one change of the final proofread that took effect.
+func ReviewUndo(cx *core.Scope) string { return For(cx).ReviewUndo() }
+
+// ReviewUndo is the package's ReviewUndo in the language of msgs.
+func (msgs Messages) ReviewUndo() string { return msgs.text(textReviewUndo) }
+
+// ReviewPlayLine says "Play from {time}"
+// in the language the app shows under cx.
+//
+// Accessible name of the time of a final proofread change, which plays the film from its line.
+func ReviewPlayLine(cx *core.Scope, time_ string) string { return For(cx).ReviewPlayLine(time_) }
+
+// ReviewPlayLine is the package's ReviewPlayLine in the language of msgs.
+func (msgs Messages) ReviewPlayLine(time_ string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.ReviewPlayLine(time_))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].ReviewPlayLine; f != nil {
+			return f(time_)
+		}
+		switch lang {
+		case "", "en":
+			return "Play from " + msgs.arg(time_)
+		case "ja":
+			return time_ + " から再生"
+		case "ko":
+			return time_ + "부터 재생"
+		case "zh-Hans":
+			return "从 " + time_ + " 播放"
+		case "zh-Hant":
+			return "從 " + time_ + " 播放"
+		}
+	}
+}
+
+// ReviewRolledBack says "Final proofread rolled back (what you accepted stays)"
+// in the language the app shows under cx.
+//
+// Shown on the picture after the user rolled back the final proofread.
+func ReviewRolledBack(cx *core.Scope) string { return For(cx).ReviewRolledBack() }
+
+// ReviewRolledBack is the package's ReviewRolledBack in the language of msgs.
+func (msgs Messages) ReviewRolledBack() string { return msgs.text(textReviewRolledBack) }
+
+// ReviewNewer says "A newer version of Kando saved this film's proofread, so it can't be changed here"
+// in the language the app shows under cx.
+//
+// Shown on the picture when the final proofread's file was written by a newer Kando and cannot be changed.
+func ReviewNewer(cx *core.Scope) string { return For(cx).ReviewNewer() }
+
+// ReviewNewer is the package's ReviewNewer in the language of msgs.
+func (msgs Messages) ReviewNewer() string { return msgs.text(textReviewNewer) }
+
+// ReviewSaveFailed says "Couldn't save the final proofread"
+// in the language the app shows under cx.
+//
+// Shown on the picture when accepting or undoing a final proofread change could not be written to disk.
+func ReviewSaveFailed(cx *core.Scope) string { return For(cx).ReviewSaveFailed() }
+
+// ReviewSaveFailed is the package's ReviewSaveFailed in the language of msgs.
+func (msgs Messages) ReviewSaveFailed() string { return msgs.text(textReviewSaveFailed) }
+
+// FilmsQueueReviewingLines says "Final proofread · {lines} of {total} lines"
+// in the language the app shows under cx.
+//
+// Line under the title of a job reading its whole translation through again once translated: how many translated lines are done of how many.
+func FilmsQueueReviewingLines(cx *core.Scope, lines int, total int) string {
+	return For(cx).FilmsQueueReviewingLines(lines, total)
+}
+
+// FilmsQueueReviewingLines is the package's FilmsQueueReviewingLines in the language of msgs.
+func (msgs Messages) FilmsQueueReviewingLines(lines int, total int) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.FilmsQueueReviewingLines(lines, total))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].FilmsQueueReviewingLines; f != nil {
+			return f(lines, total)
+		}
+		switch lang {
+		case "", "en":
+			return "Final proofread · " + msgs.arg(i18n.FormatNumber("en", float64(lines))) + " of " + msgs.arg(i18n.FormatNumber("en", float64(total))) + " lines"
+		case "ja":
+			return "最終校正中 · " + i18n.FormatNumber("ja", float64(lines)) + "/" + i18n.FormatNumber("ja", float64(total)) + " 行"
+		case "ko":
+			return "최종 교정 중 · " + i18n.FormatNumber("ko", float64(lines)) + "/" + i18n.FormatNumber("ko", float64(total)) + "줄"
+		case "zh-Hans":
+			return "终校中 · " + i18n.FormatNumber("zh-Hans", float64(lines)) + "/" + i18n.FormatNumber("zh-Hans", float64(total)) + " 句"
+		case "zh-Hant":
+			return "終校中 · " + i18n.FormatNumber("zh-Hant", float64(lines)) + "/" + i18n.FormatNumber("zh-Hant", float64(total)) + " 句"
+		}
+	}
+}
+
+// QueueStatusReviewing says "Proofreading the translation…"
+// in the language the app shows under cx.
+//
+// Status of a job reading its whole translation through again once translated (the final proofread).
+func QueueStatusReviewing(cx *core.Scope) string { return For(cx).QueueStatusReviewing() }
+
+// QueueStatusReviewing is the package's QueueStatusReviewing in the language of msgs.
+func (msgs Messages) QueueStatusReviewing() string { return msgs.text(textQueueStatusReviewing) }
+
+// GlossaryGuessTitle says "These look like one series"
+// in the language the app shows under cx.
+//
+// Title of the card in the Terms tab asking whether films whose names look like episodes of one show are a series.
+func GlossaryGuessTitle(cx *core.Scope) string { return For(cx).GlossaryGuessTitle() }
+
+// GlossaryGuessTitle is the package's GlossaryGuessTitle in the language of msgs.
+func (msgs Messages) GlossaryGuessTitle() string { return msgs.text(textGlossaryGuessTitle) }
+
+// GlossaryGuessHint says "Once confirmed, a term can be set to Series, and changing a name or term once changes it in every episode. This was guessed from the file names alone, so you're asked first."
+// in the language the app shows under cx.
+//
+// Explanation on the card asking whether films are one series; Series is the term scope.
+func GlossaryGuessHint(cx *core.Scope) string { return For(cx).GlossaryGuessHint() }
+
+// GlossaryGuessHint is the package's GlossaryGuessHint in the language of msgs.
+func (msgs Messages) GlossaryGuessHint() string { return msgs.text(textGlossaryGuessHint) }
+
+// GlossaryGuessYes says "Same Series"
+// in the language the app shows under cx.
+//
+// Button confirming that the films the card names are one series.
+func GlossaryGuessYes(cx *core.Scope) string { return For(cx).GlossaryGuessYes() }
+
+// GlossaryGuessYes is the package's GlossaryGuessYes in the language of msgs.
+func (msgs Messages) GlossaryGuessYes() string { return msgs.text(textGlossaryGuessYes) }
+
+// GlossaryGuessNo says "Not a Series"
+// in the language the app shows under cx.
+//
+// Button saying the films the card names are not a series; it is not asked again.
+func GlossaryGuessNo(cx *core.Scope) string { return For(cx).GlossaryGuessNo() }
+
+// GlossaryGuessNo is the package's GlossaryGuessNo in the language of msgs.
+func (msgs Messages) GlossaryGuessNo() string { return msgs.text(textGlossaryGuessNo) }
+
+// GlossarySeriesConfirmed says "Made a series of {films, plural, one {# film} other {# films}}"
+// in the language the app shows under cx.
+//
+// Shown on the picture after the user confirmed that films are one series.
+func GlossarySeriesConfirmed(cx *core.Scope, films int) string {
+	return For(cx).GlossarySeriesConfirmed(films)
+}
+
+// GlossarySeriesConfirmed is the package's GlossarySeriesConfirmed in the language of msgs.
+func (msgs Messages) GlossarySeriesConfirmed(films int) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.GlossarySeriesConfirmed(films))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].GlossarySeriesConfirmed; f != nil {
+			return f(films)
+		}
+		switch lang {
+		case "", "en":
+			var b strings.Builder
+			b.WriteString("Made a series of ")
+			switch i18n.Cardinal("en", float64(films)) {
+			case i18n.One:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(films))))
+				b.WriteString(" film")
+			default:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(films))))
+				b.WriteString(" films")
+			}
+			return b.String()
+		case "ja":
+			return i18n.FormatNumber("ja", float64(films)) + " 本をシリーズにしました"
+		case "ko":
+			return i18n.FormatNumber("ko", float64(films)) + "편을 시리즈로 묶었습니다"
+		case "zh-Hans":
+			return "已确认为系列：" + i18n.FormatNumber("zh-Hans", float64(films)) + " 集"
+		case "zh-Hant":
+			return "已確認為系列：" + i18n.FormatNumber("zh-Hant", float64(films)) + " 集"
+		}
+	}
+}
+
+// FilmLayerSpeech says "Original · Speech recognition"
+// in the language the app shows under cx.
+//
+// Layer of a film's subtitles in the player's progress badge: the original lines heard by speech recognition.
+func FilmLayerSpeech(cx *core.Scope) string { return For(cx).FilmLayerSpeech() }
+
+// FilmLayerSpeech is the package's FilmLayerSpeech in the language of msgs.
+func (msgs Messages) FilmLayerSpeech() string { return msgs.text(textFilmLayerSpeech) }
+
+// FilmLayerTranslation says "Translation"
+// in the language the app shows under cx.
+//
+// Layer of a film's subtitles in the player's progress badge: the lines translated.
+func FilmLayerTranslation(cx *core.Scope) string { return For(cx).FilmLayerTranslation() }
+
+// FilmLayerTranslation is the package's FilmLayerTranslation in the language of msgs.
+func (msgs Messages) FilmLayerTranslation() string { return msgs.text(textFilmLayerTranslation) }
+
+// FilmLayerReview says "Final proofread · Whole film"
+// in the language the app shows under cx.
+//
+// Layer of a film's subtitles in the player's progress badge: the final proofread reading the whole translation through.
+func FilmLayerReview(cx *core.Scope) string { return For(cx).FilmLayerReview() }
+
+// FilmLayerReview is the package's FilmLayerReview in the language of msgs.
+func (msgs Messages) FilmLayerReview() string { return msgs.text(textFilmLayerReview) }
+
+// FilmBadgeRunning says "Subtitles {percent}% · translating"
+// in the language the app shows under cx.
+//
+// Accessible name and tooltip of the player's progress badge while the film's subtitles are being made.
+func FilmBadgeRunning(cx *core.Scope, percent int) string { return For(cx).FilmBadgeRunning(percent) }
+
+// FilmBadgeRunning is the package's FilmBadgeRunning in the language of msgs.
+func (msgs Messages) FilmBadgeRunning(percent int) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.FilmBadgeRunning(percent))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].FilmBadgeRunning; f != nil {
+			return f(percent)
+		}
+		switch lang {
+		case "", "en":
+			return "Subtitles " + msgs.arg(i18n.FormatNumber("en", float64(percent))) + "% · translating"
+		case "ja":
+			return "字幕 " + i18n.FormatNumber("ja", float64(percent)) + "% · 翻訳中"
+		case "ko":
+			return "자막 " + i18n.FormatNumber("ko", float64(percent)) + "% · 번역 중"
+		case "zh-Hans":
+			return "字幕 " + i18n.FormatNumber("zh-Hans", float64(percent)) + "% · 翻译中"
+		case "zh-Hant":
+			return "字幕 " + i18n.FormatNumber("zh-Hant", float64(percent)) + "% · 翻譯中"
+		}
+	}
+}
+
+// FilmBadgeAttention says "Subtitles {percent}% · {lines, plural, one {# line needs} other {# lines need}} attention"
+// in the language the app shows under cx.
+//
+// Accessible name and tooltip of the player's progress badge while a done film has lines left untranslated.
+func FilmBadgeAttention(cx *core.Scope, percent int, lines int) string {
+	return For(cx).FilmBadgeAttention(percent, lines)
+}
+
+// FilmBadgeAttention is the package's FilmBadgeAttention in the language of msgs.
+func (msgs Messages) FilmBadgeAttention(percent int, lines int) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.FilmBadgeAttention(percent, lines))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].FilmBadgeAttention; f != nil {
+			return f(percent, lines)
+		}
+		switch lang {
+		case "", "en":
+			var b strings.Builder
+			b.WriteString("Subtitles ")
+			b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(percent))))
+			b.WriteString("% · ")
+			switch i18n.Cardinal("en", float64(lines)) {
+			case i18n.One:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(lines))))
+				b.WriteString(" line needs")
+			default:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(lines))))
+				b.WriteString(" lines need")
+			}
+			b.WriteString(" attention")
+			return b.String()
+		case "ja":
+			return "字幕 " + i18n.FormatNumber("ja", float64(percent)) + "% · " + i18n.FormatNumber("ja", float64(lines)) + " 行に対応が必要"
+		case "ko":
+			return "자막 " + i18n.FormatNumber("ko", float64(percent)) + "% · " + i18n.FormatNumber("ko", float64(lines)) + "줄 처리 필요"
+		case "zh-Hans":
+			return "字幕 " + i18n.FormatNumber("zh-Hans", float64(percent)) + "% · " + i18n.FormatNumber("zh-Hans", float64(lines)) + " 句需要处理"
+		case "zh-Hant":
+			return "字幕 " + i18n.FormatNumber("zh-Hant", float64(percent)) + "% · " + i18n.FormatNumber("zh-Hant", float64(lines)) + " 句需要處理"
+		}
+	}
+}
+
+// FilmBadgeSubtitles says "Subtitles {percent}%"
+// in the language the app shows under cx.
+//
+// Head of the panel the player's progress badge opens: how much of the film is translated.
+func FilmBadgeSubtitles(cx *core.Scope, percent int) string {
+	return For(cx).FilmBadgeSubtitles(percent)
+}
+
+// FilmBadgeSubtitles is the package's FilmBadgeSubtitles in the language of msgs.
+func (msgs Messages) FilmBadgeSubtitles(percent int) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.FilmBadgeSubtitles(percent))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].FilmBadgeSubtitles; f != nil {
+			return f(percent)
+		}
+		switch lang {
+		case "", "en":
+			return "Subtitles " + msgs.arg(i18n.FormatNumber("en", float64(percent))) + "%"
+		case "ja":
+			return "字幕 " + i18n.FormatNumber("ja", float64(percent)) + "%"
+		case "ko":
+			return "자막 " + i18n.FormatNumber("ko", float64(percent)) + "%"
+		case "zh-Hans":
+			return "字幕 " + i18n.FormatNumber("zh-Hans", float64(percent)) + "%"
+		case "zh-Hant":
+			return "字幕 " + i18n.FormatNumber("zh-Hant", float64(percent)) + "%"
+		}
+	}
+}
+
+// FilmBadgePercent says "{percent}%"
+// in the language the app shows under cx.
+//
+// How much of a layer of the film's subtitles is made, in the progress badge's panel.
+func FilmBadgePercent(cx *core.Scope, percent int) string { return For(cx).FilmBadgePercent(percent) }
+
+// FilmBadgePercent is the package's FilmBadgePercent in the language of msgs.
+func (msgs Messages) FilmBadgePercent(percent int) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.FilmBadgePercent(percent))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].FilmBadgePercent; f != nil {
+			return f(percent)
+		}
+		switch lang {
+		case "", "en":
+			return msgs.arg(i18n.FormatNumber("en", float64(percent))) + "%"
+		case "ja":
+			return i18n.FormatNumber("ja", float64(percent)) + "%"
+		case "ko":
+			return i18n.FormatNumber("ko", float64(percent)) + "%"
+		case "zh-Hans":
+			return i18n.FormatNumber("zh-Hans", float64(percent)) + "%"
+		case "zh-Hant":
+			return i18n.FormatNumber("zh-Hant", float64(percent)) + "%"
+		}
+	}
+}
+
+// FilmBadgeUntranslated says "{lines, plural, one {# line} other {# lines}} not translated"
+// in the language the app shows under cx.
+//
+// Summary in the progress badge's panel for a done film with lines left untranslated.
+func FilmBadgeUntranslated(cx *core.Scope, lines int) string {
+	return For(cx).FilmBadgeUntranslated(lines)
+}
+
+// FilmBadgeUntranslated is the package's FilmBadgeUntranslated in the language of msgs.
+func (msgs Messages) FilmBadgeUntranslated(lines int) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.FilmBadgeUntranslated(lines))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].FilmBadgeUntranslated; f != nil {
+			return f(lines)
+		}
+		switch lang {
+		case "", "en":
+			var b strings.Builder
+			switch i18n.Cardinal("en", float64(lines)) {
+			case i18n.One:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(lines))))
+				b.WriteString(" line")
+			default:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(lines))))
+				b.WriteString(" lines")
+			}
+			b.WriteString(" not translated")
+			return b.String()
+		case "ja":
+			return i18n.FormatNumber("ja", float64(lines)) + " 行が未翻訳"
+		case "ko":
+			return i18n.FormatNumber("ko", float64(lines)) + "줄 미번역"
+		case "zh-Hans":
+			return i18n.FormatNumber("zh-Hans", float64(lines)) + " 句没有翻译"
+		case "zh-Hant":
+			return i18n.FormatNumber("zh-Hant", float64(lines)) + " 句沒有翻譯"
+		}
+	}
+}
+
+// FilmBadgeUntranslatedNote says "{lines, plural, one {# line wasn't} other {# lines weren't}} translated. Only these are translated again, not the whole film."
+// in the language the app shows under cx.
+//
+// Note in the progress badge's panel over the button that translates the lines left untranslated.
+func FilmBadgeUntranslatedNote(cx *core.Scope, lines int) string {
+	return For(cx).FilmBadgeUntranslatedNote(lines)
+}
+
+// FilmBadgeUntranslatedNote is the package's FilmBadgeUntranslatedNote in the language of msgs.
+func (msgs Messages) FilmBadgeUntranslatedNote(lines int) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.FilmBadgeUntranslatedNote(lines))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].FilmBadgeUntranslatedNote; f != nil {
+			return f(lines)
+		}
+		switch lang {
+		case "", "en":
+			var b strings.Builder
+			switch i18n.Cardinal("en", float64(lines)) {
+			case i18n.One:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(lines))))
+				b.WriteString(" line wasn't")
+			default:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(lines))))
+				b.WriteString(" lines weren't")
+			}
+			b.WriteString(" translated. Only these are translated again, not the whole film.")
+			return b.String()
+		case "ja":
+			return i18n.FormatNumber("ja", float64(lines)) + " 行を翻訳できませんでした。この行だけを翻訳し直し、作品全体はやり直しません"
+		case "ko":
+			return i18n.FormatNumber("ko", float64(lines)) + "줄을 번역하지 못했습니다. 이 줄만 다시 번역하고 영상 전체는 다시 하지 않습니다"
+		case "zh-Hans":
+			return i18n.FormatNumber("zh-Hans", float64(lines)) + " 句没能翻译。只补这几句，不重做整部影片"
+		case "zh-Hant":
+			return i18n.FormatNumber("zh-Hant", float64(lines)) + " 句沒能翻譯。只補這幾句，不重做整部影片"
+		}
+	}
+}
+
+// FilmBadgeTranslateMissing says "Translate"
+// in the language the app shows under cx.
+//
+// Button in the progress badge's panel translating only the lines left untranslated.
+func FilmBadgeTranslateMissing(cx *core.Scope) string { return For(cx).FilmBadgeTranslateMissing() }
+
+// FilmBadgeTranslateMissing is the package's FilmBadgeTranslateMissing in the language of msgs.
+func (msgs Messages) FilmBadgeTranslateMissing() string {
+	return msgs.text(textFilmBadgeTranslateMissing)
+}
+
+// FilmBadgeSettings says "Settings…"
+// in the language the app shows under cx.
+//
+// Row of the progress badge's panel opening Settings › Translation.
+func FilmBadgeSettings(cx *core.Scope) string { return For(cx).FilmBadgeSettings() }
+
+// FilmBadgeSettings is the package's FilmBadgeSettings in the language of msgs.
+func (msgs Messages) FilmBadgeSettings() string { return msgs.text(textFilmBadgeSettings) }
 
 // dated is lang with the hour cycle the user set, which times take.
 func (msgs Messages) dated(lang string) string {
