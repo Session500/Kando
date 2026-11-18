@@ -80,16 +80,19 @@ type Facts struct {
 	Excerpt *Excerpt
 }
 
-// Tool is a tool the pipeline runs and its version: Missing when it is not installed, an empty Version when it did not say.
+// Tool is a tool the pipeline runs and its version: Missing when it is not installed, Broken why its copy does not start, in the issue's language, and an empty Version when it did not say.
 type Tool struct {
 	Name, Version string
 	Missing       bool
+	Broken        string
 }
 
 func (t Tool) String() string {
 	switch {
 	case t.Missing:
 		return t.Name + " 未安装"
+	case t.Broken != "":
+		return t.Name + " 无法运行（" + t.Broken + "）"
 	case t.Version == "":
 		return t.Name + " 版本未知"
 	}

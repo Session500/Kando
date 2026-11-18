@@ -104,8 +104,11 @@ func writeStatus(w io.Writer, s remote.Status) error {
 	slices.Sort(names)
 	for _, name := range names {
 		path := s.Tools[name]
-		if path == "" {
+		switch why := s.Broken[name]; {
+		case path == "":
 			path = "missing"
+		case why != "":
+			path += " (does not start: " + why + ")"
 		}
 		rows = append(rows, []string{name, path})
 	}

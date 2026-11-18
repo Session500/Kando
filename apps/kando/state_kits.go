@@ -5,45 +5,59 @@ import (
 	"errors"
 	"time"
 
+	"kando/apps/kando/toolhealth"
 	"kando/packages/media"
 )
 
-// kitsUI is the state of the programs Kando downloads for itself (media.Kit): yt-dlp, ffmpeg and whisper-cli, each the moment the window is ready when the computer has none, into media.OwnToolsDir (main sets it; empty, as in tests that leave it, nothing is downloaded), so a first launch needs nothing installed. The first-run guide and Settings › 通用 show their progress, and 下载 or 重试 there starts one again.
+// kitsUI is the state of the programs Kando downloads for itself (media.Kit): yt-dlp, ffmpeg and whisper-cli, into media.OwnToolsDir (main sets it; empty, as in tests that leave it, nothing is downloaded). Kando runs its own copy first (media.Candidates), so a package manager that upgrades what the computer's copy is built on cannot break it, and so it downloads each kit the moment the window is ready even when the computer has the program, except a kit that is only a fallback, which it downloads only when the computer has no copy that works (kitsInstallWanted). The first-run guide and Settings › 通用 show the downloads of programs the computer lacks, and 下载 or 重试 there starts one again; a download while the computer's copy works is quiet: it is not shown, and when it fails it is not tried again until Kando starts again or the user asks for it.
 type kitsUI struct {
 	// running is the download of each program under way, by program.
 	running map[string]*kitDownload
 	// errs is why the last download of each program failed, by program, until it is started again; settings.KitsError words it in the language it is shown in.
 	errs map[string]error
+	// quietFailed is the programs whose quiet download failed since Kando started, which are not tried again on their own.
+	quietFailed map[string]bool
+	// relook is set when a quiet download landed while another was still under way: the tools are looked up again once, when the last one ends, rather than after each.
+	relook bool
 	// install downloads a kit; tests replace it.
 	install func(ctx context.Context, kit media.Kit, dir string, progress func(written, total int64)) (string, error)
 }
 
-// kitDownload is one download under way: how far it has come, and how to stop it.
+// kitDownload is one download under way: how far it has come, and how to stop it. quiet is set while the computer's copy of the program works, so nothing shows the download.
 type kitDownload struct {
 	written, total int64
 	cancel         context.CancelFunc
+	quiet          bool
 }
 
 func newKitsUI() kitsUI {
-	return kitsUI{running: map[string]*kitDownload{}, errs: map[string]error{}, install: media.InstallKit}
+	return kitsUI{running: map[string]*kitDownload{}, errs: map[string]error{}, quietFailed: map[string]bool{}, install: media.InstallKit}
 }
 
 func (a *app) kitsHooks() areaHooks {
 	return areaHooks{
-		ready:    a.kitsInstallMissing,
+		ready:    a.kitsInstallWanted,
 		quitting: a.kitsCancel,
 	}
 }
 
-// kitsInstallMissing starts downloading every program the pipeline has not found that Kando can download for this platform.
-func (a *app) kitsInstallMissing() {
-	tools, ok := a.pipeline.(media.Tools)
-	if !ok {
+// kitsInstallWanted starts downloading every kit Kando wants and has not got: one it runs first, as long as it has none; a fallback (media.Kit.Fallback), when the computer has no copy that works; and one whose copy is of an earlier version than this Kando pins (media.KitStale). It runs when the window is ready and after each check of the tools (toolsCheck), which tells whether the computer's copies work. A download for a program whose current copy works is quiet, and one that failed quietly is not started again.
+func (a *app) kitsInstallWanted() {
+	if _, ok := a.pipeline.(media.Tools); !ok {
 		return
 	}
-	for _, tool := range []struct{ program, path string }{{"yt-dlp", tools.YTDLP}, {"ffmpeg", tools.FFmpeg}, {"whisper-cli", tools.Whisper}} {
-		if tool.path == "" {
-			a.kitsInstall(tool.program)
+	for _, program := range toolhealth.Programs {
+		kit, ok := media.KitFor(program)
+		if !ok || a.kits.quietFailed[program] {
+			continue
+		}
+		usable := a.toolUsable(program)
+		own := media.OwnTool(program)
+		switch {
+		case own == "" && (!kit.Fallback || !usable):
+			a.kitsStart(program, usable)
+		case own != "" && media.KitStale(kit):
+			a.kitsStart(program, true)
 		}
 	}
 }
@@ -54,18 +68,30 @@ func (a *app) kitsCanInstall(program string) bool {
 	return ok && media.OwnToolsDir != ""
 }
 
-// kitsInstall downloads program off the UI thread, unless it is already downloading. Once it is in, the tools are looked up again, which finds it.
+// kitsInstall downloads program because the user asked for it, from a button: never quiet, and again after a quiet download failed. A quiet download of it under way is shown from now on.
 func (a *app) kitsInstall(program string) {
+	delete(a.kits.quietFailed, program)
+	a.kitsStart(program, false)
+}
+
+// kitsStart downloads program off the UI thread, unless it is already downloading, quiet or not. Once it is in, the tools are looked up again, which finds it, and checked (redetectTools).
+func (a *app) kitsStart(program string, quiet bool) {
 	kit, ok := media.KitFor(program)
-	if !ok || media.OwnToolsDir == "" || a.kits.running[program] != nil {
+	if !ok || media.OwnToolsDir == "" {
+		return
+	}
+	if job := a.kits.running[program]; job != nil {
+		job.quiet = job.quiet && quiet
 		return
 	}
 	if a.privacy.offline {
-		a.kits.errs[program] = media.ErrOffline
+		if !quiet {
+			a.kits.errs[program] = media.ErrOffline
+		}
 		return
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	job := &kitDownload{total: kit.Size, cancel: cancel}
+	job := &kitDownload{total: kit.Size, cancel: cancel, quiet: quiet}
 	a.kits.running[program] = job
 	delete(a.kits.errs, program)
 	dir, install, update := media.OwnToolsDir, a.kits.install, a.update
@@ -88,13 +114,24 @@ func (a *app) kitsInstall(program string) {
 				return
 			}
 			delete(a.kits.running, program)
-			if err != nil {
-				if !errors.Is(err, context.Canceled) {
-					a.kits.errs[program] = err
-				}
+			switch {
+			case err != nil && job.quiet:
+				a.kits.quietFailed[program] = true
+			case err != nil && !errors.Is(err, context.Canceled):
+				a.kits.errs[program] = err
+			case err == nil && job.quiet:
+				// The program works as it is: the tools are looked up once, when the last download ends.
+				a.kits.relook = true
+			case err == nil:
+				// The user is waiting for this one: it is used at once.
+				a.kits.relook = false
+				a.redetectTools()
 				return
 			}
-			a.redetectTools()
+			if a.kits.relook && len(a.kits.running) == 0 {
+				a.kits.relook = false
+				a.redetectTools()
+			}
 		})
 	}()
 }
@@ -106,10 +143,10 @@ func (a *app) kitsCancel() {
 	}
 }
 
-// kitsProgress is how far the download of program has come, from 0 to 1, or -1 before its size is known; ok is false when it is not downloading.
+// kitsProgress is how far the download of program has come, from 0 to 1, or -1 before its size is known; ok is false when it is not downloading, or downloading quietly.
 func (a *app) kitsProgress(program string) (progress float64, ok bool) {
 	job := a.kits.running[program]
-	if job == nil {
+	if job == nil || job.quiet {
 		return 0, false
 	}
 	if job.total <= 0 {
@@ -118,11 +155,11 @@ func (a *app) kitsProgress(program string) (progress float64, ok bool) {
 	return min(float64(job.written)/float64(job.total), 1), true
 }
 
-// kitsDownloading is the programs downloading now, in the order the pipeline runs them.
+// kitsDownloading is the programs downloading now, but quietly, in the order the pipeline runs them.
 func (a *app) kitsDownloading() []string {
 	var names []string
-	for _, program := range []string{"yt-dlp", "ffmpeg", "whisper-cli"} {
-		if a.kits.running[program] != nil {
+	for _, program := range toolhealth.Programs {
+		if job := a.kits.running[program]; job != nil && !job.quiet {
 			names = append(names, program)
 		}
 	}

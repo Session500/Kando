@@ -23,18 +23,6 @@ import (
 	"github.com/nsgo-dev/nsgo/nsgotest"
 )
 
-func TestShortVersion(t *testing.T) {
-	if got := shortVersion("ffmpeg version 9.0.2 Copyright"); got != "9.0.2" {
-		t.Fatalf("ffmpeg = %q", got)
-	}
-	if got := shortVersion("whisper.cpp version: 1.9.5"); got != "1.9.5" {
-		t.Fatalf("whisper = %q", got)
-	}
-	if got := shortVersion("2026.08.19"); got != "2026.08.19" {
-		t.Fatalf("yt-dlp = %q", got)
-	}
-}
-
 func TestSettingsPages(t *testing.T) {
 	t.Setenv("KANDO_GOOGLE_CLIENT_ID", "")
 	t.Setenv("KANDO_GOOGLE_CLIENT_SECRET", "")

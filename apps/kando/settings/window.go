@@ -56,7 +56,10 @@ type App interface {
 	Forget(dir string)
 	Tools() (media.Tools, bool)
 	Redetect()
-	ToolVersion(path string) string
+	// ToolHealth is the copy of program the pipeline runs and whether it works, which its row of 组件 shows; UseComputerTool runs the computer's copy of it rather than Kando's own, or Kando's own again, and UseOwnTool runs Kando's own, downloading it when Kando has none or its copy does not run.
+	ToolHealth(program string) ToolHealth
+	UseComputerTool(program string, computer bool)
+	UseOwnTool(program string)
 	// ToolDownload is Kando's own download of program (media.Kit), which a row of 组件 offers while the computer has none; DownloadTool starts it.
 	ToolDownload(program string) ToolFetch
 	DownloadTool(program string)

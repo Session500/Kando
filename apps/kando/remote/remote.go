@@ -278,8 +278,9 @@ type Status struct {
 	// Ready reports whether a job can start now; Readiness is the sidebar's status line, which says what is missing when it cannot.
 	Ready     bool   `json:"ready"`
 	Readiness string `json:"readiness"`
-	// Tools is where each program Kando runs is, by name (yt-dlp, ffmpeg, whisper-cli), "" for one that is missing.
-	Tools map[string]string `json:"tools"`
+	// Tools is where each program Kando runs is, by name (yt-dlp, ffmpeg, whisper-cli), "" for one that is missing. Broken says, by name, why a program whose copy is there does not start, as a Homebrew ffmpeg that cannot load a library Homebrew upgraded; a program that starts is not in it.
+	Tools  map[string]string `json:"tools"`
+	Broken map[string]string `json:"broken,omitempty"`
 	// SpeechModel is the whisper model file in use, TranslationModel the AI service's model, and Language what subtitles are translated into.
 	SpeechModel      string `json:"speech_model"`
 	TranslationModel string `json:"translation_model"`

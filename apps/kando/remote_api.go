@@ -20,6 +20,7 @@ import (
 	"kando/apps/kando/remote"
 	"kando/apps/kando/sidebar"
 	"kando/apps/kando/sites/catalog"
+	"kando/apps/kando/toolhealth"
 	"kando/packages/core"
 	"kando/packages/media"
 )
@@ -182,6 +183,13 @@ func (a *app) remoteStatus(ctx context.Context) (remote.Status, error) {
 		}
 		if tools, ok := a.pipeline.(media.Tools); ok {
 			s.Tools["yt-dlp"], s.Tools["ffmpeg"], s.Tools["whisper-cli"] = tools.YTDLP, tools.FFmpeg, tools.Whisper
+			for _, program := range a.toolsBroken() {
+				if s.Broken == nil {
+					s.Broken = map[string]string{}
+				}
+				_, health := a.toolHealth(program)
+				s.Broken[program] = toolhealth.Why(remoteMessages(), health)
+			}
 			s.SpeechModel = tools.WhisperModel
 			s.TranslationModel = tools.Translator.Model
 		}

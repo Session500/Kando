@@ -82,24 +82,60 @@ func TestKitsDownloadWhatIsMissingWhenReady(t *testing.T) {
 	}
 }
 
-func TestKitsLeaveInstalledProgramsAlone(t *testing.T) {
+// TestKitsDownloadQuietlyWhatTheComputerHas checks that Kando downloads its own copy of a program the computer has too, as it runs its own first, but quietly: neither the sidebar nor the guide show it, and only the program the computer lacks counts as downloading. A kit that is only a fallback (media.Kit.Fallback), as ffmpeg on Linux, is not downloaded while the computer's copy may work.
+func TestKitsDownloadQuietlyWhatTheComputerHas(t *testing.T) {
 	a, _, _ := newTestApp(t, media.Tools{YTDLP: "/opt/homebrew/bin/yt-dlp", FFmpeg: "/opt/homebrew/bin/ffmpeg"})
 	fakeKits(t, a, make(chan struct{}))
 	a.kitsHooks().ready()
 	if got := a.kitsDownloading(); len(got) != 1 || got[0] != "whisper-cli" {
 		t.Fatalf("downloading %v, want whisper-cli alone", got)
 	}
+	for _, program := range []string{"yt-dlp", "ffmpeg"} {
+		kit, _ := media.KitFor(program)
+		job := a.kits.running[program]
+		if kit.Fallback != (job == nil) || (job != nil && !job.quiet) {
+			t.Errorf("%s: download %+v, want a quiet one unless the kit is a fallback (%v)", program, job, kit.Fallback)
+		}
+		if _, shown := a.kitsProgress(program); shown {
+			t.Errorf("%s's quiet download shows its progress", program)
+		}
+	}
 	a.kitsCancel()
 }
 
+// TestKitsQuietDownloadThatFailsStaysQuiet checks that a quiet download that failed says nothing and is not started again on its own, but is when the user asks for it.
+func TestKitsQuietDownloadThatFailsStaysQuiet(t *testing.T) {
+	a, tt, updates := newTestApp(t, media.Tools{YTDLP: "/opt/homebrew/bin/yt-dlp", FFmpeg: "/opt/homebrew/bin/ffmpeg", Whisper: "/opt/homebrew/bin/whisper-cli"})
+	release := make(chan struct{})
+	close(release)
+	fakeKits(t, a, release, "yt-dlp", "ffmpeg", "whisper-cli")
+	a.kitsInstallWanted()
+	waitUntil(t, tt, a, updates, func() bool { return len(a.kits.running) == 0 })
+	if len(a.kits.errs) != 0 || !a.kits.quietFailed["yt-dlp"] {
+		t.Fatalf("errs %v, quietly failed %v", a.kits.errs, a.kits.quietFailed)
+	}
+	a.kitsInstallWanted()
+	if len(a.kits.running) != 0 {
+		t.Fatalf("a quiet download that failed started again on its own: %v", a.kits.running)
+	}
+	a.kitsInstall("yt-dlp")
+	if job := a.kits.running["yt-dlp"]; job == nil || job.quiet {
+		t.Fatalf("the user's download of yt-dlp is %+v, want one that shows", job)
+	}
+	waitUntil(t, tt, a, updates, func() bool { return len(a.kits.running) == 0 })
+	if a.kits.errs["yt-dlp"] == nil {
+		t.Fatal("the user's download that failed does not say so")
+	}
+}
+
 func TestKitsRetryFromSettings(t *testing.T) {
-	// Only ffmpeg is missing, so that no download succeeds before 重试 and the tools are not looked up again, which would find a Homebrew ffmpeg on the machine running the test.
+	// Only ffmpeg is missing, and the quiet downloads of the others fail too, so that no download succeeds before 重试 and the tools are not looked up again, which would find a Homebrew ffmpeg on the machine running the test.
 	a, tt, updates := newTestApp(t, media.Tools{YTDLP: "/usr/local/bin/yt-dlp", Whisper: "/usr/local/bin/whisper-cli"})
 	release := make(chan struct{})
 	close(release)
-	fakeKits(t, a, release, "ffmpeg")
-	a.kitsInstallMissing()
-	waitUntil(t, tt, a, updates, func() bool { return len(a.kitsDownloading()) == 0 })
+	fakeKits(t, a, release, "ffmpeg", "yt-dlp", "whisper-cli")
+	a.kitsInstallWanted()
+	waitUntil(t, tt, a, updates, func() bool { return len(a.kits.running) == 0 })
 	if got := settings.KitsError(testlocale.Messages(), a.kits.errs["ffmpeg"]); got != "服务器返回 HTTP 503" {
 		t.Fatalf("ffmpeg's error says %q, errs %v", got, a.kits.errs)
 	}
@@ -130,7 +166,7 @@ func TestOnboardingShowsTheDownloads(t *testing.T) {
 	a, tt, updates := newTestApp(t, media.Tools{})
 	release := make(chan struct{})
 	fakeKits(t, a, release)
-	a.kitsInstallMissing()
+	a.kitsInstallWanted()
 	waitUntil(t, tt, a, updates, func() bool {
 		p, ok := a.kitsProgress("yt-dlp")
 		return ok && p == 0.5

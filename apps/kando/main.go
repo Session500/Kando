@@ -54,6 +54,7 @@ type app struct {
 	onb      onboardUI   // state_onboarding.go
 	sites    sitesUI     // state_sites.go
 	kits     kitsUI      // state_kits.go
+	tools    toolsUI     // state_tools.go
 	remote   remoteUI    // state_remote.go
 	cliTool  cliToolUI   // state_cli.go
 	ext      extUI       // state_browserext.go
@@ -97,6 +98,7 @@ func newApp(pipeline media.Pipeline, update func(fn func())) *app {
 		onb:      newOnboardUI(),
 		sites:    newSitesUI(),
 		kits:     newKitsUI(),
+		tools:    newToolsUI(),
 		remote:   newRemoteUI(),
 		cliTool:  newCLIToolUI(),
 		ext:      newExtUI(),

@@ -106,6 +106,7 @@ var (
 		Ready:            true,
 		Readiness:        "Ready",
 		Tools:            map[string]string{"yt-dlp": "/bin/yt-dlp", "ffmpeg": "/bin/ffmpeg", "whisper-cli": ""},
+		Broken:           map[string]string{"ffmpeg": "It can't load libbluray, a library it needs"},
 		SpeechModel:      "ggml-large-v3.bin",
 		TranslationModel: "gpt-5",
 		Language:         "Chinese",
@@ -404,7 +405,7 @@ func TestTextOutput(t *testing.T) {
 				"language           Chinese\n" +
 				"running            j1\n" +
 				"queued             2\n" +
-				"ffmpeg             /bin/ffmpeg\n" +
+				"ffmpeg             /bin/ffmpeg (does not start: It can't load libbluray, a library it needs)\n" +
 				"whisper-cli        missing\n" +
 				"yt-dlp             /bin/yt-dlp\n",
 		},

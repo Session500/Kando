@@ -15,6 +15,7 @@ import (
 	"kando/apps/kando/films/sitename"
 	"kando/apps/kando/locales"
 	"kando/apps/kando/settings"
+	"kando/apps/kando/toolhealth"
 	"kando/packages/core"
 	"kando/packages/media"
 
@@ -150,12 +151,17 @@ func filmName(item films.Film) string {
 	return item.Title
 }
 
-// feedbackFacts is what the app knows for the issue now: its version and the system's, the tools' versions and the models in use, the open film's state and the subtitle line at the playhead. None of it is read from disk here; the tools' versions are the ones the settings asked for (loadToolVersions).
+// feedbackFacts is what the app knows for the issue now: its version and the system's, the tools' versions and the models in use, the open film's state and the subtitle line at the playhead. None of it is read from disk here; the tools' versions, and whether they start, are what the last check of them found (toolsCheck).
 func (a *app) feedbackFacts() feedback.Facts {
 	facts := feedback.Facts{App: "看懂 " + appVersion, OS: a.feedback.system}
 	tools, _ := a.pipeline.(media.Tools)
-	for _, tool := range []struct{ name, path string }{{"yt-dlp", tools.YTDLP}, {"ffmpeg", tools.FFmpeg}, {"whisper-cli", tools.Whisper}} {
-		facts.Tools = append(facts.Tools, feedback.Tool{Name: tool.name, Version: a.ToolVersion(tool.path), Missing: tool.path == ""})
+	for _, program := range toolhealth.Programs {
+		path, health := a.toolHealth(program)
+		tool := feedback.Tool{Name: program, Version: health.Version, Missing: path == ""}
+		if path != "" && health.State == media.HealthBroken {
+			tool.Broken = toolhealth.Why(locales.In(feedbackIssueLanguage), health)
+		}
+		facts.Tools = append(facts.Tools, tool)
 	}
 	if tools.WhisperModel != "" {
 		facts.Speech = filepath.Base(tools.WhisperModel)

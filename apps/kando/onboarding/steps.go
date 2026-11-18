@@ -287,7 +287,7 @@ func (r toolRow) Render(cx *core.Scope) core.Node {
 	}}
 }
 
-// toolSub is the line under a program's name and its color: the download's progress in blue while it runs, why it failed in red, how to install it where Kando cannot, otherwise what it is for.
+// toolSub is the line under a program's name and its color: the download's progress in blue while it runs, why it failed in red, or why the computer's copy does not start, how to install it where Kando cannot, otherwise what it is for.
 func toolSub(cx *core.Scope, t Tool) (string, core.Color) {
 	k := theme.Of(cx)
 	switch {
@@ -295,12 +295,14 @@ func toolSub(cx *core.Scope, t Tool) (string, core.Color) {
 		return locales.OnboardingToolConnecting(cx), k.AccentInk()
 	case t.State == ToolDownloading:
 		return locales.OnboardingToolProgress(cx, int(t.Progress*100)), k.AccentInk()
+	case t.Err != "":
+		return locales.OnboardingModelFailed(cx, t.Err), k.DangerInk()
+	case t.Broken != "":
+		return locales.OnboardingToolBroken(cx, t.Broken), k.DangerInk()
 	case t.State == ToolUnavailable && t.Install != "":
 		return locales.OnboardingToolUnavailableCommand(cx, t.Install), k.WarnInk()
 	case t.State == ToolUnavailable:
 		return locales.OnboardingToolUnavailable(cx), k.WarnInk()
-	case t.Err != "":
-		return locales.OnboardingModelFailed(cx, t.Err), k.DangerInk()
 	}
 	return t.Use, ui.ColorsOf(cx).Muted()
 }
