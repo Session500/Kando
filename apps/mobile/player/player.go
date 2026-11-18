@@ -220,6 +220,8 @@ func newPlay(cx *core.Scope, s *session.Session, key string) *play {
 		return cues.FromSync(list), err
 	})
 	p.current = core.NewMemo(cx, func() int { return cues.Index(p.list(), p.at.Get()) })
+	// The lines kept play at once; a desktop that has changed them since, as by translating the film again, gives its own, which take their place.
+	s.Follow(key, p.cues.Refetch)
 	// The screen stays on while the film plays.
 	var release func()
 	cx.Effect(func() {

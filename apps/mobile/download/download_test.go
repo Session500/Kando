@@ -121,6 +121,38 @@ func TestAVideoThatChangedOnTheDesktopStartsOver(t *testing.T) {
 	}
 }
 
+// TestFollowTakesWhatTheDesktopChanged follows a downloaded film three times: while the desktop has not changed it, nothing is asked of its lines; once the desktop says it changed later than the phone has it, Follow gives the desktop's record and lines, keeping nothing itself; and a film the desktop no longer lists stays as it is.
+func TestFollowTakesWhatTheDesktopChanged(t *testing.T) {
+	_, c := paired(t, []byte("video"))
+	st := store.Open(t.TempDir())
+	f := filmOf(t, c)
+	f.Video, f.Film.VideoSize = "video.mp4", 5
+	old := []sync.Cue{{StartMS: 0, EndMS: 1000, Original: "high", Translation: "高"}}
+	if err := st.SaveCues(f.Desktop, f.Film.ID, old); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, cues, changed, err := Follow(context.Background(), c, f); err != nil || changed || cues != nil {
+		t.Fatalf("an unchanged film: %+v, %v, %v", cues, changed, err)
+	}
+
+	f.Film.Updated = f.Film.Updated.Add(-time.Hour)
+	f.Film.Title = "Old title"
+	listed, cues, changed, err := Follow(context.Background(), c, f)
+	if err != nil || !changed || listed.Title != "Talk" || len(cues) != 1 || cues[0].Original != "hi" {
+		t.Fatalf("a changed film: %+v, %+v, %v, %v", listed, cues, changed, err)
+	}
+	if kept, _, _ := st.Cues(f.Desktop, f.Film.ID); kept[0].Original != "high" {
+		t.Fatalf("Follow kept lines itself: %+v", kept)
+	}
+
+	gone := f
+	gone.Film.ID = "f2"
+	if _, _, changed, err := Follow(context.Background(), c, gone); err != nil || changed {
+		t.Fatalf("a film the desktop does not list: %v, %v", changed, err)
+	}
+}
+
 func TestExtensionNamesTheVideoByItsType(t *testing.T) {
 	for kind, want := range map[string]string{"video/mp4": ".mp4", "video/quicktime": ".mov", "video/x-matroska": ".mkv", "video/webm; codecs=vp9": ".webm", "application/octet-stream": ".mp4", "": ".mp4"} {
 		if got := extension(kind, ".mp4"); got != want {
