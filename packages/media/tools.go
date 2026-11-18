@@ -190,21 +190,49 @@ func packageManagerDirs(goos string, getenv func(string) string) []string {
 	return dirs
 }
 
-// lookTool finds the program name: the one Kando downloaded for itself (ownTool), then one on PATH or in a package manager's folder.
+// lookTool finds the program name: the first of its Candidates, which is not run to see whether it works; the app does that (Probe) off the UI thread and may choose another.
 func lookTool(name string) string {
-	if path := ownTool(name); path != "" {
-		return path
+	if found := Candidates(name); len(found) > 0 {
+		return found[0]
+	}
+	return ""
+}
+
+// Candidates is every copy of the program name Kando could run, in the order it prefers them: the one Kando downloaded for itself (OwnTool), unless its kit is a Fallback; the one on PATH; those in the package managers' folders; and last Kando's own when its kit is a Fallback. A copy reached two ways, as Homebrew's folder both on PATH and among the package managers', is listed once.
+func Candidates(name string) []string {
+	var found []string
+	seen := map[string]bool{}
+	add := func(path string) {
+		if path == "" {
+			return
+		}
+		key := path
+		if resolved, err := filepath.EvalSymlinks(path); err == nil {
+			key = resolved
+		}
+		if !seen[key] {
+			seen[key] = true
+			found = append(found, path)
+		}
+	}
+	own := OwnTool(name)
+	kit, _ := KitFor(name)
+	if !kit.Fallback {
+		add(own)
 	}
 	if path, err := exec.LookPath(name); err == nil {
-		return path
+		add(path)
 	}
 	// LookPath of a path checks the file as it does those on PATH: an executable file, or on Windows one with an extension of PATHEXT, as ffmpeg.exe.
 	for _, dir := range extraToolDirs {
 		if path, err := exec.LookPath(filepath.Join(dir, name)); err == nil {
-			return path
+			add(path)
 		}
 	}
-	return ""
+	if kit.Fallback {
+		add(own)
+	}
+	return found
 }
 
 // Relook finds yt-dlp, ffmpeg, whisper-cli and the everyapi command-line program again, and signs the translator in through everyapi as UseEveryAPICLI does, so a program installed since Kando started is used without restarting it. The output directory and the translator's endpoint, model and key stay as they are.
