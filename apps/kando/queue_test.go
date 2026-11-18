@@ -1203,6 +1203,19 @@ func newHiddenXApp(t *testing.T) (*app, *nsgotest.App, chan func()) {
 	lib := t.TempDir()
 	a.edit(func(s *session) { s.LibraryDir = lib })
 	a.settingsPath = filepath.Join(t.TempDir(), "settings.json")
+	// The downloaded video's poster is read, and its cover.jpg written into the film's folder, off the engine's goroutine once the job is done; it finishes before the library folder is removed, which it would otherwise make again partway (a TempDir cleanup that fails with "directory not empty").
+	t.Cleanup(func() {
+		timeout := time.After(5 * time.Second)
+		for len(a.lib.posterBusy) > 0 || len(a.lib.thumbBusy) > 0 {
+			select {
+			case fn := <-updates:
+				onEngine(a, fn)
+			case <-timeout:
+				t.Error("the poster was still being read when the test ended")
+				return
+			}
+		}
+	})
 	return a, tt, updates
 }
 

@@ -35,9 +35,10 @@ type libraryMoving struct {
 	undo libraryMoveBack
 }
 
-// libraryMoveCopy is a move being copied to another volume: the film's name and the other library's, for the message bar, which film of how many of its run it is (at, total), how far the copy has gone, in percent, and cancel, which stops it.
+// libraryMoveCopy is a move being copied to another volume: the film's name and the other library's, for the message bar, which film of how many of its run it is (at, total), the libraries it goes from and to, whose encrypted images stay attached meanwhile (lockNeeds), how far the copy has gone, in percent, and cancel, which stops it.
 type libraryMoveCopy struct {
 	name, library string
+	from, to      string
 	at, total     int
 	percent       int
 	cancel        context.CancelFunc
@@ -372,7 +373,7 @@ func (a *app) libraryMoveUnitStart(run *libraryMoveRun, unit films.Unit) (bool, 
 		return false, nil
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	copying := &libraryMoveCopy{name: name, library: a.libraryMoveLabel(a.messages(), to), at: run.at, total: run.total, cancel: cancel}
+	copying := &libraryMoveCopy{name: name, library: a.libraryMoveLabel(a.messages(), to), from: from, to: to, at: run.at, total: run.total, cancel: cancel}
 	a.lib.move.copying = copying
 	a.libraryMoveShowCopy()
 	update, move := a.update, *plan
