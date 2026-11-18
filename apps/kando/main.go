@@ -67,6 +67,7 @@ type app struct {
 	signin   signinUI    // state_signin.go
 	phone    phoneUI     // state_phonesync.go
 	lock     lockUI      // state_lock.go
+	tray     trayUI      // state_tray.go
 	privacy  privacyUI   // state_privacy.go
 	subs     subscribeUI // state_subscribe.go
 }
@@ -103,6 +104,7 @@ func newApp(pipeline media.Pipeline, update func(fn func())) *app {
 		signin:   signinUI{},
 		phone:    newPhoneUI(),
 		lock:     newLockUI(),
+		tray:     newTrayUI(),
 		privacy:  newPrivacyUI(),
 		subs:     newSubscribeUI(),
 	}

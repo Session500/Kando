@@ -35,6 +35,7 @@ type fakeApp struct {
 	ext                     BrowserExtension
 	signIn                  SignIn
 	phone                   PhoneSync
+	background              Background
 	notify                  bool
 	heardAlone              bool
 	quality                 kcore.Quality
@@ -151,6 +152,10 @@ func (f *fakeApp) SetPhoneAskFirst(ask bool) {
 }
 func (f *fakeApp) JobNotifications() bool                { return f.notify }
 func (f *fakeApp) SetJobNotifications(on bool)           { f.notify = on }
+func (f *fakeApp) Background() Background                { return f.background }
+func (f *fakeApp) SetLaunchAtLogin(on bool)              { f.background.LaunchAtLogin = on }
+func (f *fakeApp) SetKeepRunning(on bool)                { f.background.KeepRunning = on }
+func (f *fakeApp) SetTrayIcon(on bool)                   { f.background.TrayIcon = on }
 func (f *fakeApp) PlatformSubtitles() bool               { return !f.heardAlone }
 func (f *fakeApp) SetPlatformSubtitles(on bool)          { f.heardAlone = !on }
 func (f *fakeApp) DownloadQuality() kcore.Quality        { return f.quality }

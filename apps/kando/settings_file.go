@@ -168,6 +168,7 @@ type savedSettings struct {
 	savedSignIn     // state_signin.go
 	savedOnline     // state_online.go
 	savedPhoneSync  // state_phonesync.go
+	savedTray       // state_tray.go
 	savedStudy      // state_saved.go
 	savedPrivacy    // state_privacy.go
 }
@@ -191,6 +192,7 @@ func (s *savedSettings) clean() {
 	s.savedSignIn.clean()
 	s.savedOnline.clean()
 	s.savedPhoneSync.clean()
+	s.savedTray.clean()
 	s.savedStudy.clean()
 	s.savedPrivacy.clean()
 }

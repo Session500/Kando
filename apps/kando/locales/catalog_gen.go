@@ -732,6 +732,7 @@ var Parameters = map[string][]string{
 	"SettingsGeneralToolDetail":                {"use", "where"},
 	"SettingsGeneralToolPageLabel":             {"program"},
 	"SettingsGeneralToolsNoteScoop":            {"command"},
+	"SettingsGeneralTrayIcon":                  {"platform"},
 	"SettingsGeneralUpdateAvailable":           {"version"},
 	"SettingsLibrarySaveFailed":                {"error_"},
 	"SettingsLookColorOf":                      {"line"},
@@ -775,6 +776,10 @@ var Parameters = map[string][]string{
 	"SitesNotFound":                            {"query"},
 	"SitesSource":                              {"version"},
 	"SitesTileLabel":                           {"name", "domain"},
+	"TrayJob":                                  {"title", "stage", "percent"},
+	"TrayPercent":                              {"percent"},
+	"TrayQueue":                                {"count"},
+	"TrayTooltipJob":                           {"title", "percent"},
 	"SubscribeRowNew":                          {"name", "count"},
 	"SubscribeKicker":                          {"site", "kind"},
 	"SubscribeStatusChecked":                   {"when"},
@@ -1119,6 +1124,7 @@ type Translation struct {
 	SettingsGeneralToolDetail                func(use string, where string) string
 	SettingsGeneralToolPageLabel             func(program string) string
 	SettingsGeneralToolsNoteScoop            func(command string) string
+	SettingsGeneralTrayIcon                  func(platform string) string
 	SettingsGeneralUpdateAvailable           func(version string) string
 	SettingsLibrarySaveFailed                func(error_ string) string
 	SettingsLookColorOf                      func(line string) string
@@ -1162,6 +1168,10 @@ type Translation struct {
 	SitesNotFound                            func(query string) string
 	SitesSource                              func(version string) string
 	SitesTileLabel                           func(name string, domain string) string
+	TrayJob                                  func(title string, stage string, percent int) string
+	TrayPercent                              func(percent int) string
+	TrayQueue                                func(count int) string
+	TrayTooltipJob                           func(title string, percent int) string
 	SubscribeRowNew                          func(name string, count int) string
 	SubscribeKicker                          func(site string, kind string) string
 	SubscribeStatusChecked                   func(when string) string
@@ -1438,6 +1448,7 @@ const (
 	textFilmSpeedNormal
 	textFilmSpokenLanguage
 	textFilmSpokenLanguageUnknown
+	textFilmsQueuePaused
 	textFilmsRemoveManyMessage
 	textFilmsReprocessManyOwnMessage
 	textFilmStyleColor
@@ -1819,6 +1830,7 @@ const (
 	textQueueNoVideoToImport
 	textQueueNotifyDone
 	textQueueOpenSettingsNoApp
+	textQueuePause
 	textQueueQuitWhileRunningCancel
 	textQueueQuitWhileRunningQuit
 	textQueueQuitWhileRunningTitle
@@ -1969,6 +1981,7 @@ const (
 	textSettingsGeneralAutoCheck
 	textSettingsGeneralAutoDownload
 	textSettingsGeneralAutoDownloadHint
+	textSettingsGeneralBackground
 	textSettingsGeneralBrowser
 	textSettingsGeneralBrowserBrowsers
 	textSettingsGeneralBrowserConnect
@@ -2003,7 +2016,11 @@ const (
 	textSettingsGeneralForgetHint
 	textSettingsGeneralInstalled
 	textSettingsGeneralInterfaceLanguage
+	textSettingsGeneralKeepRunning
+	textSettingsGeneralKeepRunningHint
 	textSettingsGeneralLanguageName
+	textSettingsGeneralLaunchAtLogin
+	textSettingsGeneralLaunchAtLoginHint
 	textSettingsGeneralLibrary
 	textSettingsGeneralLibraryNote
 	textSettingsGeneralLocation
@@ -2031,6 +2048,7 @@ const (
 	textSettingsGeneralToolPage
 	textSettingsGeneralToolsNote
 	textSettingsGeneralToolsNoteManual
+	textSettingsGeneralTrayIconHint
 	textSettingsGeneralUseFFmpeg
 	textSettingsGeneralUseWhisper
 	textSettingsGeneralUseYTDLP
@@ -2262,6 +2280,13 @@ const (
 	textSourceWeibo
 	textSourceXigua
 	textSourceYouku
+	textTrayOpen
+	textTrayPaused
+	textTrayStateBackground
+	textTrayStateIdle
+	textTrayStatePaused
+	textTrayStateRunning
+	textTrayTooltipPaused
 	textSubscribeSection
 	textSubscribeAddButton
 	textSubscribeAddTooltip
@@ -2581,6 +2606,7 @@ var keyOfText = [numTexts]string{
 	"filmSpeedNormal",
 	"filmSpokenLanguage",
 	"filmSpokenLanguageUnknown",
+	"filmsQueuePaused",
 	"filmsRemoveManyMessage",
 	"filmsReprocessManyOwnMessage",
 	"filmStyleColor",
@@ -2962,6 +2988,7 @@ var keyOfText = [numTexts]string{
 	"queueNoVideoToImport",
 	"queueNotifyDone",
 	"queueOpenSettingsNoApp",
+	"queuePause",
 	"queueQuitWhileRunningCancel",
 	"queueQuitWhileRunningQuit",
 	"queueQuitWhileRunningTitle",
@@ -3112,6 +3139,7 @@ var keyOfText = [numTexts]string{
 	"settingsGeneralAutoCheck",
 	"settingsGeneralAutoDownload",
 	"settingsGeneralAutoDownloadHint",
+	"settingsGeneralBackground",
 	"settingsGeneralBrowser",
 	"settingsGeneralBrowserBrowsers",
 	"settingsGeneralBrowserConnect",
@@ -3146,7 +3174,11 @@ var keyOfText = [numTexts]string{
 	"settingsGeneralForgetHint",
 	"settingsGeneralInstalled",
 	"settingsGeneralInterfaceLanguage",
+	"settingsGeneralKeepRunning",
+	"settingsGeneralKeepRunningHint",
 	"settingsGeneralLanguageName",
+	"settingsGeneralLaunchAtLogin",
+	"settingsGeneralLaunchAtLoginHint",
 	"settingsGeneralLibrary",
 	"settingsGeneralLibraryNote",
 	"settingsGeneralLocation",
@@ -3174,6 +3206,7 @@ var keyOfText = [numTexts]string{
 	"settingsGeneralToolPage",
 	"settingsGeneralToolsNote",
 	"settingsGeneralToolsNoteManual",
+	"settingsGeneralTrayIconHint",
 	"settingsGeneralUseFFmpeg",
 	"settingsGeneralUseWhisper",
 	"settingsGeneralUseYTDLP",
@@ -3405,6 +3438,13 @@ var keyOfText = [numTexts]string{
 	"sourceWeibo",
 	"sourceXigua",
 	"sourceYouku",
+	"trayOpen",
+	"trayPaused",
+	"trayStateBackground",
+	"trayStateIdle",
+	"trayStatePaused",
+	"trayStateRunning",
+	"trayTooltipPaused",
 	"subscribeSection",
 	"subscribeAddButton",
 	"subscribeAddTooltip",
@@ -3722,6 +3762,7 @@ var textsEn = i18n.NewTexts(""+
 	"Normal"+
 	"Spoken Language"+
 	"Unknown"+
+	"Queued · queue paused"+
 	"Their folders, or their videos and subtitles where a folder holds other files too, will be moved to the Trash, where you can get them back. Videos kept outside the library only leave it."+
 	"Their speech will be transcribed again and every line translated into the language each is translated into now, which uses your AI service."+
 	"Color"+
@@ -4103,6 +4144,7 @@ var textsEn = i18n.NewTexts(""+
 	"No video to import"+
 	"The bilingual subtitles are ready."+
 	"Couldn't open System Settings: no app opened it."+
+	"Pause Queue"+
 	"Cancel"+
 	"Quit"+
 	"Quit Kando while a video is being processed?"+
@@ -4253,6 +4295,7 @@ var textsEn = i18n.NewTexts(""+
 	"Check for updates automatically"+
 	"Download and install updates automatically"+
 	"The new version opens the next time you launch Kando."+
+	"Background"+
 	"Browser Extension"+
 	"Browsers"+
 	"Connect"+
@@ -4287,7 +4330,11 @@ var textsEn = i18n.NewTexts(""+
 	"Takes it off Kando's list only; the files stay where they are."+
 	"Installed"+
 	"Interface language"+
+	"Keep running after the window closes"+
+	"The queue keeps processing, and the status icon brings the window back. With the icon hidden, closing the window quits."+
 	"English"+
+	"Open Kando at login"+
+	"Runs quietly in the menu bar without opening a window."+
 	"Library"+
 	"Switching libraries stops the jobs in progress. Removing a library from the list doesn't delete the files in it."+
 	"Location"+
@@ -4315,6 +4362,7 @@ var textsEn = i18n.NewTexts(""+
 	"Download Page"+
 	"Kando downloads the programs it is missing. Those already installed on this computer are used as they are."+
 	"Kando doesn't download these programs on this system. Install each from its download page and add its folder to PATH, then choose Detect Again."+
+	"See the progress, pause the queue, open or quit Kando."+
 	"Converts audio, grabs covers, decodes frames"+
 	"Speech recognition"+
 	"Downloads online videos"+
@@ -4546,6 +4594,13 @@ var textsEn = i18n.NewTexts(""+
 	"Weibo"+
 	"Xigua Video"+
 	"Youku"+
+	"Open Kando"+
+	"Paused"+
+	"Window closed, processing in the background"+
+	"Idle"+
+	"Queue paused"+
+	"Processing"+
+	"Kando: queue paused"+
 	"Subscriptions"+
 	"Add Subscription"+
 	"Paste a link to a channel, collection or playlist"+
@@ -4860,6 +4915,7 @@ var textsEn = i18n.NewTexts(""+
 		6,
 		15,
 		7,
+		22,
 		186,
 		139,
 		5,
@@ -5241,6 +5297,7 @@ var textsEn = i18n.NewTexts(""+
 		18,
 		34,
 		48,
+		11,
 		6,
 		4,
 		44,
@@ -5391,6 +5448,7 @@ var textsEn = i18n.NewTexts(""+
 		31,
 		42,
 		53,
+		10,
 		17,
 		8,
 		7,
@@ -5425,7 +5483,11 @@ var textsEn = i18n.NewTexts(""+
 		62,
 		9,
 		18,
+		36,
+		119,
 		7,
+		19,
+		54,
 		7,
 		112,
 		8,
@@ -5453,6 +5515,7 @@ var textsEn = i18n.NewTexts(""+
 		13,
 		106,
 		143,
+		54,
 		44,
 		18,
 		23,
@@ -5684,6 +5747,13 @@ var textsEn = i18n.NewTexts(""+
 		5,
 		11,
 		5,
+		10,
+		6,
+		43,
+		4,
+		12,
+		10,
+		19,
 		13,
 		16,
 		49,
@@ -6001,6 +6071,7 @@ var textsJa = i18n.NewTexts(""+
 	"標準"+
 	"認識する言語"+
 	"不明"+
+	"待機中 · キューを一時停止中"+
 	"それぞれのフォルダがゴミ箱に入ります。フォルダにほかのファイルもあるときは、動画と字幕だけが入ります。ゴミ箱から戻せます。ライブラリの外にある動画はライブラリから外れるだけです。"+
 	"音声をもう一度文字起こしし、すべての行をそれぞれ今の言語に翻訳し直します。AI サービスを使います。"+
 	"色"+
@@ -6382,6 +6453,7 @@ var textsJa = i18n.NewTexts(""+
 	"読み込める動画がありません"+
 	"二言語字幕ができました。"+
 	"システム設定を開けませんでした：開けるアプリがありません。"+
+	"キューを一時停止"+
 	"キャンセル"+
 	"終了"+
 	"動画の処理中に Kando を終了しますか？"+
@@ -6532,6 +6604,7 @@ var textsJa = i18n.NewTexts(""+
 	"アップデートを自動的に確認"+
 	"アップデートを自動的にダウンロードしてインストール"+
 	"新しいバージョンは次回 Kando を起動したときに有効になります。"+
+	"バックグラウンド"+
 	"ブラウザ拡張機能"+
 	"ブラウザ"+
 	"接続"+
@@ -6566,7 +6639,11 @@ var textsJa = i18n.NewTexts(""+
 	"Kando の一覧から外すだけで、ファイルはそのまま残ります。"+
 	"インストール済み"+
 	"表示言語"+
+	"ウインドウを閉じてもバックグラウンドで実行"+
+	"キューの処理を続け、ステータスアイコンからウインドウを戻せます。アイコンを隠しているときは、ウインドウを閉じると終了します。"+
 	"日本語"+
+	"ログイン時に Kando を開く"+
+	"ウインドウを開かず、メニューバーで静かに動きます。"+
 	"ライブラリ"+
 	"ライブラリを切り替えると、進行中のジョブは停止します。ライブラリを一覧から取り除いても、中のファイルは削除されません。"+
 	"場所"+
@@ -6594,6 +6671,7 @@ var textsJa = i18n.NewTexts(""+
 	"ダウンロードページ"+
 	"足りないプログラムは Kando が自動でダウンロードします。このコンピュータにすでにあるものはそのまま使います。"+
 	"このシステムでは Kando はこれらのプログラムをダウンロードできません。それぞれのダウンロードページからインストールしてフォルダを PATH に追加し、「再検出」を押してください。"+
+	"進み具合の確認、キューの一時停止、Kando を開く・終了する。"+
 	"音声の変換、カバーの取得、映像のデコード"+
 	"音声認識"+
 	"オンライン動画のダウンロード"+
@@ -6825,6 +6903,13 @@ var textsJa = i18n.NewTexts(""+
 	"Weibo"+
 	"Xigua Video"+
 	"Youku"+
+	"Kando を開く"+
+	"一時停止中"+
+	"ウインドウを閉じてバックグラウンドで処理中"+
+	"待機"+
+	"キューを一時停止中"+
+	"処理中"+
+	"Kando：キューを一時停止中"+
 	"購読"+
 	"購読を追加"+
 	"チャンネル、コレクション、再生リストのリンクを貼り付け"+
@@ -7139,6 +7224,7 @@ var textsJa = i18n.NewTexts(""+
 		6,
 		18,
 		6,
+		40,
 		267,
 		144,
 		3,
@@ -7520,6 +7606,7 @@ var textsJa = i18n.NewTexts(""+
 		39,
 		36,
 		87,
+		24,
 		15,
 		6,
 		52,
@@ -7671,6 +7758,7 @@ var textsJa = i18n.NewTexts(""+
 		75,
 		88,
 		24,
+		24,
 		12,
 		6,
 		12,
@@ -7704,7 +7792,11 @@ var textsJa = i18n.NewTexts(""+
 		81,
 		24,
 		12,
+		63,
+		186,
 		9,
+		34,
+		75,
 		15,
 		177,
 		6,
@@ -7732,6 +7824,7 @@ var textsJa = i18n.NewTexts(""+
 		27,
 		157,
 		250,
+		84,
 		60,
 		12,
 		42,
@@ -7963,6 +8056,13 @@ var textsJa = i18n.NewTexts(""+
 		5,
 		11,
 		5,
+		15,
+		15,
+		63,
+		6,
+		27,
+		9,
+		35,
 		6,
 		15,
 		81,
@@ -8280,6 +8380,7 @@ var textsKo = i18n.NewTexts(""+
 	"보통"+
 	"인식 언어"+
 	"알 수 없음"+
+	"대기 중 · 대기열 일시 정지됨"+
 	"각 폴더가 휴지통으로 이동합니다. 폴더에 다른 파일도 있으면 동영상과 자막만 이동합니다. 휴지통에서 되돌릴 수 있습니다. 라이브러리 밖에 있는 동영상은 라이브러리에서만 빠집니다."+
 	"음성을 다시 받아쓰고 모든 줄을 각자 지금의 언어로 다시 번역합니다. AI 서비스를 사용합니다."+
 	"색상"+
@@ -8661,6 +8762,7 @@ var textsKo = i18n.NewTexts(""+
 	"가져올 수 있는 동영상이 없습니다"+
 	"이중 언어 자막이 준비되었습니다."+
 	"시스템 설정을 열 수 없습니다: 열 수 있는 앱이 없습니다."+
+	"대기열 일시 정지"+
 	"취소"+
 	"종료"+
 	"동영상을 처리하는 중에 Kando를 종료하시겠습니까?"+
@@ -8811,6 +8913,7 @@ var textsKo = i18n.NewTexts(""+
 	"자동으로 업데이트 확인"+
 	"자동으로 업데이트 다운로드 및 설치"+
 	"새 버전은 다음에 Kando를 열 때 적용됩니다."+
+	"백그라운드"+
 	"브라우저 확장 프로그램"+
 	"브라우저"+
 	"연결"+
@@ -8845,7 +8948,11 @@ var textsKo = i18n.NewTexts(""+
 	"Kando 목록에서만 빼며, 파일은 그대로 남습니다."+
 	"설치됨"+
 	"인터페이스 언어"+
+	"창을 닫아도 백그라운드에서 계속 실행"+
+	"대기열 처리를 계속하고, 상태 아이콘으로 창을 다시 열 수 있습니다. 아이콘을 숨기면 창을 닫을 때 종료됩니다."+
 	"한국어"+
+	"로그인할 때 Kando 열기"+
+	"창을 열지 않고 메뉴 막대에서 조용히 실행됩니다."+
 	"라이브러리"+
 	"라이브러리를 전환하면 진행 중인 작업이 중지됩니다. 목록에서 라이브러리를 제거해도 그 안의 파일은 삭제되지 않습니다."+
 	"위치"+
@@ -8873,6 +8980,7 @@ var textsKo = i18n.NewTexts(""+
 	"다운로드 페이지"+
 	"없는 프로그램은 Kando가 자동으로 다운로드합니다. 이 컴퓨터에 이미 설치된 것은 그대로 사용합니다."+
 	"이 시스템에서는 Kando가 이 프로그램들을 다운로드할 수 없습니다. 각 다운로드 페이지에서 설치하고 폴더를 PATH에 추가한 다음 ‘다시 감지’를 누르십시오."+
+	"진행 상황 보기, 대기열 일시 정지, Kando 열기 또는 종료."+
 	"오디오 변환, 표지 추출, 화면 디코딩"+
 	"음성 인식"+
 	"온라인 동영상 다운로드"+
@@ -9104,6 +9212,13 @@ var textsKo = i18n.NewTexts(""+
 	"웨이보"+
 	"Xigua Video"+
 	"Youku"+
+	"Kando 열기"+
+	"일시 정지됨"+
+	"창을 닫고 백그라운드에서 처리 중"+
+	"유휴"+
+	"대기열 일시 정지됨"+
+	"처리 중"+
+	"Kando: 대기열 일시 정지됨"+
 	"구독"+
 	"구독 추가"+
 	"채널, 컬렉션 또는 재생목록 링크 붙여넣기"+
@@ -9418,6 +9533,7 @@ var textsKo = i18n.NewTexts(""+
 		6,
 		13,
 		14,
+		40,
 		249,
 		127,
 		6,
@@ -9799,6 +9915,7 @@ var textsKo = i18n.NewTexts(""+
 		46,
 		46,
 		77,
+		23,
 		6,
 		6,
 		67,
@@ -9949,6 +10066,7 @@ var textsKo = i18n.NewTexts(""+
 		32,
 		49,
 		57,
+		15,
 		32,
 		12,
 		6,
@@ -9983,7 +10101,11 @@ var textsKo = i18n.NewTexts(""+
 		63,
 		9,
 		22,
+		52,
+		150,
 		9,
+		29,
+		67,
 		15,
 		165,
 		6,
@@ -10011,6 +10133,7 @@ var textsKo = i18n.NewTexts(""+
 		22,
 		135,
 		209,
+		74,
 		49,
 		13,
 		32,
@@ -10242,6 +10365,13 @@ var textsKo = i18n.NewTexts(""+
 		9,
 		11,
 		5,
+		12,
+		16,
+		46,
+		6,
+		26,
+		10,
+		33,
 		6,
 		13,
 		57,
@@ -10559,6 +10689,7 @@ var textsZhHans = i18n.NewTexts(""+
 	"正常"+
 	"识别语言"+
 	"未知"+
+	"排队中 · 队列已暂停"+
 	"它们的文件夹会移到废纸篓；文件夹里还有别的文件时，只移走视频和字幕。可以从废纸篓找回。资料库外的视频只从资料库移除。"+
 	"会重新识别它们的语音，并把每一句按各自现在的语言重新翻译，这会用到你的 AI 服务。"+
 	"颜色"+
@@ -10940,6 +11071,7 @@ var textsZhHans = i18n.NewTexts(""+
 	"没有可导入的视频"+
 	"双语字幕做好了。"+
 	"没能打开系统设置：没有应用能打开它。"+
+	"暂停处理队列"+
 	"取消"+
 	"退出"+
 	"要在处理视频时退出看懂吗？"+
@@ -11090,6 +11222,7 @@ var textsZhHans = i18n.NewTexts(""+
 	"自动检查更新"+
 	"自动下载并安装更新"+
 	"新版本在下次打开看懂时生效。"+
+	"后台运行"+
 	"浏览器扩展"+
 	"浏览器"+
 	"连接"+
@@ -11124,7 +11257,11 @@ var textsZhHans = i18n.NewTexts(""+
 	"只从看懂的列表里拿掉，文件留在原处。"+
 	"已安装"+
 	"界面语言"+
+	"关掉窗口后继续在后台运行"+
+	"队列照常处理，点状态图标可以找回窗口。图标隐藏时，关掉窗口会退出。"+
 	"简体中文"+
+	"登录电脑时打开看懂"+
+	"只在菜单栏里安静运行，不弹出窗口。"+
 	"资料库"+
 	"切换资料库会停止进行中的任务。从列表移出资料库不会删除里面的文件。"+
 	"位置"+
@@ -11152,6 +11289,7 @@ var textsZhHans = i18n.NewTexts(""+
 	"下载页面"+
 	"缺少的程序看懂会自动下载；这台电脑上已经装了的，就用已装的那份。"+
 	"看懂无法在这个系统上下载这些程序。请从各自的下载页面安装，并把所在文件夹加进 PATH，然后点「重新检测」。"+
+	"看进度、暂停队列、打开或退出看懂。"+
 	"音频转换、截取封面、解码画面"+
 	"语音识别"+
 	"下载在线视频"+
@@ -11383,6 +11521,13 @@ var textsZhHans = i18n.NewTexts(""+
 	"微博"+
 	"西瓜视频"+
 	"优酷"+
+	"打开看懂"+
+	"已暂停"+
+	"窗口已关，在后台处理"+
+	"空闲"+
+	"队列已暂停"+
+	"正在处理"+
+	"看懂：队列已暂停"+
 	"订阅"+
 	"添加订阅"+
 	"粘贴频道、合集或播放列表链接"+
@@ -11697,6 +11842,7 @@ var textsZhHans = i18n.NewTexts(""+
 		6,
 		12,
 		6,
+		28,
 		174,
 		118,
 		6,
@@ -12078,6 +12224,7 @@ var textsZhHans = i18n.NewTexts(""+
 		24,
 		24,
 		54,
+		18,
 		6,
 		6,
 		39,
@@ -12228,6 +12375,7 @@ var textsZhHans = i18n.NewTexts(""+
 		18,
 		27,
 		42,
+		12,
 		15,
 		9,
 		6,
@@ -12262,7 +12410,11 @@ var textsZhHans = i18n.NewTexts(""+
 		54,
 		9,
 		12,
+		36,
+		99,
 		12,
+		27,
+		51,
 		9,
 		99,
 		6,
@@ -12290,6 +12442,7 @@ var textsZhHans = i18n.NewTexts(""+
 		12,
 		96,
 		152,
+		51,
 		42,
 		12,
 		18,
@@ -12521,6 +12674,13 @@ var textsZhHans = i18n.NewTexts(""+
 		6,
 		12,
 		6,
+		12,
+		9,
+		30,
+		6,
+		15,
+		12,
+		24,
 		6,
 		12,
 		42,
@@ -12838,6 +12998,7 @@ var textsZhHant = i18n.NewTexts(""+
 	"正常"+
 	"辨識語言"+
 	"未知"+
+	"排隊中 · 佇列已暫停"+
 	"它們的資料夾會移到垃圾桶；資料夾裡還有別的檔案時，只移走影片和字幕。可以從垃圾桶找回。資料庫外的影片只從資料庫移除。"+
 	"會重新辨識它們的語音，並把每一句按各自現在的語言重新翻譯，這會用到你的 AI 服務。"+
 	"顏色"+
@@ -13219,6 +13380,7 @@ var textsZhHant = i18n.NewTexts(""+
 	"沒有可匯入的影片"+
 	"雙語字幕做好了。"+
 	"無法打開系統設定：沒有應用程式能打開它。"+
+	"暫停處理佇列"+
 	"取消"+
 	"結束"+
 	"要在處理影片時結束看懂嗎？"+
@@ -13369,6 +13531,7 @@ var textsZhHant = i18n.NewTexts(""+
 	"自動檢查更新"+
 	"自動下載並安裝更新"+
 	"新版本在下次開啟看懂時生效。"+
+	"背景執行"+
 	"瀏覽器擴充功能"+
 	"瀏覽器"+
 	"連接"+
@@ -13403,7 +13566,11 @@ var textsZhHant = i18n.NewTexts(""+
 	"只從看懂的清單中移除，檔案留在原處。"+
 	"已安裝"+
 	"介面語言"+
+	"關掉視窗後繼續在背景執行"+
+	"佇列照常處理，點狀態圖示可以找回視窗。圖示隱藏時，關掉視窗會結束。"+
 	"繁體中文"+
+	"登入電腦時打開看懂"+
+	"只在選單列裡安靜執行，不彈出視窗。"+
 	"資料庫"+
 	"切換資料庫會停止進行中的工作。從清單移除資料庫不會刪除裡面的檔案。"+
 	"位置"+
@@ -13431,6 +13598,7 @@ var textsZhHant = i18n.NewTexts(""+
 	"下載頁面"+
 	"缺少的程式看懂會自動下載；這台電腦上已經裝了的，就用已裝的那份。"+
 	"看懂無法在這個系統上下載這些程式。請從各自的下載頁面安裝，並把所在資料夾加入 PATH，然後按「重新偵測」。"+
+	"看進度、暫停佇列、打開或結束看懂。"+
 	"音訊轉換、擷取封面、解碼畫面"+
 	"語音辨識"+
 	"下載線上影片"+
@@ -13662,6 +13830,13 @@ var textsZhHant = i18n.NewTexts(""+
 	"微博"+
 	"西瓜視頻"+
 	"優酷"+
+	"打開看懂"+
+	"已暫停"+
+	"視窗已關，在背景處理"+
+	"閒置"+
+	"佇列已暫停"+
+	"正在處理"+
+	"看懂：佇列已暫停"+
 	"訂閱"+
 	"新增訂閱"+
 	"貼上頻道、合集或播放清單連結"+
@@ -13976,6 +14151,7 @@ var textsZhHant = i18n.NewTexts(""+
 		6,
 		12,
 		6,
+		28,
 		174,
 		118,
 		6,
@@ -14357,6 +14533,7 @@ var textsZhHant = i18n.NewTexts(""+
 		24,
 		24,
 		60,
+		18,
 		6,
 		6,
 		39,
@@ -14507,6 +14684,7 @@ var textsZhHant = i18n.NewTexts(""+
 		18,
 		27,
 		42,
+		12,
 		21,
 		9,
 		6,
@@ -14541,7 +14719,11 @@ var textsZhHant = i18n.NewTexts(""+
 		54,
 		9,
 		12,
+		36,
+		99,
 		12,
+		27,
+		51,
 		9,
 		99,
 		6,
@@ -14569,6 +14751,7 @@ var textsZhHant = i18n.NewTexts(""+
 		12,
 		96,
 		152,
+		51,
 		42,
 		12,
 		18,
@@ -14800,6 +14983,13 @@ var textsZhHant = i18n.NewTexts(""+
 		6,
 		12,
 		6,
+		12,
+		9,
+		30,
+		6,
+		15,
+		12,
+		24,
 		6,
 		12,
 		42,
@@ -15855,6 +16045,9 @@ func Supply(lang string, t Translation) {
 	if t.SettingsGeneralToolsNoteScoop != nil {
 		s.SettingsGeneralToolsNoteScoop = t.SettingsGeneralToolsNoteScoop
 	}
+	if t.SettingsGeneralTrayIcon != nil {
+		s.SettingsGeneralTrayIcon = t.SettingsGeneralTrayIcon
+	}
 	if t.SettingsGeneralUpdateAvailable != nil {
 		s.SettingsGeneralUpdateAvailable = t.SettingsGeneralUpdateAvailable
 	}
@@ -15983,6 +16176,18 @@ func Supply(lang string, t Translation) {
 	}
 	if t.SitesTileLabel != nil {
 		s.SitesTileLabel = t.SitesTileLabel
+	}
+	if t.TrayJob != nil {
+		s.TrayJob = t.TrayJob
+	}
+	if t.TrayPercent != nil {
+		s.TrayPercent = t.TrayPercent
+	}
+	if t.TrayQueue != nil {
+		s.TrayQueue = t.TrayQueue
+	}
+	if t.TrayTooltipJob != nil {
+		s.TrayTooltipJob = t.TrayTooltipJob
 	}
 	if t.SubscribeRowNew != nil {
 		s.SubscribeRowNew = t.SubscribeRowNew
@@ -20288,6 +20493,15 @@ func FilmSpokenLanguageUnknown(cx *core.Scope) string { return For(cx).FilmSpoke
 func (msgs Messages) FilmSpokenLanguageUnknown() string {
 	return msgs.text(textFilmSpokenLanguageUnknown)
 }
+
+// FilmsQueuePaused says "Queued · queue paused"
+// in the language the app shows under cx.
+//
+// Line under a waiting job's title while the whole queue is paused (from the tray icon or the menu bar), so nothing starts until it is resumed.
+func FilmsQueuePaused(cx *core.Scope) string { return For(cx).FilmsQueuePaused() }
+
+// FilmsQueuePaused is the package's FilmsQueuePaused in the language of msgs.
+func (msgs Messages) FilmsQueuePaused() string { return msgs.text(textFilmsQueuePaused) }
 
 // FilmsRemoveConfirmMany says "Remove {count, plural, one {# film} other {# films}} from the library?"
 // in the language the app shows under cx.
@@ -29778,6 +29992,15 @@ func QueueOpenSettingsNoApp(cx *core.Scope) string { return For(cx).QueueOpenSet
 // QueueOpenSettingsNoApp is the package's QueueOpenSettingsNoApp in the language of msgs.
 func (msgs Messages) QueueOpenSettingsNoApp() string { return msgs.text(textQueueOpenSettingsNoApp) }
 
+// QueuePause says "Pause Queue"
+// in the language the app shows under cx.
+//
+// Checkable item of the tray icon's menu and of the File menu: stops the running job, which goes back to the head of the queue, and starts no job until it is chosen again.
+func QueuePause(cx *core.Scope) string { return For(cx).QueuePause() }
+
+// QueuePause is the package's QueuePause in the language of msgs.
+func (msgs Messages) QueuePause() string { return msgs.text(textQueuePause) }
+
 // QueueQuitWhileRunningCancel says "Cancel"
 // in the language the app shows under cx.
 //
@@ -33337,6 +33560,17 @@ func (msgs Messages) SettingsGeneralAutoDownloadHint() string {
 	return msgs.text(textSettingsGeneralAutoDownloadHint)
 }
 
+// SettingsGeneralBackground says "Background"
+// in the language the app shows under cx.
+//
+// Heading of the card in Settings › General about running Kando with its window closed: opening it at login, keeping it running and its tray icon.
+func SettingsGeneralBackground(cx *core.Scope) string { return For(cx).SettingsGeneralBackground() }
+
+// SettingsGeneralBackground is the package's SettingsGeneralBackground in the language of msgs.
+func (msgs Messages) SettingsGeneralBackground() string {
+	return msgs.text(textSettingsGeneralBackground)
+}
+
 // SettingsGeneralBrowser says "Browser Extension"
 // in the language the app shows under cx.
 //
@@ -33981,6 +34215,30 @@ func (msgs Messages) SettingsGeneralInterfaceLanguage() string {
 	return msgs.text(textSettingsGeneralInterfaceLanguage)
 }
 
+// SettingsGeneralKeepRunning says "Keep running after the window closes"
+// in the language the app shows under cx.
+//
+// Switch in Settings › General (Windows and Linux): closing the main window only hides it and Kando keeps processing; off, closing the window quits.
+func SettingsGeneralKeepRunning(cx *core.Scope) string { return For(cx).SettingsGeneralKeepRunning() }
+
+// SettingsGeneralKeepRunning is the package's SettingsGeneralKeepRunning in the language of msgs.
+func (msgs Messages) SettingsGeneralKeepRunning() string {
+	return msgs.text(textSettingsGeneralKeepRunning)
+}
+
+// SettingsGeneralKeepRunningHint says "The queue keeps processing, and the status icon brings the window back. With the icon hidden, closing the window quits."
+// in the language the app shows under cx.
+//
+// Hint under the switch that keeps Kando running after its window closes (Windows and Linux): the status icon is what brings the window back, so with that icon switched off, closing the window quits even with this switch on.
+func SettingsGeneralKeepRunningHint(cx *core.Scope) string {
+	return For(cx).SettingsGeneralKeepRunningHint()
+}
+
+// SettingsGeneralKeepRunningHint is the package's SettingsGeneralKeepRunningHint in the language of msgs.
+func (msgs Messages) SettingsGeneralKeepRunningHint() string {
+	return msgs.text(textSettingsGeneralKeepRunningHint)
+}
+
 // SettingsGeneralLanguageName says "English"
 // in the language the app shows under cx.
 //
@@ -34022,6 +34280,32 @@ func (msgs Messages) SettingsGeneralLastCheck(when time.Time) string {
 			return "上次檢查：" + i18n.FormatDate(msgs.dated("zh-Hant"), when, i18n.DateOptions{Date: i18n.ShortStyle, Time: i18n.ShortStyle})
 		}
 	}
+}
+
+// SettingsGeneralLaunchAtLogin says "Open Kando at login"
+// in the language the app shows under cx.
+//
+// Switch in Settings › General (macOS) that has the system open Kando when the user logs in.
+func SettingsGeneralLaunchAtLogin(cx *core.Scope) string {
+	return For(cx).SettingsGeneralLaunchAtLogin()
+}
+
+// SettingsGeneralLaunchAtLogin is the package's SettingsGeneralLaunchAtLogin in the language of msgs.
+func (msgs Messages) SettingsGeneralLaunchAtLogin() string {
+	return msgs.text(textSettingsGeneralLaunchAtLogin)
+}
+
+// SettingsGeneralLaunchAtLoginHint says "Runs quietly in the menu bar without opening a window."
+// in the language the app shows under cx.
+//
+// Hint under the switch that opens Kando at login: a Kando opened so shows no window.
+func SettingsGeneralLaunchAtLoginHint(cx *core.Scope) string {
+	return For(cx).SettingsGeneralLaunchAtLoginHint()
+}
+
+// SettingsGeneralLaunchAtLoginHint is the package's SettingsGeneralLaunchAtLoginHint in the language of msgs.
+func (msgs Messages) SettingsGeneralLaunchAtLoginHint() string {
+	return msgs.text(textSettingsGeneralLaunchAtLoginHint)
 }
 
 // SettingsGeneralLibrary says "Library"
@@ -34548,6 +34832,94 @@ func (msgs Messages) SettingsGeneralToolsNoteScoop(command string) string {
 			return "看懂無法在 Windows 上下載這些程式。在終端機執行 " + command + " 即可全部安裝，或從各自的下載頁面安裝並把所在資料夾加入 PATH，然後按「重新偵測」。"
 		}
 	}
+}
+
+// SettingsGeneralTrayIcon says "{platform, select, macOS {Show icon in the menu bar} Windows {Show icon in the notification area} other {Show icon in the system tray}}"
+// in the language the app shows under cx.
+//
+// Switch in Settings › General that shows Kando's status icon. {platform} is the system the app runs on: macOS, Windows or another (Linux); each case names where that system shows such icons.
+func SettingsGeneralTrayIcon(cx *core.Scope, platform string) string {
+	return For(cx).SettingsGeneralTrayIcon(platform)
+}
+
+// SettingsGeneralTrayIcon is the package's SettingsGeneralTrayIcon in the language of msgs.
+func (msgs Messages) SettingsGeneralTrayIcon(platform string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.SettingsGeneralTrayIcon(platform))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].SettingsGeneralTrayIcon; f != nil {
+			return f(platform)
+		}
+		switch lang {
+		case "", "en":
+			var b strings.Builder
+			switch platform {
+			case "macOS":
+				b.WriteString("Show icon in the menu bar")
+			case "Windows":
+				b.WriteString("Show icon in the notification area")
+			default:
+				b.WriteString("Show icon in the system tray")
+			}
+			return b.String()
+		case "ja":
+			var b strings.Builder
+			switch platform {
+			case "macOS":
+				b.WriteString("メニューバーにアイコンを表示")
+			case "Windows":
+				b.WriteString("通知領域にアイコンを表示")
+			default:
+				b.WriteString("システムトレイにアイコンを表示")
+			}
+			return b.String()
+		case "ko":
+			var b strings.Builder
+			switch platform {
+			case "macOS":
+				b.WriteString("메뉴 막대에 아이콘 표시")
+			case "Windows":
+				b.WriteString("알림 영역에 아이콘 표시")
+			default:
+				b.WriteString("시스템 트레이에 아이콘 표시")
+			}
+			return b.String()
+		case "zh-Hans":
+			var b strings.Builder
+			switch platform {
+			case "macOS":
+				b.WriteString("在菜单栏显示图标")
+			case "Windows":
+				b.WriteString("在任务栏通知区域显示图标")
+			default:
+				b.WriteString("在系统托盘显示图标")
+			}
+			return b.String()
+		case "zh-Hant":
+			var b strings.Builder
+			switch platform {
+			case "macOS":
+				b.WriteString("在選單列顯示圖示")
+			case "Windows":
+				b.WriteString("在工作列通知區域顯示圖示")
+			default:
+				b.WriteString("在系統匣顯示圖示")
+			}
+			return b.String()
+		}
+	}
+}
+
+// SettingsGeneralTrayIconHint says "See the progress, pause the queue, open or quit Kando."
+// in the language the app shows under cx.
+//
+// Hint under the switch that shows Kando's status icon: what its menu offers.
+func SettingsGeneralTrayIconHint(cx *core.Scope) string { return For(cx).SettingsGeneralTrayIconHint() }
+
+// SettingsGeneralTrayIconHint is the package's SettingsGeneralTrayIconHint in the language of msgs.
+func (msgs Messages) SettingsGeneralTrayIconHint() string {
+	return msgs.text(textSettingsGeneralTrayIconHint)
 }
 
 // SettingsGeneralUpdateAvailable says "Version {version} is available"
@@ -38601,6 +38973,251 @@ func SourceYouku(cx *core.Scope) string { return For(cx).SourceYouku() }
 
 // SourceYouku is the package's SourceYouku in the language of msgs.
 func (msgs Messages) SourceYouku() string { return msgs.text(textSourceYouku) }
+
+// TrayJob says "{title} — {stage} · {percent}% overall"
+// in the language the app shows under cx.
+//
+// Item of the tray icon's menu naming the job running: its film's title, the stage it is in (as Downloading) and how far the whole job has gone.
+func TrayJob(cx *core.Scope, title string, stage string, percent int) string {
+	return For(cx).TrayJob(title, stage, percent)
+}
+
+// TrayJob is the package's TrayJob in the language of msgs.
+func (msgs Messages) TrayJob(title string, stage string, percent int) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.TrayJob(title, stage, percent))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].TrayJob; f != nil {
+			return f(title, stage, percent)
+		}
+		switch lang {
+		case "", "en":
+			return msgs.arg(title) + " — " + msgs.arg(stage) + " · " + msgs.arg(i18n.FormatNumber("en", float64(percent))) + "% overall"
+		case "ja":
+			return title + " — " + stage + " · 全体 " + i18n.FormatNumber("ja", float64(percent)) + "%"
+		case "ko":
+			return title + " — " + stage + " · 전체 " + i18n.FormatNumber("ko", float64(percent)) + "%"
+		case "zh-Hans":
+			return title + " — " + stage + " · 总进度 " + i18n.FormatNumber("zh-Hans", float64(percent)) + "%"
+		case "zh-Hant":
+			return title + " — " + stage + " · 總進度 " + i18n.FormatNumber("zh-Hant", float64(percent)) + "%"
+		}
+	}
+}
+
+// TrayOpen says "Open Kando"
+// in the language the app shows under cx.
+//
+// Item of the tray icon's menu that brings Kando's main window to the front.
+func TrayOpen(cx *core.Scope) string { return For(cx).TrayOpen() }
+
+// TrayOpen is the package's TrayOpen in the language of msgs.
+func (msgs Messages) TrayOpen() string { return msgs.text(textTrayOpen) }
+
+// TrayPaused says "Paused"
+// in the language the app shows under cx.
+//
+// Text beside the menu bar icon (macOS) while the queue is paused, in place of the running job's percentage.
+func TrayPaused(cx *core.Scope) string { return For(cx).TrayPaused() }
+
+// TrayPaused is the package's TrayPaused in the language of msgs.
+func (msgs Messages) TrayPaused() string { return msgs.text(textTrayPaused) }
+
+// TrayPercent says "{percent}%"
+// in the language the app shows under cx.
+//
+// Text beside the menu bar icon (macOS) while a job runs: how far the whole job has gone.
+func TrayPercent(cx *core.Scope, percent int) string { return For(cx).TrayPercent(percent) }
+
+// TrayPercent is the package's TrayPercent in the language of msgs.
+func (msgs Messages) TrayPercent(percent int) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.TrayPercent(percent))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].TrayPercent; f != nil {
+			return f(percent)
+		}
+		switch lang {
+		case "", "en":
+			return msgs.arg(i18n.FormatNumber("en", float64(percent))) + "%"
+		case "ja":
+			return i18n.FormatNumber("ja", float64(percent)) + "%"
+		case "ko":
+			return i18n.FormatNumber("ko", float64(percent)) + "%"
+		case "zh-Hans":
+			return i18n.FormatNumber("zh-Hans", float64(percent)) + "%"
+		case "zh-Hant":
+			return i18n.FormatNumber("zh-Hant", float64(percent)) + "%"
+		}
+	}
+}
+
+// TrayQueue says "{count, plural, =0 {The queue is empty} one {# video waiting} other {# videos waiting}}"
+// in the language the app shows under cx.
+//
+// Item of the tray icon's menu: how many videos wait in the queue behind the one running.
+func TrayQueue(cx *core.Scope, count int) string { return For(cx).TrayQueue(count) }
+
+// TrayQueue is the package's TrayQueue in the language of msgs.
+func (msgs Messages) TrayQueue(count int) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.TrayQueue(count))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].TrayQueue; f != nil {
+			return f(count)
+		}
+		switch lang {
+		case "", "en":
+			var b strings.Builder
+			switch {
+			case count == 0:
+				b.WriteString("The queue is empty")
+			default:
+				switch i18n.Cardinal("en", float64(count)) {
+				case i18n.One:
+					b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+					b.WriteString(" video waiting")
+				default:
+					b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+					b.WriteString(" videos waiting")
+				}
+			}
+			return b.String()
+		case "ja":
+			var b strings.Builder
+			switch {
+			case count == 0:
+				b.WriteString("キューは空です")
+			default:
+				switch i18n.Cardinal("ja", float64(count)) {
+				default:
+					b.WriteString(i18n.FormatNumber("ja", float64(count)))
+					b.WriteString(" 件が待機中")
+				}
+			}
+			return b.String()
+		case "ko":
+			var b strings.Builder
+			switch {
+			case count == 0:
+				b.WriteString("대기열이 비어 있음")
+			default:
+				switch i18n.Cardinal("ko", float64(count)) {
+				default:
+					b.WriteString(i18n.FormatNumber("ko", float64(count)))
+					b.WriteString("개 대기 중")
+				}
+			}
+			return b.String()
+		case "zh-Hans":
+			var b strings.Builder
+			switch {
+			case count == 0:
+				b.WriteString("队列是空的")
+			default:
+				switch i18n.Cardinal("zh-Hans", float64(count)) {
+				default:
+					b.WriteString(i18n.FormatNumber("zh-Hans", float64(count)))
+					b.WriteString(" 个在排队")
+				}
+			}
+			return b.String()
+		case "zh-Hant":
+			var b strings.Builder
+			switch {
+			case count == 0:
+				b.WriteString("佇列是空的")
+			default:
+				switch i18n.Cardinal("zh-Hant", float64(count)) {
+				default:
+					b.WriteString(i18n.FormatNumber("zh-Hant", float64(count)))
+					b.WriteString(" 個在排隊")
+				}
+			}
+			return b.String()
+		}
+	}
+}
+
+// TrayStateBackground says "Window closed, processing in the background"
+// in the language the app shows under cx.
+//
+// First item of the tray icon's menu while a job runs and the main window is closed.
+func TrayStateBackground(cx *core.Scope) string { return For(cx).TrayStateBackground() }
+
+// TrayStateBackground is the package's TrayStateBackground in the language of msgs.
+func (msgs Messages) TrayStateBackground() string { return msgs.text(textTrayStateBackground) }
+
+// TrayStateIdle says "Idle"
+// in the language the app shows under cx.
+//
+// First item of the tray icon's menu while no job runs.
+func TrayStateIdle(cx *core.Scope) string { return For(cx).TrayStateIdle() }
+
+// TrayStateIdle is the package's TrayStateIdle in the language of msgs.
+func (msgs Messages) TrayStateIdle() string { return msgs.text(textTrayStateIdle) }
+
+// TrayStatePaused says "Queue paused"
+// in the language the app shows under cx.
+//
+// First item of the tray icon's menu while the queue is paused.
+func TrayStatePaused(cx *core.Scope) string { return For(cx).TrayStatePaused() }
+
+// TrayStatePaused is the package's TrayStatePaused in the language of msgs.
+func (msgs Messages) TrayStatePaused() string { return msgs.text(textTrayStatePaused) }
+
+// TrayStateRunning says "Processing"
+// in the language the app shows under cx.
+//
+// First item of the tray icon's menu while a job runs.
+func TrayStateRunning(cx *core.Scope) string { return For(cx).TrayStateRunning() }
+
+// TrayStateRunning is the package's TrayStateRunning in the language of msgs.
+func (msgs Messages) TrayStateRunning() string { return msgs.text(textTrayStateRunning) }
+
+// TrayTooltipJob says "Kando: {title} {percent}%"
+// in the language the app shows under cx.
+//
+// Tooltip of the tray icon while a job runs: its film's title and how far the whole job has gone.
+func TrayTooltipJob(cx *core.Scope, title string, percent int) string {
+	return For(cx).TrayTooltipJob(title, percent)
+}
+
+// TrayTooltipJob is the package's TrayTooltipJob in the language of msgs.
+func (msgs Messages) TrayTooltipJob(title string, percent int) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.TrayTooltipJob(title, percent))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].TrayTooltipJob; f != nil {
+			return f(title, percent)
+		}
+		switch lang {
+		case "", "en":
+			return "Kando: " + msgs.arg(title) + " " + msgs.arg(i18n.FormatNumber("en", float64(percent))) + "%"
+		case "ja":
+			return "Kando：" + title + " " + i18n.FormatNumber("ja", float64(percent)) + "%"
+		case "ko":
+			return "Kando: " + title + " " + i18n.FormatNumber("ko", float64(percent)) + "%"
+		case "zh-Hans":
+			return "看懂：" + title + " " + i18n.FormatNumber("zh-Hans", float64(percent)) + "%"
+		case "zh-Hant":
+			return "看懂：" + title + " " + i18n.FormatNumber("zh-Hant", float64(percent)) + "%"
+		}
+	}
+}
+
+// TrayTooltipPaused says "Kando: queue paused"
+// in the language the app shows under cx.
+//
+// Tooltip of the tray icon while the queue is paused.
+func TrayTooltipPaused(cx *core.Scope) string { return For(cx).TrayTooltipPaused() }
+
+// TrayTooltipPaused is the package's TrayTooltipPaused in the language of msgs.
+func (msgs Messages) TrayTooltipPaused() string { return msgs.text(textTrayTooltipPaused) }
 
 // SubscribeSection says "Subscriptions"
 // in the language the app shows under cx.
