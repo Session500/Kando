@@ -340,10 +340,9 @@ func correctEdit(t *testing.T, a *app, tt *nsgotest.App, i int, translation stri
 	tt.Press("id:film-correct-submit")
 }
 
-// TestShortcutsFollowTheDesign checks the keys the prototype gives correcting a line: E selects the line playing, and Return no longer does; I explains the line selected, or with none the one playing; ⇧E asks for other translations of it.
+// TestShortcutsFollowTheDesign checks the keys the prototype gives correcting a line: E selects the line playing, and Return no longer does; I explains the line selected in the side panel, or with none the one playing; ⇧E asks for other translations of it.
 func TestShortcutsFollowTheDesign(t *testing.T) {
-	srv, seen := fakeLLM(t, `{"answer":"打招呼。","refs":[]}`)
-	tools := media.Tools{Translator: media.ChatTranslator{BaseURL: srv.URL + "/v1", APIKey: "k", Model: "m1"}}
+	tools, asks := explainLLM(t)
 	a, tt, updates, _ := correctNamesOpen(t, tools)
 	tt.Key("enter")
 	if a.correctSelected() >= 0 {
@@ -355,9 +354,9 @@ func TestShortcutsFollowTheDesign(t *testing.T) {
 	}
 	apply(tt, a, func() { a.StepSelection(1) })
 	tt.Key("i")
-	waitUntil(t, tt, a, updates, func() bool { return a.palette.answer != nil && !a.palette.answer.busy })
-	if sent := strings.Join(*seen, "\n"); !strings.Contains(sent, "要讲解的一句：[0:04] Jon, wait.") {
-		t.Fatalf("I explained %q, want the selected line", sent)
+	waitUntil(t, tt, a, updates, func() bool { return a.explain.line.open && !a.explain.line.busy })
+	if sent := strings.Join(asks(), "\n"); a.explain.line.index != 1 || a.player.filmSide != film.SideExplain || !strings.Contains(sent, "要讲解的一句：[0:04] Jon, wait.") {
+		t.Fatalf("I explained line %d in side %q, sent %q, want the selected line", a.explain.line.index, a.player.filmSide, sent)
 	}
 	rows := map[string]string{}
 	for _, s := range a.shortcuts(a.cx) {
