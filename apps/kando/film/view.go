@@ -192,7 +192,6 @@ func (s *screen) stage() core.Node {
 		}
 		return stageNoteState{}
 	})
-	natural := core.NewSignal(cx, core.Size{})
 	return core.View{
 		TestID: "film-stage", Role: core.RoleGroup, LabelFunc: func() string { return locales.FilmPicture(cx) },
 		Style: core.Style{Position: core.Absolute, Left: core.Pt(0), Top: core.Pt(0), Bottom: core.Pt(0)},
@@ -215,10 +214,10 @@ func (s *screen) stage() core.Node {
 		Children: []core.Node{
 			core.Show{When: func() bool { return poster() != "" }, Then: func(*core.Scope) core.Node {
 				// TODO(nsgo#107): show the film's own frames as they decode, as MyGo's VideoPlayer did, in place of its poster while the system's player opens it; the screenshots show this poster in place of the picture, which no system player plays headless https://github.com/nsgo-dev/nsgo/issues/107
-				return core.Image{TestID: "film-poster", ResizeMode: core.Cover, Style: fillStyle,
+				return core.Image{TestID: "film-poster", ResizeMode: core.Contain, Style: fillStyle,
 					SourceFunc: func() core.ImageSource { return core.ImageSource{URI: fileURL(poster())} }}
 			}},
-			core.Show{When: func() bool { return source() != "" }, Then: func(cx *core.Scope) core.Node { return s.video(cx, natural) }},
+			core.Show{When: func() bool { return source() != "" }, Then: func(cx *core.Scope) core.Node { return s.video(cx) }},
 			core.Show{When: func() bool { return note() != stageNoteState{} }, Then: func(cx *core.Scope) core.Node {
 				return core.View{PointerEvents: core.PointerEventsBoxNone,
 					Style: core.Style{Position: core.Absolute, Left: core.Pt(0), Right: core.Pt(0), Top: core.Pt(0), Bottom: core.Pt(0), AlignItems: core.AlignCenter, JustifyContent: core.JustifyCenter, Padding: core.Symmetric(80, 24), Gap: 12},
@@ -291,8 +290,8 @@ type stageNoteState struct {
 	detail  string
 }
 
-// video is the system's player, filling the stage: it covers the stage with the picture when the two are close in shape and shows it whole otherwise (PictureFit). What it reports goes to the app; its clock moves the player's (tick), between reports at the moments a line of the subtitles starts or ends, so the lines change on time.
-func (s *screen) video(cx *core.Scope, natural *core.Signal[core.Size]) core.Node {
+// video is the system's player, filling the stage: it shows the picture whole, with bars where its shape and the stage's differ, as a player for watching to understand cannot cut off the text at a picture's edges or push its burned-in subtitles under the transport. What it reports goes to the app; its clock moves the player's (tick), between reports at the moments a line of the subtitles starts or ends, so the lines change on time.
+func (s *screen) video(cx *core.Scope) core.Node {
 	a := s.a
 	boundary := NewTimer(cx)
 	var nextChange func()
@@ -322,14 +321,8 @@ func (s *screen) video(cx *core.Scope, natural *core.Signal[core.Size]) core.Nod
 		MutedFunc:  live.Func(a, func() bool { return a.Video().Muted }),
 		VolumeFunc: live.Func(a, func() float32 { return a.Video().Volume }),
 		RateFunc:   live.Func(a, func() float32 { return a.Video().Rate }),
-		ResizeModeFunc: func() core.ResizeMode {
-			n, sz := natural.Get(), s.size.Get()
-			return PictureFit(sz.Width-s.roomRight(), sz.Height, n.Width, n.Height)
-		},
-		OnLoad: live.On(a, func(info core.VideoInfo) {
-			natural.Set(info.Size)
-			a.VideoLoaded(info)
-		}),
+		ResizeMode: core.Contain,
+		OnLoad:     live.On(a, a.VideoLoaded),
 		OnProgress: func(position, duration time.Duration) {
 			if a.VideoProgress(position, duration) {
 				a.Changed()

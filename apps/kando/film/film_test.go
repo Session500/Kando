@@ -365,6 +365,19 @@ func TestPlayerStaysWhileTheAppChanges(t *testing.T) {
 	}
 }
 
+// TestPictureShowsWhole checks that the system's player shows the picture whole (Contain), with the panel open or hidden, so no text at a picture's edges is cut off and its burned-in subtitles stay above the transport.
+func TestPictureShowsWhole(t *testing.T) {
+	a := newFakeApp()
+	app := start(t, a)
+	app.Play("id:film-video", ns.VideoInfo{Duration: 10 * time.Second, Size: ns.Size{Width: 1920, Height: 1080}})
+	for _, panel := range []bool{true, false} {
+		change(app, a, func() { a.panel = panel })
+		if got := app.Find("id:film-video").Video.ResizeMode; got != ns.Contain {
+			t.Fatalf("panel %v: the picture fits by %v, want it whole (%v)", panel, got, ns.Contain)
+		}
+	}
+}
+
 // TestInfoTabCorrectsTheSpokenLanguage checks that a done film's info tab names the language heard in it in a drop-down of the languages the speech recognition can be told, one it detected that the settings do not offer among them; that naming another keeps it for the film, without building the drop-down again, and offers to transcribe the film again in it, which processes it again; and that the offer goes once the film was heard in that language. A film still being processed, or one no job has processed, has no drop-down.
 func TestInfoTabCorrectsTheSpokenLanguage(t *testing.T) {
 	a := newFakeApp()
@@ -1129,29 +1142,6 @@ func TestNextCueChange(t *testing.T) {
 	}
 	if _, ok := NextCueChange(cues, 9*time.Second); ok {
 		t.Error("a change after the last line, which has no end")
-	}
-}
-
-// TestPictureFillsTheStage checks that a picture close to the stage's shape covers it, as the prototype's does, with no black bars under the title bar and the transport, and that one far from it shows whole.
-func TestPictureFillsTheStage(t *testing.T) {
-	for _, tc := range []struct {
-		name           string
-		stageW, stageH ns.Points
-		videoW, videoH ns.Points
-		want           ns.ResizeMode
-	}{
-		{"16:9 in the prototype's window", 1304, 782, 1920, 1080, ns.Cover},
-		{"16:9 in a 16:10 window", 1440, 900, 1920, 1080, ns.Cover},
-		{"1.85:1 in a 16:10 window", 1440, 900, 1998, 1080, ns.Cover},
-		{"the same shape", 1280, 720, 1920, 1080, ns.Cover},
-		{"2.39:1 in a 16:10 window", 1440, 900, 2048, 858, ns.Contain},
-		{"4:3 in the prototype's window", 1304, 782, 640, 480, ns.Contain},
-		{"portrait in a wide window", 1304, 782, 1080, 1920, ns.Contain},
-		{"no frame yet", 1304, 782, 0, 0, ns.Cover},
-	} {
-		if got := PictureFit(tc.stageW, tc.stageH, tc.videoW, tc.videoH); got != tc.want {
-			t.Errorf("%s: fit %v, want %v", tc.name, got, tc.want)
-		}
 	}
 }
 
