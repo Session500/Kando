@@ -422,7 +422,7 @@ func listProgressCell(cx *core.Scope, a App, item func() Film, words func() stri
 	colors := ui.ColorsOf(cx)
 	seen := live.Memo(cx, a, func() watched { return watchedOf(a, item()) })
 	check := core.Show{When: func() bool { return seen().end }, Then: func(*core.Scope) core.Node {
-		return core.Icon{SVG: lucide.Check(), Style: core.Style{Width: core.Pt(12), Height: core.Pt(12)}, StyleFunc: ui.Colored(colors.Accent)}
+		return core.Icon{SVG: lucide.Check(), Style: core.Style{Width: core.Pt(12), Height: core.Pt(12)}, StyleFunc: ui.Colored(theme.Of(cx).Glyph)}
 	}}
 	bar := core.Show{When: func() bool { s := seen(); return s.part > 0 && !s.end }, Then: func(*core.Scope) core.Node {
 		return core.View{Style: core.Style{Width: core.Pt(40), Height: core.Pt(4), CornerRadius: 2, FlexShrink: 0}, StyleFunc: func() core.Style { return core.Style{Background: colors.Track()} },

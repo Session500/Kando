@@ -108,7 +108,7 @@ func startTile(cx *core.Scope) core.Node {
 		Style:     core.Style{Width: core.Pt(88), Height: core.Pt(88), FlexShrink: 0, CornerRadius: 24, BorderWidth: 0.5, AlignItems: core.AlignCenter, JustifyContent: core.JustifyCenter},
 		StyleFunc: func() core.Style { return core.Style{Background: k.Tile(), BorderColor: k.Shade(0.06)} },
 		Children: []core.Node{
-			core.Icon{SVG: startGlyph, TestID: "films-start-glyph", Style: core.Style{Width: core.Pt(44), Height: core.Pt(44)}, StyleFunc: ui.Colored(ui.ColorsOf(cx).Accent)},
+			core.Icon{SVG: startGlyph, TestID: "films-start-glyph", Style: core.Style{Width: core.Pt(44), Height: core.Pt(44)}, StyleFunc: ui.Colored(theme.Of(cx).Glyph)},
 		}}
 }
 

@@ -63,6 +63,9 @@ var lightRoles = map[string]core.Color{
 	roleOKText:      core.RGB(0x14532D),
 }
 
+// darkText is the text of NSGo's dark page, which the dark message bars' text is over their faint wash.
+var darkText = core.DefaultTheme().Dark.Text
+
 // darkRoles are the same roles over NSGo's dark page (#1F1F1F): the hairlines and washes white where they are black on the light page, the cards a step lighter than the page, the settings window a step darker than its cards, and the inks lighter so they read on the dark.
 var darkRoles = map[string]core.Color{
 	roleShade:       core.RGB(0xFFFFFF),
@@ -86,10 +89,10 @@ var darkRoles = map[string]core.Color{
 	roleRetryInk:    core.RGB(0xFFA94D),
 	roleWarnFill:    core.RGBA(0xFFB340, 0.10),
 	roleWarnRing:    core.RGBA(0xFFB340, 0.24),
-	roleWarnText:    core.RGB(0xEAEAEA),
+	roleWarnText:    darkText,
 	roleOKFill:      core.RGBA(0x4CD07A, 0.10),
 	roleOKRing:      core.RGBA(0x4CD07A, 0.24),
-	roleOKText:      core.RGB(0xEAEAEA),
+	roleOKText:      darkText,
 }
 
 // Colors are Kando's own roles where a component is, as ui.Colors are NSGo's: each reads the palette of the component's subtree, so a StyleFunc or a ui.Colored that calls one follows the appearance as it changes. The methods are funcs of no arguments, so they go where ui takes a func() core.Color.
@@ -107,7 +110,7 @@ func (c Colors) Shade(alpha float32) core.Color { return ui.Alpha(c.role(roleSha
 func (c Colors) Card() core.Color      { return c.role(roleCard) }
 func (c Colors) CardHover() core.Color { return c.role(roleCardHover) }
 
-// Glyph is the accent's color for a row's icon: Kando's blue on the light page; on the dark one Apple's lighter blue for the dark (systemBlue), as Kando's blue is too deep to stand out from the dark there.
+// Glyph is the accent's color for an icon or mark on the page, as a sidebar row's, the drop zone's and a watched film's check and an empty library's play mark: Kando's blue on the light page; on the dark one Apple's lighter blue for the dark (systemBlue), as Kando's blue is too deep to stand out from the dark there.
 func (c Colors) Glyph() core.Color { return c.role(roleGlyph) }
 
 // Window is the settings window's and the onboarding sheet's ground under their cards; Panel a card a step off the page, as a processing job's; Rail the settings window's sidebar; Gutter the main window's sidebar where the window shows no material.
