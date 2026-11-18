@@ -365,6 +365,19 @@ func TestPlayerStaysWhileTheAppChanges(t *testing.T) {
 	}
 }
 
+// TestPictureShowsWhole checks that the system's player shows the picture whole (Contain), with the panel open or hidden, so no text at a picture's edges is cut off and its burned-in subtitles stay above the transport.
+func TestPictureShowsWhole(t *testing.T) {
+	a := newFakeApp()
+	app := start(t, a)
+	app.Play("id:film-video", ns.VideoInfo{Duration: 10 * time.Second, Size: ns.Size{Width: 1920, Height: 1080}})
+	for _, panel := range []bool{true, false} {
+		change(app, a, func() { a.panel = panel })
+		if got := app.Find("id:film-video").Video.ResizeMode; got != ns.Contain {
+			t.Fatalf("panel %v: the picture fits by %v, want it whole (%v)", panel, got, ns.Contain)
+		}
+	}
+}
+
 // TestInfoTabCorrectsTheSpokenLanguage checks that a done film's info tab names the language heard in it in a drop-down of the languages the speech recognition can be told, one it detected that the settings do not offer among them; that naming another keeps it for the film, without building the drop-down again, and offers to transcribe the film again in it, which processes it again; and that the offer goes once the film was heard in that language. A film still being processed, or one no job has processed, has no drop-down.
 func TestInfoTabCorrectsTheSpokenLanguage(t *testing.T) {
 	a := newFakeApp()
