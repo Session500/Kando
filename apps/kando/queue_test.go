@@ -3610,6 +3610,45 @@ func TestAFilmIsWatchedWhileItIsMade(t *testing.T) {
 	}
 }
 
+// TestAFilmMadeAgainShowsItsLinesDone processes a done film again entirely: while the redo runs, the film shows the lines it had, done, none marked a draft, and the job is done again once the redo is.
+func TestAFilmMadeAgainShowsItsLinesDone(t *testing.T) {
+	p := &makerPipeline{length: 90 * time.Second, released: make(chan struct{})}
+	close(p.released)
+	a, tt, updates := newTestApp(t, p)
+	a.prefs.review = true
+	video := filepath.Join(t.TempDir(), "talk", "talk.mp4")
+	writeFakeClip(t, video, 90, "202020", "101010")
+	if err := a.Enqueue(core.FileURL(video)); err != nil {
+		t.Fatal(err)
+	}
+	refresh(tt, a)
+	id := a.library.Jobs[0].ID
+	settle(t, a, tt, updates)
+	if job := stageOf(t, a, id); job.Stage != core.StageComplete {
+		t.Fatalf("job %s: %v", job.Stage, job.Err)
+	}
+	p.released = make(chan struct{})
+	a.Retry(id)
+	refresh(tt, a)
+	queueUntilState(t, updates, func() bool { return stageOf(t, a, id).Stage == core.StageTranscribing })
+	item, ok := films.Find(a.films(), id)
+	if !ok {
+		t.Fatalf("no film for %s", id)
+	}
+	playerOpenFilm(t, a, tt, updates, item)
+	if got := len(a.player.subs.machine); got != 9 {
+		t.Fatalf("while it is made again the film shows %d lines, want the 9 it had", got)
+	}
+	if tt.Exists("id:film-cue-draft") || len(a.Subs().Drafts) != 0 {
+		t.Fatal("a film made again marks the lines it had drafts")
+	}
+	close(p.released)
+	settle(t, a, tt, updates)
+	if job := stageOf(t, a, id); job.Stage != core.StageComplete || job.Redo != "" {
+		t.Fatalf("job %s redo %q: %v", job.Stage, job.Redo, job.Err)
+	}
+}
+
 // preferPipeline makes films a part at a time as makerPipeline does, its speech recognition stopping a minute into "first" until released is closed, and records which film each run heard.
 type preferPipeline struct {
 	makerPipeline

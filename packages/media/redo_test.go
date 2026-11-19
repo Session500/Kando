@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"kando/packages/core"
+	"kando/packages/track"
 )
 
 // redoPipeline is a done film's pipeline as a job translating it again sees it: Check fails as it does once the speech model is deleted, which a job translating again does not need, so only CheckTranslate may run; Download and Transcribe fail the test, since the film is neither downloaded nor transcribed again, Translate prefixes each line it is sent with the language and remembers them, and Export writes the subtitles as Tools does. untranslated, when set, is the text Translate leaves untranslated, reporting it as Tools does.
@@ -371,5 +372,125 @@ func TestRunRetryingAFailedProcessAgainReadsBackItsSpeech(t *testing.T) {
 				t.Fatalf("done %+v, %d transcriptions", done, p.transcriptions)
 			}
 		})
+	}
+}
+
+// modelFilm is makeFilm heard by a speech model, as Tools names the one it hears by (hearer).
+type modelFilm struct {
+	*makeFilm
+	model string
+}
+
+func (f modelFilm) hearing(context.Context) (string, string) { return f.model, "" }
+
+// redoOf is done, a film made, queued to be processed again entirely, as the app's 重新处理 queues it.
+func redoOf(done core.Job) core.Job {
+	done.Redo, done.RedoLanguage, done.Stage, done.Err = core.RedoAll, done.Language, core.StageQueued, nil
+	return done
+}
+
+// Processing a done film again entirely makes it anew beside what it shows, which stays as it was, files and job, until the new one is done: one that fails leaves the film as it was, and run again goes on with what it heard, then shows the film anew. Its final proofread's changes for review replace the film's only then.
+func TestMakeProcessingAgainKeepsTheFilmUntilItIsDone(t *testing.T) {
+	job, video := makeJob(t)
+	job.SpeechLanguage = "ja"
+	ctx := WithReview(context.Background(), core.ProofAutoAll)
+	f := &makeFilm{length: 30 * time.Second, language: "ja"}
+	film := makeFilmWith(t, ctx, f, job, 0)
+	if film.Stage != core.StageComplete {
+		t.Fatalf("film ended %s: %v", film.Stage, film.Err)
+	}
+	bilingual := strings.TrimSuffix(video, ".mkv") + ".bilingual.srt"
+	read := func(path string) string {
+		t.Helper()
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(data)
+	}
+	srt, both, proofs := read(TranscriptOf(video)), read(bilingual), read(ProofsPath(video))
+
+	f.say = func(at time.Duration) string { return "anew " + at.String() }
+	f.translate = func(string) (string, error) { return "", ErrOffline }
+	heard := len(f.runs)
+	failed := makeFilmWith(t, ctx, f, redoOf(film), 0)
+	if failed.Stage != core.StageFailed || failed.Redo != core.RedoAll || !strings.HasPrefix(failed.Err.Error(), "translate: ") {
+		t.Fatalf("failed %+v", failed)
+	}
+	if failed.SubtitlePath != film.SubtitlePath || !failed.CompletedAt.Equal(film.CompletedAt) || failed.Language != film.Language || failed.SpokenLanguage != film.SpokenLanguage {
+		t.Fatalf("the failed job no longer describes the film: %+v", failed)
+	}
+	if read(TranscriptOf(video)) != srt || read(bilingual) != both || read(ProofsPath(video)) != proofs {
+		t.Fatal("a failed redo changed the film's files")
+	}
+	if doc, _ := track.Read(video); doc.View()[0].Original.Text != "line 0s" {
+		t.Fatalf("the film shows %+v", doc.View()[0])
+	}
+
+	// Run again where its subtitles cannot be written, it fails once its final proofread is made, and the film is still as it was, its changes for review too.
+	f.translate = nil
+	f.reviewed = nil
+	reheard := len(f.runs) - heard
+	if err := os.Rename(bilingual, bilingual+".kept"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(bilingual, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if stuck := makeFilmWith(t, ctx, f, failed, 0); stuck.Stage != core.StageFailed || len(f.reviewed) == 0 || read(ProofsPath(video)) != proofs {
+		t.Fatalf("stuck %+v after %d final proofreads", stuck, len(f.reviewed))
+	}
+	if err := os.Remove(bilingual); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(bilingual+".kept", bilingual); err != nil {
+		t.Fatal(err)
+	}
+	done := makeFilmWith(t, ctx, f, failed, 0)
+	if done.Stage != core.StageComplete || done.Redo != "" || done.RedoLanguage != "" || !done.CompletedAt.After(film.CompletedAt) {
+		t.Fatalf("done %+v", done)
+	}
+	if again := len(f.runs) - heard - reheard; again != 0 {
+		t.Fatalf("the redo run again heard the film %d more times", again)
+	}
+	if got := read(bilingual); !strings.Contains(got, "译:anew 0s\nanew 0s") || strings.Contains(got, "line 0s") {
+		t.Fatalf("bilingual %q", got)
+	}
+	if got := read(ProofsPath(video)); !strings.Contains(got, "anew 0s") || strings.Contains(got, "line 0s") {
+		t.Fatalf("proofs %q", got)
+	}
+}
+
+// A redo is the film heard anew by the speech model set now: one heard by another model is begun again, not gone on with, and the language is heard anew rather than taken from what the film was heard in before.
+func TestMakeRedoHearsTheFilmAnew(t *testing.T) {
+	job, video := makeJob(t)
+	f := &makeFilm{length: 30 * time.Second, language: "en"}
+	film, _ := makeFilmOf(t, modelFilm{f, "small"}, job, 0)
+	if film.SpokenLanguage != "en" {
+		t.Fatalf("film %+v", film)
+	}
+	f.language, f.translate = "ko", func(string) (string, error) { return "", ErrOffline }
+	failed, _ := makeFilmOf(t, modelFilm{f, "small"}, redoOf(film), 0)
+	if failed.Stage != core.StageFailed || failed.SpokenLanguage != "en" {
+		t.Fatalf("failed %+v", failed)
+	}
+	if got := f.langs[len(f.langs)-1]; got != "" {
+		t.Fatalf("the redo heard the film in %q, not anew", got)
+	}
+	f.translate = nil
+	runs := len(f.runs)
+	done, _ := makeFilmOf(t, modelFilm{f, "large"}, failed, 0)
+	if done.Stage != core.StageComplete || done.SpokenLanguage != "ko" || len(f.runs) != runs+1 {
+		t.Fatalf("done %+v after %d runs", done, len(f.runs)-runs)
+	}
+	doc, _ := track.Read(video)
+	gens := 0
+	for _, e := range doc.Events {
+		if e.Kind == track.KindGen {
+			gens++
+		}
+	}
+	if gens != 3 {
+		t.Fatalf("%d generations, want the film, the redo by the small model and the one by the large", gens)
 	}
 }

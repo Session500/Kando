@@ -194,11 +194,17 @@ func (a *app) VideoFailed(err error) { a.playerFailed(err) }
 
 func (a *app) Subs() film.Subs {
 	subs := film.Subs{Key: a.player.subs.key, Ready: a.player.subs.ready, Err: a.player.subs.err, Cues: a.player.subs.cues}
-	// Lines are marked drafts while the film is made, until the final proofread makes them final. Without the final proofread none becomes final, so none is marked; and a film done with lines the final proofread did not get to, as when the service went, is left as one done, as Run leaves a film whose final proofread failed, rather than marked for good with nothing to make it final.
-	if item, ok := a.openFilm(); ok && a.prefs.review && item.Key == subs.Key && item.Stage != "" && !item.Stage.Done() {
+	// Lines are marked drafts while the film is made, until the final proofread makes them final. Without the final proofread none becomes final, so none is marked; and a film done with lines the final proofread did not get to, as when the service went, is left as one done, rather than marked for good with nothing to make it final. A film made again (core.Job.Redo) shows the lines it had, done, until the redo is.
+	if item, ok := a.openFilm(); ok && a.prefs.review && item.Key == subs.Key && item.Stage != "" && !item.Stage.Done() && !a.filmRedoing(item.JobID) {
 		subs.Drafts = a.player.subs.drafts
 	}
 	return subs
+}
+
+// filmRedoing reports whether the job of the film open, id, is making a done film again, which shows the lines it had until it is done.
+func (a *app) filmRedoing(id string) bool {
+	job, ok := a.library.Find(id)
+	return ok && job.Redo != ""
 }
 
 func (a *app) FilmSide() string { return a.player.filmSide }

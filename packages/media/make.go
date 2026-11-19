@@ -3,6 +3,7 @@ package media
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -135,7 +136,12 @@ func Make(ctx context.Context, p Pipeline, job core.Job, language, device string
 	if job.Redo == core.RedoVideo {
 		return downloadVideo(ctx, p, &job, report)
 	}
-	if err := p.Check(); err != nil {
+	// A redo needs the translator as well as the tools that hear the film, as it would otherwise replace the film's translated subtitles with fewer.
+	check := p.Check
+	if tc, ok := p.(TranslateChecker); ok && job.Redo != "" {
+		check = func() error { return errors.Join(p.Check(), tc.CheckTranslate()) }
+	}
+	if err := check(); err != nil {
 		return fail("check", err)
 	}
 	_, local := localVideoPath(job.Source)
@@ -194,7 +200,14 @@ func Make(ctx context.Context, p Pipeline, job core.Job, language, device string
 		}
 		return Run(ctx, p, job, language, report)
 	}
-	m := &making{ctx: ctx, p: maker, job: &job, video: video, hearFrom: hearFrom, soundOnly: soundOnly, device: device, doc: doc, report: report, coming: coming}
+	// A redo keeps showing the film as its files hold it until it is done: what they hold that the document does not is taken in first, as the film it redoes.
+	if job.Redo != "" {
+		if events, err := trackFiles(doc, job.SubtitlePath, TranscriptOf(video)); err == nil && len(events) > 0 {
+			written, _ := track.Append(video, device, events...)
+			doc.Events = append(doc.Events, written...)
+		}
+	}
+	m := &making{ctx: ctx, p: maker, job: &job, video: video, hearFrom: hearFrom, soundOnly: soundOnly, redo: job.Redo != "", device: device, doc: doc, report: report, coming: coming}
 	defer stopVideo()
 	return m.run(length, language, watch)
 }
@@ -205,7 +218,7 @@ func soundPath(video string) string { return hiddenBeside(video, ".sound") }
 // MakesAPartAtATime reports whether Make makes job with p a part at a time, so stopping it loses no more than the work it was doing: a film made for the first time with a pipeline that can (Maker), not a redo, nor a link whose lines come from its site's subtitles, which Run makes whole.
 func MakesAPartAtATime(p Pipeline, job core.Job) bool {
 	_, can := p.(Maker)
-	return can && job.Redo == "" && job.SubtitleSource != core.SubtitlesPlatform
+	return can && (job.Redo == "" || job.Redo == core.RedoAll) && job.SubtitleSource != core.SubtitlesPlatform
 }
 
 // downloadVideo downloads the video of a film that keeps none (core.RedoVideo) at job.Quality, puts it under the name its subtitles go by (placeVideo) and completes, neither hearing nor translating the film; one that fails leaves the film as it was.
@@ -244,6 +257,8 @@ type making struct {
 	// hearFrom is the file the speech is heard from: the video, or the sound of a link whose video is still coming, or that keeps none (soundOnly).
 	hearFrom  string
 	soundOnly bool
+	// redo is a film made again (core.RedoAll) into a generation of its own, which the film shows only once it is done: until then nothing of it is written out, and the job keeps describing the film as it was.
+	redo bool
 	device   string
 	doc      track.Doc
 	report   func(core.Job)
@@ -290,7 +305,11 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 	var stop context.CancelFunc
 	m.ctx, stop = context.WithCancel(m.ctx)
 	defer stop()
-	gen, err := m.generation()
+	model := ""
+	if h, ok := m.p.(hearer); ok {
+		model, _ = h.hearing(m.ctx)
+	}
+	gen, err := m.generation(model)
 	if err != nil {
 		return m.fail("transcribe", err)
 	}
@@ -300,17 +319,32 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 	}
 	m.bilingual = strings.TrimSuffix(m.video, filepath.Ext(m.video)) + ".bilingual.srt"
 
-	// The language the speech is heard in: the one the user named for the film, else the one Tools names, else the one an earlier run heard. Without one, the first run hears a cell alone to find it, and every cell after is heard in it.
+	// spoken is the language the film is heard in, which a redo keeps to itself until it is done, so a redo that fails leaves the film's as it was.
+	spoken := job.SpokenLanguage
+	if m.redo {
+		spoken = ""
+	}
+	setSpoken := func(language string) {
+		spoken = language
+		if !m.redo {
+			job.SpokenLanguage = language
+		}
+	}
+	// The language the speech is heard in: the one the user named for the film, else the one Tools names, else the one an earlier run heard: a first making's, or a redo's own, as a redo hears the film anew. Without one, the first run hears a cell alone to find it, and every cell after is heard in it.
 	hearing := strings.TrimSpace(job.SpeechLanguage)
 	if h, ok := m.p.(hearer); ok && hearing == "" {
 		_, hearing = h.hearing(m.ctx)
 	}
-	if hearing == "" {
+	switch {
+	case hearing != "":
+	case m.redo:
+		hearing = m.heardIn(gen)
+	default:
 		hearing = job.SpokenLanguage
 	}
 	if hearing != "" {
 		m.ctx = withSpeechLanguage(m.ctx, hearing)
-		job.SpokenLanguage = cmpOr(job.SpokenLanguage, hearing)
+		setSpoken(cmpOr(spoken, hearing))
 	}
 	plan := track.Making{Gen: gen, Length: length, Playhead: watch.Playhead(), Hearing: cmpOr(hearing, "auto")}
 
@@ -323,7 +357,7 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 	}
 	// translates is the language the film's lines are drafted in, "" while they are not: a film heard in the language its subtitles are for is not translated, which for Chinese is told by the script of the lines heard so far.
 	translates := func() string {
-		if notTranslated != "" || hearing == "" || core.SameLanguage(job.SpokenLanguage, language, track.Originals(m.doc.Lines(gen))) {
+		if notTranslated != "" || hearing == "" || core.SameLanguage(spoken, language, track.Originals(m.doc.Lines(gen))) {
 			return ""
 		}
 		return language
@@ -350,6 +384,8 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 	var pending []heardCell
 	drafting := false
 	draftFailures := 0
+	// last is the work left when the making last looked, which once it is done says which blocks' final proofread holds (keepProofs).
+	var last track.Plan
 	defer func() {
 		if hearStop != nil {
 			hearStop()
@@ -358,6 +394,7 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 	for {
 		plan.Playhead = watch.Playhead()
 		p := m.doc.Plan(plan)
+		last = p
 		m.progress(p)
 		if p.Done() && hearStop == nil && !drafting && (len(m.redrafts) == 0 || plan.Language == "") {
 			break
@@ -423,7 +460,7 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 			case hearing == "":
 				// The first run heard the language: the cells it heard are kept as heard in it, and every cell after is heard in it.
 				hearing = cmpOr(d.language, "auto")
-				job.SpokenLanguage = d.language
+				setSpoken(d.language)
 				if d.language != "" {
 					m.ctx = withSpeechLanguage(m.ctx, d.language)
 				}
@@ -453,6 +490,9 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 				// The service is gone, or fails block after block: the film stays a draft where it is not proofread yet, as it is when the final proofread fails in Run.
 				finals = false
 				relanguage()
+			case (errors.Is(d.err, ErrOffline) || draftFailures+1 >= maxFailedBatches) && m.redo:
+				// A redo without its translation would replace the film's translated subtitles with fewer: it fails, leaving the film as it was.
+				return m.fail("translate", d.err)
 			case errors.Is(d.err, ErrOffline) || draftFailures+1 >= maxFailedBatches:
 				// The service is not there, or fails cell after cell: the film is made without the translation of the cells left, as it is without a translator.
 				notTranslated = d.err.Error()
@@ -492,12 +532,18 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 	if err := m.finish(gen); err != nil {
 		return m.fail("export", err)
 	}
+	if m.redo {
+		m.keepProofs(gen, last)
+	}
 	// The sound a film was made from goes once its subtitles are written: a film that keeps no video is named by where its sound was, which its subtitles are named after.
 	subtitlesOnly := false
 	if m.soundOnly {
 		job.VideoPath, subtitlesOnly = m.video, removeSound(m.hearFrom)
 	} else if m.hearFrom != job.VideoPath {
 		_ = os.Remove(m.hearFrom)
+	}
+	if spoken != "" {
+		job.SpokenLanguage = spoken
 	}
 	same := core.SameLanguage(job.SpokenLanguage, language, track.Originals(lines))
 	untranslated := 0
@@ -519,6 +565,7 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 	job.SubtitlePath = m.bilingual
 	job.CompletedAt = time.Now()
 	job.Language, job.Untranslated, job.TranslationErr = language, untranslated, notTranslated
+	job.Redo, job.RedoLanguage = "", ""
 	job.Progress = core.Progress{}
 	job.Stage = core.StageComplete
 	m.report(*job)
@@ -533,11 +580,11 @@ func (m *making) fail(step string, err error) core.Job {
 	return *m.job
 }
 
-// generation is the generation a first making of the film makes: the one an earlier run began and did not finish, or a new one.
-func (m *making) generation() (string, error) {
+// generation is the generation the making makes, which names the speech model it is heard by (Key): the one an earlier run began and did not finish, or a new one. A redo goes on with one only when it was heard by the same model, as a redo is the film heard anew by the model set now; a first making goes on with whatever its earlier run heard.
+func (m *making) generation(model string) (string, error) {
 	var open track.Event
 	for _, e := range m.doc.Events {
-		if e.Kind == track.KindGen && e.Source == makeSource && !m.doc.Done(e.Gen) {
+		if e.Kind == track.KindGen && e.Source == makeSource && !m.doc.Done(e.Gen) && (!m.redo || e.Key == model) {
 			open = e
 		}
 	}
@@ -545,7 +592,18 @@ func (m *making) generation() (string, error) {
 		return open.Gen, nil
 	}
 	gen := track.NewID()
-	return gen, m.append(track.Event{Kind: track.KindGen, Gen: gen, Source: makeSource})
+	return gen, m.append(track.Event{Kind: track.KindGen, Gen: gen, Source: makeSource, Key: model})
+}
+
+// heardIn is the language generation gen's cells were heard in, as their records name it, "" when none was heard in a known one.
+func (m *making) heardIn(gen string) string {
+	language := ""
+	for _, e := range m.doc.Events {
+		if e.Kind == track.KindUnit && e.Gen == gen && track.Work(e.Source) == track.WorkHear && e.Key != "auto" {
+			language = e.Key
+		}
+	}
+	return language
 }
 
 // makeSource is the Source of what Make writes.
@@ -986,6 +1044,12 @@ func (m *making) final(ctx context.Context, in draftInput, language string, auto
 
 // commitFinal writes a block's final proofread: each text it changed, as final, then that the block is proofread, which makes its lines final; and its changes, in place of those an earlier proofread of the block suggested, beside the video for the user to review (ProofsPath).
 func (m *making) commitFinal(d drafted) {
+	made := d.in.units[0].Made()
+	// A redo's changes are kept with its block's record until it is done, as the film shows what it redoes until then (keepProofs).
+	if m.redo {
+		data, _ := json.Marshal(d.proofs)
+		made.Text = string(data)
+	}
 	var events []track.Event
 	for i, id := range d.in.ids {
 		if text := d.original[i].Text; text != d.in.lines[i].Text {
@@ -995,7 +1059,10 @@ func (m *making) commitFinal(d drafted) {
 			events = append(events, track.Event{Kind: track.KindRev, Line: id, Side: track.Translation, Layer: track.LayerFinal, Text: text, Source: makeSource})
 		}
 	}
-	_ = m.append(append(events, d.in.units[0].Made())...)
+	_ = m.append(append(events, made)...)
+	if m.redo {
+		return
+	}
 	start, _ := d.in.units[0].Span()
 	end := start + track.Block*track.Cell
 	path := ProofsPath(m.video)
@@ -1008,6 +1075,25 @@ func (m *making) commitFinal(d drafted) {
 		return mid >= start && mid < end
 	})
 	_ = SaveProofs(path, append(proofs, d.proofs...))
+}
+
+// keepProofs writes the changes the final proofread of a redo suggested beside the video for the user to review (ProofsPath), once the redo is done and its lines are the film's: those of each block whose final proofread holds for what it has now (track.Plan.Finished), the latest made, in place of every earlier change. A redo whose final proofread was not made keeps none.
+func (m *making) keepProofs(gen string, last track.Plan) {
+	latest := map[int]string{}
+	for _, e := range m.doc.Events {
+		if e.Kind == track.KindUnit && e.Gen == gen && track.Work(e.Source) == track.WorkFinal {
+			latest[int(e.Start/(track.Cell*track.Block).Milliseconds())] = e.Text
+		}
+	}
+	var proofs []core.Proof
+	for block, data := range latest {
+		var found []core.Proof
+		if last.Finished[block] && json.Unmarshal([]byte(data), &found) == nil {
+			proofs = append(proofs, found...)
+		}
+	}
+	slices.SortFunc(proofs, func(a, b core.Proof) int { return int(a.Span.Start - b.Span.Start) })
+	_ = SaveProofs(ProofsPath(m.video), proofs)
 }
 
 // progress reports how far the film is made: hearing while cells are left to hear, then translating.
@@ -1040,15 +1126,15 @@ func (m *making) videoCame(d downloaded) {
 	m.report(*m.job)
 }
 
-// project writes the lines of gen out beside the video, as they are now, at most every projectEvery (projectTrack), while gen is what the film shows: a redo, whose lines show once it is done, writes nothing until then (finish). It reads the film's logs again first (reread). The film shows its bilingual subtitles from the first lines written out.
+// project writes the lines of gen out beside the video, as they are now, at most every projectEvery (projectTrack): a redo, whose lines show once it is done, writes nothing until then (finish). It reads the film's logs again first (reread). The film shows its bilingual subtitles from the first lines written out.
 func (m *making) project(gen string) {
 	if time.Since(m.projected) < projectEvery {
 		return
 	}
-	m.reread()
-	if m.doc.Shown() != gen {
+	if m.redo {
 		return
 	}
+	m.reread()
 	events, err := projectTrack(m.doc.Lines(gen), m.transcript, m.bilingual)
 	if err != nil || len(events) == 0 {
 		return
