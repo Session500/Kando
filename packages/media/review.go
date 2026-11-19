@@ -352,6 +352,18 @@ func decideTrackProofs(video, subtitles, device string, before, after []core.Pro
 	if doc.Newer {
 		return ErrProofsNewer
 	}
+	// The subtitles may have been written since by something other than the document, as a redo Run makes: what they hold is kept in the document first, so the decision is laid over it, not over what the document held before.
+	files, err := trackFiles(doc, subtitles, TranscriptOf(video))
+	if err != nil {
+		return err
+	}
+	if len(files) > 0 {
+		written, err := track.Append(video, device, files...)
+		if err != nil {
+			return err
+		}
+		doc.Events = append(doc.Events, written...)
+	}
 	var events []track.Event
 	lines := doc.View()
 	for i := range after {
@@ -382,10 +394,10 @@ func decideTrackProofs(video, subtitles, device string, before, after []core.Pro
 		return err
 	}
 	doc.Events = append(doc.Events, written...)
-	files, err := projectTrack(doc, TranscriptOf(video), subtitles)
+	projected, err := projectTrack(doc, TranscriptOf(video), subtitles)
 	if err != nil {
 		return err
 	}
-	_, err = track.Append(video, device, files...)
+	_, err = track.Append(video, device, projected...)
 	return err
 }

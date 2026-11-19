@@ -741,3 +741,27 @@ func TestALinkWhoseVideoFailsFailsOnceItsSubtitlesAreMade(t *testing.T) {
 		t.Fatalf("the film's document shows %d lines", len(doc.View()))
 	}
 }
+
+// TestADecisionKeepsSubtitlesRewrittenOutsideTheDocument decides a change of a film made into its document whose subtitles something else rewrote since, as a redo that Run makes: the decision is laid over what the files hold, not over what the document held before.
+func TestADecisionKeepsSubtitlesRewrittenOutsideTheDocument(t *testing.T) {
+	job, video := makeJob(t)
+	job.SpeechLanguage = "ja"
+	f := &makeFilm{length: 90 * time.Second, language: "ja"}
+	done := makeFilmWith(t, WithReview(context.Background(), core.ProofAutoNone), f, job, 0)
+	if done.Stage != core.StageComplete {
+		t.Fatalf("job ended %s: %v", done.Stage, done.Err)
+	}
+	proofs, _ := LoadProofs(ProofsPath(video))
+	// The film is translated again outside the document: every translation is now "redo:".
+	data, _ := os.ReadFile(done.SubtitlePath)
+	if err := os.WriteFile(done.SubtitlePath, []byte(strings.ReplaceAll(string(data), "译:", "redo:")), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := DecideProofs(video, done.SubtitlePath, "mac", proofs, core.AcceptProofs(proofs)[:1]); err != nil {
+		t.Fatal(err)
+	}
+	data, _ = os.ReadFile(done.SubtitlePath)
+	if strings.Contains(string(data), "译:line 30s") || !strings.Contains(string(data), "redo:line 30s") {
+		t.Fatalf("subtitles once decided %q, want the redo kept", data)
+	}
+}
