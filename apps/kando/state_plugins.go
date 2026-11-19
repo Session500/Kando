@@ -9,7 +9,9 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
+	"time"
 
 	"kando/apps/kando/live"
 	"kando/apps/kando/locales"
@@ -56,6 +58,8 @@ type pluginsUI struct {
 	phone pluginsPhoneMarks
 	// dictHintShown is set once the lookup card showed the hint to install an offline dictionary (pluginsDictHint), which shows once.
 	dictHintShown bool
+	// panels is the 扩展 tab's state (state_plugins_panels.go).
+	panels pluginsPanels
 	// sites are the site packs turned on with the domains the user allowed, which the browser's 下载视频 knows (state_plugins_sites.go).
 	sites  []pluginsSite
 	script pluginsScripts
@@ -100,6 +104,8 @@ type savedPlugins struct {
 	PluginDeveloper     bool     `json:"pluginDeveloper,omitempty"`
 	// PluginExportTarget is the export-template pack the saved lines are exported with, "" for Kando's own Anki notes; kept while that pack is missing (state_plugins_templates.go).
 	PluginExportTarget string `json:"pluginExportTarget,omitempty"`
+	// PluginPanel is the panel of the 扩展 tab chosen last, whichever film is open, as plugin:<plugin id>:<panel id>; kept while its plugin is not running (state_plugins_panels.go).
+	PluginPanel string `json:"pluginPanel,omitempty"`
 }
 
 // pluginOrderMax is the most ids PluginOrder keeps.
@@ -121,6 +127,7 @@ func (s *savedPlugins) clean() {
 	s.PluginOrder = out
 	s.PluginWordlist = strings.TrimSpace(s.PluginWordlist)
 	s.PluginExportTarget = strings.TrimSpace(s.PluginExportTarget)
+	s.PluginPanel = strings.TrimSpace(s.PluginPanel)
 }
 
 // pluginsHooks: the order of the packs, how the lines are marked and developer mode are kept in settings.json, and the AI service of a pack that went is saved as its pack's; the plugins folder and the copy of the community index kept in it (pluginsIndexPeek) are read once the window is ready, links that ask to install a pack of the index are taken (pluginsIndexOpenLinks), and the inbox looked at again each time the app comes to the front; the open film's lines are marked as it plays and as the app's state changes; the dictionaries and the script plugins close as the app quits. The script plugins hear film.opened after the change that opened a film, job.completed as the shelf changes and llm.changed after the AI service changed; and those running whose grant changed with the app's state, as when Kando went offline, are loaded again.
@@ -132,6 +139,7 @@ func (a *app) pluginsHooks() areaHooks {
 			a.plugins.dictHintShown = saved.PluginDictHintShown
 			a.plugins.script.developer = saved.PluginDeveloper
 			a.plugins.exportTarget = saved.PluginExportTarget
+			a.plugins.panels.chosen = saved.PluginPanel
 			if strings.HasPrefix(saved.LLMProvider, llmPackPrefix) {
 				a.plugins.gone = pluginsGone{id: saved.LLMProvider, base: saved.LLMBaseURL}
 			}
@@ -148,6 +156,7 @@ func (a *app) pluginsHooks() areaHooks {
 			saved.PluginDictHintShown = a.plugins.dictHintShown
 			saved.PluginDeveloper = a.plugins.script.developer
 			saved.PluginExportTarget = a.plugins.exportTarget
+			saved.PluginPanel = a.plugins.panels.chosen
 		},
 		ready: func() {
 			a.pluginsScan()
@@ -166,13 +175,21 @@ func (a *app) pluginsHooks() areaHooks {
 			a.pluginsCloseScripts()
 		},
 		shelfChanged: a.pluginsJobsCompleted,
-		quitting:     a.pluginsTaskStop,
+		// After the windows closed nothing builds a panel or starts more work on the plugins folder, so what is under way is waited for: a write cut short by the process ending would leave state.json, health.json or a mark half written.
+		quitting: func() {
+			a.pluginsTaskStop()
+			a.pluginsWaitWrites(5 * time.Second)
+		},
 		// The open film's lines are marked again only when its key changed (pluginsMarksFollow), never on shelfChanged, which every report of a job's progress runs. afterChange catches what changes while the film is paused, as a line corrected or a word added to the vocabulary; playing what changes while it plays without a change of the app's state.
-		playing: a.pluginsMarksFollow,
+		playing: func() bool {
+			a.pluginsPanelsLine()
+			return a.pluginsMarksFollow()
+		},
 		afterChange: func() bool {
 			changed := a.pluginsMarksFollow()
 			changed = a.pluginsIndexFollow() || changed
 			a.pluginsFilmOpened()
+			a.pluginsPanelsLine()
 			a.pluginsGrantsFollow()
 			changed = a.pluginsTranslateFollow() || changed
 			// A task's run goes once its film is not the one open (pluginsTaskFollow).
@@ -185,6 +202,54 @@ func (a *app) pluginsHooks() areaHooks {
 			}
 			a.pluginsSend("llm.changed", func(*pluginsScript) map[string]any { return map[string]any{} })
 		},
+	}
+}
+
+// pluginsDisk counts the plugins' work running off the engine's goroutine that reads or writes the plugins folder (pluginsWrite), which the app waits for as it quits, and a test as it ends (pluginsWaitWrites), so nothing is written into the folder after.
+var pluginsDisk struct {
+	mu   sync.Mutex
+	n    int
+	idle []chan struct{}
+}
+
+// pluginsWrite runs fn on a goroutine of its own, counted in pluginsDisk until it returns.
+func pluginsWrite(fn func()) {
+	pluginsDisk.mu.Lock()
+	pluginsDisk.n++
+	pluginsDisk.mu.Unlock()
+	go func() {
+		defer func() {
+			pluginsDisk.mu.Lock()
+			defer pluginsDisk.mu.Unlock()
+			if pluginsDisk.n--; pluginsDisk.n == 0 {
+				for _, c := range pluginsDisk.idle {
+					close(c)
+				}
+				pluginsDisk.idle = nil
+			}
+		}()
+		fn()
+	}()
+}
+
+// pluginsWaitWrites stops the writer of the panels' in-flight marks (script.Runner.Drain) and waits for the plugins' work on their folder (pluginsWrite) to end, limit at most, and reports whether it did. Call it as the app quits, once no panel is built and nothing starts more work, or as a test ends.
+func (a *app) pluginsWaitWrites(limit time.Duration) bool {
+	if r := a.plugins.script.runner; r != nil {
+		r.Drain()
+	}
+	pluginsDisk.mu.Lock()
+	if pluginsDisk.n == 0 {
+		pluginsDisk.mu.Unlock()
+		return true
+	}
+	idle := make(chan struct{})
+	pluginsDisk.idle = append(pluginsDisk.idle, idle)
+	pluginsDisk.mu.Unlock()
+	select {
+	case <-idle:
+		return true
+	case <-time.After(limit):
+		return false
 	}
 }
 
@@ -207,7 +272,7 @@ func (a *app) pluginsScan() {
 	}
 	a.plugins.scanGen++
 	gen, stateGen, update, day := a.plugins.scanGen, a.plugins.stateGen, a.update, a.pluginsDay()
-	go func() {
+	pluginsWrite(func() {
 		packs, issues := plugins.Scan(root)
 		state, err := plugins.LoadState(root)
 		usage := plugins.LoadUsage(root, day)
@@ -224,7 +289,7 @@ func (a *app) pluginsScan() {
 			}
 			a.pluginsScanned(packs, issues, state, err)
 		})
-	}()
+	})
 }
 
 // pluginsScanned takes what a read of the plugins folder found: the packs, which join the order the first time they are seen, the folders that are not valid packs and state.json. The AI service in use may be a pack's that came or went, so it is kept under its pack's id first and its preset found again after; the dictionaries turned on are opened; then the inbox is looked at.
@@ -359,7 +424,7 @@ func (a *app) pluginsCheckInbox() {
 	}
 	a.plugins.inboxBusy = true
 	update, verify := a.update, a.pluginsStagedVerifier()
-	go func() {
+	pluginsWrite(func() {
 		files, err := plugins.Inbox(root)
 		if err != nil || len(files) == 0 {
 			update(func() { a.plugins.inboxBusy = false })
@@ -380,7 +445,7 @@ func (a *app) pluginsCheckInbox() {
 			os.Remove(file)
 			a.pluginsAskStaged(pack, staged, v, err)
 		})
-	}()
+	})
 }
 
 // pluginsStage stages the pack at src, a zip or a folder, off the UI thread, and opens the install confirmation for it, or says why it cannot be installed.
@@ -397,7 +462,7 @@ func (a *app) pluginsStageThen(src string, after func()) {
 	}
 	a.plugins.busy, a.plugins.err = true, nil
 	update, verify := a.update, a.pluginsStagedVerifier()
-	go func() {
+	pluginsWrite(func() {
 		staged, pack, err := plugins.Stage(root, src)
 		if after != nil {
 			after()
@@ -407,7 +472,7 @@ func (a *app) pluginsStageThen(src string, after func()) {
 			a.plugins.busy = false
 			a.pluginsAskStaged(pack, staged, v, err)
 		})
-	}()
+	})
 }
 
 // pluginsVerifyStaged verifies the pack staged, unless staging failed with err, off the UI thread.
@@ -498,7 +563,7 @@ func (a *app) pluginsInstall() {
 	state := a.pluginsNextState(func(s *plugins.State) { s.Set(entry) })
 	a.plugins.busy, a.plugins.err, a.plugins.saving = true, nil, true
 	update := a.update
-	go func() {
+	pluginsWrite(func() {
 		err := plugins.Swap(root, staged, &pack)
 		var saveErr error
 		if err == nil {
@@ -525,7 +590,7 @@ func (a *app) pluginsInstall() {
 			}
 			a.pluginsScan()
 		})
-	}()
+	})
 }
 
 // pluginsSetEnabled turns the pack id on or off, saving state.json off the UI thread (pluginsApplyState); a site pack keeps the domains the user allowed.
@@ -557,7 +622,7 @@ func (a *app) pluginsApplyState(next plugins.State) {
 	a.pluginsFollowLLM()
 	a.pluginsSyncDicts()
 	update := a.update
-	go func() {
+	pluginsWrite(func() {
 		err := next.Save(root)
 		update(func() {
 			a.plugins.busy, a.plugins.saving = false, false
@@ -572,7 +637,7 @@ func (a *app) pluginsApplyState(next plugins.State) {
 			a.plugins.state, a.plugins.stateErr = next, nil
 			a.pluginsSyncSites()
 		})
-	}()
+	})
 }
 
 // pluginsUninstall removes the pack id from the plugins folder and from state.json off the UI thread (plugins.Remove), with a dictionary's index, closed first, and reads the folder again. The service an ai-service pack added keeps its key in settings.json under the pack's id (pluginsKeepLLM, savedLLM.clean), so installing it again brings it back. As with an install, a state.json a newer Kando wrote, which this one does not write over (plugins.ErrStateFormat), refuses the removal before anything is removed; once the folder is gone the pack is uninstalled, and a state.json that could not be saved after is said on the page apart from it (plugins.StateUnsaved).
@@ -608,7 +673,7 @@ func (a *app) pluginsUninstall(id string) {
 	a.plugins.saving = true
 	a.plugins.busy, a.plugins.err = true, nil
 	update, index := a.update, a.pluginsIndexDir()
-	go func() {
+	pluginsWrite(func() {
 		err := plugins.Remove(root, id)
 		if err == nil {
 			dict.Forget(index, id, "")
@@ -632,7 +697,7 @@ func (a *app) pluginsUninstall(id string) {
 			}
 			a.pluginsScan()
 		})
-	}()
+	})
 }
 
 // pluginsForget forgets the missing pack id, which leaves the list.
@@ -666,7 +731,7 @@ func (a *app) pluginsShowFolder() {
 	}
 	a.plugins.err = nil
 	update := a.update
-	go func() {
+	pluginsWrite(func() {
 		err := os.MkdirAll(root, 0o755)
 		update(func() {
 			if err != nil {
@@ -679,7 +744,7 @@ func (a *app) pluginsShowFolder() {
 				}
 			}))
 		})
-	}()
+	})
 }
 
 // errPluginsFolderNotShown is why the plugins folder did not show: no file manager opened it.

@@ -68,13 +68,15 @@ type pluginsScripts struct {
 	revocationsURL string
 }
 
-// pluginsScript is a script plugin running: its pack, its package as verified, the plugin the runner calls, its own host and what it was granted as it loaded.
+// pluginsScript is a script plugin running: its pack, its package as verified, the plugin the runner calls, its own host and what it was granted as it loaded; the host of the view of its panel shown now, nil while none is (state_plugins_panels.go), and which load of a plugin it is, counting every load (pluginsPanels.runs), so the panel's view is built again for a plugin loaded again.
 type pluginsScript struct {
 	pack   plugins.Pack
 	v      script.Verified
 	plugin *script.Plugin
 	host   *ns.Host
 	grant  plugins.Grant
+	panel  *ns.Host
+	run    int
 }
 
 // The limits of the script plugins: how many may be turned on at once, and how many host calls each may make a minute.
@@ -107,7 +109,7 @@ func (a *app) pluginsWatch() script.Watch {
 func (a *app) pluginsRunner() *script.Runner {
 	s := &a.plugins.script
 	if s.runner == nil {
-		s.runner = &script.Runner{Post: a.cx.Post, Root: a.pluginsRoot(), Watch: a.pluginsWatch(), Stopped: a.pluginsStopped}
+		s.runner = &script.Runner{Post: a.cx.Post, Root: a.pluginsRoot(), Watch: a.pluginsWatch(), PanelWatch: a.plugins.panels.watch, Stopped: a.pluginsStopped}
 	}
 	return s.runner
 }
@@ -158,7 +160,7 @@ func (a *app) pluginsVerify() {
 		s.trust, s.trustErr = trust, trustErr
 	}
 	roots := a.pluginsRoots()
-	go func() {
+	pluginsWrite(func() {
 		verified := map[string]script.Verified{}
 		var issues []plugins.Issue
 		for _, p := range packs {
@@ -195,7 +197,7 @@ func (a *app) pluginsVerify() {
 			a.pluginsVerified(verified, issues)
 			a.pluginsScriptsSync()
 		})
-	}()
+	})
 }
 
 // pluginsVerified takes what a verification found: each pack verified knows where it comes from and who signed it, and the others are listed among the page's problems.
@@ -349,10 +351,11 @@ func (a *app) pluginsLoadNext() {
 		a.pluginsTurnOff(id, p.Hash, plugins.ReasonInit)
 		return
 	}
-	s.loaded[id] = &pluginsScript{pack: p, v: v, plugin: plugin, host: host, grant: grant}
+	a.plugins.panels.runs++
+	s.loaded[id] = &pluginsScript{pack: p, v: v, plugin: plugin, host: host, grant: grant, run: a.plugins.panels.runs}
 	a.pluginsHost(id, host)
 	if trust := s.trust; trust != nil {
-		go trust.Accept(v.Package)
+		pluginsWrite(func() { trust.Accept(v.Package) })
 	}
 	a.Changed()
 }
@@ -444,7 +447,7 @@ func (a *app) pluginsSaveHealth() {
 	if root == "" {
 		return
 	}
-	go plugins.SaveHealth(root, health)
+	pluginsWrite(func() { plugins.SaveHealth(root, health) })
 }
 
 // pluginsSaveState takes next as the plugins' state and saves it off the UI thread, as pluginsSetEnabled does; the plugins follow at once. Saves run one at a time, and one that a later change saved over already is not written, so state.json ends with the last state whatever order the saves start in; once the last one ended, the state shown goes back when it could not be saved.
@@ -459,7 +462,7 @@ func (a *app) pluginsSaveState(next plugins.State) {
 	a.plugins.stateGen++
 	s.saves++
 	gen, update := s.saves, a.update
-	go func() {
+	pluginsWrite(func() {
 		pluginsStateMu.Lock()
 		var err error
 		if gen > pluginsStateSaved[root] {
@@ -480,7 +483,7 @@ func (a *app) pluginsSaveState(next plugins.State) {
 			}
 			a.pluginsScriptsSync()
 		})
-	}()
+	})
 	a.pluginsScriptsSync()
 }
 
@@ -498,7 +501,7 @@ func (a *app) pluginsAudit(event, id, detail string) {
 	}
 	scrub := a.feedbackScrubber().Clean
 	at := time.Now()
-	go plugins.Audit(root, scrub, at, event, id, detail)
+	pluginsWrite(func() { plugins.Audit(root, scrub, at, event, id, detail) })
 }
 
 // pluginsScriptsEnabled is how many script plugins are turned on.
@@ -679,7 +682,7 @@ func (a *app) pluginsSetValue(id, key string, value any) {
 func pluginsWriteValues(id string, write func()) {
 	pluginsValuesGen[id]++
 	gen := pluginsValuesGen[id]
-	go func() {
+	pluginsWrite(func() {
 		pluginsValuesMu.Lock()
 		defer pluginsValuesMu.Unlock()
 		if gen < pluginsValuesSaved[id] {
@@ -687,7 +690,7 @@ func pluginsWriteValues(id string, write func()) {
 		}
 		pluginsValuesSaved[id] = gen
 		write()
-	}()
+	})
 }
 
 // pluginsValuesGen counts the changes of each plugin's settings, on the engine's goroutine; pluginsValuesSaved is the change each plugin's file was last written for, under pluginsValuesMu.
@@ -739,12 +742,16 @@ func (a *app) pluginsFilmID(l *pluginsScript, video string) string {
 	return plugins.FilmID(a.plugins.script.filmKey, l.pack.ID, l.pack.Signer, video)
 }
 
-// pluginsSend sends each plugin running that hears event (its manifest's events) the event, with what data gives it for that plugin: scalars alone (docs/plugin-system.md 5.3).
+// pluginsSend sends each plugin running that hears event (its manifest's events) the event, with what data gives it for that plugin: scalars alone (docs/plugin-system.md 5.3); and the view of its panel shown now, which runs apart from it.
 func (a *app) pluginsSend(event string, data func(l *pluginsScript) map[string]any) {
 	for _, id := range slices.Sorted(maps.Keys(a.plugins.script.loaded)) {
 		l := a.plugins.script.loaded[id]
 		if slices.Contains(l.pack.Events, event) {
-			l.host.Send(event, data(l))
+			d := data(l)
+			l.host.Send(event, d)
+			if l.panel != nil {
+				l.panel.Send(event, d)
+			}
 		}
 	}
 }

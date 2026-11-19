@@ -19,11 +19,37 @@ import (
 	"github.com/nsgo-dev/nsgo/base"
 	ns "github.com/nsgo-dev/nsgo/core"
 	nsdesktop "github.com/nsgo-dev/nsgo/desktop"
+	"github.com/nsgo-dev/nsgo/icons/lucide"
 	"github.com/nsgo-dev/nsgo/ui"
 )
 
-// panelTabs are the side panel's tabs, by the FilmSide each one is; tabLabel names them.
-var panelTabs = []string{"", "clips", "terms", SideNotes, "info", "style"}
+// panelTabs are the side panel's tabs, by the FilmSide each one is, each with whether it shows now: all of them always, but 扩展, which shows while a script plugin running adds a panel (Extender); tabLabel names them.
+func (s *screen) panelTabs(cx *ns.Scope) []panelTab {
+	always := func() bool { return true }
+	return []panelTab{{"", always}, {"clips", always}, {"terms", always}, {SideNotes, always}, {"info", always}, {SideExtensions, s.extended(cx)}, {"style", always}}
+}
+
+// panelTab is a tab of the side panel: the FilmSide it is and whether it shows now.
+type panelTab struct {
+	id    string
+	shown func() bool
+}
+
+// extended reports, as a binding, whether a script plugin running adds a panel to the 扩展 tab.
+func (s *screen) extended(cx *ns.Scope) func() bool {
+	return live.Func(s.a, func() bool { return len(s.a.Extensions(cx)) > 0 })
+}
+
+// side is the side panel's tab as a binding: FilmSide, but 字幕 in place of 扩展 while no plugin running adds a panel, as once the last one was turned off.
+func (s *screen) side(cx *ns.Scope) func() string {
+	extended := s.extended(cx)
+	return live.Func(s.a, func() string {
+		if side := s.a.FilmSide(); side != SideExtensions || extended() {
+			return side
+		}
+		return ""
+	})
+}
 
 // tabLabel is what a tab of the side panel is called in the language the interface shows under cx.
 func tabLabel(cx *ns.Scope, id string) string {
@@ -38,6 +64,8 @@ func tabLabel(cx *ns.Scope, id string) string {
 		return locales.FilmTabInfo(cx)
 	case "style":
 		return locales.FilmTabStyle(cx)
+	case SideExtensions:
+		return locales.FilmTabExtensions(cx)
 	}
 	return locales.FilmSubtitles(cx)
 }
@@ -64,7 +92,7 @@ func (s *screen) panel() ns.Node {
 			in.Set(false)
 			cx.AfterFunc(panelMotion, done)
 		})
-		side := live.Memo(cx, a, a.FilmSide)
+		side := ns.NewMemo(cx, s.side(cx)).Get
 		body := ns.Show{
 			When: live.Func(a, a.StyleView),
 			Then: s.styleView,
@@ -83,6 +111,8 @@ func (s *screen) panel() ns.Node {
 						return s.explainTab(cx)
 					case SideTask:
 						return s.taskTab(cx)
+					case SideExtensions:
+						return s.extensionsTab(cx)
 					}
 					return s.subsTab(cx)
 				})
@@ -105,50 +135,98 @@ func (s *screen) panel() ns.Node {
 	}}
 }
 
-// panelTabBar is the prototype's tab bar across the panel (template 718-724): a track of white at 10%, its tabs sharing its width, the chosen one lit with white at 22% and its label semibold.
+// panelTabBar is the prototype's tab bar across the panel (template 718-724): a track of white at 10%, its tabs sharing its width, each at least as wide as its label, the chosen one lit with white at 22% and its label semibold. 扩展 is an icon, named for the screen reader and in its tooltip, so the seven tabs fit on one row in the languages Kando speaks; were the labels to need more room than the panel has, the track scrolls sideways and keeps the chosen tab in view.
 func (s *screen) panelTabBar(cx *ns.Scope) ns.Node {
 	a := s.a
+	side := s.side(cx)
 	chosen := live.Func(a, func() string {
 		if a.StyleView() {
 			return "style"
 		}
-		return a.FilmSide()
+		return side()
 	})
-	tabs := make([]ns.Node, 0, len(panelTabs))
-	for _, tab := range panelTabs {
+	// Where each tab lies on the track, and how wide the bar is, as their layouts report them, so the chosen tab is scrolled into view.
+	bounds := map[string]ns.Bounds{}
+	var bar ns.Points
+	scroll := &ns.Ref{}
+	reveal := func(tab string) {
+		b, ok := bounds[tab]
+		if !ok || bar <= 0 {
+			return
+		}
+		scroll.ScrollTo(ns.Point{X: max(0, b.Origin.X+b.Size.Width+3-bar)}, true)
+	}
+	all := s.panelTabs(cx)
+	tabs := make([]ns.Node, 0, len(all))
+	for _, t := range all {
+		tab := t.id
 		on := func() bool { return chosen() == tab }
-		tabs = append(tabs, base.Tab{
-			TestID: "film-tab-" + cmp.Or(tab, "subs"), Selected: on,
-			OnPress: live.On(a, func(ns.PressEvent) {
-				if tab == "style" {
-					a.SetStyleView(true)
-					return
-				}
-				a.SetStyleView(false)
-				a.SetFilmSide(tab)
-			}),
-			Style: ns.Style{FlexGrow: 1, FlexBasis: ns.Pt(0), Height: ns.Pt(26), CornerRadius: 9, JustifyContent: ns.JustifyCenter, AlignItems: ns.AlignCenter,
-				Hover: &ns.Style{Background: panelLine}, FocusVisible: ui.FocusRing(cx, -2)},
-			StyleFunc: func() ns.Style {
-				if on() {
-					return ns.Style{Background: ns.RGBA(0xFFFFFF, 0.22)}
-				}
-				return ns.Style{}
-			},
-			Children: []ns.Node{ns.Text{ContentFunc: func() string { return tabLabel(cx, tab) }, MaxLines: 1,
-				Style: ns.Style{FontSize: 12, LineHeight: 16, Color: onGlass},
+		node := func(label string, children ...ns.Node) ns.Node {
+			var tooltip ns.Node
+			// The tabs grow to share the bar, so the padding is only the least room beside a label, kept small for the longest languages.
+			padding := ns.Points(3)
+			if label != "" {
+				tooltip = tip(cx, func() string { return tabLabel(cx, tab) })
+				padding = 5
+			}
+			return base.Tab{
+				TestID: "film-tab-" + cmp.Or(tab, "subs"), Selected: on, Label: label, Tooltip: tooltip,
+				OnPress: live.On(a, func(ns.PressEvent) {
+					if tab == "style" {
+						a.SetStyleView(true)
+						return
+					}
+					a.SetStyleView(false)
+					a.SetFilmSide(tab)
+				}),
+				OnLayout: func(b ns.Bounds) {
+					bounds[tab] = b
+					if ns.Untracked(cx, chosen) == tab {
+						reveal(tab)
+					}
+				},
+				Style: ns.Style{FlexGrow: 1, FlexShrink: 0, Height: ns.Pt(26), Padding: ns.Symmetric(0, padding), CornerRadius: 9, JustifyContent: ns.JustifyCenter, AlignItems: ns.AlignCenter,
+					Hover: &ns.Style{Background: panelLine}, FocusVisible: ui.FocusRing(cx, -2)},
 				StyleFunc: func() ns.Style {
 					if on() {
-						return ns.Style{FontWeight: ns.FontWeightSemibold}
+						return ns.Style{Background: ns.RGBA(0xFFFFFF, 0.22)}
 					}
-					return ns.Style{FontWeight: ns.FontWeightNormal}
-				}}},
-		})
+					return ns.Style{}
+				},
+				Children: children,
+			}
+		}
+		if tab == SideExtensions {
+			// Built while it shows, so a tab not there takes no focus nor a share of the bar's width; built again as the language changes, as a tab's accessible name is read once.
+			tabs = append(tabs, ns.Show{When: t.shown, Then: func(*ns.Scope) ns.Node {
+				return ns.Dynamic(func(*ns.Scope) ns.Node {
+					return node(tabLabel(cx, tab), ns.Icon{SVG: lucide.Puzzle(), Style: ns.Style{Width: ns.Pt(14), Height: ns.Pt(14), Color: onGlass}})
+				})
+			}})
+			continue
+		}
+		tabs = append(tabs, node("", ns.Text{ContentFunc: func() string { return tabLabel(cx, tab) }, MaxLines: 1,
+			Style: ns.Style{FontSize: 12, LineHeight: 16, Color: onGlass},
+			StyleFunc: func() ns.Style {
+				if on() {
+					return ns.Style{FontWeight: ns.FontWeightSemibold}
+				}
+				return ns.Style{FontWeight: ns.FontWeightNormal}
+			}}))
 	}
+	cx.Effect(func() {
+		tab := chosen()
+		ns.Untracked(cx, func() struct{} { reveal(tab); return struct{}{} })
+	})
 	// TODO(nsgo#145): give base.Tabs' Label a LabelFunc twin, so the tab list's accessible name follows the interface language as it changes; it is read once here https://github.com/nsgo-dev/nsgo/issues/145
-	return base.Tabs{TestID: "film-tabs", Label: locales.FilmSidebar(cx),
-		Style:    ns.Style{Direction: ns.Row, Height: ns.Pt(32), Padding: ns.All(3), CornerRadius: 12, Background: ns.RGBA(0xFFFFFF, 0.1)},
-		Children: tabs}
+	return ns.Scroll{TestID: "film-tabs-scroll", Ref: scroll, Horizontal: true, HideIndicator: true, Style: ns.Style{Height: ns.Pt(32), FlexGrow: 0, FlexShrink: 0, CornerRadius: 12},
+		OnLayout: func(b ns.Bounds) {
+			bar = b.Size.Width
+			reveal(ns.Untracked(cx, chosen))
+		},
+		Children: []ns.Node{base.Tabs{TestID: "film-tabs", Label: locales.FilmSidebar(cx),
+			Style:    ns.Style{Direction: ns.Row, Height: ns.Pt(32), MinWidth: ns.Pt(panelWidth - 28), Padding: ns.All(3), CornerRadius: 12, Background: ns.RGBA(0xFFFFFF, 0.1)},
+			Children: tabs}}}
 }
 
 // subsTab lists the cues with the time each starts, the playing one lit and kept in view as it changes. A click plays from a cue, and a right click explains or copies it (cueMenu). The field above it searches both lines, and while the film is held the line it is held on shows under it, to select and copy from (heldLine).
