@@ -90,6 +90,10 @@ type play struct {
 	// sleep is the sleep timer, until when a timed one runs out.
 	sleep      *core.Signal[sleepMode]
 	sleepUntil time.Time
+	// autoNext is 自动播放下一部; card is the card that plays the next film once this one ends, and nextStop stops its countdown (next.go).
+	autoNext *core.Persisted[bool]
+	card     *core.Signal[upNext]
+	nextStop func() bool
 	// revealed is the line whose texts the mode hides that a tap shows, -1 for none: the card blurs them again on the next line.
 	revealed *core.Signal[int]
 	// heard is the line last playing, -1 since a seek: the line whose end shadowing and the sleep timer wait for.
@@ -134,6 +138,8 @@ func newPlay(cx *core.Scope, s *session.Session, key string) *play {
 		held:         core.NewSignal(cx, false),
 		delay:        core.NewSignal(cx, time.Duration(f.DelayMS)*time.Millisecond),
 		sleep:        core.NewSignal(cx, sleepOff),
+		autoNext:     core.NewPersisted(cx, autoNextKey, true, core.PersistOptions{}),
+		card:         core.NewSignal(cx, upNext{}),
 		revealed:     core.NewSignal(cx, -1),
 		cut:          core.NewSignal(cx, 0),
 		saved:        time.Duration(f.PositionMS) * time.Millisecond,
@@ -194,14 +200,21 @@ func newPlay(cx *core.Scope, s *session.Session, key string) *play {
 		askedGlossary = true
 		core.Untracked(cx, func() bool { s.OpenGlossary(key); return true })
 	})
-	// The screen stays on while the film plays.
+	// The screen stays on while the film plays, and while the card counts down to the next, so the phone does not lock as it would play.
 	var release func()
 	cx.Effect(func() {
-		if p.playing.Get() && release == nil {
+		awake := p.playing.Get() || p.card.Get() != (upNext{})
+		if awake && release == nil {
 			release = cx.KeepAwake(locales.PlayerKeepAwake(cx), core.KeepAwakeOptions{Display: true})
-		} else if !p.playing.Get() && release != nil {
+		} else if !awake && release != nil {
 			release()
 			release = nil
+		}
+	})
+	// The card goes once the film plays again, and once the app goes to the background, where its countdown would play the next film unseen.
+	cx.Effect(func() {
+		if p.playing.Get() || cx.Env().Lifecycle() == core.LifecycleBackground {
+			core.Untracked(cx, func() bool { p.closeNext(); return true })
 		}
 	})
 	// A line shown by a tap is hidden again once another plays.
@@ -272,6 +285,7 @@ func (p *play) speed() float32 { return p.rate.Get() }
 
 // seek plays from at.
 func (p *play) seek(at time.Duration) {
+	p.closeNext()
 	at = max(at, 0)
 	p.ref.Seek(at)
 	p.at.Set(at)
@@ -334,12 +348,19 @@ func (p *play) hold() {
 	p.save()
 }
 
-// ended is the film played to its end.
-func (p *play) ended() {
+// ended is the film played to its end: a line looped plays again, the sleep timer's End of Film holds it there, and otherwise the next film of its course or playlist plays after it (upNextAtEnd), as l, the app's player, goes on to it.
+func (p *play) ended(l *Layer) {
+	if i := p.loop.GetUntracked(); i >= 0 {
+		p.step(i)
+		p.playing.Set(true)
+		return
+	}
 	p.hold()
 	if p.sleep.GetUntracked() == sleepFilm {
 		p.sleep.Set(sleepOff)
+		return
 	}
+	p.upNextAtEnd(l)
 }
 
 // save keeps the position playing with the film, as the film is held or left, and sends it to the film's computer.

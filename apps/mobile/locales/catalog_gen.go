@@ -630,6 +630,7 @@ var Parameters = map[string][]string{
 	"PlayerWordRemoveNamed":          {"word"},
 	"PlayerWordRemoved":              {"word"},
 	"PlayerWordTimes":                {"count"},
+	"PlayerNextIn":                   {"seconds"},
 }
 
 // Translation is a language's messages another package supplies:
@@ -807,6 +808,7 @@ type Translation struct {
 	PlayerWordRemoveNamed          func(word string) string
 	PlayerWordRemoved              func(word string) string
 	PlayerWordTimes                func(count int) string
+	PlayerNextIn                   func(seconds int) string
 }
 
 var supplied = map[string]Translation{}
@@ -1255,6 +1257,11 @@ const (
 	textPlayerTermsOnComputer
 	textPlayerTermsEmpty
 	textPlayerTermLocked
+	textPlayerNextUp
+	textPlayerNextPlay
+	textPlayerNextCancel
+	textPlayerAutoNext
+	textPlayerAutoNextNote
 	numTexts
 )
 
@@ -1703,6 +1710,11 @@ var keyOfText = [numTexts]string{
 	"playerTermsOnComputer",
 	"playerTermsEmpty",
 	"playerTermLocked",
+	"playerNextUp",
+	"playerNextPlay",
+	"playerNextCancel",
+	"playerAutoNext",
+	"playerAutoNextNote",
 }
 
 // textsEn are the messages without arguments in en.
@@ -2148,7 +2160,12 @@ var textsEn = i18n.NewTexts(""+
 	"Glossary"+
 	"Managed on the computer"+
 	"This film has no terms yet. You can add one while fixing a translation."+
-	"Locked",
+	"Locked"+
+	"Up Next"+
+	"Play Now"+
+	"Cancel"+
+	"Play Next Automatically"+
+	"When a film ends, plays the next one of its course or playlist that's on this phone.",
 	[]uint16{
 		7,
 		15,
@@ -2592,6 +2609,11 @@ var textsEn = i18n.NewTexts(""+
 		23,
 		71,
 		6,
+		7,
+		8,
+		6,
+		23,
+		84,
 	})
 
 // textsJa are the messages without arguments in ja.
@@ -3037,7 +3059,12 @@ var textsJa = i18n.NewTexts(""+
 	"用語集"+
 	"コンピュータで管理"+
 	"この動画にはまだ用語がありません。訳を直すときに追加できます。"+
-	"ロック中",
+	"ロック中"+
+	"次はこちら"+
+	"今すぐ再生"+
+	"キャンセル"+
+	"次の作品を自動再生"+
+	"作品が終わると、同じコースやリストでこの端末にある次の作品を再生します。",
 	[]uint16{
 		9,
 		18,
@@ -3481,6 +3508,11 @@ var textsJa = i18n.NewTexts(""+
 		27,
 		93,
 		12,
+		15,
+		15,
+		15,
+		27,
+		108,
 	})
 
 // textsKo are the messages without arguments in ko.
@@ -3926,7 +3958,12 @@ var textsKo = i18n.NewTexts(""+
 	"용어집"+
 	"컴퓨터에서 관리"+
 	"이 영상에는 아직 용어가 없습니다. 번역을 고칠 때 함께 추가할 수 있습니다."+
-	"잠김",
+	"잠김"+
+	"다음 영상"+
+	"지금 재생"+
+	"취소"+
+	"다음 작품 자동 재생"+
+	"작품이 끝나면 같은 강좌나 목록에서 이 휴대폰에 있는 다음 작품을 재생합니다.",
 	[]uint16{
 		10,
 		16,
@@ -4370,6 +4407,11 @@ var textsKo = i18n.NewTexts(""+
 		22,
 		103,
 		6,
+		13,
+		13,
+		6,
+		27,
+		107,
 	})
 
 // textsZhHans are the messages without arguments in zh-Hans.
@@ -4815,7 +4857,12 @@ var textsZhHans = i18n.NewTexts(""+
 	"术语表"+
 	"在电脑上管理"+
 	"这部片还没有术语。改译文时可以顺手加进来。"+
-	"已锁定",
+	"已锁定"+
+	"接下来"+
+	"立即播放"+
+	"取消"+
+	"自动播放下一部"+
+	"一部播完后，接着播放同一课程或列表里已在手机上的下一部。",
 	[]uint16{
 		6,
 		12,
@@ -5259,6 +5306,11 @@ var textsZhHans = i18n.NewTexts(""+
 		18,
 		63,
 		9,
+		9,
+		12,
+		6,
+		21,
+		84,
 	})
 
 // textsZhHant are the messages without arguments in zh-Hant.
@@ -5704,7 +5756,12 @@ var textsZhHant = i18n.NewTexts(""+
 	"術語表"+
 	"在電腦上管理"+
 	"這部片還沒有術語。改譯文時可以順手加進來。"+
-	"已鎖定",
+	"已鎖定"+
+	"接下來"+
+	"立即播放"+
+	"取消"+
+	"自動播放下一部"+
+	"一部播完後，接著播放同一課程或清單裡已在手機上的下一部。",
 	[]uint16{
 		6,
 		12,
@@ -6148,6 +6205,11 @@ var textsZhHant = i18n.NewTexts(""+
 		18,
 		63,
 		9,
+		9,
+		12,
+		6,
+		21,
+		84,
 	})
 
 // texts returns the messages without arguments in lang, nil for a
@@ -6716,6 +6778,9 @@ func Supply(lang string, t Translation) {
 	}
 	if t.PlayerWordTimes != nil {
 		s.PlayerWordTimes = t.PlayerWordTimes
+	}
+	if t.PlayerNextIn != nil {
+		s.PlayerNextIn = t.PlayerNextIn
 	}
 	supplied[lang] = s
 	Catalog.Add(lang)
@@ -13869,7 +13934,7 @@ func (msgs Messages) PlayerSleep() string { return msgs.text(textPlayerSleep) }
 // PlayerSleepFilm says "End of Film"
 // in the language the app shows under cx.
 //
-// Sleep timer choice: holds the film at its end.
+// Sleep timer choice: holds the film at its end, rather than going on to the next film of its course, disc, season or playlist.
 func PlayerSleepFilm(cx *core.Scope) string { return For(cx).PlayerSleepFilm() }
 
 // PlayerSleepFilm is the package's PlayerSleepFilm in the language of msgs.
@@ -16479,6 +16544,91 @@ func PlayerTermLocked(cx *core.Scope) string { return For(cx).PlayerTermLocked()
 
 // PlayerTermLocked is the package's PlayerTermLocked in the language of msgs.
 func (msgs Messages) PlayerTermLocked() string { return msgs.text(textPlayerTermLocked) }
+
+// PlayerNextUp says "Up Next"
+// in the language the app shows under cx.
+//
+// Heading of the card over the picture once a film ends and the next of its course, disc, season or playlist plays after it.
+func PlayerNextUp(cx *core.Scope) string { return For(cx).PlayerNextUp() }
+
+// PlayerNextUp is the package's PlayerNextUp in the language of msgs.
+func (msgs Messages) PlayerNextUp() string { return msgs.text(textPlayerNextUp) }
+
+// PlayerNextIn says "Plays in {seconds, plural, one {# second} other {# seconds}}"
+// in the language the app shows under cx.
+//
+// Line of the Up Next card counting down to the next film.
+func PlayerNextIn(cx *core.Scope, seconds int) string { return For(cx).PlayerNextIn(seconds) }
+
+// PlayerNextIn is the package's PlayerNextIn in the language of msgs.
+func (msgs Messages) PlayerNextIn(seconds int) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.PlayerNextIn(seconds))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].PlayerNextIn; f != nil {
+			return f(seconds)
+		}
+		switch lang {
+		case "", "en":
+			var b strings.Builder
+			b.WriteString("Plays in ")
+			switch i18n.Cardinal("en", float64(seconds)) {
+			case i18n.One:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(seconds))))
+				b.WriteString(" second")
+			default:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(seconds))))
+				b.WriteString(" seconds")
+			}
+			return b.String()
+		case "ja":
+			return i18n.FormatNumber("ja", float64(seconds)) + " 秒後に再生"
+		case "ko":
+			return i18n.FormatNumber("ko", float64(seconds)) + "초 후 재생"
+		case "zh-Hans":
+			return i18n.FormatNumber("zh-Hans", float64(seconds)) + " 秒后播放"
+		case "zh-Hant":
+			return i18n.FormatNumber("zh-Hant", float64(seconds)) + " 秒後播放"
+		}
+	}
+}
+
+// PlayerNextPlay says "Play Now"
+// in the language the app shows under cx.
+//
+// Button of the Up Next card that plays the next film at once.
+func PlayerNextPlay(cx *core.Scope) string { return For(cx).PlayerNextPlay() }
+
+// PlayerNextPlay is the package's PlayerNextPlay in the language of msgs.
+func (msgs Messages) PlayerNextPlay() string { return msgs.text(textPlayerNextPlay) }
+
+// PlayerNextCancel says "Cancel"
+// in the language the app shows under cx.
+//
+// Button of the Up Next card that puts it away, the film staying at its end.
+func PlayerNextCancel(cx *core.Scope) string { return For(cx).PlayerNextCancel() }
+
+// PlayerNextCancel is the package's PlayerNextCancel in the language of msgs.
+func (msgs Messages) PlayerNextCancel() string { return msgs.text(textPlayerNextCancel) }
+
+// PlayerAutoNext says "Play Next Automatically"
+// in the language the app shows under cx.
+//
+// Playback setting: once a film ends, the next of its course, disc, season or playlist plays after a short countdown, when the phone keeps it.
+func PlayerAutoNext(cx *core.Scope) string { return For(cx).PlayerAutoNext() }
+
+// PlayerAutoNext is the package's PlayerAutoNext in the language of msgs.
+func (msgs Messages) PlayerAutoNext() string { return msgs.text(textPlayerAutoNext) }
+
+// PlayerAutoNextNote says "When a film ends, plays the next one of its course or playlist that's on this phone."
+// in the language the app shows under cx.
+//
+// Under the Play Next Automatically switch in the playback settings.
+func PlayerAutoNextNote(cx *core.Scope) string { return For(cx).PlayerAutoNextNote() }
+
+// PlayerAutoNextNote is the package's PlayerAutoNextNote in the language of msgs.
+func (msgs Messages) PlayerAutoNextNote() string { return msgs.text(textPlayerAutoNextNote) }
 
 // dated is lang with the hour cycle the user set, which times take.
 func (msgs Messages) dated(lang string) string {

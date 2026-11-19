@@ -111,3 +111,20 @@ func TestNextFollowsTheList(t *testing.T) {
 		t.Fatalf("previous %+v %v", prev, ok)
 	}
 }
+
+// Nexts gives every film's next as Next does, a library at once.
+func TestNextsIsNextForEveryFilm(t *testing.T) {
+	all := []Film{
+		local("/Courses/a/Lesson 02.mp4"), local("/Courses/a/Lesson 01.mp4"), local("/Courses/b/Lesson 03.mp4"),
+		local("/Downloads/Trip.mp4"),
+		{Key: "e2", List: "L", ListIndex: 2, Stage: core.StageComplete}, {Key: "e1", List: "L", ListIndex: 1, Stage: core.StageComplete},
+		{Key: "e3", List: "L", ListIndex: 3, Stage: core.StageFailed}, {Key: "e4", List: "L", ListIndex: 4, Stage: core.StageComplete},
+	}
+	got := Nexts(all, "en")
+	for _, item := range all {
+		want, ok := Next(all, item, "en")
+		if g, has := got[item.Key]; has != ok || g.Key != want.Key {
+			t.Errorf("%s: Nexts %q %v, Next %q %v", item.Key, g.Key, has, want.Key, ok)
+		}
+	}
+}

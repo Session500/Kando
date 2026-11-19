@@ -22,6 +22,31 @@ func Next(all []Film, item Film, tag string) (Film, bool) { return stepFrom(all,
 // Previous is the film that plays before item among all, as Next orders them; false when there is none.
 func Previous(all []Film, item Film, tag string) (Film, bool) { return stepFrom(all, item, tag, -1) }
 
+// Nexts is the film that plays after each film of all that has one, by key, as Next gives it, each sequence built and ordered once, so a whole library's are had at the cost of ordering it, as Phone Sync lists them.
+func Nexts(all []Film, tag string) map[string]Film {
+	out := map[string]Film{}
+	done := map[string]bool{}
+	for _, item := range all {
+		if done[item.Key] {
+			continue
+		}
+		seq := sequence(all, item, tag)
+		if seq == nil {
+			continue
+		}
+		for i, f := range seq {
+			done[f.Key] = true
+			for _, next := range seq[i+1:] {
+				if next.Stage != core.StageFailed {
+					out[f.Key] = next
+					break
+				}
+			}
+		}
+	}
+	return out
+}
+
 func stepFrom(all []Film, item Film, tag string, step int) (Film, bool) {
 	seq := sequence(all, item, tag)
 	at := slices.IndexFunc(seq, func(f Film) bool { return f.Key == item.Key })

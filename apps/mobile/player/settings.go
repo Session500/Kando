@@ -9,7 +9,7 @@ import (
 	"github.com/nsgo-dev/nsgo/ui"
 )
 
-// settingsSheet is the playback settings, in a sheet over the player: the speed, the sleep timer, how far the film's lines are moved against its picture, shadowing, audio only and the lines on the picture while upright.
+// settingsSheet is the playback settings, in a sheet over the player: the speed, the sleep timer, how far the film's lines are moved against its picture, shadowing, audio only and the lines on the picture while upright, and whether the next film plays by itself.
 // TODO(nsgo#54): offer picture in picture here once NSGo plays a video in the system's floating window https://github.com/nsgo-dev/nsgo/issues/54
 func settingsSheet(cx *core.Scope, p *play, open *core.Signal[bool]) core.Node {
 	colors := ui.ColorsOf(cx)
@@ -72,6 +72,12 @@ func settingsSheet(cx *core.Scope, p *play, open *core.Signal[bool]) core.Node {
 				}),
 				toggle("player-settings-audio-only", func() string { return locales.PlayerAudioOnly(cx) }, func() string { return locales.PlayerAudioOnlyNote(cx) }, p.audioOnly.Get, func(on bool) { _ = p.audioOnly.Set(on) }),
 				toggle("player-settings-on-picture", func() string { return locales.PlayerOnPicture(cx) }, func() string { return locales.PlayerOnPictureNote(cx) }, p.onPicture.Get, func(on bool) { _ = p.onPicture.Set(on) }),
+				toggle("player-settings-auto-next", func() string { return locales.PlayerAutoNext(cx) }, func() string { return locales.PlayerAutoNextNote(cx) }, p.autoNext.Get, func(on bool) {
+					_ = p.autoNext.Set(on)
+					if !on {
+						p.closeNext()
+					}
+				}),
 			}},
 		}},
 	}}

@@ -39,7 +39,9 @@ func (s *Session) takeShelf(desktop string, shelf sync.RelayShelf) {
 		// A read of the computer under way says how it ends; one that fails falls back to these films (RefreshDesktop).
 		return
 	}
-	s.setShelf(desktop, func(Shelf) Shelf { return Shelf{Listing: catalog.FromRelay(shelf), Listed: true, Relayed: true} })
+	listing := catalog.FromRelay(shelf)
+	s.setShelf(desktop, func(Shelf) Shelf { return Shelf{Listing: listing, Listed: true, Relayed: true} })
+	s.keepNexts(desktop, listing)
 }
 
 // relayShelf is the Listing desktop last listed through its storage, false for none.

@@ -109,6 +109,8 @@ type Film struct {
 	SubtitlesOnly bool `json:"subtitles_only,omitempty"`
 	// Sound is a film of sound alone, as a podcast's mp3, listed only to a phone that asks for them (WithSound): PathVideo answers its file, of an audio media type (MediaType), which the player plays without a picture, and VideoSize is its size.
 	Sound bool `json:"sound,omitempty"`
+	// Next is the ID of the film that plays after this one, as the desktop goes on from it (a course's next lesson, a disc's next track, a playlist's next video), "" for none; the phone plays it next once it keeps it. A film the desktop lists the phone not, as one still being made, may be named.
+	Next string `json:"next,omitempty"`
 	// Updated is when the film's video or subtitles last changed on the desktop, so a phone knows to fetch them again.
 	Updated time.Time `json:"updated"`
 }

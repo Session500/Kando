@@ -362,6 +362,9 @@ type phoneShelf struct {
 	stored  map[string]shelf.Stored
 	targets map[string]storage.Target
 	pool    *storage.Pool
+	// tag is the interface's language, which orders the films' names (films.Next), and nexts the film after each film of the library, by key, made once the library is listed.
+	tag   string
+	nexts map[string]films.Film
 }
 
 // Duration, ResumeAt and Furthest are the shelf as films.Progress, for films.WatchState: where a film stopped does not tell whether it was watched to its end.
@@ -395,7 +398,12 @@ func (s phoneSource) Films(ctx context.Context, lib phonesync.Library) ([]phones
 	}
 	var out []phonesync.Film
 	for _, item := range items {
-		out = append(out, phoneFilmOf(item, shelf))
+		f := phoneFilmOf(item, shelf)
+		// The film after it, among all of the library's, made or not, as the player goes on (films.Next); the phone plays it once it keeps it.
+		if next, ok := shelf.nexts[item.Key]; ok {
+			f.Next = phoneFilmID(next)
+		}
+		out = append(out, f)
 	}
 	return out, nil
 }
@@ -434,7 +442,7 @@ func (s phoneSource) items(ctx context.Context, lib phonesync.Library) ([]films.
 		}
 		return phoneShelf{jobs: slices.Clone(a.library.Jobs), names: maps.Clone(a.library.Names), durations: maps.Clone(a.lib.durations), posterDir: a.lib.posterDir,
 			furthest: maps.Clone(a.palette.furthest), played: maps.Clone(a.player.played),
-			stored: maps.Clone(a.library.Stored), targets: a.storedPlayable(), pool: a.stored.pool}, nil
+			stored: maps.Clone(a.library.Stored), targets: a.storedPlayable(), pool: a.stored.pool, tag: a.prefs.interfaceLanguage}, nil
 	})
 	if err != nil {
 		return nil, phoneShelf{}, err
@@ -444,8 +452,10 @@ func (s phoneSource) items(ctx context.Context, lib phonesync.Library) ([]films.
 		return nil, phoneShelf{}, phonesync.ErrNotFound
 	}
 	noDetail := func(core.Job) string { return "" }
+	all := storedMark(films.List(lib.Dir, shelf.jobs, videos, shelf.names, jobName, noDetail), shelf.stored)
+	shelf.nexts = films.Nexts(all, shelf.tag)
 	var out []films.Film
-	for _, item := range storedMark(films.List(lib.Dir, shelf.jobs, videos, shelf.names, jobName, noDetail), shelf.stored) {
+	for _, item := range all {
 		if !films.InQueue(item) && item.VideoPath != "" {
 			out = append(out, item)
 		}

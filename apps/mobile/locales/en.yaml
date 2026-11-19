@@ -1616,7 +1616,7 @@ playerSleep:
   description: "Heading of the sleep timer's choices in the playback settings."
 playerSleepFilm:
   message: "End of Film"
-  description: "Sleep timer choice: holds the film at its end."
+  description: "Sleep timer choice: holds the film at its end, rather than going on to the next film of its course, disc, season or playlist."
 playerSleepLine:
   message: "End of Line"
   description: "Sleep timer choice: holds the film once the line playing ends."
@@ -2204,3 +2204,23 @@ playerTermsEmpty:
 playerTermLocked:
   message: "Locked"
   description: "Accessible name of the lock beside a term of the glossary the translation must write as it is."
+playerNextUp:
+  message: "Up Next"
+  description: "Heading of the card over the picture once a film ends and the next of its course, disc, season or playlist plays after it."
+playerNextIn:
+  message: "Plays in {seconds, plural, one {# second} other {# seconds}}"
+  description: "Line of the Up Next card counting down to the next film."
+  placeholders:
+    seconds: { type: "int", example: "8" }
+playerNextPlay:
+  message: "Play Now"
+  description: "Button of the Up Next card that plays the next film at once."
+playerNextCancel:
+  message: "Cancel"
+  description: "Button of the Up Next card that puts it away, the film staying at its end."
+playerAutoNext:
+  message: "Play Next Automatically"
+  description: "Playback setting: once a film ends, the next of its course, disc, season or playlist plays after a short countdown, when the phone keeps it."
+playerAutoNextNote:
+  message: "When a film ends, plays the next one of its course or playlist that's on this phone."
+  description: "Under the Play Next Automatically switch in the playback settings."

@@ -66,6 +66,7 @@ func view(cx *core.Scope, l *Layer, key string) core.Node {
 	s := l.s
 	f, _ := s.Film(key)
 	p := newPlay(cx, s, key)
+	l.carry(p)
 	shown := l.Full
 	r := newRecapper(cx, p, l.held)
 	shape := core.NewMemo(cx, func() layout { return layoutOf(cx.Env().Window()) })
@@ -141,7 +142,7 @@ func view(cx *core.Scope, l *Layer, key string) core.Node {
 				}
 			},
 			OnProgress: p.progress,
-			OnEnd:      p.ended,
+			OnEnd:      func() { p.ended(l) },
 			OnError:    func(error) { p.failed.Set(true) },
 			OnPress: func(core.PressEvent) {
 				if shape.Get() == full {
@@ -173,6 +174,7 @@ func view(cx *core.Scope, l *Layer, key string) core.Node {
 			return core.Style{Width: core.Pct(100), AspectRatio: max(p.aspect.Get(), 1)}
 		},
 		Children: []core.Node{picture, soundPoster(cx, s, key, f.Film.Sound, p), audioOnly(cx, p),
+			nextCard(cx, l, p),
 			core.Show{When: onPicture, Then: func(cx *core.Scope) core.Node { return subtitles(cx, p, w, shape.Get, overlaid) }},
 			pills(cx, p, func() bool { return shape.Get() != full || controls.Get() }), failed}}
 

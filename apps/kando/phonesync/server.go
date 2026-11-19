@@ -46,6 +46,8 @@ type Film struct {
 	Remote     http.Handler
 	RemoteSize int64
 	RemoteAt   time.Time
+	// Next is the ID of the film that plays after it (psync.Film.Next), "" for none.
+	Next string
 	// Watched is a film watched to its end, last at WatchedAt, zero when that is not known; the films through the bucket clean up its video after a while (FilmsConfig.CleanAfter).
 	Watched   bool
 	WatchedAt time.Time
@@ -779,7 +781,7 @@ func playable(films []Film) []served {
 			}
 		}
 		p := psync.Film{ID: f.ID, Title: f.Title, Source: f.Source, DurationMS: f.Duration.Milliseconds(), Spoken: f.Spoken, Translation: f.Translation,
-			Untranslated: f.Untranslated, VideoSize: size, SubtitlesOnly: f.SubtitlesOnly, Sound: f.Sound, Updated: updated.UTC()}
+			Untranslated: f.Untranslated, VideoSize: size, SubtitlesOnly: f.SubtitlesOnly, Sound: f.Sound, Next: f.Next, Updated: updated.UTC()}
 		if f.Poster != "" {
 			if _, err := os.Stat(f.Poster); err == nil {
 				p.Poster = psync.PosterPath(f.ID)
