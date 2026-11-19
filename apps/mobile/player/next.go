@@ -48,7 +48,7 @@ func (l *Layer) goOn(p *play, key string) {
 	l.key.Set(key)
 }
 
-// upNextAtEnd is the film ended: the card shows for the next one the phone keeps with its video, or that it streams after a film it streams, unless 自动播放下一部 is off; minimized, the next one plays at once.
+// upNextAtEnd is the film ended: the card shows for the next one the phone keeps with its video or sound, or that it streams after a film it streams, unless 自动播放下一部 is off; minimized, the next one plays at once.
 func (p *play) upNextAtEnd(l *Layer) {
 	if !p.autoNext.Get() {
 		return
@@ -58,7 +58,7 @@ func (p *play) upNextAtEnd(l *Layer) {
 	if !kept {
 		f, _ := p.s.Film(p.key)
 		rf, ok := p.s.RelayFilm(f.Desktop, f.Film.Next)
-		if next == "" || !p.streamed() || !ok || rf.Video == "" {
+		if next == "" || !p.streamed() || !ok || rf.Media() == "" {
 			return
 		}
 		up = upNext{stream: f.Film.Next}
