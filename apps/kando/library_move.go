@@ -459,13 +459,13 @@ func (a *app) libraryMoveCopied(run *libraryMoveRun, unit films.Unit, move media
 	return nil
 }
 
-// libraryMovePlan is how item's files move from the library at from to the one at to: its folder, when it is the only video in a folder of its own (films.AloneIn, as 从资料库移除 decides), else its video, its subtitles and the files beside it that are its (media.Companions), into a new folder in to.
+// libraryMovePlan is how item's files move from the library at from to the one at to: its folder, when it is the only video in a folder of its own (films.AloneIn, as 从资料库移除 decides), else its video, its subtitles, the files beside it that are its (media.Companions) and the media files of its name, its own sound (media.SameNamed), into a new folder in to.
 func libraryMovePlan(from, to string, item films.Film) media.FilmMove {
 	video := item.VideoPath
 	if dir := filepath.Dir(video); films.InDir(from, dir) && films.AloneIn(dir, video) {
 		return media.PlanFilmMove([]string{dir}, true, to)
 	}
-	sources := append([]string{video}, media.Companions(video)...)
+	sources := append(append([]string{video}, media.Companions(video)...), media.SameNamed(video)...)
 	if sub := item.SubtitlePath; sub != "" && filepath.Dir(sub) == filepath.Dir(video) && fileExists(sub) && !slices.Contains(sources, sub) {
 		sources = append(sources, sub)
 	}

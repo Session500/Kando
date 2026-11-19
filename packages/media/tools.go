@@ -368,6 +368,7 @@ func (t Tools) ytdlpDownload(ctx context.Context, source, temp string, named *bo
 		// A relative temp path would be taken as inside the library.
 		"-P", "temp:" + temp,
 		"-o", "%(title).80B [%(id)s]/video.%(ext)s",
+		"--print", ytdlpPicturesTemplate,
 		"--print", ytdlpInfoTemplate,
 		"--print", ytdlpFormatsTemplate,
 		"--print", "after_move:filepath",

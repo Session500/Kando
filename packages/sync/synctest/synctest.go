@@ -330,9 +330,10 @@ func (d *Desktop) filmList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	out := sync.Films{Films: []sync.Film{}}
-	all := r.URL.Query().Get(sync.QueryWith) == sync.WithSubtitlesOnly
+	with := r.URL.Query().Get(sync.QueryWith)
+	subtitlesOnly, sound := sync.AsksWith(with, sync.WithSubtitlesOnly), sync.AsksWith(with, sync.WithSound)
 	for _, f := range d.films {
-		if f.Library == r.PathValue("lib") && (all || !f.SubtitlesOnly) {
+		if f.Library == r.PathValue("lib") && (subtitlesOnly || !f.SubtitlesOnly) && (sound || !f.Sound) {
 			out.Films = append(out.Films, f.Film)
 		}
 	}

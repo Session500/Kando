@@ -18,12 +18,14 @@ import (
 	"kando/packages/core"
 )
 
-// What Download asks yt-dlp to print on stdout, each line under a prefix of its own: the video's title, thumbnail, length and chapters as soon as it has been looked up, before the formats are chosen, so a download that fails at choosing them still names the video (kando-info), the formats it will download, two for a video and its sound to be merged (kando-formats), a line for each step of each format's download (kando-progress), and, last, the path of the merged file, unprefixed (--print after_move:filepath).
+// What Download asks yt-dlp to print on stdout, each line under a prefix of its own: the codec of the picture and the extension of each format the site offers, which tell a link to sound alone, as a podcast's episode (kando-pictures, printed first so the info line knows it), the video's title, thumbnail, length and chapters as soon as it has been looked up, before the formats are chosen, so a download that fails at choosing them still names the video (kando-info), the formats it will download, two for a video and its sound to be merged (kando-formats), a line for each step of each format's download (kando-progress), and, last, the path of the merged file, unprefixed (--print after_move:filepath).
 const (
+	ytdlpPicturesPrefix = "kando-pictures "
 	ytdlpInfoPrefix     = "kando-info "
 	ytdlpFormatsPrefix  = "kando-formats "
 	ytdlpProgressPrefix = "kando-progress "
 
+	ytdlpPicturesTemplate = "pre_process:" + ytdlpPicturesPrefix + "%(formats.:.{vcodec,ext})j"
 	ytdlpInfoTemplate     = "pre_process:" + ytdlpInfoPrefix + "%(.{id,title,thumbnail,duration,chapters})j"
 	ytdlpFormatsTemplate  = "before_dl:" + ytdlpFormatsPrefix + "%(requested_formats.:.format_id)j"
 	ytdlpProgressTemplate = "download:" + ytdlpProgressPrefix + "%(progress.status)s %(progress.downloaded_bytes)s %(progress.total_bytes)s %(progress.total_bytes_estimate)s %(progress.speed)s %(progress.eta)s %(progress.fragment_index)s %(progress.fragment_count)s %(info.format_id)s"
@@ -35,6 +37,8 @@ type ytdlpReader struct {
 	info     func(Info)
 	// chapters hears the chapters the site marks in the video, when it marks any.
 	chapters func([]core.Chapter)
+	// sound is set once yt-dlp has said that every format the site offers is sound alone (soundFormats).
+	sound bool
 	// formats are the format IDs yt-dlp said it will download, in order; path is the last line that had no prefix.
 	formats []string
 	path    string
@@ -43,6 +47,11 @@ type ytdlpReader struct {
 
 func (r *ytdlpReader) line(line string) {
 	switch {
+	case strings.HasPrefix(line, ytdlpPicturesPrefix):
+		var formats []ytdlpFormat
+		if json.Unmarshal([]byte(strings.TrimPrefix(line, ytdlpPicturesPrefix)), &formats) == nil {
+			r.sound = soundFormats(formats)
+		}
 	case strings.HasPrefix(line, ytdlpInfoPrefix):
 		var raw struct {
 			Title     string         `json:"title"`
@@ -53,7 +62,7 @@ func (r *ytdlpReader) line(line string) {
 		if json.Unmarshal([]byte(strings.TrimPrefix(line, ytdlpInfoPrefix)), &raw) != nil {
 			return
 		}
-		info := Info{Title: strings.TrimSpace(raw.Title), Thumbnail: raw.Thumbnail}
+		info := Info{Title: strings.TrimSpace(raw.Title), Thumbnail: raw.Thumbnail, Sound: r.sound}
 		if raw.Duration != nil && *raw.Duration > 0 {
 			info.Duration = time.Duration(*raw.Duration * float64(time.Second))
 		}
@@ -75,6 +84,25 @@ func (r *ytdlpReader) line(line string) {
 	case strings.TrimSpace(line) != "":
 		r.path = strings.TrimSpace(line)
 	}
+}
+
+// ytdlpFormat is what kando-pictures says of one format: the codec of its picture, "none" for sound alone, and its extension.
+type ytdlpFormat struct {
+	VCodec *string `json:"vcodec"`
+	Ext    string  `json:"ext"`
+}
+
+// soundFormats reports whether formats, those a site offers, are all of sound alone: a picture codec of "none", or none named in a sound's file, as a podcast's mp3 is, which yt-dlp's generic extractor does not look into. A site that names no codec for a video's file, or offers no format, is not taken for sound.
+func soundFormats(formats []ytdlpFormat) bool {
+	for _, f := range formats {
+		switch {
+		case f.VCodec != nil && *f.VCodec == "none":
+		case f.VCodec == nil && IsSoundFile("x."+f.Ext):
+		default:
+			return false
+		}
+	}
+	return len(formats) > 0
 }
 
 // step reads one kando-progress line: status, bytes downloaded, total bytes, estimated total bytes, speed, ETA in seconds, fragment index, fragment count and format ID, NA where yt-dlp does not know.

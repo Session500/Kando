@@ -86,7 +86,7 @@ var ErrNoLength = errors.New("the video's length cannot be told")
 
 // Make makes the subtitles of a film a part at a time, as its job asks, into the film's subtitle document (track), device's log, and writes them out beside the video as they come (the transcript and "<video>.bilingual.srt"), so the film can be watched while it is made. The film's cells are heard and drafted nearest the playhead watch says first (track.Doc.Plan): the speech recognition hears a run of cells at a time, and the translation drafts each cell once heard, the two at once. A job run again, after it was stopped, failed or the app quit, goes on with what its document lacks.
 //
-// A link that keeps no video (core.QualitySubtitles) is made from its sound alone, which goes once its subtitles are written (core.Job.SubtitlesOnly); a job downloading the video of such a film (core.RedoVideo) does only that (downloadVideo).
+// A link that keeps no video (core.QualitySubtitles) is made from its sound alone, which goes once its subtitles are written (core.Job.SubtitlesOnly), but for a link to sound alone, as a podcast's episode, whose sound is the film at every quality (Info.Sound); a job downloading the video of such a film (core.RedoVideo) does only that (downloadVideo).
 //
 // A film made again entirely (core.RedoAll) is made in a generation of its own, which the film shows once it is done; one translated again (core.RedoTranslation) copies the lines the film shows into one (translateAgain); one whose missing lines are translated is filled in where it is (fillMissing). A link that takes its site's subtitles (core.SubtitlesPlatform) takes them where they match the speech (making.siteHeard). A film whose document a newer Kando wrote is not written to, and fails with track.ErrNewer.
 func Make(ctx context.Context, p Pipeline, job core.Job, language, device string, watch Watcher, report func(core.Job)) core.Job {
@@ -109,6 +109,8 @@ func Make(ctx context.Context, p Pipeline, job core.Job, language, device string
 		return job
 	}
 	var chapters []core.Chapter
+	// sound is set once the download says the link is to sound alone (Info.Sound).
+	var sound bool
 	ctx = WithTrace(ctx, &Trace{
 		// How far a download has gone, while the job downloads: once the film is made, the making tells how far it is (making.progress).
 		Progress: func(progress core.Progress) {
@@ -123,6 +125,7 @@ func Make(ctx context.Context, p Pipeline, job core.Job, language, device string
 			report(job)
 		},
 		Info: func(info Info) {
+			sound = sound || info.Sound
 			if info.Title == "" || (info.Title == job.Title && info.Thumbnail == job.Thumbnail) {
 				return
 			}
@@ -173,15 +176,21 @@ func Make(ctx context.Context, p Pipeline, job core.Job, language, device string
 		job.VideoPath, hearFrom = video, video
 	default:
 		enter(core.StageDownloading)
-		sound, err := p.Download(withQuality(ctx, core.QualitySubtitles), job.Source)
+		downloadedSound, err := p.Download(withQuality(ctx, core.QualitySubtitles), job.Source)
 		if err != nil {
 			job.FailKind = downloadFailKind(job, err)
 			return fail(StageDownload, err)
 		}
+		// A link to sound alone, as a podcast's episode, has no video to come: its sound is the film, kept as it is at every quality and shown at once, as a video downloaded first is.
+		if sound {
+			video, hearFrom, soundOnly = downloadedSound, downloadedSound, false
+			job.VideoPath = video
+			break
+		}
 		// The sound is kept hidden beside where the video comes (soundPath), so the library does not take a sound saved as .webm for a video of its own; the film's document is the video's from the start, as the video is named as the sound was but for its extension.
-		video, hearFrom = sound, soundPath(sound)
-		if os.Rename(sound, hearFrom) != nil {
-			hearFrom = sound
+		video, hearFrom = downloadedSound, soundPath(downloadedSound)
+		if os.Rename(downloadedSound, hearFrom) != nil {
+			hearFrom = downloadedSound
 		}
 		if soundOnly {
 			break

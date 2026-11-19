@@ -11,6 +11,7 @@ import (
 	kcore "kando/packages/core"
 
 	"github.com/nsgo-dev/nsgo/core"
+	"github.com/nsgo-dev/nsgo/icons/lucide"
 	"github.com/nsgo-dev/nsgo/ui"
 )
 
@@ -228,6 +229,7 @@ func (s *screen) stage() core.Node {
 					SourceFunc: func() core.ImageSource { return core.ImageSource{URI: fileURL(poster())} }}
 			}},
 			core.Show{When: func() bool { return source() != "" }, Then: func(cx *core.Scope) core.Node { return s.video(cx) }},
+			core.Show{When: live.Func(a, a.PlaySound), Then: func(cx *core.Scope) core.Node { return s.soundCover(cx) }},
 			core.Show{When: func() bool { return note() != stageNoteState{} }, Then: func(cx *core.Scope) core.Node {
 				return core.View{PointerEvents: core.PointerEventsBoxNone,
 					Style: core.Style{Position: core.Absolute, Left: core.Pt(0), Right: core.Pt(0), Top: core.Pt(0), Bottom: core.Pt(0), AlignItems: core.AlignCenter, JustifyContent: core.JustifyCenter, Padding: core.Symmetric(80, 24), Gap: 12},
@@ -352,6 +354,21 @@ func (s *screen) video(cx *core.Scope) core.Node {
 		OnEnd:   live.Do(a, a.VideoEnded),
 		OnError: live.On(a, a.VideoFailed),
 	}
+}
+
+// soundCover is what the stage shows over the system's player while it plays sound alone, which draws nothing: the film's poster whole, its own art or a picture of its sound (media.GrabPoster), as a music player shows an album's, over a mark of sound that shows where there is no poster, as without ffmpeg. Clicks go through to the stage, which plays and holds the film.
+func (s *screen) soundCover(cx *core.Scope) core.Node {
+	a := s.a
+	poster := live.Func(a, func() string { return a.PosterFile(a.PlayPath()) })
+	return core.View{TestID: "film-sound", PointerEvents: core.PointerEventsNone,
+		Style: fillStyle.Merge(core.Style{Background: core.RGB(0x000000), AlignItems: core.AlignCenter, JustifyContent: core.JustifyCenter}),
+		Children: []core.Node{
+			core.Icon{SVG: lucide.AudioLines(), Style: core.Style{Width: core.Pt(56), Height: core.Pt(56), Color: core.RGBA(0xFFFFFF, 0.35)}},
+			core.Show{When: func() bool { return poster() != "" }, Then: func(*core.Scope) core.Node {
+				return core.Image{TestID: "film-sound-poster", ResizeMode: core.Contain, Style: fillStyle,
+					SourceFunc: func() core.ImageSource { return core.ImageSource{URI: fileURL(poster())} }}
+			}},
+		}}
 }
 
 // fillStyle fills the parent, over what is in it.

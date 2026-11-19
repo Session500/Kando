@@ -403,7 +403,7 @@ func (s phoneSource) Films(ctx context.Context, lib phonesync.Library) ([]phones
 // phoneFilmOf is item, a done film of a library, as Phone Sync serves it, with what shelf holds of it and its files.
 func phoneFilmOf(item films.Film, shelf phoneShelf) phonesync.Film {
 	f := phonesync.Film{ID: phoneFilmID(item), Title: remoteFilmTitle(item), Source: films.SourceOf(item), Spoken: films.Heard(item), Untranslated: item.Untranslated,
-		Duration: shelf.durations[item.VideoPath], Video: item.VideoPath, SubtitlesOnly: item.SubtitlesOnly, Subtitles: item.SubtitlePath, Transcript: media.TranscriptOf(item.VideoPath), Corrections: media.CorrectionsPath(item.VideoPath)}
+		Duration: shelf.durations[item.VideoPath], Video: item.VideoPath, SubtitlesOnly: item.SubtitlesOnly, Sound: !item.SubtitlesOnly && media.IsSoundFile(item.VideoPath), Subtitles: item.SubtitlePath, Transcript: media.TranscriptOf(item.VideoPath), Corrections: media.CorrectionsPath(item.VideoPath)}
 	// A film that was not translated, as one heard in the language its subtitles are for, names no translation.
 	if item.TranslationErr == "" && !item.SameLanguage {
 		f.Translation = item.Language

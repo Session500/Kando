@@ -5,13 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"mime"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"time"
+
+	psync "kando/packages/sync"
 )
 
 // File is one object to put. Key is the object name and Path is the local file.
@@ -81,28 +82,8 @@ func SiblingKey(videoKey, subtitlePath string) string {
 	return path.Join(path.Dir(videoKey), cleanKey(filepath.Base(subtitlePath)))
 }
 
-// ContentType picks a type from the file extension.
-func ContentType(filePath string) string {
-	switch strings.ToLower(filepath.Ext(filePath)) {
-	case ".mp4":
-		return "video/mp4"
-	case ".webm":
-		return "video/webm"
-	case ".mkv":
-		return "video/x-matroska"
-	case ".mov":
-		return "video/quicktime"
-	case ".srt":
-		return "application/x-subrip"
-	default:
-		if ext := filepath.Ext(filePath); ext != "" {
-			if kind := mime.TypeByExtension(ext); kind != "" {
-				return kind
-			}
-		}
-		return "application/octet-stream"
-	}
-}
+// ContentType is the media type of the file at filePath by its extension, as the phones name what they download (psync.MediaType).
+func ContentType(filePath string) string { return psync.MediaType(filePath) }
 
 // Upload puts each file in order and reports bytes written across the whole set. It has no deadline, which would end a long upload that is still going: ctx is the caller's cancel, and an upload the storage stopped taking fails with ErrStalled.
 func Upload(ctx context.Context, client Client, bucket string, files []File, progress func(written, total int64)) error {

@@ -13,6 +13,8 @@ type Info struct {
 	Title     string
 	Thumbnail string
 	Duration  time.Duration
+	// Sound is true for a link to sound alone, every format of which has no picture, as a podcast's episode: its sound, downloaded first, is the film.
+	Sound bool
 }
 
 // Trace receives what a pipeline learns while a stage runs, as net/http/httptrace's ClientTrace receives what a request does: the Pipeline methods keep their signatures, and a caller that wants to follow a stage puts a Trace in the context it passes. Either field may be nil. A stage calls them on the goroutine that called it, before it returns.

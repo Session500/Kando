@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -18,7 +19,8 @@ type Video struct {
 	Subtitles string
 }
 
-func ListVideos(directory string) ([]Video, error) {
+// ListVideos is the films' files directly in directory and directly in each folder in it (filmFile), newest first. away are the paths of films that belong under directory but are not on disk now, as those moved to a storage location: a file of the same name beside one of them is its companion, not a film of its own.
+func ListVideos(directory string, away ...string) ([]Video, error) {
 	entries, err := os.ReadDir(directory)
 	if os.IsNotExist(err) {
 		return nil, nil
@@ -28,20 +30,21 @@ func ListVideos(directory string) ([]Video, error) {
 	}
 
 	files := fileNames(entries)
+	first := firstOfName(files, awayIn(directory, away))
 	videos := make([]Video, 0, len(entries))
 	for _, entry := range entries {
 		if strings.HasPrefix(entry.Name(), ".") {
 			continue
 		}
 		if entry.IsDir() {
-			nested, err := videosIn(filepath.Join(directory, entry.Name()))
+			nested, err := videosIn(filepath.Join(directory, entry.Name()), away)
 			if err != nil {
 				return nil, err
 			}
 			videos = append(videos, nested...)
 			continue
 		}
-		if !isVideoFile(entry.Name()) || downloadLeftover(entry.Name()) {
+		if !filmFile(entry.Name(), first) {
 			continue
 		}
 		info, err := entry.Info()
@@ -135,18 +138,16 @@ func WatchLibrary(dir string, every time.Duration, stop <-chan struct{}, changed
 	}
 }
 
-// IsVideoFile reports whether name has an extension the library lists.
-func IsVideoFile(name string) bool { return isVideoFile(name) }
-
-func videosIn(dir string) ([]Video, error) {
+func videosIn(dir string, away []string) ([]Video, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, err
 	}
 	files := fileNames(entries)
+	first := firstOfName(files, awayIn(dir, away))
 	videos := make([]Video, 0, 1)
 	for _, entry := range entries {
-		if entry.IsDir() || strings.HasPrefix(entry.Name(), ".") || !isVideoFile(entry.Name()) || downloadLeftover(entry.Name()) {
+		if entry.IsDir() || strings.HasPrefix(entry.Name(), ".") || !filmFile(entry.Name(), first) {
 			continue
 		}
 		info, err := entry.Info()
@@ -156,6 +157,17 @@ func videosIn(dir string) ([]Video, error) {
 		videos = append(videos, Video{Path: filepath.Join(dir, entry.Name()), Name: displayName(dir, entry.Name()), ModTime: info.ModTime().UnixNano(), Subtitles: bilingualBeside(dir, entry.Name(), files)})
 	}
 	return videos, nil
+}
+
+// awayIn is the paths among away directly in dir.
+func awayIn(dir string, away []string) []string {
+	var out []string
+	for _, path := range away {
+		if filepath.Clean(filepath.Dir(path)) == filepath.Clean(dir) {
+			out = append(out, path)
+		}
+	}
+	return out
 }
 
 // fileNames is the names of the files, not folders, among entries, so the videos listed from them can find their subtitles without another look at the disk.
@@ -191,6 +203,7 @@ func GatherVideos(dir string, away []string) (map[string]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	first := firstOfName(fileNames(entries), awayIn(dir, away))
 	moved := map[string]string{}
 	for _, entry := range entries {
 		if strings.HasPrefix(entry.Name(), ".") {
@@ -206,7 +219,7 @@ func GatherVideos(dir string, away []string) (map[string]string, error) {
 			}
 			continue
 		}
-		if !isVideoFile(entry.Name()) || downloadLeftover(entry.Name()) {
+		if !filmFile(entry.Name(), first) {
 			continue
 		}
 		base := strings.TrimSuffix(entry.Name(), filepath.Ext(entry.Name()))
@@ -214,13 +227,7 @@ func GatherVideos(dir string, away []string) (map[string]string, error) {
 		if err := os.MkdirAll(folder, 0o755); err != nil {
 			return moved, err
 		}
-		renames := [][2]string{
-			{entry.Name(), "video" + filepath.Ext(entry.Name())},
-			{base + ".srt", "video.srt"},
-			{base + ".kando.srt", "video.kando.srt"},
-			{base + ".bilingual.srt", "video.bilingual.srt"},
-			{"." + base + ".edits.json", ".video.edits.json"},
-		}
+		renames := append([][2]string{{entry.Name(), "video" + filepath.Ext(entry.Name())}}, itemRenames(dir, entry.Name())...)
 		for _, pair := range renames {
 			src := filepath.Join(dir, pair[0])
 			if _, err := os.Stat(src); err != nil {
@@ -385,7 +392,7 @@ func RetargetRenamed(root string, missing, live []string) map[string]string {
 	}
 	var gone []string
 	for _, path := range missing {
-		if path == "" || !pathInside(root, path) || !isVideoFile(filepath.Base(path)) {
+		if path == "" || !pathInside(root, path) || !IsMediaFile(filepath.Base(path)) {
 			continue
 		}
 		gone = append(gone, path)
@@ -530,6 +537,7 @@ func normalizeItem(folder string, held map[string]bool) (map[string]string, erro
 			return nil, nil
 		}
 	}
+	first := firstOfName(fileNames(entries), nil)
 	var videos []string
 	for _, entry := range entries {
 		if entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
@@ -538,7 +546,7 @@ func normalizeItem(folder string, held map[string]bool) (map[string]string, erro
 		if downloadLeftover(entry.Name()) {
 			return nil, nil
 		}
-		if isVideoFile(entry.Name()) {
+		if filmFile(entry.Name(), first) {
 			videos = append(videos, entry.Name())
 		}
 	}
@@ -546,16 +554,8 @@ func normalizeItem(folder string, held map[string]bool) (map[string]string, erro
 		return nil, nil
 	}
 	name := videos[0]
-	ext := filepath.Ext(name)
-	base := strings.TrimSuffix(name, ext)
 	moved := map[string]string{}
-	for _, pair := range [][2]string{
-		{name, "video" + ext},
-		{base + ".srt", "video.srt"},
-		{base + ".kando.srt", "video.kando.srt"},
-		{base + ".bilingual.srt", "video.bilingual.srt"},
-		{"." + base + ".edits.json", ".video.edits.json"},
-	} {
+	for _, pair := range append([][2]string{{name, "video" + filepath.Ext(name)}}, itemRenames(folder, name)...) {
 		src := filepath.Join(folder, pair[0])
 		if _, err := os.Stat(src); err != nil {
 			continue
@@ -570,6 +570,21 @@ func normalizeItem(folder string, held map[string]bool) (map[string]string, erro
 		moved[src] = dst
 	}
 	return moved, nil
+}
+
+// itemRenames are the files of the film's file name in dir that go with it when it becomes video.<ext>, each as its name and the name it takes: its subtitles, the user's corrections of its lines and the media files of its name (SameNamed).
+func itemRenames(dir, name string) [][2]string {
+	base := strings.TrimSuffix(name, filepath.Ext(name))
+	out := [][2]string{
+		{base + ".srt", "video.srt"},
+		{base + ".kando.srt", "video.kando.srt"},
+		{base + ".bilingual.srt", "video.bilingual.srt"},
+		{"." + base + ".edits.json", ".video.edits.json"},
+	}
+	for _, path := range SameNamed(filepath.Join(dir, name)) {
+		out = append(out, [2]string{filepath.Base(path), "video" + filepath.Ext(path)})
+	}
+	return out
 }
 
 func displayName(dir, name string) string {
@@ -609,11 +624,134 @@ func holdsDownloadLeftovers(folder string) bool {
 	return false
 }
 
-func isVideoFile(name string) bool {
-	switch strings.ToLower(filepath.Ext(name)) {
-	case ".mp4", ".m4v", ".mov", ".mkv", ".webm", ".avi", ".flv":
-		return true
-	default:
+// The extensions of the media files a library takes, as Kando opens them: videos, then sound alone, as podcasts, listening practice and audiobooks come. A file of either is a film (filmFile). Their order ranks files of one name in one folder: the first is the film and the others its own (SameNamed), as a lesson.mp3 beside lesson.mp4 is the lesson's sound, which shares its subtitles and logs, as every file named after a film does.
+var (
+	videoExtensions = []string{".mp4", ".m4v", ".mov", ".mkv", ".webm", ".avi", ".flv"}
+	soundExtensions = []string{".m4a", ".m4b", ".mp3", ".aac", ".flac", ".wav", ".ogg", ".opus", ".wma"}
+)
+
+// MediaExtensions are the extensions, without the dot, of the files the library takes, videos first: those IsMediaFile takes.
+func MediaExtensions() []string {
+	out := make([]string, 0, len(videoExtensions)+len(soundExtensions))
+	for _, ext := range append(append([]string(nil), videoExtensions...), soundExtensions...) {
+		out = append(out, ext[1:])
+	}
+	return out
+}
+
+// IsMediaFile reports whether name has an extension the library takes, a video's or a sound's.
+func IsMediaFile(name string) bool { return mediaRank(name) >= 0 }
+
+// IsSoundFile reports whether name has the extension of a file of sound alone, as mp3. A file whose extension is a video's may hold sound alone too, as yt-dlp's best sound of a YouTube video in a .webm; what has a picture is known from the file itself (GrabPoster, the system's player), and this is for what goes by the type of the file, as the media type it is served with.
+func IsSoundFile(name string) bool {
+	return slices.Contains(soundExtensions, strings.ToLower(filepath.Ext(name)))
+}
+
+// IsFilm reports whether the file at path is a film's file: a media file, not what a download leaves while it runs, not a clip of Kando's own export, and not the sound of a file of the same name beside it (filmFile).
+func IsFilm(path string) bool {
+	film, ok := FilmOf(path)
+	return ok && film == path
+}
+
+// FilmOf is the film's file the media file at path is, as a file added to the library is taken: path itself, or the file of the same name beside it that ranks first, whose sound it is (SameNamed), so adding lesson.mp3 beside lesson.mp4 adds the lesson once, with the subtitles both are named for. false for what is not a film's: a file the library does not take, what a download leaves, or a clip of Kando's own export. A file whose folder cannot be read is taken as it is, so its job says why.
+func FilmOf(path string) (string, bool) {
+	dir, name := filepath.Split(path)
+	if !filmFile(name, nil) {
+		return "", false
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return path, true
+	}
+	first := firstOfName(fileNames(entries), nil)
+	if filmFile(name, first) {
+		return path, true
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() && stemKey(entry.Name()) == stemKey(name) && filmFile(entry.Name(), first) {
+			return filepath.Join(dir, entry.Name()), true
+		}
+	}
+	return path, true
+}
+
+// mediaRank is name's place among the media extensions, -1 for a file the library does not take.
+func mediaRank(name string) int {
+	ext := strings.ToLower(filepath.Ext(name))
+	if i := slices.Index(videoExtensions, ext); i >= 0 {
+		return i
+	}
+	if i := slices.Index(soundExtensions, ext); i >= 0 {
+		return len(videoExtensions) + i
+	}
+	return -1
+}
+
+// stemKey is name without its extension, lower-cased, which files of one name in a folder share.
+func stemKey(name string) string {
+	return strings.ToLower(strings.TrimSuffix(name, filepath.Ext(name)))
+}
+
+// firstOfName is, for each name without its extension among files and the base names of away, the paths of films that belong in the folder but are not on disk now (GatherVideos), the best rank among the media files of that name.
+func firstOfName(files map[string]bool, away []string) map[string]int {
+	first := map[string]int{}
+	add := func(name string) {
+		r := mediaRank(name)
+		if r < 0 || downloadLeftover(name) || exportedClip(name) {
+			return
+		}
+		if best, ok := first[stemKey(name)]; !ok || r < best {
+			first[stemKey(name)] = r
+		}
+	}
+	for name := range files {
+		add(name)
+	}
+	for _, path := range away {
+		add(filepath.Base(path))
+	}
+	return first
+}
+
+// filmFile reports whether name, a file in a folder whose first media files by name are first (firstOfName), is a film's file: a media file, not a download's leftover, not a clip of Kando's own export, and the first of its name. A nil first knows of no other file.
+func filmFile(name string, first map[string]int) bool {
+	r := mediaRank(name)
+	if r < 0 || downloadLeftover(name) || exportedClip(name) {
 		return false
 	}
+	best, ok := first[stemKey(name)]
+	return !ok || best == r
 }
+
+// SameNamed are the media files beside the film's file at video that share its name and rank after it, those that exist, as a lesson.mp3 beside lesson.mp4: the film's own sound, which shares the files named after it (Companions) and is not a film of its own (filmFile), so it goes where the film goes when it moves or is deleted. They are kept apart from Companions, which are small files read whole.
+func SameNamed(video string) []string {
+	r := mediaRank(video)
+	if r < 0 {
+		return nil
+	}
+	dir := filepath.Dir(video)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || name == filepath.Base(video) || stemKey(name) != stemKey(filepath.Base(video)) {
+			continue
+		}
+		if other := mediaRank(name); other > r && !downloadLeftover(name) {
+			out = append(out, filepath.Join(dir, name))
+		}
+	}
+	return out
+}
+
+// ClipName is the name of the file Kando exports the sound of one saved line in, for Anki, from the hash sum of what it is: kando- and the sum in 16 hex digits, .m4a.
+func ClipName(sum uint64) string { return fmt.Sprintf("kando-%016x.m4a", sum) }
+
+// exportedClipName matches ClipName's names.
+var exportedClipName = regexp.MustCompile(`^kando-[0-9a-f]{16}\.m4a$`)
+
+// exportedClip reports whether name is a clip of Kando's own export (ClipName), which an export into the library's folder leaves there: the library does not take it as a film, nor gather it into a folder of its own, which would break the notes that play it.
+func exportedClip(name string) bool { return exportedClipName.MatchString(strings.ToLower(name)) }

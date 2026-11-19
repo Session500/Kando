@@ -74,9 +74,9 @@ func RemuxPathOf(dir, id string, step RemuxStep) string {
 	return filepath.Join(dir, hex.EncodeToString(sum[:12])+"-"+strconv.Itoa(int(step))+".mp4")
 }
 
-// RemuxArgs are ffmpeg's arguments to make the copy of src at dest by step: the first picture and the first sound track, without the subtitles and data streams an MP4 cannot hold, moving the index to the front so the player starts at once.
+// RemuxArgs are ffmpeg's arguments to make the copy of src at dest by step: the first picture and the first sound track, without the subtitles and data streams an MP4 cannot hold, moving the index to the front so the player starts at once. The picture is a video stream that is not an attached picture (0:V), as an mp3's or a film's cover art is, which would take the place of the film's picture, and which the encoding cannot put in an MP4 as H.264, so a sound with cover art becomes its sound alone.
 func RemuxArgs(src, dest string, step RemuxStep) []string {
-	args := []string{"-nostdin", "-loglevel", "error", "-y", "-i", src, "-map", "0:v:0?", "-map", "0:a:0?", "-sn", "-dn"}
+	args := []string{"-nostdin", "-loglevel", "error", "-y", "-i", src, "-map", "0:V:0?", "-map", "0:a:0?", "-sn", "-dn"}
 	if step == RemuxEncode {
 		args = append(args, "-c:v", "h264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k")
 	} else {

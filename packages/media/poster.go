@@ -15,7 +15,7 @@ import (
 // minPosterLuma is how bright a grabbed frame must be before it counts as a cover. Below this, the frame is a black intro.
 const minPosterLuma = 0.08
 
-// GrabPoster writes one JPEG frame of video to dest, skipping a black opening when a later frame is brighter. A partial file is removed when the grab fails.
+// GrabPoster writes a JPEG that stands for the media at path to dest: a frame of its picture, skipping a black opening when a later frame is brighter, or for sound alone a picture of its sound (soundPicture) from the middle, wider, as it is what the player shows the whole time the film plays. A partial file is removed when the grab fails.
 func GrabPoster(ctx context.Context, ffmpeg, video, dest string) error {
 	if ffmpeg == "" || video == "" || dest == "" {
 		return errors.New("poster source is missing")
@@ -23,12 +23,19 @@ func GrabPoster(ctx context.Context, ffmpeg, video, dest string) error {
 	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 		return err
 	}
-	offsets := posterOffsets(videoDuration(ffmpeg, video))
+	length := Duration(ffmpeg, video)
 	var best []byte
 	bestLuma := -1.0
 	var lastErr error
-	for _, at := range offsets {
+	for _, at := range posterOffsets(length) {
 		data, err := grabPosterFrame(ctx, ffmpeg, video, at)
+		if errors.Is(err, errNoPicture) {
+			best, lastErr = nil, nil
+			if best, err = soundPicture(ctx, ffmpeg, video, max(0, (length-soundSpan)/2), soundPosterWidth); err != nil {
+				return err
+			}
+			break
+		}
 		if err != nil {
 			lastErr = err
 			continue
@@ -76,12 +83,16 @@ func EmbeddedCover(ctx context.Context, ffmpeg, video string) ([]byte, error) {
 	return []byte(out), nil
 }
 
-// GrabFrame returns one JPEG frame at at. It is used for lightweight video previews where a permanent poster file is unnecessary.
+// GrabFrame returns a JPEG that stands for the media at at: the frame there, or for sound alone a picture of its sound from there (soundPicture). It is used for lightweight previews where a permanent poster file is unnecessary, as the cards of a film's clips.
 func GrabFrame(ctx context.Context, ffmpeg, video string, at time.Duration) ([]byte, error) {
 	if ffmpeg == "" || video == "" {
 		return nil, errors.New("frame source is missing")
 	}
-	return grabPosterFrame(ctx, ffmpeg, video, at)
+	data, err := grabPosterFrame(ctx, ffmpeg, video, at)
+	if errors.Is(err, errNoPicture) {
+		return soundPicture(ctx, ffmpeg, video, at, posterWidth)
+	}
+	return data, err
 }
 
 // PosterTooDark reports whether path is a cover grabbed from a nearly black frame.
@@ -122,25 +133,28 @@ func posterOffsets(d time.Duration) []time.Duration {
 	return out
 }
 
-// VideoDuration is how long the video at path plays, read with ffmpeg, or 0 when ffmpeg cannot tell.
-func VideoDuration(ffmpeg, path string) time.Duration { return videoDuration(ffmpeg, path) }
+// posterWidth is how wide a grabbed frame is, and soundPosterWidth a sound's poster, which the player shows across the stage while the film plays.
+const (
+	posterWidth      = 640
+	soundPosterWidth = 1280
+)
 
-func videoDuration(ffmpeg, path string) time.Duration {
-	_, _, _, duration, err := probePicture(ffmpeg, path)
-	if err != nil {
-		return 0
-	}
-	return duration
-}
+// errNoPicture is grabPosterFrame's error for media without a picture: sound alone, with or without cover art.
+var errNoPicture = errors.New("media has no picture")
 
+// grabPosterFrame is the frame of video's picture at at as a JPEG. The picture is its first video stream that is not an attached picture, as an mp3's cover art is, so a film's own picture is taken over its cover; one without such a stream fails with errNoPicture.
 func grabPosterFrame(ctx context.Context, ffmpeg, video string, at time.Duration) ([]byte, error) {
 	args := []string{"-nostdin", "-loglevel", "error", "-y"}
 	if at > 0 {
 		args = append(args, "-ss", strconv.FormatFloat(at.Seconds(), 'f', 3, 64))
 	}
-	args = append(args, "-i", video, "-frames:v", "1", "-vf", "scale=640:-2", "-f", "image2", "-c:v", "mjpeg", "pipe:1")
+	args = append(args, "-i", video, "-map", "0:V:0", "-frames:v", "1", "-vf", "scale="+strconv.Itoa(posterWidth)+":-2", "-f", "image2", "-c:v", "mjpeg", "pipe:1")
 	out, err := run(ctx, ffmpeg, args...)
 	if err != nil {
+		// ffmpeg says a map that picks no stream "matches no streams".
+		if strings.Contains(err.Error(), "matches no streams") {
+			return nil, errNoPicture
+		}
 		return nil, err
 	}
 	if out == "" {

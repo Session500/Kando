@@ -55,6 +55,8 @@ type fakeApp struct {
 	fakeExtender
 	item       Item
 	play       *fakePlay
+	sound      bool
+	poster     string
 	path       string
 	err        string
 	loaded     *ns.VideoInfo
@@ -157,7 +159,8 @@ func (f *fakeApp) PlayPath() string                      { return f.path }
 func (f *fakeApp) OpeningText(*ns.Scope) string          { return "" }
 func (f *fakeApp) PlayErr() string                       { return f.err }
 func (f *fakeApp) ErrText(_ *ns.Scope, id string) string { return "error " + id }
-func (f *fakeApp) PosterFile(string) string              { return "" }
+func (f *fakeApp) PosterFile(string) string              { return f.poster }
+func (f *fakeApp) PlaySound() bool                       { return f.play != nil && f.sound }
 func (f *fakeApp) PlayHead() time.Duration {
 	if f.play == nil {
 		return 0

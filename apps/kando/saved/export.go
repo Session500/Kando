@@ -117,11 +117,11 @@ func WriteNotes(w io.Writer, rows []Row) error {
 	return bw.Flush()
 }
 
-// SoundName is the file the sound of l is written to: kando- and a hash of its video and its start, so the lines of every export share Anki's one media folder without two of them taking one name, and exporting again writes each line's sound over its own.
+// SoundName is the file the sound of l is written to: a hash of its video and its start (media.ClipName), so the lines of every export share Anki's one media folder without two of them taking one name, and exporting again writes each line's sound over its own. A library does not take these as films when an export is written into its folder.
 func SoundName(l Line) string {
 	h := fnv.New64a()
 	fmt.Fprintf(h, "%s\x00%d", l.Video, l.Start.Milliseconds())
-	return fmt.Sprintf("kando-%016x.m4a", h.Sum64())
+	return media.ClipName(h.Sum64())
 }
 
 // ClipSpan is the stretch of the video l's sound is cut from, with the subtitles moved by delay: the line and clipPad either side of it, from no earlier than the video's start.

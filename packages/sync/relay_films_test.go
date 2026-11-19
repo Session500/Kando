@@ -249,3 +249,37 @@ func TestAHandoffThatFailsTakesThePhonesBack(t *testing.T) {
 		t.Fatalf("the new bucket's inbox holds %q", keys)
 	}
 }
+
+// A film of sound alone is linked as its sound, not its video, so a phone from before them studies its lines alone rather than keep it as an MP4; a phone that knows them reads it by its link as it reads a video.
+func TestRelayLinksAFilmOfSoundAsItsSound(t *testing.T) {
+	g := newRelayRig(t)
+	ctx := context.Background()
+	sound := []byte("ID3 sound")
+	ff := g.putFilm(t, "c3", Film{ID: "f3", Title: "Episode", VideoSize: 9, Sound: true}, []Cue{{StartMS: 0, EndMS: 500, Original: "こんにちは"}}, sound)
+	g.relay.Films = func() *RelayFiles {
+		return &RelayFiles{Libraries: []Library{{ID: "lib", Name: "Podcasts", Films: 1}}, Films: []RelayFilmFiles{ff}}
+	}
+	if err := g.relay.Publish(ctx); err != nil {
+		t.Fatal(err)
+	}
+	state, err := g.phone.State(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rf := state.Shelf.Films[0]
+	if rf.Video != "" || rf.Sound == "" || rf.Media() != rf.Sound || rf.Film.VideoSize != 9 || !rf.Film.Sound {
+		t.Fatalf("a film of sound: %+v", rf)
+	}
+	films := NewRelayFilms(*state.Shelf, nil)
+	if films.VideoLink("f3") != rf.Sound {
+		t.Fatalf("the sound streams from %q", films.VideoLink("f3"))
+	}
+	part, err := films.Video(ctx, "f3", 0, -1, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer part.Body.Close()
+	if got, _ := io.ReadAll(part.Body); string(got) != string(sound) {
+		t.Fatalf("read %q", got)
+	}
+}

@@ -360,7 +360,7 @@ func TestPlayerInEnglish(t *testing.T) {
 	testlocale.Use(t, "en")
 	a, tt, updates, item := playerFilm(t, 12, nil)
 	playerOpenFilm(t, a, tt, updates, item)
-	for _, want := range []string{"50% translated", "All", "Subtitles", "Clips", "Info", "Style", "Opening video…"} {
+	for _, want := range []string{"50% translated", "All", "Subtitles", "Clips", "Info", "Style", "Opening…"} {
 		wantText(t, tt, want)
 	}
 	tt.Press("id:film-tab-info")
@@ -2779,5 +2779,39 @@ func TestALineOnScreenIsNotRewrittenWhileItIsRead(t *testing.T) {
 	rewrite("1\n00:00:01,000 --> 00:00:02,500\n您好。\nHello.\n\n2\n00:00:04,000 --> 00:00:05,000\n回头见。\nBye.\n\n")
 	if shown(1) != "回头见。\nBye." {
 		t.Fatalf("line on screen without a translation reads %q, want the translation at once", shown(1))
+	}
+}
+
+// A film the system's player opens as sound alone, which it says has no picture size, shows its poster in place of the black picture; a video, and a stream, whose size comes with its first picture, does not.
+func TestPlayerShowsThePosterOfSound(t *testing.T) {
+	a, tt, updates, item := playerFilm(t, 12, nil)
+	playerOpenFilm(t, a, tt, updates, item)
+	if tt.Exists("id:film-sound") {
+		t.Fatal("the stage covered a film the player has not opened")
+	}
+	tt.Play("id:film-video", ns.VideoInfo{Duration: 12 * time.Second})
+	refresh(tt, a)
+	// Without a poster, as without ffmpeg, the stage shows a mark of sound.
+	if !a.PlaySound() || !tt.Exists("id:film-sound") || tt.Exists("id:film-sound-poster") {
+		t.Fatalf("sound alone without a poster: sound %v", a.PlaySound())
+	}
+	apply(tt, a, func() { a.lib.posterDir = t.TempDir() })
+	if !tt.Exists("id:film-sound-poster") {
+		t.Fatal("sound alone shows no poster")
+	}
+	if got := tt.Find("id:film-sound-poster").Image.Source.URI; got != core.FileURL(posterDest(a.lib.posterDir, item.VideoPath)) {
+		t.Fatalf("the stage shows %q, not the film's poster", got)
+	}
+
+	b, bt, _ := playerOpen(t)
+	if b.PlaySound() || bt.Exists("id:film-sound") {
+		t.Fatal("a video was taken for sound")
+	}
+
+	b.player.play.loaded, b.player.play.stream = false, true
+	bt.Play("id:film-video", ns.VideoInfo{Duration: 12 * time.Second})
+	refresh(bt, b)
+	if b.PlaySound() {
+		t.Fatal("a stream was taken for sound before its picture came")
 	}
 }

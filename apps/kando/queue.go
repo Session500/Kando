@@ -460,13 +460,14 @@ func (a *app) importLocal(path string) {
 	a.closeFilm()
 }
 
-// chooseLocal puts the video at path in the link field as a file:// URL, or says it is not a video. It reports whether it did.
+// chooseLocal puts the film's file at path in the link field as a file:// URL, the film it is the sound of when a video of its name is beside it (media.FilmOf), or says it is not a video or a sound. It reports whether it did.
 func (a *app) chooseLocal(path string) bool {
-	if !media.IsVideoFile(path) {
+	film, ok := media.FilmOf(path)
+	if !ok {
 		a.queue.status = a.messages().QueueNoVideoToImport()
 		return false
 	}
-	a.queue.source = core.FileURL(path)
+	a.queue.source = core.FileURL(film)
 	a.queue.status = a.messages().QueueLocalChosen()
 	return true
 }

@@ -105,7 +105,7 @@ func paletteType(tt *nsgotest.App, text string) { tt.Type("id:palette-field", te
 func TestPaletteOpensAnywhereAndEscapeCloses(t *testing.T) {
 	a, tt, updates := paletteLibrary(t, &fakePipeline{})
 	paletteOpen(t, a, tt, updates)
-	for _, want := range []string{"命令", "Esc", "打开本地视频…"} {
+	for _, want := range []string{"命令", "Esc", "打开本地文件…"} {
 		if !hasText(tt, want) {
 			t.Fatalf("missing %q in %q", want, tt.Texts())
 		}
@@ -232,7 +232,7 @@ func TestPaletteCommandsFollowTheScreen(t *testing.T) {
 		return false
 	}
 	lib := labels()
-	if has(lib, "显示/隐藏字幕") || has(lib, "切换为仅译文") || has(lib, testlocale.Messages().MenuWindowLibrary()) || !has(lib, "打开本地视频…") || !has(lib, "设置 › 语音识别") {
+	if has(lib, "显示/隐藏字幕") || has(lib, "切换为仅译文") || has(lib, testlocale.Messages().MenuWindowLibrary()) || !has(lib, "打开本地文件…") || !has(lib, "设置 › 语音识别") {
 		t.Fatalf("library commands %q", lib)
 	}
 	paletteOpenFilm(t, a, tt, updates, "rivers")

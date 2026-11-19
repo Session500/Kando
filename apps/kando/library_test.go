@@ -132,7 +132,7 @@ func TestImportIgnoresNonVideo(t *testing.T) {
 	a, _, _ := newTestApp(t, &fakePipeline{})
 	a.edit(func(s *session) { s.LibraryDir = dir })
 	a.importLocal(src)
-	if a.queue.status != "没有可导入的视频" {
+	if a.queue.status != "不是视频或音频文件" {
 		t.Fatalf("status %q", a.queue.status)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "notes.txt")); !os.IsNotExist(err) {
@@ -253,7 +253,7 @@ func TestImportLocalVideoSetsFileSource(t *testing.T) {
 	if a.queue.source != "file:///Users/test/interview.mp4" {
 		t.Fatalf("source = %q", a.queue.source)
 	}
-	if a.queue.status != "已选择本地视频" {
+	if a.queue.status != "已选择本地文件" {
 		t.Fatalf("status = %q", a.queue.status)
 	}
 }
@@ -1388,7 +1388,7 @@ func TestLibraryInEnglish(t *testing.T) {
 		"Recently Finished · Simplified Chinese Bilingual", "Play", testlocale.Messages().FilmsShowInFinder(platformName()),
 		"Bilingual · CHS", "All Films", "1 film",
 		"Processing", "1 queued", "Queued", "Canceled", "Retry",
-		"Start Processing", "Local Video",
+		"Start Processing", "Local File",
 	} {
 		wantText(t, tt, want)
 	}
@@ -1415,9 +1415,9 @@ func TestLibraryNamesTheSystemsFileManager(t *testing.T) {
 		reveal, tooltip, manager string
 		icon                     bool
 	}{
-		{"macOS", ns.OSMacOS, "在访达中显示", "添加本地视频（⌘O）", "可以直接在访达里管理。", true},
-		{"Windows", ns.OSWindows, "在文件资源管理器中显示", "添加本地视频（Ctrl+O）", "可以直接在文件资源管理器里管理。", false},
-		{"Linux", ns.OSLinux, "在文件管理器中显示", "添加本地视频（Ctrl+O）", "可以直接在文件管理器里管理。", false},
+		{"macOS", ns.OSMacOS, "在访达中显示", "添加本地视频或音频（⌘O）", "可以直接在访达里管理。", true},
+		{"Windows", ns.OSWindows, "在文件资源管理器中显示", "添加本地视频或音频（Ctrl+O）", "可以直接在文件资源管理器里管理。", false},
+		{"Linux", ns.OSLinux, "在文件管理器中显示", "添加本地视频或音频（Ctrl+O）", "可以直接在文件管理器里管理。", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			usePlatform(t, tc.platform)
@@ -1597,8 +1597,8 @@ func TestOpenedVideoAlreadyQueuedIsNotAddedAgain(t *testing.T) {
 	}
 }
 
-// TestFileAssociationsAreTheVideos checks nsgo.yaml's file_types, which put Kando in Finder's Open With and let videos be dropped on its Dock icon: they list each video extension 本地视频 offers once, every one a video the library takes, each type a kind of public.movie that Kando only views, and none of them Kando's own, so that it ranks as an alternative to the system's player rather than claiming the system's types.
-func TestFileAssociationsAreTheVideos(t *testing.T) {
+// TestFileAssociationsAreTheMedia checks nsgo.yaml's file_types, which put Kando in Finder's Open With and let videos and sounds be dropped on its Dock icon: they list each extension 本地视频 offers once, every one a file the library takes, each type a kind of public.movie or public.audio that Kando only views, and none of them Kando's own, so that it ranks as an alternative to the system's player rather than claiming the system's types.
+func TestFileAssociationsAreTheMedia(t *testing.T) {
 	data, err := os.ReadFile("nsgo.yaml")
 	if err != nil {
 		t.Fatal(err)
@@ -1618,11 +1618,11 @@ func TestFileAssociationsAreTheVideos(t *testing.T) {
 	}
 	var exts []string
 	for _, ft := range config.FileTypes {
-		if ft.Name == "" || ft.ID == "" || strings.HasPrefix(ft.ID, config.ID+".") || ft.Role != "viewer" || !slices.Contains(ft.Conforms, "public.movie") {
-			t.Errorf("file type %+v: want a name, the system's type ID, the viewer role and a kind of public.movie", ft)
+		if ft.Name == "" || ft.ID == "" || strings.HasPrefix(ft.ID, config.ID+".") || ft.Role != "viewer" || !slices.Contains(ft.Conforms, "public.movie") && !slices.Contains(ft.Conforms, "public.audio") {
+			t.Errorf("file type %+v: want a name, the system's type ID, the viewer role and a kind of public.movie or public.audio", ft)
 		}
 		for _, ext := range ft.Extensions {
-			if !media.IsVideoFile("clip." + ext) {
+			if !media.IsMediaFile("clip." + ext) {
 				t.Errorf("%q is associated but the library does not take it", ext)
 			}
 			if slices.Contains(exts, ext) {
@@ -1632,7 +1632,7 @@ func TestFileAssociationsAreTheVideos(t *testing.T) {
 		}
 	}
 	slices.Sort(exts)
-	want := slices.Sorted(slices.Values(libraryVideoExtensions))
+	want := slices.Sorted(slices.Values(media.MediaExtensions()))
 	if !slices.Equal(exts, want) {
 		t.Fatalf("associated %q, want the extensions 本地视频 offers %q", exts, want)
 	}
@@ -2420,7 +2420,7 @@ func TestPanelsSayWhatTheyAreFor(t *testing.T) {
 	tt.PickFiles = func(r ns.FilesRequest) []ns.File { files = r; return nil }
 	a.pickVideos()
 	tt.Settle()
-	if files.Title != m.LibraryPickVideosTitle() || files.Button != m.LibraryPickVideosButton() || files.TypesName != m.LibraryVideoFilter() || len(files.Types) != len(libraryVideoExtensions) {
+	if files.Title != m.LibraryPickVideosTitle() || files.Button != m.LibraryPickVideosButton() || files.TypesName != m.LibraryVideoFilter() || len(files.Types) != len(media.MediaExtensions()) {
 		t.Fatalf("the videos' panel asks %+v", files)
 	}
 	var dirs []ns.DirectoriesRequest

@@ -45,14 +45,17 @@ func Units(root string, items []Film) []Unit {
 	return out
 }
 
-// AloneIn reports whether videos are the only videos in dir and dir has no folder inside it. The shelf lists only the videos directly in a film's folder, so a folder inside may hold videos, or anything else, the user never saw there; the folder then stays, and only the films' files go.
+// AloneIn reports whether videos are the only films in dir and dir has no folder inside it; a sound of the name of one of them is its own (media.FilmOf). The shelf lists only the videos directly in a film's folder, so a folder inside may hold videos, or anything else, the user never saw there; the folder then stays, and only the films' files go.
 func AloneIn(dir string, videos ...string) bool {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return false
 	}
 	for _, entry := range entries {
-		if entry.IsDir() || (media.IsVideoFile(entry.Name()) && !slices.Contains(videos, filepath.Join(dir, entry.Name()))) {
+		if entry.IsDir() {
+			return false
+		}
+		if film, ok := media.FilmOf(filepath.Join(dir, entry.Name())); ok && !slices.Contains(videos, film) {
 			return false
 		}
 	}

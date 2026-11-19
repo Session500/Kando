@@ -134,7 +134,7 @@ func TestCheatsheetFollowsThePrototypeLayout(t *testing.T) {
 	}{
 		{"播放", []string{"播放 / 暂停", "后退 / 前进 5 秒", "全屏"}},
 		{"窗口", []string{"快捷键速查", "设置", "返回资料库", testlocale.Messages().MenuWindowLibrary(), "播放器"}},
-		{"文件", []string{"打开本地视频…", "新建资料库…", "打开资料库…"}},
+		{"文件", []string{"打开本地文件…", "新建资料库…", "打开资料库…"}},
 	}
 	groups := a.cheatsheetGroups(a.cx)
 	at := -1

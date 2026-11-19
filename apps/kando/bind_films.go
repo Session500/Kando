@@ -474,7 +474,7 @@ func (a *app) libraryCloseRemove() {
 // trashItem moves a file or a folder to the Trash, under the scope cx. Tests replace it.
 var trashItem = desktop.Trash
 
-// filmFiles is what moving a film to the Trash moves: the folder of a film inside the library root, or, when that folder holds other videos or any folder too, or is the root itself, the video, its subtitles and the hidden files a job keeps beside it (media.Companions), so none is left behind in the folder. A video outside the library has none.
+// filmFiles is what moving a film to the Trash moves: the folder of a film inside the library root, or, when that folder holds other videos or any folder too, or is the root itself, the video, its subtitles, the hidden files a job keeps beside it (media.Companions) and the media files of its name, its own sound (media.SameNamed), so none is left behind in the folder. A video outside the library has none.
 func filmFiles(root string, item films.Film) []string {
 	video := item.VideoPath
 	if video == "" || !films.InDir(root, video) {
@@ -489,7 +489,7 @@ func filmFiles(root string, item films.Film) []string {
 	if item.SubtitlesOnly || item.Stored != "" {
 		files = nil
 	}
-	for _, sub := range append([]string{item.SubtitlePath}, media.Companions(video)...) {
+	for _, sub := range append(append([]string{item.SubtitlePath}, media.Companions(video)...), media.SameNamed(video)...) {
 		if sub != "" && fileExists(sub) && !slices.Contains(files, sub) {
 			files = append(files, sub)
 		}

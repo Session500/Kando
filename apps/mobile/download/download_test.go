@@ -153,14 +153,6 @@ func TestFollowTakesWhatTheDesktopChanged(t *testing.T) {
 	}
 }
 
-func TestExtensionNamesTheVideoByItsType(t *testing.T) {
-	for kind, want := range map[string]string{"video/mp4": ".mp4", "video/quicktime": ".mov", "video/x-matroska": ".mkv", "video/webm; codecs=vp9": ".webm", "application/octet-stream": ".mp4", "": ".mp4"} {
-		if got := extension(kind, ".mp4"); got != want {
-			t.Errorf("extension(%q) = %q, want %q", kind, got, want)
-		}
-	}
-}
-
 // A film the desktop keeps no video of is kept whole by its lines and poster, without asking for a video; once the desktop has the video, the film's record as listed then downloads it beside them.
 func TestAFilmWithoutAVideoIsKeptByItsLines(t *testing.T) {
 	d := synctest.New(t, "Studio")
@@ -196,5 +188,32 @@ func TestAFilmWithoutAVideoIsKeptByItsLines(t *testing.T) {
 	}
 	if data, err := os.ReadFile(filepath.Join(st.FilmDir("desk", "f1"), got.Video)); err != nil || !bytes.Equal(data, video) {
 		t.Fatalf("the video kept is %q, %v", data, err)
+	}
+}
+
+// A film of sound alone is listed to the phone, which asks for such films, and kept by the type the desktop serves it as, so the player opens it as the sound it is.
+func TestAFilmOfSoundIsKeptAsItsSound(t *testing.T) {
+	d := synctest.New(t, "Studio")
+	d.AddLibrary("lib", "Podcasts")
+	sound := []byte("ID3 sound")
+	d.AddFilm(synctest.Film{Film: sync.Film{ID: "f1", Title: "Episode", Sound: true, VideoSize: int64(len(sound))}, Library: "lib", Video: sound, ContentType: "audio/mpeg",
+		Cues: []sync.Cue{{StartMS: 0, EndMS: 1000, Original: "hi", Translation: "你好"}}})
+	d.Offer("123456")
+	c := sync.NewClient(d.Addr, d.Fingerprint, "")
+	t.Cleanup(c.Close)
+	if _, err := c.Pair(context.Background(), sync.PairRequest{Code: "123456", Device: "Phone", Platform: sync.PlatformIOS}); err != nil {
+		t.Fatal(err)
+	}
+	st := store.Open(t.TempDir())
+	f := filmOf(t, c)
+	if !f.Film.Sound {
+		t.Fatalf("listed %+v", f.Film)
+	}
+	got, err := Film(context.Background(), c, st, f, func(int64, int64) {})
+	if err != nil || got.Video != "video.mp3" {
+		t.Fatalf("kept %+v, %v", got, err)
+	}
+	if data, err := os.ReadFile(filepath.Join(st.FilmDir("desk", "f1"), "video.mp3")); err != nil || !bytes.Equal(data, sound) {
+		t.Fatalf("kept %q, %v", data, err)
 	}
 }

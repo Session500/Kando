@@ -11,6 +11,7 @@ import (
 	"kando/apps/mobile/film"
 	"kando/apps/mobile/locales"
 	"kando/apps/mobile/look"
+	"kando/apps/mobile/session"
 	"kando/apps/mobile/theme"
 	kcore "kando/packages/core"
 
@@ -171,7 +172,7 @@ func view(cx *core.Scope, l *Layer, key string) core.Node {
 			}
 			return core.Style{Width: core.Pct(100), AspectRatio: max(p.aspect.Get(), 1)}
 		},
-		Children: []core.Node{picture, audioOnly(cx, p),
+		Children: []core.Node{picture, soundPoster(cx, s, key, f.Film.Sound, p), audioOnly(cx, p),
 			core.Show{When: onPicture, Then: func(cx *core.Scope) core.Node { return subtitles(cx, p, w, shape.Get, overlaid) }},
 			pills(cx, p, func() bool { return shape.Get() != full || controls.Get() }), failed}}
 
@@ -286,6 +287,20 @@ func topBar(cx *core.Scope, p *play, title string, minimize, settings func(), sh
 				Selected: panelOn.Get, OnPress: func() { panelOn.Update(func(on bool) bool { return !on }) }}
 		}},
 		ui.IconButton{TestID: "player-more", Icon: lucide.Ellipsis, LabelFunc: func() string { return locales.PlayerSettings(cx) }, Variant: ui.IconButtonGhost, Size: 40, OnPress: settings},
+	}}
+}
+
+// soundPoster covers the black picture of a film of sound alone (sync.Film.Sound), as a podcast's, with its poster, its own art or a picture of its sound as the computer drew it, as a music player shows an album's.
+func soundPoster(cx *core.Scope, s *session.Session, key string, sound bool, p *play) core.Node {
+	return core.Show{When: func() bool { return sound && p.hasVideo() }, Then: func(cx *core.Scope) core.Node {
+		return core.View{TestID: "player-sound", PointerEvents: core.PointerEventsNone, Style: fill.Merge(core.Style{Background: core.RGB(0x0B0B0D), AlignItems: core.AlignCenter, JustifyContent: core.JustifyCenter}),
+			Children: []core.Node{
+				ui.IconOf(lucide.AudioLines, 36, func() core.Color { return core.RGBA(0xFFFFFF, 0.35) }),
+				core.Image{TestID: "player-sound-poster", ResizeMode: core.Contain, Style: fill, SourceFunc: func() core.ImageSource {
+					k, _ := s.Film(key)
+					return look.LocalPoster(s, k)
+				}},
+			}}
 	}}
 }
 

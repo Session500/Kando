@@ -40,6 +40,8 @@ type Film struct {
 	// Video is its video file, Poster its poster's file, "" for none yet. For a film that keeps no video (SubtitlesOnly, core.Job.SubtitlesOnly) Video is where its sound was, which its subtitles are named after, and no file.
 	Video, Poster string
 	SubtitlesOnly bool
+	// Sound is a film of sound alone, as a podcast's mp3 (media.IsSoundFile), served only to a phone that asks for such films (psync.WithSound).
+	Sound bool
 	// Remote serves the video of a film whose video was moved off this computer to a storage location, by ranges as a file is served, in place of Video, which is then where it was in the library's folder and no file; RemoteSize is its size and RemoteAt when it moved. nil for a video on disk.
 	Remote     http.Handler
 	RemoteSize int64
@@ -558,7 +560,7 @@ func (s *Server) libraries(w http.ResponseWriter, r *http.Request, _ Device) {
 	writeJSON(w, http.StatusOK, out)
 }
 
-// films answers the films of library {lib}: those with their video, and those that keep none for a phone that asks for them (psync.WithSubtitlesOnly).
+// films answers the films of library {lib}: those with their video, and those that keep none and those of sound alone for a phone that asks for them (psync.WithSubtitlesOnly, psync.WithSound).
 func (s *Server) films(w http.ResponseWriter, r *http.Request, _ Device) {
 	ctx, cancel := sourceContext(r)
 	defer cancel()
@@ -572,10 +574,11 @@ func (s *Server) films(w http.ResponseWriter, r *http.Request, _ Device) {
 		s.sourceFailed(w, r, err)
 		return
 	}
-	all := r.URL.Query().Get(psync.QueryWith) == psync.WithSubtitlesOnly
+	with := r.URL.Query().Get(psync.QueryWith)
+	subtitlesOnly, sound := psync.AsksWith(with, psync.WithSubtitlesOnly), psync.AsksWith(with, psync.WithSound)
 	out := psync.Films{Films: []psync.Film{}}
 	for _, f := range films {
-		if all || !f.SubtitlesOnly {
+		if (subtitlesOnly || !f.SubtitlesOnly) && (sound || !f.Sound) {
 			out.Films = append(out.Films, f.film)
 		}
 	}
@@ -636,7 +639,7 @@ func (s *Server) video(w http.ResponseWriter, r *http.Request, _ Device) {
 	s.serveFile(w, r, f.Video)
 }
 
-// serveFile serves the file at path with http.ServeContent, which answers Range, If-Range and If-None-Match by the ETag set here: the file's size and modification time.
+// serveFile serves the file at path with http.ServeContent, which answers Range, If-Range and If-None-Match by the ETag set here: the file's size and modification time. Its type is the one the phone names the file by (psync.MediaType), which the system's table lacks for some sounds.
 func (s *Server) serveFile(w http.ResponseWriter, r *http.Request, path string) {
 	file, err := os.Open(path)
 	if err != nil {
@@ -651,6 +654,7 @@ func (s *Server) serveFile(w http.ResponseWriter, r *http.Request, path string) 
 	}
 	w.Header().Set("ETag", fileETag(info))
 	w.Header().Set("Cache-Control", "private, no-cache")
+	w.Header().Set("Content-Type", psync.MediaType(path))
 	http.ServeContent(w, r, filepath.Base(path), info.ModTime(), file)
 }
 
@@ -775,7 +779,7 @@ func playable(films []Film) []served {
 			}
 		}
 		p := psync.Film{ID: f.ID, Title: f.Title, Source: f.Source, DurationMS: f.Duration.Milliseconds(), Spoken: f.Spoken, Translation: f.Translation,
-			Untranslated: f.Untranslated, VideoSize: size, SubtitlesOnly: f.SubtitlesOnly, Updated: updated.UTC()}
+			Untranslated: f.Untranslated, VideoSize: size, SubtitlesOnly: f.SubtitlesOnly, Sound: f.Sound, Updated: updated.UTC()}
 		if f.Poster != "" {
 			if _, err := os.Stat(f.Poster); err == nil {
 				p.Poster = psync.PosterPath(f.ID)

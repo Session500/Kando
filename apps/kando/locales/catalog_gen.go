@@ -5798,7 +5798,7 @@ var textsEn = i18n.NewTexts(""+
 	"Translation"+
 	"Loading subtitles…"+
 	"Local file"+
-	"Local Video"+
+	"Local File"+
 	"Pause Between Repeats: Off"+
 	"Pause Between Repeats: On"+
 	"Loop"+
@@ -5823,7 +5823,7 @@ var textsEn = i18n.NewTexts(""+
 	"No subtitles yet. They'll appear here once processing finishes."+
 	"Open"+
 	"Opening"+
-	"Opening video…"+
+	"Opening…"+
 	"Original on Top"+
 	"Translation on Top"+
 	"Recognized on this computer"+
@@ -5891,8 +5891,8 @@ var textsEn = i18n.NewTexts(""+
 	"Close Message"+
 	"Create"+
 	"Local files skip the download and go straight to subtitles"+
-	"Drop to Add Local Videos"+
-	"Paste a link from YouTube, Bilibili or another site above, or drag a video file into the window. Kando downloads the video, recognizes the speech and makes bilingual subtitles."+
+	"Drop to Add Videos or Audio"+
+	"Paste a link from YouTube, Bilibili or another site above, or drag a video or audio file into the window. Kando downloads the video, recognizes the speech and makes bilingual subtitles."+
 	"Start with a Video"+
 	"Play from Beginning"+
 	"Recently Finished"+
@@ -5906,7 +5906,7 @@ var textsEn = i18n.NewTexts(""+
 	"Progress"+
 	"Subtitles"+
 	"Last Watched"+
-	"Local Video"+
+	"Local Files"+
 	"Make Subtitles"+
 	"Mark as Unwatched"+
 	"Mark as Watched"+
@@ -5924,7 +5924,7 @@ var textsEn = i18n.NewTexts(""+
 	"Open Existing Library…"+
 	"Open Settings"+
 	"Not Set"+
-	"Choose Local Videos…"+
+	"Choose Local Files…"+
 	"Play"+
 	"Play from Beginning"+
 	"Cancel Processing"+
@@ -6014,15 +6014,15 @@ var textsEn = i18n.NewTexts(""+
 	"A library name can't contain a path."+
 	"Windows doesn't allow this name. Leave out < > : \" | ? * and don't use a name Windows reserves, such as CON or NUL."+
 	"A library with this name already exists. Choose another name."+
-	"Open Local Video…"+
+	"Open Local File…"+
 	"Open"+
-	"Choose Videos"+
+	"Choose Videos or Audio"+
 	"Choose"+
 	"Where to Keep the Library"+
 	"Couldn't open the enclosing folder: no app opened it."+
 	"Search Films"+
 	"Kando couldn't read the film list in full, so it won't save the list until it restarts."+
-	"Videos"+
+	"Videos and Audio"+
 	"Kando"+
 	"A film is being processed in this library. Try again once it's done."+
 	"Cancel"+
@@ -6115,7 +6115,7 @@ var textsEn = i18n.NewTexts(""+
 	"The languages you choose decide which model the next step recommends; whisper recognizes the others too."+
 	"Recognized as a channel. Kando lists its videos before adding them"+
 	"Any video from YouTube, Bilibili or another site yt-dlp can download from will do."+
-	"Press Enter to start. No link? Skip for now and drag a local video into the window later."+
+	"Press Enter to start. No link? Skip for now and drag a local video or audio file into the window later."+
 	"Link to the first video"+
 	"Recognized as a playlist. Kando lists its videos before adding them"+
 	"This doesn't look like a video link"+
@@ -6153,7 +6153,7 @@ var textsEn = i18n.NewTexts(""+
 	"Languages of the videos you watch · Choose any"+
 	"Languages of the videos you watch"+
 	"Welcome to Kando"+
-	"Paste a YouTube or Bilibili link, or drag in a local video, and learn as you watch. First, choose your languages."+
+	"Paste a YouTube or Bilibili link, or drag in a local video or audio file, and learn as you watch. First, choose your languages."+
 	"Explain Line"+
 	"Films, commands or watched lines"+
 	"Commands, lines or questions"+
@@ -6264,7 +6264,7 @@ var textsEn = i18n.NewTexts(""+
 	"A newer version of Kando last made this film's subtitles. Update Kando to process it."+
 	"Kando can't tell how long this video is, so it can't make its subtitles. The file may be damaged or not a video."+
 	"This film's original subtitles are gone, so its translation can't be redone on its own. Process the entire film again instead."+
-	"Only video files can be added (mp4, mov, mkv, webm and others)."+
+	"Only video and audio files can be added (mp4, mov, mkv, mp3, m4a and others)."+
 	"This doesn't look like a video link. Kando supports YouTube, Bilibili and the thousands of websites yt-dlp can read."+
 	"This page isn't a video. Paste the link of one of its videos."+
 	"This film's subtitles were changed since Kando made them, so the lines that failed can't be found. Translate it again to redo every line."+
@@ -6288,11 +6288,11 @@ var textsEn = i18n.NewTexts(""+
 	"This video is already in the queue."+
 	"A video is already being processed. Add this one when it's done"+
 	"Processing a video"+
-	"Local video selected"+
+	"Local file selected"+
 	"Still no browser whose sign-in Kando can use."+
 	"Enter a target language"+
 	"Create or open a library first"+
-	"No video to import"+
+	"Not a video or audio file"+
 	"The bilingual subtitles are ready."+
 	"Couldn't open System Settings: no app opened it."+
 	"Pause Queue"+
@@ -6514,8 +6514,8 @@ var textsEn = i18n.NewTexts(""+
 	"720p"+
 	"Best"+
 	"Subtitles Only"+
-	"Keeps no video: only the sound is downloaded to make the subtitles and is deleted once they're done. YouTube films stream when you watch them, with the subtitles over them; films from other sites need their video downloaded first."+
-	"Keeps no video: only the sound is downloaded to make the subtitles and is deleted once they're done. Kando can't stream films on this computer yet, so to watch one, download its video from the player first."+
+	"Keeps no video: only the sound is downloaded to make the subtitles and is deleted once they're done. YouTube films stream when you watch them, with the subtitles over them; films from other sites need their video downloaded first. Podcasts and other links to sound alone keep their sound."+
+	"Keeps no video: only the sound is downloaded to make the subtitles and is deleted once they're done. Kando can't stream films on this computer yet, so to watch one, download its video from the player first. Podcasts and other links to sound alone keep their sound."+
 	"Detect Again"+
 	"Retry"+
 	"Browser Sign-In"+
@@ -7567,7 +7567,7 @@ var textsEn = i18n.NewTexts(""+
 		11,
 		20,
 		10,
-		11,
+		10,
 		26,
 		25,
 		4,
@@ -7592,7 +7592,7 @@ var textsEn = i18n.NewTexts(""+
 		63,
 		4,
 		7,
-		16,
+		10,
 		15,
 		18,
 		27,
@@ -7660,8 +7660,8 @@ var textsEn = i18n.NewTexts(""+
 		13,
 		6,
 		58,
-		24,
-		176,
+		27,
+		185,
 		18,
 		19,
 		17,
@@ -7693,7 +7693,7 @@ var textsEn = i18n.NewTexts(""+
 		24,
 		13,
 		7,
-		22,
+		21,
 		4,
 		19,
 		17,
@@ -7783,15 +7783,15 @@ var textsEn = i18n.NewTexts(""+
 		36,
 		115,
 		61,
-		19,
+		18,
 		4,
-		13,
+		22,
 		6,
 		25,
 		53,
 		12,
 		87,
-		6,
+		16,
 		5,
 		68,
 		6,
@@ -7884,7 +7884,7 @@ var textsEn = i18n.NewTexts(""+
 		104,
 		66,
 		82,
-		89,
+		103,
 		23,
 		67,
 		35,
@@ -7922,7 +7922,7 @@ var textsEn = i18n.NewTexts(""+
 		47,
 		33,
 		16,
-		113,
+		127,
 		12,
 		32,
 		28,
@@ -8033,7 +8033,7 @@ var textsEn = i18n.NewTexts(""+
 		85,
 		112,
 		126,
-		63,
+		77,
 		116,
 		61,
 		137,
@@ -8057,11 +8057,11 @@ var textsEn = i18n.NewTexts(""+
 		35,
 		63,
 		18,
-		20,
+		19,
 		45,
 		23,
 		30,
-		18,
+		25,
 		34,
 		48,
 		11,
@@ -8283,8 +8283,8 @@ var textsEn = i18n.NewTexts(""+
 		4,
 		4,
 		14,
-		230,
-		206,
+		288,
+		264,
 		12,
 		5,
 		15,
@@ -9339,7 +9339,7 @@ var textsJa = i18n.NewTexts(""+
 	"訳文"+
 	"字幕を読み込んでいます…"+
 	"ローカルファイル"+
-	"ローカル動画"+
+	"ローカルファイル"+
 	"リピートの間をあける：オフ"+
 	"リピートの間をあける：オン"+
 	"セリフをリピート"+
@@ -9364,7 +9364,7 @@ var textsJa = i18n.NewTexts(""+
 	"字幕はまだありません。処理が完了するとここに表示されます。"+
 	"開く"+
 	"開いています"+
-	"動画を開いています…"+
+	"開いています…"+
 	"原文を上に"+
 	"訳文を上に"+
 	"このコンピュータで認識"+
@@ -9432,8 +9432,8 @@ var textsJa = i18n.NewTexts(""+
 	"メッセージを閉じる"+
 	"作成"+
 	"ローカルファイルはダウンロードせず、そのまま字幕を作成します"+
-	"ドロップしてローカル動画を追加"+
-	"上の欄に YouTube や bilibili などの動画のリンクを貼り付けるか、ローカルの動画をウインドウにドラッグしてください。Kando が動画をダウンロードし、音声を認識して、二言語字幕を作成します。"+
+	"ドロップして動画や音声を追加"+
+	"上の欄に YouTube や bilibili などの動画のリンクを貼り付けるか、ローカルの動画や音声をウインドウにドラッグしてください。Kando が動画をダウンロードし、音声を認識して、二言語字幕を作成します。"+
 	"動画から始めましょう"+
 	"最初から再生"+
 	"最近完了"+
@@ -9447,7 +9447,7 @@ var textsJa = i18n.NewTexts(""+
 	"視聴状況"+
 	"字幕"+
 	"最終視聴"+
-	"ローカル動画"+
+	"ローカルファイル"+
 	"字幕を作成"+
 	"未視聴にする"+
 	"視聴済みにする"+
@@ -9465,7 +9465,7 @@ var textsJa = i18n.NewTexts(""+
 	"既存のライブラリを開く…"+
 	"設定を開く"+
 	"未設定"+
-	"ローカル動画を選択…"+
+	"ローカルファイルを選択…"+
 	"再生"+
 	"最初から再生"+
 	"処理をキャンセル"+
@@ -9555,15 +9555,15 @@ var textsJa = i18n.NewTexts(""+
 	"ライブラリの名前にはパスを含められません"+
 	"Windows ではこの名前を使えません。< > : \" | ? * を含めず、CON や NUL など Windows が予約している名前も避けてください。"+
 	"この名前のライブラリはすでにあります。別の名前にしてください"+
-	"ローカル動画を開く…"+
+	"ローカルファイルを開く…"+
 	"開く"+
-	"動画を選択"+
+	"動画または音声を選択"+
 	"選択"+
 	"ライブラリの保存場所"+
 	"ファイルのあるフォルダを開けません：開けるアプリがありません。"+
 	"動画を検索"+
 	"動画の一覧を最後まで読み込めなかったため、再起動するまで一覧を保存しません。"+
-	"動画"+
+	"動画と音声"+
 	"Kando"+
 	"このライブラリで処理中のビデオがあります。処理が終わってからもう一度お試しください。"+
 	"キャンセル"+
@@ -9656,7 +9656,7 @@ var textsJa = i18n.NewTexts(""+
 	"選んだ言語で次のステップのおすすめモデルが決まり、選ばなかった言語も whisper が認識します。"+
 	"チャンネルとして認識しました。動画を一覧にしてから追加します"+
 	"YouTube、bilibili のほか、yt-dlp でダウンロードできるサイトの動画ならどれでも使えます。"+
-	"Enter キーで開始します。リンクがなければスキップして、あとでローカル動画をウインドウにドラッグできます。"+
+	"Enter キーで開始します。リンクがなければスキップして、あとでローカルの動画や音声をウインドウにドラッグできます。"+
 	"最初の動画のリンク"+
 	"再生リストとして認識しました。動画を一覧にしてから追加します"+
 	"動画のリンクではないようです"+
@@ -9694,7 +9694,7 @@ var textsJa = i18n.NewTexts(""+
 	"よく観る動画の言語 · 複数選択可"+
 	"よく観る動画の言語"+
 	"Kando へようこそ"+
-	"YouTube や bilibili のリンクを貼り付けるか、ローカル動画をドラッグすれば、観ながら学べます。まず言語を選びましょう。"+
+	"YouTube や bilibili のリンクを貼り付けるか、ローカルの動画や音声をドラッグすれば、観ながら学べます。まず言語を選びましょう。"+
 	"このセリフを解説"+
 	"動画、コマンド、または見たセリフ"+
 	"コマンド、セリフ、または質問"+
@@ -9805,7 +9805,7 @@ var textsJa = i18n.NewTexts(""+
 	"この動画の字幕は新しいバージョンの Kando で作成されています。Kando を更新してから処理してください。"+
 	"この動画の長さを読み取れないため、字幕を作成できません。ファイルが壊れているか、動画ではない可能性があります。"+
 	"この動画の元の字幕が見つからないため、翻訳だけをやり直すことはできません。動画全体を再処理してください。"+
-	"追加できるのは動画ファイル（mp4、mov、mkv、webm など）だけです。"+
+	"追加できるのは動画と音声のファイルだけです（mp4、mov、mkv、mp3、m4a など）。"+
 	"動画のリンクではないようです。YouTube、bilibili のほか、yt-dlp が解析できる数千のサイトに対応しています。"+
 	"このページは動画ではありません。その中の動画のリンクを貼り付けてください。"+
 	"この動画の字幕は Kando が作成した後に編集されているため、翻訳できなかった行を特定できません。再翻訳するとすべての行を翻訳し直します。"+
@@ -9829,11 +9829,11 @@ var textsJa = i18n.NewTexts(""+
 	"この動画はすでにキューにあります。"+
 	"ほかの動画を処理中です。完了してから追加してください"+
 	"動画を処理中"+
-	"ローカル動画を選択しました"+
+	"ローカルファイルを選択しました"+
 	"ログインを借用できるブラウザはまだ見つかりません。"+
 	"翻訳先の言語を入力してください"+
 	"先にライブラリを作成するか開いてください"+
-	"読み込める動画がありません"+
+	"動画または音声のファイルではありません"+
 	"二言語字幕ができました。"+
 	"システム設定を開けませんでした：開けるアプリがありません。"+
 	"キューを一時停止"+
@@ -10055,8 +10055,8 @@ var textsJa = i18n.NewTexts(""+
 	"720p"+
 	"最高画質"+
 	"字幕のみ"+
-	"動画は保存しません。字幕を作るために音声だけをダウンロードし、終わったら削除します。YouTube の動画は見るときにオンラインで再生し、字幕を重ねて表示します。ほかのサイトの動画は先に動画をダウンロードしてから見られます。"+
-	"動画は保存しません。字幕を作るために音声だけをダウンロードし、終わったら削除します。このコンピュータではまだオンライン再生できないため、見るときはプレーヤーで先に動画をダウンロードしてください。"+
+	"動画は保存しません。字幕を作るために音声だけをダウンロードし、終わったら削除します。YouTube の動画は見るときにオンラインで再生し、字幕を重ねて表示します。ほかのサイトの動画は先に動画をダウンロードしてから見られます。ポッドキャストなど音声だけのリンクは、音声を残します。"+
+	"動画は保存しません。字幕を作るために音声だけをダウンロードし、終わったら削除します。このコンピュータではまだオンライン再生できないため、見るときはプレーヤーで先に動画をダウンロードしてください。ポッドキャストなど音声だけのリンクは、音声を残します。"+
 	"再検出"+
 	"再試行"+
 	"ブラウザのログイン"+
@@ -11108,7 +11108,7 @@ var textsJa = i18n.NewTexts(""+
 		6,
 		36,
 		24,
-		18,
+		24,
 		39,
 		39,
 		24,
@@ -11133,7 +11133,7 @@ var textsJa = i18n.NewTexts(""+
 		87,
 		6,
 		18,
-		30,
+		21,
 		15,
 		15,
 		33,
@@ -11201,8 +11201,8 @@ var textsJa = i18n.NewTexts(""+
 		27,
 		6,
 		90,
-		45,
-		262,
+		42,
+		271,
 		30,
 		18,
 		12,
@@ -11216,7 +11216,7 @@ var textsJa = i18n.NewTexts(""+
 		12,
 		6,
 		12,
-		18,
+		24,
 		15,
 		18,
 		21,
@@ -11234,7 +11234,7 @@ var textsJa = i18n.NewTexts(""+
 		36,
 		15,
 		9,
-		30,
+		36,
 		6,
 		18,
 		24,
@@ -11324,15 +11324,15 @@ var textsJa = i18n.NewTexts(""+
 		60,
 		157,
 		90,
-		30,
+		36,
 		6,
-		15,
+		30,
 		6,
 		30,
 		93,
 		15,
 		114,
-		6,
+		15,
 		5,
 		126,
 		15,
@@ -11425,7 +11425,7 @@ var textsJa = i18n.NewTexts(""+
 		132,
 		90,
 		119,
-		153,
+		165,
 		27,
 		90,
 		42,
@@ -11463,7 +11463,7 @@ var textsJa = i18n.NewTexts(""+
 		46,
 		27,
 		21,
-		165,
+		177,
 		24,
 		48,
 		42,
@@ -11574,7 +11574,7 @@ var textsJa = i18n.NewTexts(""+
 		142,
 		165,
 		156,
-		89,
+		106,
 		146,
 		111,
 		196,
@@ -11598,11 +11598,11 @@ var textsJa = i18n.NewTexts(""+
 		51,
 		78,
 		18,
-		39,
+		45,
 		75,
 		45,
 		60,
-		39,
+		57,
 		36,
 		87,
 		24,
@@ -11824,8 +11824,8 @@ var textsJa = i18n.NewTexts(""+
 		4,
 		12,
 		12,
-		320,
-		291,
+		401,
+		372,
 		9,
 		9,
 		27,
@@ -12880,7 +12880,7 @@ var textsKo = i18n.NewTexts(""+
 	"번역"+
 	"자막을 불러오는 중…"+
 	"로컬 파일"+
-	"로컬 동영상"+
+	"로컬 파일"+
 	"반복 사이 쉬기: 끔"+
 	"반복 사이 쉬기: 켬"+
 	"대사 반복"+
@@ -12905,7 +12905,7 @@ var textsKo = i18n.NewTexts(""+
 	"아직 자막이 없습니다. 처리가 끝나면 여기에 표시됩니다."+
 	"열기"+
 	"여는 중"+
-	"동영상을 여는 중…"+
+	"여는 중…"+
 	"원문을 위에"+
 	"번역을 위에"+
 	"이 컴퓨터에서 인식"+
@@ -12973,8 +12973,8 @@ var textsKo = i18n.NewTexts(""+
 	"메시지 닫기"+
 	"생성"+
 	"로컬 파일은 내려받지 않고 바로 자막을 만듭니다"+
-	"놓아서 로컬 동영상 추가"+
-	"위에 YouTube, Bilibili 등의 동영상 링크를 붙여 넣거나 로컬 동영상을 윈도우로 드래그하세요. Kando가 동영상을 내려받고 음성을 인식한 뒤 이중 언어 자막을 만듭니다."+
+	"놓아서 동영상 또는 오디오 추가"+
+	"위에 YouTube, Bilibili 등의 동영상 링크를 붙여 넣거나 로컬 동영상이나 오디오를 윈도우로 드래그하세요. Kando가 동영상을 내려받고 음성을 인식한 뒤 이중 언어 자막을 만듭니다."+
 	"동영상으로 시작하기"+
 	"처음부터 보기"+
 	"최근 완료"+
@@ -12988,7 +12988,7 @@ var textsKo = i18n.NewTexts(""+
 	"진행률"+
 	"자막"+
 	"마지막 시청"+
-	"로컬 동영상"+
+	"로컬 파일"+
 	"자막 만들기"+
 	"미시청으로 표시"+
 	"시청 완료로 표시"+
@@ -13006,7 +13006,7 @@ var textsKo = i18n.NewTexts(""+
 	"기존 라이브러리 열기…"+
 	"설정 열기"+
 	"설정 안 됨"+
-	"로컬 동영상 선택…"+
+	"로컬 파일 선택…"+
 	"재생"+
 	"처음부터 재생"+
 	"처리 취소"+
@@ -13096,15 +13096,15 @@ var textsKo = i18n.NewTexts(""+
 	"라이브러리 이름에는 경로를 포함할 수 없습니다"+
 	"Windows에서는 이 이름을 사용할 수 없습니다. < > : \" | ? *를 빼고, CON이나 NUL처럼 Windows가 예약한 이름도 쓰지 마십시오."+
 	"같은 이름의 라이브러리가 이미 있습니다. 다른 이름을 사용하세요"+
-	"로컬 동영상 열기…"+
+	"로컬 파일 열기…"+
 	"열기"+
-	"동영상 선택"+
+	"동영상 또는 오디오 선택"+
 	"선택"+
 	"라이브러리를 둘 위치"+
 	"파일이 있는 폴더를 열 수 없습니다: 열 수 있는 앱이 없습니다."+
 	"영상 검색"+
 	"동영상 목록을 끝까지 읽지 못해 다시 시작할 때까지 목록을 저장하지 않습니다."+
-	"동영상"+
+	"동영상 및 오디오"+
 	"Kando"+
 	"이 라이브러리에서 처리 중인 비디오가 있습니다. 처리가 끝난 후 다시 시도하십시오."+
 	"취소"+
@@ -13197,7 +13197,7 @@ var textsKo = i18n.NewTexts(""+
 	"선택한 언어에 따라 다음 단계의 추천 모델이 정해지며, 선택하지 않은 언어도 whisper가 인식합니다."+
 	"채널로 인식했습니다. 동영상 목록을 먼저 보여 준 다음 추가합니다"+
 	"YouTube, Bilibili를 비롯해 yt-dlp로 내려받을 수 있는 사이트의 동영상이라면 모두 가능합니다."+
-	"Enter 키를 눌러 시작합니다. 링크가 없으면 건너뛰고 나중에 로컬 동영상을 윈도우로 끌어다 놓으면 됩니다."+
+	"Enter 키를 눌러 시작합니다. 링크가 없으면 건너뛰고 나중에 로컬 동영상이나 오디오를 윈도우로 끌어다 놓으면 됩니다."+
 	"첫 번째 동영상 링크"+
 	"재생목록으로 인식했습니다. 동영상 목록을 먼저 보여 준 다음 추가합니다"+
 	"동영상 링크가 아닌 것 같습니다"+
@@ -13235,7 +13235,7 @@ var textsKo = i18n.NewTexts(""+
 	"자주 보는 동영상의 언어 · 여러 개 선택 가능"+
 	"자주 보는 동영상의 언어"+
 	"Kando에 오신 것을 환영합니다"+
-	"YouTube, Bilibili 링크를 붙여 넣거나 로컬 동영상을 끌어다 놓으면 보면서 배울 수 있습니다. 먼저 언어를 선택하세요."+
+	"YouTube, Bilibili 링크를 붙여 넣거나 로컬 동영상이나 오디오를 끌어다 놓으면 보면서 배울 수 있습니다. 먼저 언어를 선택하세요."+
 	"이 대사 설명"+
 	"영상, 명령 또는 본 대사"+
 	"명령, 대사 또는 질문"+
@@ -13346,7 +13346,7 @@ var textsKo = i18n.NewTexts(""+
 	"이 영상의 자막은 새 버전의 Kando로 만들어졌습니다. Kando를 업데이트한 뒤 처리하십시오."+
 	"이 영상의 길이를 알 수 없어 자막을 만들 수 없습니다. 파일이 손상되었거나 영상이 아닐 수 있습니다."+
 	"이 영상의 원문 자막이 없어 번역만 따로 다시 할 수 없습니다. 영상 전체를 다시 처리하십시오."+
-	"동영상 파일(mp4, mov, mkv, webm 등)만 추가할 수 있습니다."+
+	"동영상과 오디오 파일만 추가할 수 있습니다(mp4, mov, mkv, mp3, m4a 등)."+
 	"동영상 링크가 아닌 것 같습니다. YouTube, Bilibili를 비롯해 yt-dlp가 분석할 수 있는 수천 개의 웹사이트를 지원합니다."+
 	"이 페이지는 동영상이 아닙니다. 그중 한 동영상의 링크를 붙여 넣으세요."+
 	"이 영상의 자막이 Kando가 만든 뒤 수정되어 번역되지 않은 줄을 찾을 수 없습니다. 다시 번역하면 모든 줄을 다시 번역합니다."+
@@ -13370,11 +13370,11 @@ var textsKo = i18n.NewTexts(""+
 	"이 동영상은 이미 대기열에 있습니다."+
 	"이미 처리 중인 동영상이 있습니다. 완료된 후 추가하십시오"+
 	"동영상 처리 중"+
-	"로컬 동영상을 선택했습니다"+
+	"로컬 파일을 선택했습니다"+
 	"로그인을 빌려 쓸 수 있는 브라우저를 여전히 찾지 못했습니다."+
 	"대상 언어를 입력하십시오"+
 	"먼저 라이브러리를 만들거나 여십시오"+
-	"가져올 수 있는 동영상이 없습니다"+
+	"동영상 또는 오디오 파일이 아닙니다"+
 	"이중 언어 자막이 준비되었습니다."+
 	"시스템 설정을 열 수 없습니다: 열 수 있는 앱이 없습니다."+
 	"대기열 일시 정지"+
@@ -13596,8 +13596,8 @@ var textsKo = i18n.NewTexts(""+
 	"720p"+
 	"최고 화질"+
 	"자막만"+
-	"동영상을 저장하지 않습니다. 자막을 만들 때 오디오만 내려받고 끝나면 삭제합니다. YouTube 영상은 볼 때 온라인으로 재생하고 자막을 위에 겹쳐 보여 줍니다. 다른 사이트의 영상은 먼저 동영상을 내려받아야 볼 수 있습니다."+
-	"동영상을 저장하지 않습니다. 자막을 만들 때 오디오만 내려받고 끝나면 삭제합니다. 이 컴퓨터에서는 아직 온라인 재생이 되지 않으므로, 보려면 플레이어에서 먼저 동영상을 내려받으세요."+
+	"동영상을 저장하지 않습니다. 자막을 만들 때 오디오만 내려받고 끝나면 삭제합니다. YouTube 영상은 볼 때 온라인으로 재생하고 자막을 위에 겹쳐 보여 줍니다. 다른 사이트의 영상은 먼저 동영상을 내려받아야 볼 수 있습니다. 팟캐스트처럼 소리만 있는 링크는 오디오를 남깁니다."+
+	"동영상을 저장하지 않습니다. 자막을 만들 때 오디오만 내려받고 끝나면 삭제합니다. 이 컴퓨터에서는 아직 온라인 재생이 되지 않으므로, 보려면 플레이어에서 먼저 동영상을 내려받으세요. 팟캐스트처럼 소리만 있는 링크는 오디오를 남깁니다."+
 	"다시 감지"+
 	"다시 시도"+
 	"브라우저 로그인"+
@@ -14649,7 +14649,7 @@ var textsKo = i18n.NewTexts(""+
 		6,
 		29,
 		13,
-		16,
+		13,
 		25,
 		25,
 		13,
@@ -14674,7 +14674,7 @@ var textsKo = i18n.NewTexts(""+
 		77,
 		6,
 		10,
-		26,
+		13,
 		16,
 		16,
 		26,
@@ -14742,8 +14742,8 @@ var textsKo = i18n.NewTexts(""+
 		16,
 		6,
 		66,
-		33,
-		218,
+		43,
+		234,
 		28,
 		19,
 		13,
@@ -14757,7 +14757,7 @@ var textsKo = i18n.NewTexts(""+
 		9,
 		6,
 		16,
-		16,
+		13,
 		16,
 		22,
 		23,
@@ -14775,7 +14775,7 @@ var textsKo = i18n.NewTexts(""+
 		32,
 		13,
 		14,
-		26,
+		23,
 		6,
 		19,
 		13,
@@ -14865,15 +14865,15 @@ var textsKo = i18n.NewTexts(""+
 		65,
 		155,
 		89,
-		26,
+		23,
 		6,
-		16,
+		33,
 		6,
 		29,
 		84,
 		13,
 		107,
-		9,
+		23,
 		5,
 		114,
 		6,
@@ -14966,7 +14966,7 @@ var textsKo = i18n.NewTexts(""+
 		132,
 		90,
 		120,
-		143,
+		159,
 		27,
 		99,
 		43,
@@ -15004,7 +15004,7 @@ var textsKo = i18n.NewTexts(""+
 		61,
 		33,
 		38,
-		153,
+		169,
 		17,
 		32,
 		28,
@@ -15115,7 +15115,7 @@ var textsKo = i18n.NewTexts(""+
 		118,
 		137,
 		127,
-		72,
+		89,
 		153,
 		98,
 		166,
@@ -15139,11 +15139,11 @@ var textsKo = i18n.NewTexts(""+
 		50,
 		80,
 		20,
-		38,
+		35,
 		84,
 		35,
 		51,
-		46,
+		49,
 		46,
 		77,
 		23,
@@ -15365,8 +15365,8 @@ var textsKo = i18n.NewTexts(""+
 		4,
 		13,
 		9,
-		298,
-		253,
+		371,
+		326,
 		13,
 		13,
 		22,
@@ -16421,7 +16421,7 @@ var textsZhHans = i18n.NewTexts(""+
 	"译文"+
 	"正在读取字幕…"+
 	"本地文件"+
-	"本地视频"+
+	"本地文件"+
 	"循环间停顿：关"+
 	"循环间停顿：开"+
 	"循环"+
@@ -16446,7 +16446,7 @@ var textsZhHans = i18n.NewTexts(""+
 	"还没有字幕。处理完成后会显示在这里。"+
 	"打开"+
 	"正在打开"+
-	"正在打开视频…"+
+	"正在打开…"+
 	"原文在上"+
 	"译文在上"+
 	"本机识别"+
@@ -16514,8 +16514,8 @@ var textsZhHans = i18n.NewTexts(""+
 	"关闭提示"+
 	"创建"+
 	"本地文件不用下载，直接生成字幕"+
-	"松开以添加本地视频"+
-	"在上方粘贴 YouTube、哔哩哔哩等视频链接，或把本地视频拖进窗口。看懂会下载视频，识别语音，再生成双语字幕。"+
+	"松开以添加视频或音频"+
+	"在上方粘贴 YouTube、哔哩哔哩等视频链接，或把本地视频、音频拖进窗口。看懂会下载视频，识别语音，再生成双语字幕。"+
 	"从一段视频开始"+
 	"从头看"+
 	"最近完成"+
@@ -16529,7 +16529,7 @@ var textsZhHans = i18n.NewTexts(""+
 	"进度"+
 	"字幕"+
 	"上次观看"+
-	"本地视频"+
+	"本地文件"+
 	"生成字幕"+
 	"标记为未看"+
 	"标记为已看完"+
@@ -16547,7 +16547,7 @@ var textsZhHans = i18n.NewTexts(""+
 	"打开已有资料库…"+
 	"打开设置"+
 	"未设置"+
-	"选择本地视频…"+
+	"选择本地文件…"+
 	"播放"+
 	"从头播放"+
 	"取消处理"+
@@ -16637,15 +16637,15 @@ var textsZhHans = i18n.NewTexts(""+
 	"资料库名称不能包含路径"+
 	"Windows 不允许这个名称。请不要使用 < > : \" | ? *，也不要使用 CON、NUL 等 Windows 保留的名称。"+
 	"已经有这个资料库，换个名字"+
-	"打开本地视频…"+
+	"打开本地文件…"+
 	"打开"+
-	"选择视频"+
+	"选择视频或音频"+
 	"选择"+
 	"资料库放在哪里"+
 	"无法打开所在文件夹：没有应用能打开它。"+
 	"搜索影片"+
 	"资料库的影片列表没有完整读取，所以重新启动前看懂不会保存这个列表。"+
-	"视频"+
+	"视频和音频"+
 	"看懂"+
 	"这个资料库里有影片正在处理，处理完后再试。"+
 	"取消"+
@@ -16738,7 +16738,7 @@ var textsZhHans = i18n.NewTexts(""+
 	"选好的语言决定下一步推荐哪个模型；没选的语言 whisper 也能识别。"+
 	"识别为频道，会先列出其中的视频再加入"+
 	"YouTube、哔哩哔哩，以及 yt-dlp 能下载的网站上的视频都可以。"+
-	"回车开始；没有链接也可以先跳过，之后把本地视频拖进窗口。"+
+	"回车开始；没有链接也可以先跳过，之后把本地视频或音频拖进窗口。"+
 	"第一个视频的链接"+
 	"识别为播放列表，会先列出其中的视频再加入"+
 	"这不像一个视频链接"+
@@ -16776,7 +16776,7 @@ var textsZhHans = i18n.NewTexts(""+
 	"常看哪些语言的视频 · 可多选"+
 	"常看哪些语言的视频"+
 	"欢迎使用看懂"+
-	"粘贴 YouTube、哔哩哔哩链接或拖入本地视频，就能边看边学。先选好语言。"+
+	"粘贴 YouTube、哔哩哔哩链接或拖入本地视频、音频，就能边看边学。先选好语言。"+
 	"讲解这句"+
 	"影片、命令或看过的台词"+
 	"命令、台词或问题"+
@@ -16887,7 +16887,7 @@ var textsZhHans = i18n.NewTexts(""+
 	"这部影片的字幕是新版看懂生成的。请更新看懂后再处理。"+
 	"看懂读不出这段视频有多长，没法生成字幕。文件可能已损坏，或不是视频。"+
 	"这部影片的原文字幕不见了，没法单独重新翻译。请重新处理整部影片。"+
-	"只能添加视频文件（mp4、mov、mkv、webm 等）。"+
+	"只能添加视频和音频文件（mp4、mov、mkv、mp3、m4a 等）。"+
 	"这不像一个视频链接。支持 YouTube、哔哩哔哩，以及 yt-dlp 能解析的上千个网站。"+
 	"这个网页不是视频。请粘贴其中一个视频的链接。"+
 	"这部影片的字幕在看懂生成后被改过，找不到哪些句子没译。重新翻译可以重译每一句。"+
@@ -16911,11 +16911,11 @@ var textsZhHans = i18n.NewTexts(""+
 	"这个视频已在处理队列中。"+
 	"已有视频在处理，等它完成后再添加"+
 	"正在处理视频"+
-	"已选择本地视频"+
+	"已选择本地文件"+
 	"还是没找到能借用登录的浏览器。"+
 	"请填写目标语言"+
 	"先新建或打开一个资料库"+
-	"没有可导入的视频"+
+	"不是视频或音频文件"+
 	"双语字幕做好了。"+
 	"没能打开系统设置：没有应用能打开它。"+
 	"暂停处理队列"+
@@ -17137,8 +17137,8 @@ var textsZhHans = i18n.NewTexts(""+
 	"720P"+
 	"最高画质"+
 	"仅字幕"+
-	"不保存视频：只下载音频做字幕，转完即删。YouTube 的影片观看时在线播放，字幕叠加在上面；其他网站的影片要先下载视频才能看。"+
-	"不保存视频：只下载音频做字幕，转完即删。这台电脑上暂时还不能在线播放，要看时先在播放器里下载视频。"+
+	"不保存视频：只下载音频做字幕，转完即删。YouTube 的影片观看时在线播放，字幕叠加在上面；其他网站的影片要先下载视频才能看。播客等只有声音的链接会保留音频。"+
+	"不保存视频：只下载音频做字幕，转完即删。这台电脑上暂时还不能在线播放，要看时先在播放器里下载视频。播客等只有声音的链接会保留音频。"+
 	"重新检测"+
 	"重试"+
 	"浏览器登录"+
@@ -18215,7 +18215,7 @@ var textsZhHans = i18n.NewTexts(""+
 		54,
 		6,
 		12,
-		21,
+		15,
 		12,
 		12,
 		12,
@@ -18283,8 +18283,8 @@ var textsZhHans = i18n.NewTexts(""+
 		12,
 		6,
 		45,
-		27,
-		152,
+		30,
+		161,
 		21,
 		9,
 		12,
@@ -18408,13 +18408,13 @@ var textsZhHans = i18n.NewTexts(""+
 		39,
 		21,
 		6,
-		12,
+		21,
 		6,
 		21,
 		57,
 		12,
 		99,
-		6,
+		15,
 		6,
 		63,
 		6,
@@ -18507,7 +18507,7 @@ var textsZhHans = i18n.NewTexts(""+
 		90,
 		54,
 		81,
-		84,
+		93,
 		24,
 		60,
 		27,
@@ -18545,7 +18545,7 @@ var textsZhHans = i18n.NewTexts(""+
 		40,
 		27,
 		18,
-		98,
+		107,
 		12,
 		33,
 		24,
@@ -18656,7 +18656,7 @@ var textsZhHans = i18n.NewTexts(""+
 		78,
 		102,
 		96,
-		59,
+		73,
 		106,
 		66,
 		117,
@@ -18684,7 +18684,7 @@ var textsZhHans = i18n.NewTexts(""+
 		45,
 		21,
 		33,
-		24,
+		27,
 		24,
 		54,
 		18,
@@ -18906,8 +18906,8 @@ var textsZhHans = i18n.NewTexts(""+
 		4,
 		12,
 		9,
-		176,
-		147,
+		224,
+		195,
 		12,
 		6,
 		15,
@@ -19962,7 +19962,7 @@ var textsZhHant = i18n.NewTexts(""+
 	"譯文"+
 	"正在讀取字幕…"+
 	"本機檔案"+
-	"本機影片"+
+	"本機檔案"+
 	"循環間停頓：關"+
 	"循環間停頓：開"+
 	"循環"+
@@ -19987,7 +19987,7 @@ var textsZhHant = i18n.NewTexts(""+
 	"還沒有字幕。處理完成後會顯示在這裡。"+
 	"打開"+
 	"正在開啟"+
-	"正在開啟影片…"+
+	"正在打開…"+
 	"原文在上"+
 	"譯文在上"+
 	"本機辨識"+
@@ -20055,8 +20055,8 @@ var textsZhHant = i18n.NewTexts(""+
 	"關閉提示"+
 	"建立"+
 	"本機檔案不需下載，直接產生字幕"+
-	"放開以加入本機影片"+
-	"在上方貼上 YouTube、嗶哩嗶哩等影片連結，或把本機影片拖進視窗。看懂會下載影片、辨識語音，再產生雙語字幕。"+
+	"放開以加入影片或音訊"+
+	"在上方貼上 YouTube、嗶哩嗶哩等影片連結，或把本機影片、音訊拖進視窗。看懂會下載影片、辨識語音，再產生雙語字幕。"+
 	"從一段影片開始"+
 	"從頭看"+
 	"最近完成"+
@@ -20070,7 +20070,7 @@ var textsZhHant = i18n.NewTexts(""+
 	"進度"+
 	"字幕"+
 	"上次觀看"+
-	"本機影片"+
+	"本機檔案"+
 	"產生字幕"+
 	"標記為未看"+
 	"標記為已看完"+
@@ -20088,7 +20088,7 @@ var textsZhHant = i18n.NewTexts(""+
 	"打開現有資料庫…"+
 	"打開設定"+
 	"未設定"+
-	"選擇本機影片…"+
+	"選擇本機檔案…"+
 	"播放"+
 	"從頭播放"+
 	"取消處理"+
@@ -20178,15 +20178,15 @@ var textsZhHant = i18n.NewTexts(""+
 	"資料庫名稱不能包含路徑"+
 	"Windows 不允許這個名稱。請不要使用 < > : \" | ? *，也不要使用 CON、NUL 等 Windows 保留的名稱。"+
 	"已經有這個資料庫，請換個名稱"+
-	"打開本機影片…"+
+	"打開本機檔案…"+
 	"打開"+
-	"選擇影片"+
+	"選擇影片或音訊"+
 	"選擇"+
 	"資料庫要放在哪裡"+
 	"無法打開所在的檔案夾：沒有應用程式能打開它。"+
 	"搜尋影片"+
 	"資料庫的影片清單沒有完整讀取，所以重新啟動前看懂不會儲存這個清單。"+
-	"影片"+
+	"影片和音訊"+
 	"看懂"+
 	"這個資料庫裡有影片正在處理，處理完後再試。"+
 	"取消"+
@@ -20279,7 +20279,7 @@ var textsZhHant = i18n.NewTexts(""+
 	"選好的語言決定下一步推薦哪個模型；沒選的語言 whisper 也能辨識。"+
 	"辨識為頻道，會先列出其中的影片再加入"+
 	"YouTube、嗶哩嗶哩，以及 yt-dlp 能下載的網站上的影片都可以。"+
-	"按 Enter 開始；沒有連結也可以先略過，之後把本機影片拖進視窗。"+
+	"按 Enter 開始；沒有連結也可以先略過，之後把本機影片或音訊拖進視窗。"+
 	"第一個影片的連結"+
 	"辨識為播放清單，會先列出其中的影片再加入"+
 	"這不像是影片連結"+
@@ -20317,7 +20317,7 @@ var textsZhHant = i18n.NewTexts(""+
 	"常看哪些語言的影片 · 可複選"+
 	"常看哪些語言的影片"+
 	"歡迎使用看懂"+
-	"貼上 YouTube、嗶哩嗶哩連結或拖入本機影片，就能邊看邊學。先選好語言。"+
+	"貼上 YouTube、嗶哩嗶哩連結或拖入本機影片、音訊，就能邊看邊學。先選好語言。"+
 	"講解這句"+
 	"影片、指令或看過的台詞"+
 	"指令、台詞或問題"+
@@ -20428,7 +20428,7 @@ var textsZhHant = i18n.NewTexts(""+
 	"這部影片的字幕是新版看懂產生的。請更新看懂後再處理。"+
 	"看懂讀不出這段影片有多長，無法產生字幕。檔案可能已損壞，或不是影片。"+
 	"這部影片的原文字幕不見了，無法單獨重新翻譯。請重新處理整部影片。"+
-	"只能加入影片檔（mp4、mov、mkv、webm 等）。"+
+	"只能加入影片和音訊檔案（mp4、mov、mkv、mp3、m4a 等）。"+
 	"這不像一個影片連結。支援 YouTube、嗶哩嗶哩，以及 yt-dlp 能解析的上千個網站。"+
 	"這個網頁不是影片。請貼上其中一個影片的連結。"+
 	"這部影片的字幕在看懂產生後被改過，找不到哪些句子沒譯。重新翻譯可以重譯每一句。"+
@@ -20452,11 +20452,11 @@ var textsZhHant = i18n.NewTexts(""+
 	"這個影片已在處理佇列中。"+
 	"已有影片在處理，等它完成後再加入"+
 	"正在處理影片"+
-	"已選擇本機影片"+
+	"已選擇本機檔案"+
 	"仍然找不到可借用登入的瀏覽器。"+
 	"請填寫目標語言"+
 	"先新增或打開一個資料庫"+
-	"沒有可匯入的影片"+
+	"不是影片或音訊檔案"+
 	"雙語字幕做好了。"+
 	"無法打開系統設定：沒有應用程式能打開它。"+
 	"暫停處理佇列"+
@@ -20678,8 +20678,8 @@ var textsZhHant = i18n.NewTexts(""+
 	"720P"+
 	"最高畫質"+
 	"僅字幕"+
-	"不保存影片：只下載音訊來做字幕，轉完即刪。YouTube 的影片觀看時線上播放，字幕疊加在上面；其他網站的影片要先下載影片才能看。"+
-	"不保存影片：只下載音訊來做字幕，轉完即刪。這台電腦上暫時還不能線上播放，要看時先在播放器裡下載影片。"+
+	"不保存影片：只下載音訊來做字幕，轉完即刪。YouTube 的影片觀看時線上播放，字幕疊加在上面；其他網站的影片要先下載影片才能看。Podcast 等只有聲音的連結會保留音訊。"+
+	"不保存影片：只下載音訊來做字幕，轉完即刪。這台電腦上暫時還不能線上播放，要看時先在播放器裡下載影片。Podcast 等只有聲音的連結會保留音訊。"+
 	"重新偵測"+
 	"重試"+
 	"瀏覽器登入"+
@@ -21756,7 +21756,7 @@ var textsZhHant = i18n.NewTexts(""+
 		54,
 		6,
 		12,
-		21,
+		15,
 		12,
 		12,
 		12,
@@ -21824,8 +21824,8 @@ var textsZhHant = i18n.NewTexts(""+
 		12,
 		6,
 		45,
-		27,
-		152,
+		30,
+		161,
 		21,
 		9,
 		12,
@@ -21949,13 +21949,13 @@ var textsZhHant = i18n.NewTexts(""+
 		42,
 		21,
 		6,
-		12,
+		21,
 		6,
 		24,
 		66,
 		12,
 		99,
-		6,
+		15,
 		6,
 		63,
 		6,
@@ -22048,7 +22048,7 @@ var textsZhHant = i18n.NewTexts(""+
 		90,
 		54,
 		81,
-		88,
+		97,
 		24,
 		60,
 		24,
@@ -22086,7 +22086,7 @@ var textsZhHant = i18n.NewTexts(""+
 		40,
 		27,
 		18,
-		98,
+		107,
 		12,
 		33,
 		24,
@@ -22197,7 +22197,7 @@ var textsZhHant = i18n.NewTexts(""+
 		78,
 		102,
 		96,
-		56,
+		73,
 		106,
 		66,
 		117,
@@ -22225,7 +22225,7 @@ var textsZhHant = i18n.NewTexts(""+
 		45,
 		21,
 		33,
-		24,
+		27,
 		24,
 		60,
 		18,
@@ -22447,8 +22447,8 @@ var textsZhHant = i18n.NewTexts(""+
 		4,
 		12,
 		9,
-		179,
-		150,
+		229,
+		200,
 		12,
 		6,
 		15,
@@ -32597,10 +32597,10 @@ func FilmLocalFile(cx *core.Scope) string { return For(cx).FilmLocalFile() }
 // FilmLocalFile is the package's FilmLocalFile in the language of msgs.
 func (msgs Messages) FilmLocalFile() string { return msgs.text(textFilmLocalFile) }
 
-// FilmLocalVideo says "Local Video"
+// FilmLocalVideo says "Local File"
 // in the language the app shows under cx.
 //
-// Chip in the Info tab of a local video no job has processed.
+// Chip in the Info tab of a local video or audio file no job has processed.
 func FilmLocalVideo(cx *core.Scope) string { return For(cx).FilmLocalVideo() }
 
 // FilmLocalVideo is the package's FilmLocalVideo in the language of msgs.
@@ -32888,10 +32888,10 @@ func FilmOpening(cx *core.Scope) string { return For(cx).FilmOpening() }
 // FilmOpening is the package's FilmOpening in the language of msgs.
 func (msgs Messages) FilmOpening() string { return msgs.text(textFilmOpening) }
 
-// FilmOpeningVideo says "Opening video…"
+// FilmOpeningVideo says "Opening…"
 // in the language the app shows under cx.
 //
-// Shown in the middle of the picture while the video opens.
+// Shown in the middle of the picture while the video or audio file opens.
 func FilmOpeningVideo(cx *core.Scope) string { return For(cx).FilmOpeningVideo() }
 
 // FilmOpeningVideo is the package's FilmOpeningVideo in the language of msgs.
@@ -34322,16 +34322,16 @@ func FilmsDropHint(cx *core.Scope) string { return For(cx).FilmsDropHint() }
 // FilmsDropHint is the package's FilmsDropHint in the language of msgs.
 func (msgs Messages) FilmsDropHint() string { return msgs.text(textFilmsDropHint) }
 
-// FilmsDropTitle says "Drop to Add Local Videos"
+// FilmsDropTitle says "Drop to Add Videos or Audio"
 // in the language the app shows under cx.
 //
-// Shown over the library while video files are dragged over the window.
+// Shown over the library while video or audio files are dragged over the window.
 func FilmsDropTitle(cx *core.Scope) string { return For(cx).FilmsDropTitle() }
 
 // FilmsDropTitle is the package's FilmsDropTitle in the language of msgs.
 func (msgs Messages) FilmsDropTitle() string { return msgs.text(textFilmsDropTitle) }
 
-// FilmsEmptyDescription says "Paste a link from YouTube, Bilibili or another site above, or drag a video file into the window. Kando downloads the video, recognizes the speech and makes bilingual subtitles."
+// FilmsEmptyDescription says "Paste a link from YouTube, Bilibili or another site above, or drag a video or audio file into the window. Kando downloads the video, recognizes the speech and makes bilingual subtitles."
 // in the language the app shows under cx.
 //
 // How to add a first film, on the page of an empty library. The link field is above it.
@@ -34821,19 +34821,19 @@ func (msgs Messages) FilmsListYesterday(when time.Time) string {
 	}
 }
 
-// FilmsLocalVideo says "Local Video"
+// FilmsLocalVideo says "Local Files"
 // in the language the app shows under cx.
 //
-// Toolbar button that opens a file dialog to add video files.
+// Toolbar button that opens a file dialog to add video and audio files.
 func FilmsLocalVideo(cx *core.Scope) string { return For(cx).FilmsLocalVideo() }
 
 // FilmsLocalVideo is the package's FilmsLocalVideo in the language of msgs.
 func (msgs Messages) FilmsLocalVideo() string { return msgs.text(textFilmsLocalVideo) }
 
-// FilmsLocalVideoTooltip says "Add Local Videos ({shortcut})"
+// FilmsLocalVideoTooltip says "Add Local Videos or Audio ({shortcut})"
 // in the language the app shows under cx.
 //
-// Tooltip of the toolbar button that adds video files, with its shortcut as the system writes it.
+// Tooltip of the toolbar button that adds video and audio files, with its shortcut as the system writes it.
 func FilmsLocalVideoTooltip(cx *core.Scope, shortcut string) string {
 	return For(cx).FilmsLocalVideoTooltip(shortcut)
 }
@@ -34849,15 +34849,15 @@ func (msgs Messages) FilmsLocalVideoTooltip(shortcut string) string {
 		}
 		switch lang {
 		case "", "en":
-			return "Add Local Videos (" + msgs.arg(shortcut) + ")"
+			return "Add Local Videos or Audio (" + msgs.arg(shortcut) + ")"
 		case "ja":
-			return "ローカル動画を追加（" + shortcut + "）"
+			return "ローカルの動画や音声を追加（" + shortcut + "）"
 		case "ko":
-			return "로컬 동영상 추가(" + shortcut + ")"
+			return "로컬 동영상 또는 오디오 추가(" + shortcut + ")"
 		case "zh-Hans":
-			return "添加本地视频（" + shortcut + "）"
+			return "添加本地视频或音频（" + shortcut + "）"
 		case "zh-Hant":
-			return "加入本機影片（" + shortcut + "）"
+			return "加入本機影片或音訊（" + shortcut + "）"
 		}
 	}
 }
@@ -35223,10 +35223,10 @@ func FilmsPathNotSet(cx *core.Scope) string { return For(cx).FilmsPathNotSet() }
 // FilmsPathNotSet is the package's FilmsPathNotSet in the language of msgs.
 func (msgs Messages) FilmsPathNotSet() string { return msgs.text(textFilmsPathNotSet) }
 
-// FilmsPickVideosEllipsis says "Choose Local Videos…"
+// FilmsPickVideosEllipsis says "Choose Local Files…"
 // in the language the app shows under cx.
 //
-// Button on the empty library's page that opens a file dialog to choose videos.
+// Button on the empty library's page that opens a file dialog to choose videos and audio files.
 func FilmsPickVideosEllipsis(cx *core.Scope) string { return For(cx).FilmsPickVideosEllipsis() }
 
 // FilmsPickVideosEllipsis is the package's FilmsPickVideosEllipsis in the language of msgs.
@@ -38036,10 +38036,10 @@ func LibraryNameTaken(cx *core.Scope) string { return For(cx).LibraryNameTaken()
 // LibraryNameTaken is the package's LibraryNameTaken in the language of msgs.
 func (msgs Messages) LibraryNameTaken() string { return msgs.text(textLibraryNameTaken) }
 
-// LibraryOpenVideosMenu says "Open Local Video…"
+// LibraryOpenVideosMenu says "Open Local File…"
 // in the language the app shows under cx.
 //
-// File menu item that opens a file dialog to add local videos.
+// File menu item that opens a file dialog to add local videos and audio files.
 func LibraryOpenVideosMenu(cx *core.Scope) string { return For(cx).LibraryOpenVideosMenu() }
 
 // LibraryOpenVideosMenu is the package's LibraryOpenVideosMenu in the language of msgs.
@@ -38054,10 +38054,10 @@ func LibraryPickVideosButton(cx *core.Scope) string { return For(cx).LibraryPick
 // LibraryPickVideosButton is the package's LibraryPickVideosButton in the language of msgs.
 func (msgs Messages) LibraryPickVideosButton() string { return msgs.text(textLibraryPickVideosButton) }
 
-// LibraryPickVideosTitle says "Choose Videos"
+// LibraryPickVideosTitle says "Choose Videos or Audio"
 // in the language the app shows under cx.
 //
-// Title of the file dialog that chooses videos to add.
+// Title of the file dialog that chooses videos or audio files to add.
 func LibraryPickVideosTitle(cx *core.Scope) string { return For(cx).LibraryPickVideosTitle() }
 
 // LibraryPickVideosTitle is the package's LibraryPickVideosTitle in the language of msgs.
@@ -38521,10 +38521,10 @@ func (msgs Messages) LibraryShelfSaveFailed(error_ string) string {
 	}
 }
 
-// LibrarySkippedNotVideos says "{added} {count, plural, one {Skipped # file that isn't a video.} other {Skipped # files that aren't videos.}}"
+// LibrarySkippedNotVideos says "{added} {count, plural, one {Skipped # file that isn't a video or audio file.} other {Skipped # files that aren't video or audio files.}}"
 // in the language the app shows under cx.
 //
-// Message bar after files or folders were dropped or opened and some of the files in them were not videos, which were left out. added is the message bar's sentence about the videos added, such as “Added 3 videos. Processing started.”; count is how many files were left out. A folder adds the videos directly in it and in its subfolders.
+// Message bar after files or folders were dropped or opened and some of the files in them were neither videos nor audio files, which were left out. added is the message bar's sentence about the videos added, such as “Added 3 videos. Processing started.”; count is how many files were left out. A folder adds the videos directly in it and in its subfolders.
 func LibrarySkippedNotVideos(cx *core.Scope, added string, count int) string {
 	return For(cx).LibrarySkippedNotVideos(added, count)
 }
@@ -38547,21 +38547,21 @@ func (msgs Messages) LibrarySkippedNotVideos(added string, count int) string {
 			case i18n.One:
 				b.WriteString("Skipped ")
 				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
-				b.WriteString(" file that isn't a video.")
+				b.WriteString(" file that isn't a video or audio file.")
 			default:
 				b.WriteString("Skipped ")
 				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
-				b.WriteString(" files that aren't videos.")
+				b.WriteString(" files that aren't video or audio files.")
 			}
 			return b.String()
 		case "ja":
-			return added + "動画ではないファイル " + i18n.FormatNumber("ja", float64(count)) + " 個をスキップしました。"
+			return added + "動画でも音声でもないファイル " + i18n.FormatNumber("ja", float64(count)) + " 個をスキップしました。"
 		case "ko":
-			return added + " 동영상이 아닌 파일 " + i18n.FormatNumber("ko", float64(count)) + "개를 건너뛰었습니다."
+			return added + " 동영상이나 오디오가 아닌 파일 " + i18n.FormatNumber("ko", float64(count)) + "개를 건너뛰었습니다."
 		case "zh-Hans":
-			return added + "已跳过 " + i18n.FormatNumber("zh-Hans", float64(count)) + " 个不是视频的文件。"
+			return added + "已跳过 " + i18n.FormatNumber("zh-Hans", float64(count)) + " 个不是视频或音频的文件。"
 		case "zh-Hant":
-			return added + "已略過 " + i18n.FormatNumber("zh-Hant", float64(count)) + " 個不是影片的檔案。"
+			return added + "已略過 " + i18n.FormatNumber("zh-Hant", float64(count)) + " 個不是影片或音訊的檔案。"
 		}
 	}
 }
@@ -38819,10 +38819,10 @@ func (msgs Messages) LibrarySortSaveFailed(error_ string) string {
 	}
 }
 
-// LibraryVideoFilter says "Videos"
+// LibraryVideoFilter says "Videos and Audio"
 // in the language the app shows under cx.
 //
-// Name of the file type filter of the file dialog that chooses videos.
+// Name of the file type filter of the file dialog that chooses videos and audio files.
 func LibraryVideoFilter(cx *core.Scope) string { return For(cx).LibraryVideoFilter() }
 
 // LibraryVideoFilter is the package's LibraryVideoFilter in the language of msgs.
@@ -40245,7 +40245,7 @@ func (msgs Messages) OnboardingLinkDescription() string {
 	return msgs.text(textOnboardingLinkDescription)
 }
 
-// OnboardingLinkHintEmpty says "Press Enter to start. No link? Skip for now and drag a local video into the window later."
+// OnboardingLinkHintEmpty says "Press Enter to start. No link? Skip for now and drag a local video or audio file into the window later."
 // in the language the app shows under cx.
 //
 // Line under the third step's link field while it is empty.
@@ -41201,7 +41201,7 @@ func OnboardingWelcome(cx *core.Scope) string { return For(cx).OnboardingWelcome
 // OnboardingWelcome is the package's OnboardingWelcome in the language of msgs.
 func (msgs Messages) OnboardingWelcome() string { return msgs.text(textOnboardingWelcome) }
 
-// OnboardingWelcomeDescription says "Paste a YouTube or Bilibili link, or drag in a local video, and learn as you watch. First, choose your languages."
+// OnboardingWelcomeDescription says "Paste a YouTube or Bilibili link, or drag in a local video or audio file, and learn as you watch. First, choose your languages."
 // in the language the app shows under cx.
 //
 // Line under the first step's title.
@@ -43589,10 +43589,10 @@ func PrecheckNoTranscript(cx *core.Scope) string { return For(cx).PrecheckNoTran
 // PrecheckNoTranscript is the package's PrecheckNoTranscript in the language of msgs.
 func (msgs Messages) PrecheckNoTranscript() string { return msgs.text(textPrecheckNoTranscript) }
 
-// PrecheckNoVideo says "Only video files can be added (mp4, mov, mkv, webm and others)."
+// PrecheckNoVideo says "Only video and audio files can be added (mp4, mov, mkv, mp3, m4a and others)."
 // in the language the app shows under cx.
 //
-// Message bar when none of the files dropped or picked is a video.
+// Message bar when none of the files dropped or picked is a video or an audio file.
 func PrecheckNoVideo(cx *core.Scope) string { return For(cx).PrecheckNoVideo() }
 
 // PrecheckNoVideo is the package's PrecheckNoVideo in the language of msgs.
@@ -44039,10 +44039,10 @@ func QueueKeepAwake(cx *core.Scope) string { return For(cx).QueueKeepAwake() }
 // QueueKeepAwake is the package's QueueKeepAwake in the language of msgs.
 func (msgs Messages) QueueKeepAwake() string { return msgs.text(textQueueKeepAwake) }
 
-// QueueLocalChosen says "Local video selected"
+// QueueLocalChosen says "Local file selected"
 // in the language the app shows under cx.
 //
-// Status once a local video was put in the link field.
+// Status once a local video or audio file was put in the link field.
 func QueueLocalChosen(cx *core.Scope) string { return For(cx).QueueLocalChosen() }
 
 // QueueLocalChosen is the package's QueueLocalChosen in the language of msgs.
@@ -44107,10 +44107,10 @@ func QueueNoLibrary(cx *core.Scope) string { return For(cx).QueueNoLibrary() }
 // QueueNoLibrary is the package's QueueNoLibrary in the language of msgs.
 func (msgs Messages) QueueNoLibrary() string { return msgs.text(textQueueNoLibrary) }
 
-// QueueNoVideoToImport says "No video to import"
+// QueueNoVideoToImport says "Not a video or audio file"
 // in the language the app shows under cx.
 //
-// Status when the file chosen to import is not a video.
+// Status when the file chosen to import is neither a video nor an audio file.
 func QueueNoVideoToImport(cx *core.Scope) string { return For(cx).QueueNoVideoToImport() }
 
 // QueueNoVideoToImport is the package's QueueNoVideoToImport in the language of msgs.
@@ -49196,7 +49196,7 @@ func (msgs Messages) SettingsGeneralQualityBest() string {
 // SettingsGeneralQualitySubtitles says "Subtitles Only"
 // in the language the app shows under cx.
 //
-// Download quality: keep no video. Only the sound is downloaded to make the subtitles and is deleted after; the film streams from its site when watched.
+// Download quality: keep no video. Only the sound is downloaded to make the subtitles and is deleted after; the film streams from its site when watched. A link to sound alone, as a podcast's, keeps its sound.
 func SettingsGeneralQualitySubtitles(cx *core.Scope) string {
 	return For(cx).SettingsGeneralQualitySubtitles()
 }
@@ -49206,7 +49206,7 @@ func (msgs Messages) SettingsGeneralQualitySubtitles() string {
 	return msgs.text(textSettingsGeneralQualitySubtitles)
 }
 
-// SettingsGeneralQualitySubtitlesHint says "Keeps no video: only the sound is downloaded to make the subtitles and is deleted once they're done. YouTube films stream when you watch them, with the subtitles over them; films from other sites need their video downloaded first."
+// SettingsGeneralQualitySubtitlesHint says "Keeps no video: only the sound is downloaded to make the subtitles and is deleted once they're done. YouTube films stream when you watch them, with the subtitles over them; films from other sites need their video downloaded first. Podcasts and other links to sound alone keep their sound."
 // in the language the app shows under cx.
 //
 // Note under the download quality when Subtitles Only is chosen, on a computer that streams YouTube films (macOS for now).
@@ -49219,7 +49219,7 @@ func (msgs Messages) SettingsGeneralQualitySubtitlesHint() string {
 	return msgs.text(textSettingsGeneralQualitySubtitlesHint)
 }
 
-// SettingsGeneralQualitySubtitlesHintNoStream says "Keeps no video: only the sound is downloaded to make the subtitles and is deleted once they're done. Kando can't stream films on this computer yet, so to watch one, download its video from the player first."
+// SettingsGeneralQualitySubtitlesHintNoStream says "Keeps no video: only the sound is downloaded to make the subtitles and is deleted once they're done. Kando can't stream films on this computer yet, so to watch one, download its video from the player first. Podcasts and other links to sound alone keep their sound."
 // in the language the app shows under cx.
 //
 // Note under the download quality when Subtitles Only is chosen, on a computer where Kando streams no film yet (Windows and Linux for now).

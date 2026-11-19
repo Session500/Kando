@@ -31,9 +31,10 @@ type filmPlay struct {
 	remux       film.RemuxStep
 	remuxAt     time.Duration
 	remuxLength time.Duration
-	// loaded is set once the system's player has opened the source and knows its length, duration.
+	// loaded is set once the system's player has opened the source and knows its length, duration. sound is set then for a source of sound alone, whose picture the player says has no size, which the stage covers with the film's poster (film.App.PlaySound); a stream says no size until its picture comes, so it is never taken for sound.
 	loaded   bool
 	duration time.Duration
+	sound    bool
 	// head is where the picture was when the player last said, or where it opens or a seek went; headAt is when, on the app's clock. While the film plays, the picture is that far on since, at its speed (playhead).
 	head   time.Duration
 	headAt time.Time
@@ -154,6 +155,7 @@ func (a *app) playerLoad(info ns.VideoInfo) {
 		return
 	}
 	p.loaded = true
+	p.sound = !p.stream && info.Size.Width <= 0 && info.Size.Height <= 0
 	if info.Duration > 0 {
 		p.duration = info.Duration
 		a.player.length = info.Duration

@@ -19,7 +19,7 @@ import (
 type noInput struct{}
 
 type listFilmsInput struct {
-	Source string `json:"source,omitempty" jsonschema:"Only the films from this source: \"youtube\", \"bilibili\", \"local\" for video files from this computer, or another website's name as kando_list_films reports it in each film's source. Leave it out for all films."`
+	Source string `json:"source,omitempty" jsonschema:"Only the films from this source: \"youtube\", \"bilibili\", \"local\" for video and audio files from this computer, or another website's name as kando_list_films reports it in each film's source. Leave it out for all films."`
 	Query  string `json:"query,omitempty" jsonschema:"Only the films whose title contains this text, ignoring case. Leave it out for all films."`
 	Spoken string `json:"spoken_language,omitempty" jsonschema:"Only the films heard in this language, by its code as kando_list_films reports it in each film's spoken_language, such as ja or en. Leave it out for all films."`
 }
@@ -33,7 +33,7 @@ type filmInput struct {
 }
 
 type addVideosInput struct {
-	Sources []string `json:"sources" jsonschema:"The videos to process: web links (YouTube, Bilibili or any other site kando_search_sites finds) or local video files as absolute paths or file:// URLs. A folder is skipped: list its videos with kando_list_playlist and add those."`
+	Sources []string `json:"sources" jsonschema:"The videos to process: web links (YouTube, Bilibili or any other site kando_search_sites finds) or local video and audio files (mp3, m4a and others) as absolute paths or file:// URLs. A folder is skipped: list its videos with kando_list_playlist and add those."`
 	Dir     string   `json:"dir,omitempty" jsonschema:"The directory relative paths in sources are taken from. Leave it out to use the directory this server runs in."`
 }
 
@@ -228,7 +228,7 @@ func addTools(server *mcp.Server, a *app) {
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "kando_add_videos",
-		Description: "Queue videos for Kando to process: each web link or local video file becomes a job that downloads the video (for a link), transcribes its speech, translates the subtitles and saves them beside the video in the open library. A playlist or channel link, or a folder, is skipped: list its videos with kando_list_playlist and add those. Returns the queued jobs, for each source it could not add, why, and a note when the jobs' subtitles will not be translated, as when no AI service is set up in Kando. A video the library already has is not added again: it is listed under skipped with its job_id, stage and, once its video is on disk, film_id (a video of the library's folder that Kando did not process only with its film_id), and that job is the one to follow, so asking again for the same video is safe. Processing continues in the Kando app after this returns and takes minutes per video; poll kando_get_job to follow a job, and read the result with kando_get_subtitles once its stage is complete. A job can complete without translating its film, as when the AI service refuses its key: its translation_error then says why, and its subtitles are the original speech alone. Check kando_status first: when no library is open or a program is missing, the call fails with a not_ready message that says what to fix. Call it only when the user asked to add these videos.",
+		Description: "Queue videos for Kando to process: each web link or local video or audio file becomes a job that downloads the video (for a link), transcribes its speech, translates the subtitles and saves them beside the video in the open library. A playlist or channel link, or a folder, is skipped: list its videos with kando_list_playlist and add those. Returns the queued jobs, for each source it could not add, why, and a note when the jobs' subtitles will not be translated, as when no AI service is set up in Kando. A video the library already has is not added again: it is listed under skipped with its job_id, stage and, once its video is on disk, film_id (a video of the library's folder that Kando did not process only with its film_id), and that job is the one to follow, so asking again for the same video is safe. Processing continues in the Kando app after this returns and takes minutes per video; poll kando_get_job to follow a job, and read the result with kando_get_subtitles once its stage is complete. A job can complete without translating its film, as when the AI service refuses its key: its translation_error then says why, and its subtitles are the original speech alone. Check kando_status first: when no library is open or a program is missing, the call fails with a not_ready message that says what to fix. Call it only when the user asked to add these videos.",
 		Annotations: &mcp.ToolAnnotations{Title: "Add videos to Kando", ReadOnlyHint: false, DestructiveHint: boolPtr(false), IdempotentHint: false, OpenWorldHint: boolPtr(true)},
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in addVideosInput) (*mcp.CallToolResult, remote.AddResult, error) {
 		dir := in.Dir

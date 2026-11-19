@@ -34,11 +34,12 @@ type RelayShelf struct {
 	Films     []RelayFilm `json:"films"`
 }
 
-// RelayFilm is a film of a RelayShelf: the ID of its library, the film as PathFilms lists it, and the GET links of its files. Film.VideoSize is the size of the video in the bucket, 0 with no Video link; Film.Poster is PosterPath for a film with a Poster link, "" for one without.
+// RelayFilm is a film of a RelayShelf: the ID of its library, the film as PathFilms lists it, and the GET links of its files. The file of a film of sound alone (Film.Sound) is linked as Sound, not Video, as every phone reads the one state.json and one from before them would keep it as an MP4 it cannot play: such a phone studies its lines alone and says its video is on the computer. Film.VideoSize is the size of the video or the sound in the bucket, 0 with neither link; Film.Poster is PosterPath for a film with a Poster link, "" for one without.
 type RelayFilm struct {
 	Library   string `json:"library"`
 	Film      Film   `json:"film"`
 	Video     string `json:"video,omitempty"`
+	Sound     string `json:"sound,omitempty"`
 	Subtitles string `json:"subtitles"`
 	Poster    string `json:"poster,omitempty"`
 }
@@ -104,13 +105,17 @@ func (r *Relay) shelf(ctx context.Context) (*RelayShelf, error) {
 		if rf.Subtitles, err = link(f.Subtitles); err != nil {
 			return nil, err
 		}
-		if rf.Video, err = link(f.Video); err != nil {
+		media := &rf.Video
+		if f.Film.Sound {
+			media = &rf.Sound
+		}
+		if *media, err = link(f.Video); err != nil {
 			return nil, err
 		}
 		if rf.Poster, err = link(f.Poster); err != nil {
 			return nil, err
 		}
-		if rf.Video == "" {
+		if rf.Media() == "" {
 			rf.Film.VideoSize = 0
 		}
 		rf.Film.Poster = ""
@@ -300,12 +305,20 @@ func (r RelayFilms) Poster(ctx context.Context, id string) ([]byte, string, erro
 	return r.read(ctx, link, maxRelayPoster)
 }
 
-// VideoLink is the link that streams film id's video, "" for a film whose video is not in the storage.
-func (r RelayFilms) VideoLink(id string) string { return r.Films[id].Video }
+// Media is the link of the film's file in the bucket, its video's or, for a film of sound alone, its sound's (Sound); "" for a film whose file is not there.
+func (f RelayFilm) Media() string {
+	if f.Video != "" {
+		return f.Video
+	}
+	return f.Sound
+}
+
+// VideoLink is the link that streams film id's video, or its sound for a film of sound alone, "" for a film whose file is not in the storage.
+func (r RelayFilms) VideoLink(id string) string { return r.Films[id].Media() }
 
 // Video is the part of film id's video from byte from to byte to, both included, to -1 for the end, as Client.Video answers it. When ifRange, the ETag of the file a part was kept of, is not the file's now, the answer is the file whole from its start, as If-Range has the desktop answer: the store's ETag names the object, which a film changed since is uploaded as anew.
 func (r RelayFilms) Video(ctx context.Context, id string, from, to int64, ifRange string) (*Part, error) {
-	link, err := r.link(id, "the film's video", func(f RelayFilm) string { return f.Video })
+	link, err := r.link(id, "the film's video", RelayFilm.Media)
 	if err != nil {
 		return nil, err
 	}
