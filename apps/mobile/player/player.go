@@ -108,6 +108,8 @@ func view(cx *core.Scope, l *Layer, key string) core.Node {
 		l.Minimize()
 		return true
 	})
+	// The keyboard's shortcuts act on the player while it shows over the app, not on the film playing on in the mini player.
+	keys(cx, p, w, shown)
 
 	video := core.Video{TestID: "player-video", Ref: p.ref, Label: f.Film.Title,
 		Source:           filepath.Join(s.Store().FilmDir(f.Desktop, f.Film.ID), f.Video),

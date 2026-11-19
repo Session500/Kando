@@ -19,12 +19,14 @@ import (
 	"kando/apps/mobile/shell"
 	"kando/apps/mobile/store"
 	"kando/apps/mobile/theme"
+	"kando/apps/mobile/widgets"
 	"kando/packages/sync"
 
 	"github.com/nsgo-dev/nsgo/base"
 	"github.com/nsgo-dev/nsgo/core"
 	"github.com/nsgo-dev/nsgo/icons/lucide"
 	"github.com/nsgo-dev/nsgo/ui"
+	"github.com/nsgo-dev/nsgo/widget"
 )
 
 // page is a kind of page of the app's stacks.
@@ -49,6 +51,8 @@ const (
 	computerPage
 	exportPage
 	conflictsPage
+	shortcutsPage
+	widgetsPage
 )
 
 // The tabs, in the order the tab bar shows them. Jobs is a section of its own on a tablet only; on a phone it opens from the Library.
@@ -73,6 +77,9 @@ func App(cx *core.Scope, cfg session.Config) core.Node {
 	theme.Apply(cx)
 	colors := ui.ColorsOf(cx)
 	s := session.New(cx, cfg)
+	if widget.Available() {
+		widgets.Keep(cx, s, widget.Update)
+	}
 	outer := base.NewNav(cx, route{page: rootPage})
 	navs := [tabs]*base.Nav[route]{base.NewNav(cx, route{page: filmsPage}), base.NewNav(cx, route{page: learnPage}), base.NewNav(cx, route{page: jobsPage}), base.NewNav(cx, route{page: settingsPage})}
 	selected := core.NewSignal(cx, filmsTab)
@@ -83,6 +90,8 @@ func App(cx *core.Scope, cfg session.Config) core.Node {
 	}
 	adding := core.NewSignal(cx, false)
 	openAdd := func() { adding.Set(true) }
+	// searches counts the times the user asked for the Library's search from the keyboard (shortcuts.Search), which the Library's page focuses each time.
+	searches := core.NewSignal(cx, 0)
 	// openJobs shows the Jobs page: a tablet's section, or a page of the Library's stack on a phone, which goes to the Library.
 	openJobs := func() {
 		if look.Tablet(cx) {
@@ -177,6 +186,8 @@ func App(cx *core.Scope, cfg session.Config) core.Node {
 							n.Push(route{page: conflictsPage})
 						},
 						Introduction: func() { outer.Push(route{page: introductionPage}) },
+						Shortcuts: func() { n.Push(route{page: shortcutsPage}) },
+						Widgets:   func() { n.Push(route{page: widgetsPage}) },
 						Computer: func(id string) {
 							n.Push(route{page: computerPage, desktop: id})
 							s.SyncLearning()
@@ -184,6 +195,10 @@ func App(cx *core.Scope, cfg session.Config) core.Node {
 						Unpaired: unpaired})
 				case computerPage:
 					return settings.ComputerPage(cx, s, r.desktop, unpaired, back)
+				case shortcutsPage:
+					return settings.ShortcutsPage(cx, sectionNames(cx, shown), back)
+				case widgetsPage:
+					return settings.WidgetsPage(cx, s, back)
 				case targetPage:
 					return settings.TargetPage(cx, s, back)
 				case conflictsPage:
@@ -197,7 +212,7 @@ func App(cx *core.Scope, cfg session.Config) core.Node {
 					}
 					return jobs.Page(cx, s, act)
 				}
-				return films.Page(cx, s, films.Actions{Pair: openPair, Play: play, PlayAt: layer.PlayAt, Add: openAdd, Jobs: openJobs,
+				return films.Page(cx, s, films.Actions{Pair: openPair, Play: play, PlayAt: layer.PlayAt, Add: openAdd, Jobs: openJobs, Searches: searches.Get,
 					Film: func(e catalog.Entry) { openFilm(e.Desktop, e.Library, e.Film) }})
 			})
 			return core.View{Style: core.Style{FlexGrow: 1}, Children: []core.Node{stack, player.MiniBar(cx, layer)}}
@@ -225,6 +240,11 @@ func App(cx *core.Scope, cfg session.Config) core.Node {
 		for i, t := range shown {
 			list[i] = all[t]
 		}
+		shellKeys(cx, len(shown), change, openAdd, func() {
+			selected.Set(filmsTab)
+			navs[filmsTab].PopToRoot()
+			searches.Update(func(n int) int { return n + 1 })
+		})
 		return shell.Shell{Selected: func() int { return slices.Index(shown, selected.Get()) }, OnChange: change,
 			Footer: settings.Computers(cx, s, func() { change(slices.Index(shown, settingsTab)) }),
 			Tabs:   list}
