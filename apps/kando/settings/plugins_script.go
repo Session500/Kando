@@ -3,6 +3,7 @@ package settings
 import (
 	"slices"
 	"strconv"
+	"strings"
 
 	"kando/apps/kando/live"
 	"kando/apps/kando/locales"
@@ -25,6 +26,15 @@ type PluginScript struct {
 	Perms     []PluginPerm
 	Risky     bool
 	Conflicts string
+	// Adds are what it adds besides commands, each worded on a line: a lookup source, a subtitle format, an export target, an annotator.
+	Adds []string
+	// Credentials are the secrets of other services it sends through Kando.
+	Credentials []PluginCredential
+}
+
+// PluginCredential is a credential of a script plugin as its details and its install confirmation show it: the key it is kept under (SecretKey), its title, the hosts it is only sent to, written out, and a warning when those hosts are not the ones of the service its name says, or are of none Kando knows for a plugin that is not Kando's own ("" for none).
+type PluginCredential struct {
+	Key, Title, Hosts, Warning string
 }
 
 // PluginPerm is a permission a script plugin asks for, or its network as a whole (ID "network"): what it lets the plugin do (Text), whether the plugin can do without it (Optional), whether it is granted, and whether it needs no grant (Free), which has no switch.
@@ -55,6 +65,29 @@ type PluginScriptsApp interface {
 	ShowPluginAudit()
 }
 
+// PluginAdds is what the script plugin m adds besides its commands, a line each, in the words of msgs: its lookup sources, subtitle formats, export targets and annotators, each by its label.
+func PluginAdds(msgs locales.Messages, m plugins.Manifest) []string {
+	c := m.Contributes
+	if c == nil {
+		return nil
+	}
+	lang := msgs.Language()
+	var out []string
+	for _, x := range c.Lookups {
+		out = append(out, msgs.SettingsPluginsAddsLookup(x.Label.In(lang)))
+	}
+	for _, x := range c.SubtitleFormats {
+		out = append(out, msgs.SettingsPluginsAddsSubtitleFormat(x.Label.In(lang)))
+	}
+	for _, x := range c.Exporters {
+		out = append(out, msgs.SettingsPluginsAddsExporter(x.Label.In(lang)))
+	}
+	for _, x := range c.Annotators {
+		out = append(out, msgs.SettingsPluginsAddsAnnotator(x.Label.In(lang)))
+	}
+	return out
+}
+
 // pluginSourceBadge is the badge after the name of a pack from source: 官方 or 开发者 for a script plugin, 本地 for a data pack.
 func pluginSourceBadge(cx *core.Scope, p plugins.Pack) string {
 	switch {
@@ -79,7 +112,25 @@ func pluginScriptRow(a PluginsApp, id string) (PluginScript, bool) {
 }
 
 // pluginScriptDetail is what the details of the script plugin in r add: why it does not run, that an update asks for more, the permissions it asks for, each with a switch that grants it, needed ones first, the risky combination on a line of its own, the commands whose keys were taken, its settings, and 查看审计记录.
+//
+// Its words, the app's (the permissions, what it adds, where its keys go) and the page's own, are put in place as the region is built, which is built again when the interface's language changes, and only then, so a key half typed keeps its field otherwise.
 func pluginScriptDetail(cx *core.Scope, a PluginsApp, r PluginRow) []core.Node {
+	region := core.Dynamic(func(cx *core.Scope) core.Node {
+		_ = i18n.Language(cx)
+		now := core.Untracked(cx, func() PluginRow {
+			now := r
+			if s, ok := pluginScriptRow(a, r.Pack.ID); ok {
+				now.Script = &s
+			}
+			return now
+		})
+		return core.Group(pluginScriptDetailIn(cx, a, now))
+	})
+	return []core.Node{region}
+}
+
+// pluginScriptDetailIn is pluginScriptDetail's region, in the words of the language it is built in.
+func pluginScriptDetailIn(cx *core.Scope, a PluginsApp, r PluginRow) []core.Node {
 	colors := ui.ColorsOf(cx)
 	id := r.Pack.ID
 	note := func(text func() string, color func() core.Color, testID string) core.Node {
@@ -113,6 +164,18 @@ func pluginScriptDetail(cx *core.Scope, a PluginsApp, r PluginRow) []core.Node {
 		}), colors.Danger, "settings-plugins-risky-"+id),
 		note(live.Func(a, func() string { return row().Conflicts }), colors.Warn, "settings-plugins-conflicts-"+id),
 	)
+	if len(r.Script.Adds) > 0 {
+		nodes = append(nodes, core.Text{Content: locales.SettingsPluginsAdds(cx), Role: core.RoleHeader, Style: core.Style{FontSize: 12, LineHeight: 17, FontWeight: ui.Semibold, Margin: core.Edges{Top: 6}}, StyleFunc: ui.Colored(colors.Text)})
+		for _, add := range r.Script.Adds {
+			nodes = append(nodes, core.Text{Content: "· " + add, Style: core.Style{FontSize: 12, LineHeight: 17}, StyleFunc: ui.Colored(colors.Text)})
+		}
+	}
+	if len(r.Script.Credentials) > 0 {
+		nodes = append(nodes, core.Text{Content: locales.SettingsPluginsCredentials(cx), Role: core.RoleHeader, Style: core.Style{FontSize: 12, LineHeight: 17, FontWeight: ui.Semibold, Margin: core.Edges{Top: 6}}, StyleFunc: ui.Colored(colors.Text)})
+		for _, c := range r.Script.Credentials {
+			nodes = append(nodes, pluginCredentialRow(cx, a, id, c)...)
+		}
+	}
 	if len(r.Pack.Settings) > 0 {
 		nodes = append(nodes, core.Text{Content: locales.SettingsPluginsSettings(cx), Role: core.RoleHeader, Style: core.Style{FontSize: 12, LineHeight: 17, FontWeight: ui.Semibold, Margin: core.Edges{Top: 6}}, StyleFunc: ui.Colored(colors.Text)})
 		for _, s := range r.Pack.Settings {
@@ -189,6 +252,23 @@ func pluginSettingRow(cx *core.Scope, a PluginsApp, id string, s plugins.Setting
 	}}
 }
 
+// pluginCredentialRow is the field of the plugin id's credential c, which Kando keeps in the system's secure store as it keeps a secret setting, with the hosts it is only sent to written over it, and the warning of hosts that are not the service's, if any.
+func pluginCredentialRow(cx *core.Scope, a PluginsApp, id string, c PluginCredential) []core.Node {
+	colors := ui.ColorsOf(cx)
+	testID := "settings-plugins-credential-" + id + "-" + strings.TrimPrefix(c.Key, "credential.")
+	out := []core.Node{
+		core.View{Role: core.RoleGroup, Label: c.Title, Style: core.Style{Direction: core.Row, Gap: 10, MinHeight: core.Pt(32), AlignItems: core.AlignCenter}, Children: []core.Node{
+			core.Text{Content: c.Title, Style: core.Style{FontSize: 12, LineHeight: 17, FlexGrow: 1, FlexShrink: 1}, StyleFunc: ui.Colored(colors.Text)},
+			pluginSecretField(cx, a, id, c.Key, c.Title, testID),
+		}},
+		core.Text{Content: locales.SettingsPluginsCredentialHosts(cx, c.Hosts), TestID: testID + "-hosts", Style: core.Style{FontSize: 12, LineHeight: 17}, StyleFunc: ui.Colored(colors.Muted)},
+	}
+	if c.Warning != "" {
+		out = append(out, core.Text{Content: c.Warning, TestID: testID + "-warning", Style: core.Style{FontSize: 12, LineHeight: 17}, StyleFunc: ui.Colored(colors.Danger)})
+	}
+	return out
+}
+
 // pluginSecretField is a secret setting's field: while none is kept, a masked field and 保存, which keeps what it holds in the system's secure store, out of the plugin's reach; once one is kept, 已保存 and 清除.
 func pluginSecretField(cx *core.Scope, a PluginsApp, id, key, title, testID string) core.Node {
 	text := core.NewSignal(cx, "")
@@ -247,6 +327,18 @@ func pluginScriptInstall(cx *core.Scope, s PluginScript) []core.Node {
 		}
 		nodes = append(nodes, core.Text{Content: heading, Role: core.RoleHeader, Style: core.Style{FontSize: 12, LineHeight: 17, FontWeight: ui.Semibold, Margin: core.Edges{Top: 4}}, StyleFunc: ui.Colored(colors.Text)})
 		nodes = append(nodes, lines...)
+	}
+	if len(s.Adds) > 0 {
+		nodes = append(nodes, core.Text{Content: locales.SettingsPluginsAdds(cx), Role: core.RoleHeader, Style: core.Style{FontSize: 12, LineHeight: 17, FontWeight: ui.Semibold, Margin: core.Edges{Top: 4}}, StyleFunc: ui.Colored(colors.Text)})
+		for _, add := range s.Adds {
+			nodes = append(nodes, line("· "+add, colors.Text))
+		}
+	}
+	for _, c := range s.Credentials {
+		nodes = append(nodes, core.Text{Content: c.Title + " · " + locales.SettingsPluginsCredentialHosts(cx, c.Hosts), TestID: "plugins-install-credential-" + strings.TrimPrefix(c.Key, "credential."), Style: core.Style{FontSize: 12, LineHeight: 17, Margin: core.Edges{Top: 4}}, StyleFunc: ui.Colored(colors.Text)})
+		if c.Warning != "" {
+			nodes = append(nodes, line(c.Warning, colors.Danger))
+		}
 	}
 	if s.Risky {
 		nodes = append(nodes, core.Text{Content: locales.SettingsPluginsRisky(cx), TestID: "plugins-install-risky", Style: core.Style{FontSize: 12, LineHeight: 17, Margin: core.Edges{Top: 4}}, StyleFunc: ui.Colored(colors.Danger)})
