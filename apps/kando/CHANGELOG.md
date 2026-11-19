@@ -2,6 +2,13 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.31.0 - 2026-11-19
+
+### Features
+
+- Keep films on NAS shares and object stores, and play them from there (#302)
+- Underline levels, lookup hints, phone sources and safer state (#309)
+
 ## 0.30.0 - 2026-11-19
 
 ### Features
