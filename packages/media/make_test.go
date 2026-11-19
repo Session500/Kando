@@ -30,6 +30,12 @@ type makeFilm struct {
 	proofreads int
 	reviewed   []int
 
+	// linkDir is where a link downloads to; videoGate, when set, holds its video back until closed, and videoErr fails it.
+	linkDir   string
+	videoGate chan struct{}
+	videoErr  error
+	heardFrom []string
+
 	// stall, when set, is called by the first run once it has heard past its first cell, and the run then waits until it is stopped, as a run far from a jump does.
 	stall func()
 
@@ -41,11 +47,31 @@ type makeFilm struct {
 }
 
 func (f *makeFilm) Check() error { return nil }
-func (f *makeFilm) Download(_ context.Context, source string) (string, error) {
+func (f *makeFilm) Download(ctx context.Context, source string) (string, error) {
 	if path, ok := localVideoPath(source); ok {
 		return path, nil
 	}
-	return "", errors.New("not a link")
+	if f.linkDir == "" {
+		return "", errors.New("not a link")
+	}
+	// A link downloads into a folder of its own: its sound alone as video.m4a, its video as video.mp4, once videoGate lets it.
+	name := "video.mp4"
+	if q, _ := ctx.Value(qualityKey{}).(core.Quality); q == core.QualitySubtitles {
+		name = "video.m4a"
+	} else {
+		if f.videoGate != nil {
+			select {
+			case <-f.videoGate:
+			case <-ctx.Done():
+				return "", ctx.Err()
+			}
+		}
+		if f.videoErr != nil {
+			return "", f.videoErr
+		}
+	}
+	path := filepath.Join(f.linkDir, name)
+	return path, os.WriteFile(path, nil, 0o644)
 }
 func (f *makeFilm) Transcribe(context.Context, string) ([]core.Segment, error) {
 	return nil, errors.New("Make hears the film a part at a time")
@@ -55,9 +81,10 @@ func (f *makeFilm) Export(context.Context, string, []core.Segment, []core.Segmen
 }
 func (f *makeFilm) Length(context.Context, string) time.Duration { return f.length }
 
-func (f *makeFilm) Hear(ctx context.Context, _ string, from, to time.Duration, heard func(core.Segment)) (string, error) {
+func (f *makeFilm) Hear(ctx context.Context, video string, from, to time.Duration, heard func(core.Segment)) (string, error) {
 	f.mu.Lock()
 	f.runs = append(f.runs, [2]time.Duration{from, to})
+	f.heardFrom = append(f.heardFrom, filepath.Base(video))
 	f.langs = append(f.langs, speechLanguageOf(ctx))
 	f.mu.Unlock()
 	n := 0
@@ -652,5 +679,65 @@ func TestTheUsersDecisionOnAChangeIsKeptInTheFilmsDocument(t *testing.T) {
 		if l.Start == time.Minute && l.Translation.Text != "译:line 1m0s" {
 			t.Fatalf("line at 1:00 = %q once taken back", l.Translation.Text)
 		}
+	}
+}
+
+func TestALinkIsMadeFromItsSoundWhileItsVideoDownloads(t *testing.T) {
+	dir := t.TempDir()
+	f := &makeFilm{length: 90 * time.Second, language: "ja", linkDir: dir, videoGate: make(chan struct{})}
+	job, err := core.NewJob("https://example.com/watch?v=x")
+	if err != nil {
+		t.Fatal(err)
+	}
+	job.SpeechLanguage = "ja"
+	var reports []core.Job
+	var mu sync.Mutex
+	var release sync.Once
+	shownBefore := false
+	done := Make(context.Background(), f, job, "简体中文", "mac", nil, func(j core.Job) {
+		mu.Lock()
+		defer mu.Unlock()
+		reports = append(reports, j)
+		// Every cell made and its video still to come, the film is not shown yet; then the video comes.
+		shownBefore = shownBefore || j.VideoPath == "" && j.SubtitlePath != ""
+		if j.Stage == core.StageDownloading && len(reports) > 2 {
+			release.Do(func() { close(f.videoGate) })
+		}
+	})
+	if done.Stage != core.StageComplete {
+		t.Fatalf("job ended %s: %v", done.Stage, done.Err)
+	}
+	video := filepath.Join(dir, "video.mp4")
+	if done.VideoPath != video || done.SubtitlePath != filepath.Join(dir, "video.bilingual.srt") || shownBefore {
+		t.Fatalf("job shows %q with %q (shown before its video: %v)", done.VideoPath, done.SubtitlePath, shownBefore)
+	}
+	// The sound is heard from hidden, so the library does not take it for a video, and goes once the video is there.
+	for _, from := range f.heardFrom {
+		if from != ".video.sound" {
+			t.Fatalf("heard from %v, want the sound alone, hidden", f.heardFrom)
+		}
+	}
+	for _, name := range []string{"video.m4a", ".video.sound"} {
+		if _, err := os.Stat(filepath.Join(dir, name)); !os.IsNotExist(err) {
+			t.Fatalf("%s is left beside the video: %v", name, err)
+		}
+	}
+	if doc, err := track.Read(video); err != nil || len(doc.View()) != 9 {
+		t.Fatalf("the video's document shows %d lines (%v)", len(doc.View()), err)
+	}
+}
+
+func TestALinkWhoseVideoFailsFailsOnceItsSubtitlesAreMade(t *testing.T) {
+	dir := t.TempDir()
+	f := &makeFilm{length: 60 * time.Second, language: "ja", linkDir: dir, videoErr: errors.New("HTTP Error 403: Forbidden")}
+	job, _ := core.NewJob("https://example.com/watch?v=x")
+	job.SpeechLanguage = "ja"
+	done := Make(context.Background(), f, job, "简体中文", "mac", nil, func(core.Job) {})
+	if done.Stage != core.StageFailed || done.Err == nil || !strings.Contains(done.Err.Error(), "download") {
+		t.Fatalf("job ended %s: %v", done.Stage, done.Err)
+	}
+	// What was made is kept for a retry, which goes on from it.
+	if doc, _ := track.Read(filepath.Join(dir, "video.m4a")); len(doc.View()) != 6 {
+		t.Fatalf("the film's document shows %d lines", len(doc.View()))
 	}
 }

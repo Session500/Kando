@@ -96,43 +96,88 @@ func Make(ctx context.Context, p Pipeline, job core.Job, language, device string
 	}
 	_, local := localVideoPath(job.Source)
 	video := job.VideoPath
-	if local || !Downloaded(video) {
-		if !local {
-			enter(core.StageDownloading)
+	// A link not downloaded yet is heard from its sound, downloaded alone first, which is soon there, while its video downloads beside the making (coming); the film is shown once its video is.
+	var coming chan downloaded
+	stopVideo := func() {}
+	// hearFrom is what the speech is heard from: the video, or a link's sound until its video comes.
+	hearFrom := job.VideoPath
+	switch {
+	case local || Downloaded(video):
+		if local {
+			var err error
+			if video, err = p.Download(ctx, job.Source); err != nil {
+				job.FailKind = downloadFailKind(job, err)
+				return fail("download", err)
+			}
 		}
-		var err error
-		if video, err = p.Download(ctx, job.Source); err != nil {
+		job.VideoPath, hearFrom = video, video
+	default:
+		enter(core.StageDownloading)
+		sound, err := p.Download(withQuality(ctx, core.QualitySubtitles), job.Source)
+		if err != nil {
 			job.FailKind = downloadFailKind(job, err)
 			return fail("download", err)
 		}
+		// The sound is kept hidden beside where the video comes (soundPath), so the library does not take a sound saved as .webm for a video of its own; the film's document is the video's from the start, as the video is named as the sound was but for its extension.
+		video, hearFrom = sound, soundPath(sound)
+		if os.Rename(sound, hearFrom) != nil {
+			hearFrom = sound
+		}
+		coming = make(chan downloaded, 1)
+		var videoCtx context.Context
+		videoCtx, stopVideo = context.WithCancel(WithTrace(ctx, &Trace{}))
+		go func() {
+			path, err := p.Download(videoCtx, job.Source)
+			coming <- downloaded{path: path, err: err}
+		}()
 	}
-	job.VideoPath = video
 	if len(chapters) > 0 {
 		keepChapters(video, chapters, job.ChapterUse)
 	}
-	length := maker.Length(ctx, video)
+	length := maker.Length(ctx, hearFrom)
 	doc, err := track.Read(video)
 	if length <= 0 || err != nil || doc.Newer {
+		stopVideo()
+		if coming != nil {
+			<-coming
+			_ = os.Remove(soundPath(video))
+		}
 		return Run(ctx, p, job, language, report)
 	}
-	m := &making{ctx: ctx, p: maker, job: &job, video: video, device: device, doc: doc, report: report}
+	m := &making{ctx: ctx, p: maker, job: &job, video: video, hearFrom: hearFrom, device: device, doc: doc, report: report, coming: coming}
+	defer stopVideo()
 	return m.run(length, language, watch)
+}
+
+// soundPath is where the sound of the link whose video is to be at video is kept while it is made from it: a hidden file beside it, as ".video.sound", which moves with the video (Companions) and goes once the video is there.
+func soundPath(video string) string { return hiddenBeside(video, ".sound") }
+
+// downloaded is how the download of a film's video beside its making ended: where the video is, or why it failed.
+type downloaded struct {
+	path string
+	err  error
 }
 
 // making is a film being made by Make.
 type making struct {
-	ctx    context.Context
-	p      Maker
-	job    *core.Job
-	video  string
-	device string
-	doc    track.Doc
-	report func(core.Job)
+	ctx   context.Context
+	p     Maker
+	job   *core.Job
+	video string
+	// hearFrom is the file the speech is heard from: the video, or the sound of a link whose video is still coming.
+	hearFrom string
+	device   string
+	doc      track.Doc
+	report   func(core.Job)
 	// transcript and bilingual are the files the film's lines are written out to (project), and projected when they last were.
 	transcript, bilingual string
 	projected             time.Time
 	// redrafts are lines near the playhead drafted before a term was found in them, made again with it before the next draft (commitDraft).
 	redrafts []draftInput
+	// coming is the video of a link downloading beside the making, which is made from its sound (video) until it is there; nil once it is, or for a film whose video was there from the start.
+	coming <-chan downloaded
+	// videoErr is why the video failed to download, which fails the job once its subtitles are made.
+	videoErr error
 }
 
 // heardCell is a cell a run of the speech recognition heard, with its lines, and edges, the lines the run heard outside its cells, which it hands on with its first and last cell for the making to keep where no run has them (commitHeard).
@@ -274,6 +319,8 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 		select {
 		case <-m.ctx.Done():
 			return m.fail("transcribe", m.ctx.Err())
+		case d := <-m.coming:
+			m.videoCame(d)
 		case <-watch.Jumped():
 		case c := <-heardCh:
 			if hearing == "" {
@@ -343,6 +390,24 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 	lines := m.doc.Lines(gen)
 	if len(lines) == 0 {
 		return m.fail("transcribe", ErrNoSpeech)
+	}
+	// A link made from its sound waits for its video, then keeps it in the sound's place.
+	if m.coming != nil {
+		job.Stage, job.Progress = core.StageDownloading, core.Progress{}
+		m.report(*job)
+		select {
+		case d := <-m.coming:
+			m.videoCame(d)
+		case <-m.ctx.Done():
+			return m.fail("download", m.ctx.Err())
+		}
+	}
+	if m.videoErr != nil {
+		job.FailKind = downloadFailKind(*job, m.videoErr)
+		return m.fail("download", m.videoErr)
+	}
+	if m.hearFrom != job.VideoPath {
+		_ = os.Remove(m.hearFrom)
 	}
 	m.append(track.Event{Kind: track.KindDone, Gen: gen})
 	m.project(true)
@@ -430,7 +495,7 @@ func (m *making) hear(ctx context.Context, cells []int, heardCh chan<- heardCell
 			}
 		}
 	}
-	language, err := m.p.Hear(ctx, m.video, max(from-runPad, 0), to+runPad, func(s core.Segment) {
+	language, err := m.p.Hear(ctx, m.hearFrom, max(from-runPad, 0), to+runPad, func(s core.Segment) {
 		// A line heard, wherever it is, says the speech recognition runs: a run that fails after it fails a cell, not every run.
 		heard = true
 		mid := (s.Start + s.End) / 2
@@ -866,6 +931,17 @@ func (m *making) progress(p track.Plan) {
 	m.report(*m.job)
 }
 
+// videoCame takes in how the download of the film's video ended: the film is its video from now on, or the job fails for it once its subtitles are made.
+func (m *making) videoCame(d downloaded) {
+	m.coming = nil
+	if d.err != nil {
+		m.videoErr = d.err
+		return
+	}
+	m.job.VideoPath = d.path
+	m.report(*m.job)
+}
+
 // project writes the film's lines out beside the video, as they are now, at most every projectEvery unless final (projectTrack). It reads the film's logs again first, so what was written beside the making, as the user's decision on a change of the final proofread (DecideProofs), is written out too and not lost. The film shows its bilingual subtitles from the first lines written out.
 func (m *making) project(final bool) {
 	if !final && time.Since(m.projected) < projectEvery {
@@ -880,7 +956,8 @@ func (m *making) project(final bool) {
 	}
 	m.projected = time.Now()
 	_ = m.append(events...)
-	if m.job.SubtitlePath != m.bilingual {
+	// A film is shown with its subtitles once there is a video to show them on.
+	if m.job.VideoPath != "" && m.job.SubtitlePath != m.bilingual {
 		m.job.SubtitlePath = m.bilingual
 		m.report(*m.job)
 	}
