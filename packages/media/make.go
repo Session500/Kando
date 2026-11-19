@@ -139,6 +139,9 @@ func Make(ctx context.Context, p Pipeline, job core.Job, language, device string
 	if job.Redo == core.RedoTranslation {
 		return translateAgain(ctx, p, &job, language, device, watch, report)
 	}
+	if job.Redo == core.RedoMissing {
+		return fillMissing(ctx, p, &job, language, device, report)
+	}
 	// A redo needs the translator as well as the tools that hear the film, as it would otherwise replace the film's translated subtitles with fewer.
 	check := p.Check
 	if tc, ok := p.(TranslateChecker); ok && job.Redo != "" {
@@ -221,7 +224,7 @@ func soundPath(video string) string { return hiddenBeside(video, ".sound") }
 // MakesAPartAtATime reports whether Make makes job with p a part at a time, so stopping it loses no more than the work it was doing: a film made for the first time with a pipeline that can (Maker), not a redo, nor a link whose lines come from its site's subtitles, which Run makes whole.
 func MakesAPartAtATime(p Pipeline, job core.Job) bool {
 	_, can := p.(Maker)
-	return can && (job.Redo == "" || job.Redo == core.RedoAll || job.Redo == core.RedoTranslation) && job.SubtitleSource != core.SubtitlesPlatform
+	return can && (job.Redo == "" || job.Redo == core.RedoAll || job.Redo == core.RedoTranslation || job.Redo == core.RedoMissing) && job.SubtitleSource != core.SubtitlesPlatform
 }
 
 // downloadVideo downloads the video of a film that keeps none (core.RedoVideo) at job.Quality, puts it under the name its subtitles go by (placeVideo) and completes, neither hearing nor translating the film; one that fails leaves the film as it was.
@@ -658,6 +661,138 @@ func translateAgain(ctx context.Context, p Pipeline, job *core.Job, language, de
 	}
 	m := &making{ctx: ctx, p: maker, job: job, video: job.VideoPath, hearFrom: job.VideoPath, redo: true, copied: true, device: device, doc: doc, report: report}
 	return m.run(lines[len(lines)-1].End, language, watch)
+}
+
+// fillMissing translates the lines of job's film that the film shows without a translation (core.RedoMissing) into language, a batch at a time, with the lines said before each as context, and keeps the rest as they are. It writes each batch into the lines the film shows and out beside the video as it is translated, as filling in what is missing cannot make the film worse: one that fails or is stopped keeps the lines it filled, and job.Untranslated says how many are left. It neither downloads nor hears the film. A film whose subtitles were edited outside Kando so they no longer match its transcript line for line fails with ErrSubtitlesChanged, sending nothing, as which lines are missing cannot be told; one whose bilingual subtitles are gone has every line its document does not translate translated.
+func fillMissing(ctx context.Context, p Pipeline, job *core.Job, language, device string, report func(core.Job)) core.Job {
+	failed := func(step string, err error) core.Job {
+		job.Err, job.Stage, job.Progress = fmt.Errorf("%s: %w", step, err), core.StageFailed, core.Progress{}
+		report(*job)
+		return *job
+	}
+	if tc, ok := p.(TranslateChecker); ok {
+		if err := tc.CheckTranslate(); err != nil {
+			return failed("check", err)
+		}
+	}
+	if device == "" {
+		return failed("check", track.ErrDevice)
+	}
+	video := job.VideoPath
+	doc, err := track.Read(video)
+	if err == nil && doc.Newer {
+		err = track.ErrNewer
+	}
+	if err != nil {
+		return failed("translate", err)
+	}
+	transcript := TranscriptOf(video)
+	subtitles := job.SubtitlePath
+	if !fileExists(subtitles) {
+		// The bilingual subtitles are gone: the film is its transcript, untranslated, unless its document has its lines.
+		subtitles = transcript
+	}
+	events, err := trackFiles(doc, subtitles, transcript)
+	if err != nil {
+		return failed("translate", err)
+	}
+	if len(events) > 0 {
+		// The files hold what the document did not write: they are taken in only when they still match the transcript line for line.
+		if _, _, err := readExported(video, subtitles != transcript); err != nil {
+			return failed("translate", err)
+		}
+		written, err := track.Append(video, device, events...)
+		doc.Events = append(doc.Events, written...)
+		if err != nil {
+			return failed("export", err)
+		}
+	}
+	gen := doc.Shown()
+	lines := doc.Lines(gen)
+	if len(lines) == 0 {
+		return failed("translate", ErrNoTranscript)
+	}
+	job.Stage, job.Progress = core.StageTranslating, core.Progress{}
+	report(*job)
+	same := core.SameLanguage(job.SpokenLanguage, language, track.Originals(lines))
+	var missing []int
+	for i, l := range lines {
+		if !same && strings.TrimSpace(l.Translation.Text) == "" {
+			missing = append(missing, i)
+		}
+	}
+	bilingual := strings.TrimSuffix(video, filepath.Ext(video)) + ".bilingual.srt"
+	project := func() error {
+		files, err := projectTrack(doc.Lines(gen), transcript, bilingual)
+		if err != nil {
+			return err
+		}
+		written, err := track.Append(video, device, files...)
+		doc.Events = append(doc.Events, written...)
+		return err
+	}
+	left := len(missing)
+	started := time.Now()
+	for at := 0; at < len(missing); at += DefaultBatchSize {
+		batch := missing[at:min(at+DefaultBatchSize, len(missing))]
+		segments := make([]core.Segment, len(batch))
+		for k, i := range batch {
+			segments[k] = core.Segment{Start: lines[i].Start, End: lines[i].End, Text: lines[i].Original.Text}
+		}
+		var earlier []string
+		for _, l := range lines[max(batch[0]-draftContext, 0):batch[0]] {
+			earlier = append(earlier, l.Original.Text)
+		}
+		translated, err := p.Translate(WithEarlier(ctx, earlier), segments, language)
+		var partial *UntranslatedError
+		if errors.As(err, &partial) && len(translated) == len(segments) {
+			err = nil
+		}
+		if err == nil && len(translated) != len(segments) {
+			err = fmt.Errorf("%d translated lines for %d untranslated lines", len(translated), len(segments))
+		}
+		if err != nil {
+			return failed("translate", err)
+		}
+		var revs []track.Event
+		for k, i := range batch {
+			text := strings.TrimSpace(translated[k].Text)
+			if text == "" {
+				continue
+			}
+			// A line taken in from a file may hold an empty translation at the final layer, which a draft would not show over.
+			revs = append(revs, track.Event{Kind: track.KindRev, Line: lines[i].ID, Side: track.Translation, Layer: max(lines[i].Translation.Layer, track.LayerDraft), Text: text, Source: makeSource})
+			left--
+		}
+		written, err := track.Append(video, device, revs...)
+		doc.Events = append(doc.Events, written...)
+		if err == nil {
+			err = project()
+		}
+		if err != nil {
+			return failed("export", err)
+		}
+		job.Untranslated = left
+		progress := core.Fraction(float64(at+len(batch)) / float64(len(missing)))
+		progress.Started = started
+		job.Progress = progress
+		report(*job)
+	}
+	if len(missing) == 0 {
+		if err := project(); err != nil {
+			return failed("export", err)
+		}
+	}
+	if err := translateChapters(ctx, p, video, language, same); err != nil {
+		return failed("translate", err)
+	}
+	job.SubtitlePath, job.SameLanguage = bilingual, same
+	job.CompletedAt = time.Now()
+	job.Language, job.Untranslated, job.TranslationErr = language, left, ""
+	job.Redo, job.RedoLanguage = "", ""
+	job.Stage, job.Progress = core.StageComplete, core.Progress{}
+	report(*job)
+	return *job
 }
 
 // copyHearing is how the cells of a film translated again are heard (track.Making.Hearing): not at all, their lines copied from the film as it shows them.
