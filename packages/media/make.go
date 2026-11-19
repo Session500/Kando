@@ -1,11 +1,14 @@
 package media
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -21,9 +24,34 @@ type Maker interface {
 	Length(ctx context.Context, videoPath string) time.Duration
 }
 
-// Length is how long the video at videoPath is, as ffmpeg reads it; 0 when it cannot tell.
-func (t Tools) Length(_ context.Context, videoPath string) time.Duration {
-	return videoDuration(t.FFmpeg, videoPath)
+// Length is how long the video at videoPath is, as ffmpeg reads it, with or without a picture, as the sound a link is made from first has none; 0 when it cannot tell. A file whose header does not say, as a webm a browser recorded, is decoded once through its sound, which takes seconds for a film, and is as long as the last time the decoding reached.
+func (t Tools) Length(ctx context.Context, videoPath string) time.Duration {
+	if d := parseDuration(ffmpegStderr(ctx, t.FFmpeg, "-hide_banner", "-nostdin", "-i", videoPath)); d > 0 {
+		return d
+	}
+	return lastDecoded(ffmpegStderr(ctx, t.FFmpeg, "-hide_banner", "-nostdin", "-vn", "-i", videoPath, "-f", "null", "-"))
+}
+
+// ffmpegStderr is what ffmpeg run with args writes to stderr, where it tells what a file holds and how far it has decoded, whether it succeeds or not.
+func ffmpegStderr(ctx context.Context, ffmpeg string, args ...string) string {
+	cmd := Command(ctx, ffmpeg, args...)
+	var stderr bytes.Buffer
+	cmd.Stdout, cmd.Stderr = io.Discard, &stderr
+	_ = cmd.Run()
+	return stderr.String()
+}
+
+// decodedPattern is how far ffmpeg says it has decoded, as "time=00:01:05.00".
+var decodedPattern = regexp.MustCompile(`time=(\d+):(\d+):(\d+(?:\.\d+)?)`)
+
+// lastDecoded is the last time ffmpeg's stderr says it decoded to, 0 when it says none.
+func lastDecoded(text string) time.Duration {
+	all := decodedPattern.FindAllStringSubmatch(text, -1)
+	if len(all) == 0 {
+		return 0
+	}
+	m := all[len(all)-1]
+	return parseDuration("Duration: " + m[1] + ":" + m[2] + ":" + m[3])
 }
 
 // Watcher says where a film is watched while it is made (Make).

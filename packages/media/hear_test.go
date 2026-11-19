@@ -87,3 +87,17 @@ func TestParseWhisperLine(t *testing.T) {
 		}
 	}
 }
+
+// A link is made first from its sound, which has no picture: its length is read all the same, and a file whose header does not say, as a webm a browser recorded, is as long as decoding it reaches.
+func TestLengthOfSoundAlone(t *testing.T) {
+	dir := t.TempDir()
+	for name, stderr := range map[string]string{
+		"sound":       "Input #0, matroska,webm, from 'video.sound':\n  Duration: 00:01:05.01, start: 0.000000, bitrate: 79 kb/s\n  Stream #0:0: Audio: opus, 48000 Hz, mono, fltp\n",
+		"no duration": "  Duration: N/A, start: 0.000000, bitrate: N/A\n  Stream #0:0: Audio: opus, 48000 Hz, mono, fltp\nsize=N/A time=00:00:31.00 bitrate=N/A\rsize=N/A time=00:01:05.00 bitrate=N/A speed=1.4e+03x\n",
+	} {
+		ffmpeg := writeFakeTool(t, filepath.Join(dir, name), "ffmpeg", fakeTool{Stderr: stderr})
+		if got := (Tools{FFmpeg: ffmpeg}).Length(context.Background(), "video.sound"); got/time.Second != 65 {
+			t.Errorf("%s: length %v", name, got)
+		}
+	}
+}
