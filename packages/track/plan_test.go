@@ -232,3 +232,39 @@ func TestABlockIsNotProofreadBeforeItsCellsAreDrafted(t *testing.T) {
 		t.Fatalf("Final = %v before the block is drafted", p.Final)
 	}
 }
+
+func TestFinalLinesAreThoseOfAFinishedBlock(t *testing.T) {
+	m := making(330*time.Second, 0)
+	m.Final = func([]string) string { return "" }
+	doc := Doc{}
+	for {
+		p := doc.Plan(m)
+		if len(p.Hear) > 0 {
+			doc = doc.Plus("mac", hearCell(p.Hear[0], "line")...)
+			continue
+		}
+		if len(p.Draft) > 0 {
+			doc = doc.Plus("mac", p.Draft[0].Made())
+			continue
+		}
+		// Only the second block is proofread.
+		doc = doc.Plus("mac", p.Final[1].Made())
+		break
+	}
+	final := doc.Final("g", m.Language, m.Final)
+	for _, l := range doc.Lines("g") {
+		if want := l.Start >= Block*Cell; final[l.ID] != want {
+			t.Fatalf("line at %v final %v, want %v", l.Start, final[l.ID], want)
+		}
+	}
+	// A line the user wrote is final wherever it is.
+	first := doc.Lines("g")[0].ID
+	doc = doc.Plus("mac", Event{Kind: KindRev, Line: first, Side: Translation, Layer: LayerUser, Text: "mine"})
+	if !doc.Final("g", m.Language, m.Final)[first] {
+		t.Fatal("a line the user wrote is not final")
+	}
+	// Without a final proofread, a line is final only when written so.
+	if got := doc.Final("g", m.Language, nil); len(got) != 1 || !got[first] {
+		t.Fatalf("final without a proofread = %v", got)
+	}
+}

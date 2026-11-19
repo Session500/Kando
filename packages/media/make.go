@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -148,12 +149,13 @@ type hearDone struct {
 	heard    bool
 }
 
-// drafted is how a draft ended: what it was given, its lines proofread and their translations line for line, the corrections the proofreading made, and why it failed.
+// drafted is how a draft or a final proofread ended: what it was given, its lines proofread and their translations line for line, the corrections the proofreading made, the changes the final proofread suggested, and why it failed.
 type drafted struct {
 	in         draftInput
 	original   []core.Segment
 	translated []core.Segment
 	fixes      []Fix
+	proofs     []core.Proof
 	err        error
 }
 
@@ -201,7 +203,17 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 		}
 		return language
 	}
-	plan.Language = translates()
+	// The final proofread, when the job asks for it and the pipeline can: each block of the film proofread as a whole once drafted, its inputs the film's terms found in it.
+	auto, reviewAsked := reviewOf(m.ctx)
+	_, canReview := m.p.(Reviewer)
+	finals := reviewAsked && canReview
+	relanguage := func() {
+		plan.Language, plan.Final = translates(), nil
+		if finals && plan.Language != "" {
+			plan.Final = m.finalKey(gen)
+		}
+	}
+	relanguage()
 
 	heardCh := make(chan heardCell)
 	doneCh := make(chan hearDone, 1)
@@ -236,17 +248,23 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 			hearStarted = time.Now()
 			go m.hear(runCtx, hearCells, heardCh, doneCh)
 		}
-		switch {
-		case drafting || plan.Language == "":
-		case len(m.redrafts) > 0:
-			drafting = true
-			in := m.redrafts[0]
-			m.redrafts = m.redrafts[1:]
-			go m.draft(m.ctx, in, plan.Language, draftCh)
-		case len(p.Draft) > 0:
-			if group, ready := m.draftGroup(gen, p, plan.Playhead); ready {
+		// The translation's one line of work: lines to draft again for a new term first, then drafts, then, while no draft is ready, the final proofread.
+		if !drafting && plan.Language != "" {
+			switch {
+			case len(m.redrafts) > 0:
 				drafting = true
-				go m.draft(m.ctx, m.draftOf(gen, group), plan.Language, draftCh)
+				in := m.redrafts[0]
+				m.redrafts = m.redrafts[1:]
+				go m.draft(m.ctx, in, plan.Language, draftCh)
+			case len(p.Draft) > 0:
+				if group, ready := m.draftGroup(gen, p, plan.Playhead); ready {
+					drafting = true
+					go m.draft(m.ctx, m.draftOf(gen, group), plan.Language, draftCh)
+				}
+			}
+			if !drafting && len(p.Final) > 0 {
+				drafting = true
+				go m.final(m.ctx, m.finalOf(gen, p.Final[0]), plan.Language, auto, draftCh)
 			}
 		}
 		if hearStop == nil && !drafting {
@@ -287,7 +305,7 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 					m.commitHeard(gen, hearing, c)
 				}
 				pending = nil
-				plan.Language = translates()
+				relanguage()
 			}
 			if hearing == "" {
 				pending = nil
@@ -295,16 +313,23 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 		case d := <-draftCh:
 			drafting = false
 			switch {
+			case d.err == nil && d.in.final:
+				draftFailures = 0
+				m.commitFinal(d)
 			case d.err == nil:
 				draftFailures = 0
 				m.commitDraft(gen, d, plan.Playhead)
 			case d.in.redraft:
 				// A line made again for a term keeps its draft when that fails; the final proofread makes it with the term.
 			case m.ctx.Err() != nil:
+			case d.in.final && (errors.Is(d.err, ErrOffline) || draftFailures+1 >= maxFailedBatches):
+				// The service is gone, or fails block after block: the film stays a draft where it is not proofread yet, as it is when the final proofread fails in Run.
+				finals = false
+				relanguage()
 			case errors.Is(d.err, ErrOffline) || draftFailures+1 >= maxFailedBatches:
 				// The service is not there, or fails cell after cell: the film is made without the translation of the cells left, as it is without a translator.
 				notTranslated = d.err.Error()
-				plan.Language = translates()
+				relanguage()
 			default:
 				draftFailures++
 				for _, u := range d.in.units {
@@ -497,6 +522,9 @@ type draftInput struct {
 	redraft bool
 	// title names the film for the proofreading, read before the draft starts, as the making goes on changing the job beside it.
 	title string
+	// final is the final proofread of a block (its one unit), its lines' translations as they are now in translations.
+	final        bool
+	translations []core.Segment
 }
 
 // draftGroup is the cells the next draft makes, from the plan's cells needing one, and whether to make it now: the first alone while it is near the playhead, so its lines come at once; past that, as many of the cells after it as fit in a batch, so a draft far from where the film is watched sends the lines before it once for a batch rather than for every cell. A batch that is not full waits while the cell after it is still to be heard, as the run hearing it hands it on soon.
@@ -590,13 +618,34 @@ func (m *making) commitDraft(gen string, d drafted, playhead time.Duration) {
 	for _, t := range m.doc.Terms(gen) {
 		before[t] = true
 	}
+	// A line drafted again for a term may be of a block proofread already: its new texts are written at the layer they replace, so the final proofread's do not hide them, and a text the user wrote is left as it is.
+	layer := func(id string, side track.Side) (track.Layer, bool) {
+		if !d.in.redraft {
+			return track.LayerDraft, true
+		}
+		for _, l := range m.doc.Lines(gen) {
+			if l.ID != id {
+				continue
+			}
+			was := l.Original.Layer
+			if side == track.Translation {
+				was = l.Translation.Layer
+			}
+			return max(was, track.LayerDraft), was != track.LayerUser
+		}
+		return track.LayerDraft, true
+	}
 	var events []track.Event
 	for i, id := range d.in.ids {
 		if text := d.original[i].Text; text != d.in.lines[i].Text {
-			events = append(events, track.Event{Kind: track.KindRev, Line: id, Side: track.Original, Layer: track.LayerDraft, Text: text, Source: makeSource})
+			if at, ok := layer(id, track.Original); ok {
+				events = append(events, track.Event{Kind: track.KindRev, Line: id, Side: track.Original, Layer: at, Text: text, Source: makeSource})
+			}
 		}
 		if text := strings.TrimSpace(d.translated[i].Text); text != "" {
-			events = append(events, track.Event{Kind: track.KindRev, Line: id, Side: track.Translation, Layer: track.LayerDraft, Text: text, Source: makeSource})
+			if at, ok := layer(id, track.Translation); ok {
+				events = append(events, track.Event{Kind: track.KindRev, Line: id, Side: track.Translation, Layer: at, Text: text, Source: makeSource})
+			}
 		}
 	}
 	for _, f := range d.fixes {
@@ -642,6 +691,136 @@ func (m *making) commitDraft(gen string, d drafted, playhead time.Duration) {
 	}
 }
 
+// finalKey is what a block's final proofread is made from besides its lines as heard (track.Making.Final): the film's terms found in them, so a term found later proofreads again only the blocks it is in. What it finds for a block's lines is kept until the film has more terms.
+func (m *making) finalKey(gen string) func([]string) string {
+	type memo struct {
+		terms int
+		key   string
+	}
+	seen := map[string]memo{}
+	return func(heard []string) string {
+		terms := m.terms(gen)
+		id := strings.Join(heard, "\x00")
+		if was, ok := seen[id]; ok && was.terms == len(terms) {
+			return was.key
+		}
+		lines := make([]core.Segment, len(heard))
+		var found []string
+		for _, t := range terms {
+			for i, h := range heard {
+				lines[i].Text = h
+			}
+			if slices.Contains(ApplyRecurring(lines, []Fix{t}), true) {
+				found = append(found, t.From+"\x01"+t.To)
+			}
+		}
+		key := strings.Join(found, "\x02")
+		seen[id] = memo{terms: len(terms), key: key}
+		return key
+	}
+}
+
+// finalOf is what the final proofread of unit's block reads: its lines as they read now, their translations, the lines said before them and the film's terms.
+func (m *making) finalOf(gen string, unit track.Unit) draftInput {
+	start, _ := unit.Span()
+	end := start + track.Block*track.Cell
+	in := draftInput{units: []track.Unit{unit}, terms: m.terms(gen), title: filmTitle(*m.job), final: true}
+	for _, l := range m.doc.Lines(gen) {
+		mid := (l.Start + l.End) / 2
+		switch {
+		case mid < start:
+			in.earlier = append(in.earlier, l.Original.Text)
+		case mid < end:
+			in.ids = append(in.ids, l.ID)
+			in.lines = append(in.lines, core.Segment{Start: l.Start, End: l.End, Text: l.Original.Text})
+			in.translations = append(in.translations, core.Segment{Start: l.Start, End: l.End, Text: l.Translation.Text})
+		}
+	}
+	in.earlier = in.earlier[max(len(in.earlier)-draftContext, 0):]
+	return in
+}
+
+// final proofreads a block as a whole: the film's terms found since it was drafted are put in its lines, those they change are translated again, then the final proofread reads the block, its changes of the kinds auto names made at once and the rest kept for the user to review.
+func (m *making) final(ctx context.Context, in draftInput, language string, auto core.ProofAuto, out chan<- drafted) {
+	lines := slices.Clone(in.lines)
+	translated := slices.Clone(in.translations)
+	changed := ApplyRecurring(lines, in.terms)
+	var again []int
+	for i, c := range changed {
+		if c && strings.TrimSpace(translated[i].Text) != "" {
+			again = append(again, i)
+		}
+	}
+	if len(again) > 0 {
+		segments := make([]core.Segment, len(again))
+		for k, i := range again {
+			segments[k] = lines[i]
+		}
+		redone, err := m.p.Translate(WithEarlier(ctx, in.earlier), segments, language)
+		var partial *UntranslatedError
+		if errors.As(err, &partial) && len(redone) == len(segments) {
+			err = nil
+		}
+		if err == nil && len(redone) != len(segments) {
+			err = fmt.Errorf("%d translated lines for %d lines", len(redone), len(segments))
+		}
+		if err != nil {
+			out <- drafted{in: in, err: err}
+			return
+		}
+		for k, i := range again {
+			if text := strings.TrimSpace(redone[k].Text); text != "" {
+				translated[i].Text = text
+			}
+		}
+	}
+	found, err := m.p.(Reviewer).Review(ctx, lines, translated, in.title, language)
+	if err != nil {
+		out <- drafted{in: in, err: err}
+		return
+	}
+	var proofs []core.Proof
+	for _, f := range found {
+		f.Status = core.ProofPending
+		if auto.Applies(f.Kind) {
+			for i := range translated {
+				if translated[i].Start == f.Span.Start && translated[i].End == f.Span.End && strings.TrimSpace(translated[i].Text) == f.Old {
+					translated[i].Text, f.Status = f.New, core.ProofApplied
+					break
+				}
+			}
+		}
+		proofs = append(proofs, f)
+	}
+	out <- drafted{in: in, original: lines, translated: translated, proofs: proofs}
+}
+
+// commitFinal writes a block's final proofread: each text it changed, as final, then that the block is proofread, which makes its lines final; and its changes, in place of those an earlier proofread of the block suggested, beside the video for the user to review (ProofsPath).
+func (m *making) commitFinal(d drafted) {
+	var events []track.Event
+	for i, id := range d.in.ids {
+		if text := d.original[i].Text; text != d.in.lines[i].Text {
+			events = append(events, track.Event{Kind: track.KindRev, Line: id, Side: track.Original, Layer: track.LayerFinal, Text: text, Source: makeSource})
+		}
+		if text := strings.TrimSpace(d.translated[i].Text); text != "" && text != d.in.translations[i].Text {
+			events = append(events, track.Event{Kind: track.KindRev, Line: id, Side: track.Translation, Layer: track.LayerFinal, Text: text, Source: makeSource})
+		}
+	}
+	_ = m.append(append(events, d.in.units[0].Made())...)
+	start, _ := d.in.units[0].Span()
+	end := start + track.Block*track.Cell
+	path := ProofsPath(m.video)
+	kept, err := LoadProofs(path)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return
+	}
+	proofs := slices.DeleteFunc(kept, func(p core.Proof) bool {
+		mid := (p.Span.Start + p.Span.End) / 2
+		return mid >= start && mid < end
+	})
+	_ = SaveProofs(path, append(proofs, d.proofs...))
+}
+
 // progress reports how far the film is made: hearing while cells are left to hear, then translating.
 func (m *making) progress(p track.Plan) {
 	stage := core.StageTranscribing
@@ -661,33 +840,45 @@ func (m *making) progress(p track.Plan) {
 	m.report(*m.job)
 }
 
-// project writes the film's lines out beside the video, its transcript and its bilingual subtitles, as they are now, at most every projectEvery unless final, and records what it wrote so a read does not take the files back in as written by something else (ReadTrack). The film shows its bilingual subtitles from the first lines written out.
+// project writes the film's lines out beside the video, as they are now, at most every projectEvery unless final (projectTrack). It reads the film's logs again first, so what was written beside the making, as the user's decision on a change of the final proofread (DecideProofs), is written out too and not lost. The film shows its bilingual subtitles from the first lines written out.
 func (m *making) project(final bool) {
 	if !final && time.Since(m.projected) < projectEvery {
 		return
 	}
-	lines := m.doc.Lines(m.generationShown())
-	if len(lines) == 0 {
-		return
+	if doc, err := track.Read(m.video); err == nil && len(doc.Events) >= len(m.doc.Events) {
+		m.doc = doc
 	}
-	transcript := []byte(formatSRT(track.Originals(lines)))
-	bilingual := []byte(formatSRT(track.Bilingual(lines)))
-	if writeFileAtomic(m.transcript, transcript) != nil || writeFileAtomic(m.bilingual, bilingual) != nil {
+	events, err := projectTrack(m.doc, m.transcript, m.bilingual)
+	if err != nil || len(events) == 0 {
 		return
 	}
 	m.projected = time.Now()
-	_ = m.append(
-		track.Event{Kind: track.KindFile, Source: filepath.Base(m.transcript), Key: trackFileHash(transcript, nil)},
-		track.Event{Kind: track.KindFile, Source: filepath.Base(m.bilingual), Key: trackFileHash(bilingual, transcript)},
-	)
+	_ = m.append(events...)
 	if m.job.SubtitlePath != m.bilingual {
 		m.job.SubtitlePath = m.bilingual
 		m.report(*m.job)
 	}
 }
 
-// generationShown is the generation the film shows, the one being made.
-func (m *making) generationShown() string { return m.doc.Shown() }
+// projectTrack writes the lines doc shows out to transcript, the film's .srt of the speech alone, and bilingual, its bilingual subtitles, each written whole or not at all, and returns the records of what it wrote for the caller to keep in the film's log, so a read does not take the files back in as written by something else (ReadTrack). A document that shows no line writes nothing.
+func projectTrack(doc track.Doc, transcript, bilingual string) ([]track.Event, error) {
+	lines := doc.View()
+	if len(lines) == 0 {
+		return nil, nil
+	}
+	speech := []byte(formatSRT(track.Originals(lines)))
+	both := []byte(formatSRT(track.Bilingual(lines)))
+	if err := writeFileAtomic(transcript, speech); err != nil {
+		return nil, err
+	}
+	if err := writeFileAtomic(bilingual, both); err != nil {
+		return nil, err
+	}
+	return []track.Event{
+		{Kind: track.KindFile, Source: filepath.Base(transcript), Key: trackFileHash(speech, nil)},
+		{Kind: track.KindFile, Source: filepath.Base(bilingual), Key: trackFileHash(both, speech)},
+	}, nil
+}
 
 // runOf is the cells the next run of the speech recognition hears: from the first cell needed, those after it that are needed too, as many as a run hears, or the first alone when the language is not known yet, so it is found before the rest are heard.
 func runOf(needed []track.Unit, known bool) []int {

@@ -254,3 +254,47 @@ func rotate(n, first int) []int {
 	}
 	return out
 }
+
+// Final reports which lines of generation gen are final: those whose block's final proofread was made from what the block holds now (WorkFinal, its inputs named by language and final as Making names them), and those whose texts were written final already, by the user or taken in from a file made before the document (Source "file"). Every other line is a draft, a line of a block to be proofread again among them, whatever layer its texts are.
+func (d Doc) Final(gen, language string, final func(heard []string) string) map[string]bool {
+	out := map[string]bool{}
+	heard := map[string]string{}
+	made := map[Unit]bool{}
+	for _, e := range d.Events {
+		switch {
+		case e.Kind == KindRev && e.Side == Original && e.Layer == LayerHeard:
+			heard[e.Line] = e.Text
+		case e.Kind == KindUnit && e.Gen == gen && Work(e.Source) == WorkFinal:
+			made[unitOf(e)] = true
+		}
+	}
+	blocks := map[int][]Line{}
+	for _, l := range d.Lines(gen) {
+		shown := l.Translation
+		if shown.Text == "" {
+			shown = l.Original
+		}
+		if shown.Layer == LayerUser || shown.Layer == LayerFinal && shown.Source == "file" {
+			out[l.ID] = true
+		}
+		b := int((l.Start + l.End) / 2 / (Cell * Block))
+		blocks[b] = append(blocks[b], l)
+	}
+	if final == nil || language == "" {
+		return out
+	}
+	for b, lines := range blocks {
+		events := make([]Event, len(lines))
+		texts := make([]string, len(lines))
+		for i, l := range lines {
+			events[i] = Event{Line: l.ID, Start: l.Start.Milliseconds(), End: l.End.Milliseconds()}
+			texts[i] = heard[l.ID]
+		}
+		if made[Unit{Work: WorkFinal, Gen: gen, Cell: b * Block, Key: draftKey(language+"\x00"+final(texts), events, heard)}] {
+			for _, l := range lines {
+				out[l.ID] = true
+			}
+		}
+	}
+	return out
+}

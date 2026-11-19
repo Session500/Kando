@@ -112,7 +112,7 @@ func (a *app) reviewDecide(after []core.Proof) {
 	if a.ProofsBusy() {
 		return
 	}
-	if err := media.DecideProofs(a.review.path, a.review.proofs, after); err != nil {
+	if err := media.DecideProofs(a.player.subs.video, a.review.path, a.savedDevice(), a.review.proofs, after); err != nil {
 		if errors.Is(err, media.ErrProofsNewer) {
 			a.flash(a.messages().ReviewNewer())
 		} else {

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"kando/packages/core"
+	"kando/packages/track"
 )
 
 // The final proofread (终校, core.Proof): once a film is translated, a pipeline that is a Reviewer reads the whole translation through again, with the original lines and the film's glossary, and suggests changes to lines that write a name, a form of address or a term otherwise than the rest of the film, read unnaturally, or say something the original does not. Run asks for it when the job's context says so (WithReview): the changes of the kinds the user lets apply by themselves (core.ProofAuto) go into the subtitles it exports, and every change is kept beside the video (ProofsPath) with what it was, so the user can accept the others, turn any down or roll the whole pass back (DecideProofs).
@@ -315,8 +316,11 @@ func SaveProofs(path string, proofs []core.Proof) error {
 	return writeFileAtomic(path, data)
 }
 
-// DecideProofs keeps after, the changes of the film whose bilingual subtitles are at subtitles as the user decided them, in place of before, as the proofs file holds them, and rewrites the lines whose change became live or stopped being (core.SwapProofs) in the subtitles. The proofs file is written first and put back as it was when the subtitles cannot be, so the two never disagree on a line.
-func DecideProofs(subtitles string, before, after []core.Proof) error {
+// DecideProofs keeps after, the changes of the film whose video is at video and whose bilingual subtitles are at subtitles as the user decided them, in place of before, as the proofs file holds them, and makes the subtitles match: a change that became live (core.Proof.Live) puts its New in place of its Old as its line's translation, and one that no longer is puts Old back. A film made into its subtitle document (track) keeps each decision there, as the user's, as device's, and its subtitles are written out from it again, so a making still running writes them out too; any other film has its subtitles rewritten in place (core.SwapProofs).
+func DecideProofs(video, subtitles, device string, before, after []core.Proof) error {
+	if video != "" && len(track.Logs(video)) > 0 {
+		return decideTrackProofs(video, subtitles, device, before, after)
+	}
 	data, err := os.ReadFile(subtitles)
 	if err != nil {
 		return err
@@ -337,4 +341,51 @@ func DecideProofs(subtitles string, before, after []core.Proof) error {
 		return err
 	}
 	return nil
+}
+
+// decideTrackProofs is DecideProofs of a film made into its subtitle document.
+func decideTrackProofs(video, subtitles, device string, before, after []core.Proof) error {
+	doc, err := track.Read(video)
+	if err != nil {
+		return err
+	}
+	if doc.Newer {
+		return ErrProofsNewer
+	}
+	var events []track.Event
+	lines := doc.View()
+	for i := range after {
+		if i < len(before) && before[i].Live() == after[i].Live() {
+			continue
+		}
+		text := after[i].New
+		if !after[i].Live() {
+			text = after[i].Old
+		}
+		for _, l := range lines {
+			if l.Start == after[i].Span.Start && l.End == after[i].Span.End {
+				events = append(events, track.Event{Kind: track.KindRev, Line: l.ID, Side: track.Translation, Layer: track.LayerUser, Text: text, Source: "review"})
+				break
+			}
+		}
+	}
+	path := ProofsPath(subtitles)
+	if err := SaveProofs(path, after); err != nil {
+		return err
+	}
+	if len(events) == 0 {
+		return nil
+	}
+	written, err := track.Append(video, device, events...)
+	if err != nil {
+		_ = SaveProofs(path, before)
+		return err
+	}
+	doc.Events = append(doc.Events, written...)
+	files, err := projectTrack(doc, TranscriptOf(video), subtitles)
+	if err != nil {
+		return err
+	}
+	_, err = track.Append(video, device, files...)
+	return err
 }

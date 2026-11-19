@@ -28,6 +28,7 @@ type makeFilm struct {
 	say        func(time.Duration) string
 	proofread  func(n int, lines []string) []string
 	proofreads int
+	reviewed   []int
 
 	// stall, when set, is called by the first run once it has heard past its first cell, and the run then waits until it is stopped, as a run far from a jump does.
 	stall func()
@@ -88,6 +89,21 @@ func (f *makeFilm) Hear(ctx context.Context, _ string, from, to time.Duration, h
 		return "", f.hearErr
 	}
 	return f.language, nil
+}
+
+// Review suggests making each translation of a line said at a whole minute read "终:" before it, a fluency change, and records the lines it read.
+func (f *makeFilm) Review(_ context.Context, original, translated []core.Segment, _, _ string) ([]core.Proof, error) {
+	f.mu.Lock()
+	f.reviewed = append(f.reviewed, len(original))
+	f.mu.Unlock()
+	var out []core.Proof
+	for i, s := range translated {
+		if s.Text != "" && s.Start%time.Minute == 0 && !strings.HasPrefix(s.Text, "终:") {
+			out = append(out, core.Proof{Span: core.Span{Start: s.Start, End: s.End}, Kind: core.ProofFluency, Old: s.Text, New: "终:" + s.Text, Why: "reads better"})
+		}
+		_ = original[i]
+	}
+	return out, nil
 }
 
 func (f *makeFilm) Proofread(_ context.Context, segments []core.Segment, _ string) ([]core.Segment, error) {
@@ -492,5 +508,151 @@ func TestATermFoundLateRedraftsTheLinesNearThePlayhead(t *testing.T) {
 	// The lines drafted again are translated again, not proofread again: three proofreading batches for the cells near the playhead, one for the rest.
 	if f.proofreads != 4 {
 		t.Fatalf("%d proofreading batches, want 4", f.proofreads)
+	}
+}
+
+// makeFilmWith runs Make as makeFilmOf does, with ctx.
+func makeFilmWith(t *testing.T, ctx context.Context, f Pipeline, job core.Job, at time.Duration) core.Job {
+	t.Helper()
+	return Make(ctx, f, job, "简体中文", "mac", From(at), func(core.Job) {})
+}
+
+func TestMakeProofreadsTheFilmABlockAtATime(t *testing.T) {
+	job, video := makeJob(t)
+	job.SpeechLanguage = "ja"
+	f := &makeFilm{length: 400 * time.Second, language: "ja"}
+	done := makeFilmWith(t, WithReview(context.Background(), core.ProofAutoAll), f, job, 0)
+	if done.Stage != core.StageComplete {
+		t.Fatalf("job ended %s: %v", done.Stage, done.Err)
+	}
+	// 6:40 is two blocks of the final proofread, the first of five minutes.
+	if !slices.Equal(f.reviewed, []int{30, 10}) {
+		t.Fatalf("final proofread read blocks of %v lines", f.reviewed)
+	}
+	doc, _ := track.Read(video)
+	gen := doc.Shown()
+	final := doc.Final(gen, "简体中文", (&making{doc: doc}).finalKey(gen))
+	for _, l := range doc.View() {
+		if !final[l.ID] {
+			t.Fatalf("line at %v is a draft once the film is proofread", l.Start)
+		}
+		want := "译:" + l.Original.Text
+		if l.Start%time.Minute == 0 {
+			want = "终:" + want
+		}
+		if l.Translation.Text != want {
+			t.Fatalf("line at %v reads %q, want %q", l.Start, l.Translation.Text, want)
+		}
+	}
+	proofs, err := LoadProofs(ProofsPath(video))
+	if err != nil || len(proofs) != 7 || proofs[0].Status != core.ProofApplied {
+		t.Fatalf("proofs %+v (%v), want the 7 changes kept as applied", proofs, err)
+	}
+	// The bilingual subtitles written out are the proofread ones.
+	data, _ := os.ReadFile(done.SubtitlePath)
+	if !strings.Contains(string(data), "终:译:line 1m0s") {
+		t.Fatalf("subtitles %q", data)
+	}
+}
+
+func TestMakeLeavesAFilmADraftWithoutTheFinalProofread(t *testing.T) {
+	job, video := makeJob(t)
+	job.SpeechLanguage = "ja"
+	f := &makeFilm{length: 90 * time.Second, language: "ja"}
+	if done := makeFilmWith(t, context.Background(), f, job, 0); done.Stage != core.StageComplete || len(f.reviewed) != 0 {
+		t.Fatalf("job ended %s, %d blocks proofread", done.Stage, len(f.reviewed))
+	}
+	doc, _ := track.Read(video)
+	if final := doc.Final(doc.Shown(), "简体中文", nil); len(final) != 0 {
+		t.Fatalf("%d lines final without a final proofread", len(final))
+	}
+}
+
+func TestTheFinalProofreadMakesALateTermInTheLinesFarFromThePlayhead(t *testing.T) {
+	job, video := makeJob(t)
+	job.SpeechLanguage = "ja"
+	// Watched from 5:00, the cells from there are drafted first, without the term; the proofreading finds it only at the start of the film, drafted last, so the lines from 6:30 on are neither near the playhead nor drafted with it.
+	var mu sync.Mutex
+	foundAtStart := false
+	f := &makeFilm{length: 600 * time.Second, language: "ja", say: sayFoo, proofread: func(_ int, lines []string) []string {
+		mu.Lock()
+		defer mu.Unlock()
+		if foundAtStart {
+			return correctFoo(0)(0, lines)
+		}
+		return lines
+	}}
+	ctx := WithReview(context.Background(), core.ProofAutoAll)
+	done := makeFilmWith(t, ctx, &lateTerm{makeFilm: f, at: 240 * time.Second, found: func() { mu.Lock(); foundAtStart = true; mu.Unlock() }}, job, 300*time.Second)
+	if done.Stage != core.StageComplete {
+		t.Fatalf("job ended %s: %v", done.Stage, done.Err)
+	}
+	doc, _ := track.Read(video)
+	for _, l := range doc.View() {
+		if l.Original.Text != "say bar now" || !strings.Contains(l.Translation.Text, "say bar now") {
+			t.Fatalf("line at %v reads %q, %q; want the term made in it", l.Start, l.Original.Text, l.Translation.Text)
+		}
+	}
+}
+
+// lateTerm is a film whose proofreading starts correcting once it is sent lines from before at, the start of the film drafted after the rest.
+type lateTerm struct {
+	*makeFilm
+	at    time.Duration
+	found func()
+}
+
+func (f *lateTerm) Proofread(ctx context.Context, segments []core.Segment, title string) ([]core.Segment, error) {
+	if len(segments) > 0 && segments[0].Start < f.at {
+		f.found()
+	}
+	return f.makeFilm.Proofread(ctx, segments, title)
+}
+
+func TestTheUsersDecisionOnAChangeIsKeptInTheFilmsDocument(t *testing.T) {
+	job, video := makeJob(t)
+	job.SpeechLanguage = "ja"
+	f := &makeFilm{length: 90 * time.Second, language: "ja"}
+	done := makeFilmWith(t, WithReview(context.Background(), core.ProofAutoNone), f, job, 0)
+	if done.Stage != core.StageComplete {
+		t.Fatalf("job ended %s: %v", done.Stage, done.Err)
+	}
+	proofs, err := LoadProofs(ProofsPath(video))
+	if err != nil || len(proofs) != 2 || proofs[1].Status != core.ProofPending {
+		t.Fatalf("proofs %+v (%v), want the changes at 0:00 and 1:00 waiting", proofs, err)
+	}
+	accepted := core.AcceptProofs(proofs)
+	if err := DecideProofs(video, done.SubtitlePath, "mac", proofs, accepted); err != nil {
+		t.Fatal(err)
+	}
+	doc, _ := track.Read(video)
+	var at track.Line
+	for _, l := range doc.View() {
+		if l.Start == time.Minute {
+			at = l
+		}
+	}
+	if at.Translation.Text != "终:译:line 1m0s" || at.Translation.Layer != track.LayerUser {
+		t.Fatalf("line at 1:00 = %+v, want the change, as the user's", at.Translation)
+	}
+	data, _ := os.ReadFile(done.SubtitlePath)
+	if !strings.Contains(string(data), "终:译:line 1m0s") {
+		t.Fatalf("subtitles %q, want the change written out", data)
+	}
+	read, err := ReadTrack(video, done.SubtitlePath, TranscriptOf(video))
+	if err != nil || len(read.Events) != len(doc.Events) {
+		t.Fatalf("reading took in %d records (%v)", len(read.Events)-len(doc.Events), err)
+	}
+	// Turned down after all, the line is the machine's again.
+	declined := slices.Clone(accepted)
+	declined[1].Status = core.ProofRejected
+	if err := DecideProofs(video, done.SubtitlePath, "mac", accepted, declined); err != nil {
+		t.Fatal(err)
+	}
+	doc, _ = track.Read(video)
+	for _, l := range doc.View() {
+		if l.Start == time.Minute && l.Translation.Text != "译:line 1m0s" {
+			t.Fatalf("line at 1:00 = %q once taken back", l.Translation.Text)
+		}
 	}
 }

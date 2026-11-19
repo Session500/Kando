@@ -63,11 +63,11 @@ func TestRunKeepsTheFinalProofreadsChanges(t *testing.T) {
 	// Accepting the waiting change writes it into the subtitles; rolling the pass back puts the applied one back too, and keeps what was accepted.
 	subtitles := done.SubtitlePath
 	accepted := core.DecideProof(proofs, 1, true)
-	if err := DecideProofs(subtitles, proofs, accepted); err != nil {
+	if err := DecideProofs("", subtitles, "", proofs, accepted); err != nil {
 		t.Fatal(err)
 	}
 	back := core.RollBackProofs(accepted)
-	if err := DecideProofs(subtitles, accepted, back); err != nil {
+	if err := DecideProofs("", subtitles, "", accepted, back); err != nil {
 		t.Fatal(err)
 	}
 	want = []string{"日本語:Hello there.\nHello there.", "日本語:How are you?\nHow are you?", "またね。\nGoodbye."}
