@@ -136,6 +136,9 @@ func Make(ctx context.Context, p Pipeline, job core.Job, language, device string
 	if job.Redo == core.RedoVideo {
 		return downloadVideo(ctx, p, &job, report)
 	}
+	if job.Redo == core.RedoTranslation {
+		return translateAgain(ctx, p, &job, language, device, watch, report)
+	}
 	// A redo needs the translator as well as the tools that hear the film, as it would otherwise replace the film's translated subtitles with fewer.
 	check := p.Check
 	if tc, ok := p.(TranslateChecker); ok && job.Redo != "" {
@@ -218,7 +221,7 @@ func soundPath(video string) string { return hiddenBeside(video, ".sound") }
 // MakesAPartAtATime reports whether Make makes job with p a part at a time, so stopping it loses no more than the work it was doing: a film made for the first time with a pipeline that can (Maker), not a redo, nor a link whose lines come from its site's subtitles, which Run makes whole.
 func MakesAPartAtATime(p Pipeline, job core.Job) bool {
 	_, can := p.(Maker)
-	return can && (job.Redo == "" || job.Redo == core.RedoAll) && job.SubtitleSource != core.SubtitlesPlatform
+	return can && (job.Redo == "" || job.Redo == core.RedoAll || job.Redo == core.RedoTranslation) && job.SubtitleSource != core.SubtitlesPlatform
 }
 
 // downloadVideo downloads the video of a film that keeps none (core.RedoVideo) at job.Quality, puts it under the name its subtitles go by (placeVideo) and completes, neither hearing nor translating the film; one that fails leaves the film as it was.
@@ -257,8 +260,10 @@ type making struct {
 	// hearFrom is the file the speech is heard from: the video, or the sound of a link whose video is still coming, or that keeps none (soundOnly).
 	hearFrom  string
 	soundOnly bool
-	// redo is a film made again (core.RedoAll) into a generation of its own, which the film shows only once it is done: until then nothing of it is written out, and the job keeps describing the film as it was.
+	// redo is a film made again (core.RedoAll, core.RedoTranslation) into a generation of its own, which the film shows only once it is done: until then nothing of it is written out, and the job keeps describing the film as it was.
 	redo bool
+	// copied is a film translated again (core.RedoTranslation), whose generation holds the lines the film shows as they read, heard already (copyGeneration): they are translated again, and not proofread again.
+	copied bool
 	device   string
 	doc      track.Doc
 	report   func(core.Job)
@@ -309,7 +314,13 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 	if h, ok := m.p.(hearer); ok {
 		model, _ = h.hearing(m.ctx)
 	}
-	gen, err := m.generation(model)
+	var gen string
+	var err error
+	if m.copied {
+		gen, err = m.copyGeneration(length)
+	} else {
+		gen, err = m.generation(model)
+	}
 	if err != nil {
 		return m.fail("transcribe", err)
 	}
@@ -321,7 +332,7 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 
 	// spoken is the language the film is heard in, which a redo keeps to itself until it is done, so a redo that fails leaves the film's as it was.
 	spoken := job.SpokenLanguage
-	if m.redo {
+	if m.redo && !m.copied {
 		spoken = ""
 	}
 	setSpoken := func(language string) {
@@ -336,13 +347,15 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 		_, hearing = h.hearing(m.ctx)
 	}
 	switch {
+	case m.copied:
+		hearing = copyHearing
 	case hearing != "":
 	case m.redo:
 		hearing = m.heardIn(gen)
 	default:
 		hearing = job.SpokenLanguage
 	}
-	if hearing != "" {
+	if hearing != "" && !m.copied {
 		m.ctx = withSpeechLanguage(m.ctx, hearing)
 		setSpoken(cmpOr(spoken, hearing))
 	}
@@ -560,8 +573,12 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 			return m.fail("translate", err)
 		}
 	}
-	job.Transcribed, job.Proofread, job.SameLanguage = true, false, same
-	job.PlatformSubtitles, job.LocalLines, job.SubtitlesOnly = false, 0, subtitlesOnly
+	job.SameLanguage = same
+	// A film translated again keeps the lines it had, and what they were heard from.
+	if !m.copied {
+		job.Transcribed, job.Proofread = true, false
+		job.PlatformSubtitles, job.LocalLines, job.SubtitlesOnly = false, 0, subtitlesOnly
+	}
 	job.SubtitlePath = m.bilingual
 	job.CompletedAt = time.Now()
 	job.Language, job.Untranslated, job.TranslationErr = language, untranslated, notTranslated
@@ -593,6 +610,81 @@ func (m *making) generation(model string) (string, error) {
 	}
 	gen := track.NewID()
 	return gen, m.append(track.Event{Kind: track.KindGen, Gen: gen, Source: makeSource, Key: model})
+}
+
+// translateAgain translates job's film again (core.RedoTranslation), every line of it, into language, a part at a time nearest where it is watched first, as Make makes a film: its lines as the film shows them, its files taken in first, are copied into a generation of their own (copyGeneration), which the film shows once it is done, so one that fails or is stopped leaves the film as it was. It neither downloads nor hears the film, so it checks only what translating needs, and a film whose lines are gone fails with ErrNoTranscript.
+func translateAgain(ctx context.Context, p Pipeline, job *core.Job, language, device string, watch Watcher, report func(core.Job)) core.Job {
+	failed := func(step string, err error) core.Job {
+		job.Err, job.Stage, job.Progress = fmt.Errorf("%s: %w", step, err), core.StageFailed, core.Progress{}
+		report(*job)
+		return *job
+	}
+	if tc, ok := p.(TranslateChecker); ok {
+		if err := tc.CheckTranslate(); err != nil {
+			return failed("check", err)
+		}
+	}
+	maker, ok := p.(Maker)
+	if !ok || device == "" {
+		return failed("check", errors.New("subtitles: the pipeline cannot make a film a part at a time"))
+	}
+	doc, err := track.Read(job.VideoPath)
+	if err == nil && doc.Newer {
+		err = track.ErrNewer
+	}
+	if err != nil {
+		return failed("translate", err)
+	}
+	// A film whose document holds no line is read from its files, which need the transcript: the bilingual subtitles alone cannot tell a translation from an original line of two rows.
+	transcript := TranscriptOf(job.VideoPath)
+	if len(doc.View()) == 0 && !fileExists(transcript) {
+		return failed("translate", ErrNoTranscript)
+	}
+	if events, err := trackFiles(doc, job.SubtitlePath, transcript); err != nil {
+		return failed("translate", err)
+	} else if len(events) > 0 {
+		written, err := track.Append(job.VideoPath, device, events...)
+		doc.Events = append(doc.Events, written...)
+		if err != nil {
+			return failed("export", err)
+		}
+	}
+	lines := doc.View()
+	if len(lines) == 0 {
+		return failed("translate", ErrNoTranscript)
+	}
+	if watch == nil {
+		watch = From(job.ResumeAt)
+	}
+	m := &making{ctx: ctx, p: maker, job: job, video: job.VideoPath, hearFrom: job.VideoPath, redo: true, copied: true, device: device, doc: doc, report: report}
+	return m.run(lines[len(lines)-1].End, language, watch)
+}
+
+// copyHearing is how the cells of a film translated again are heard (track.Making.Hearing): not at all, their lines copied from the film as it shows them.
+const copyHearing = "copy"
+
+// copyGeneration is the generation a film translated again makes, of length: the one an earlier run began from the lines the film shows now and did not finish, or a new one holding a copy of each of them, as it reads, heard already in every cell, so only their translation and the final proofread are left to make.
+func (m *making) copyGeneration(length time.Duration) (string, error) {
+	from := m.doc.Shown()
+	key := copyHearing + " " + from
+	for _, e := range m.doc.Events {
+		if e.Kind == track.KindGen && e.Source == makeSource && e.Key == key && !m.doc.Done(e.Gen) {
+			return e.Gen, nil
+		}
+	}
+	gen := track.NewID()
+	events := []track.Event{{Kind: track.KindGen, Gen: gen, Source: makeSource, Key: key}}
+	for _, l := range m.doc.Lines(from) {
+		id := track.NewID()
+		events = append(events,
+			track.Event{Kind: track.KindLine, Gen: gen, Line: id, Start: l.Start.Milliseconds(), End: l.End.Milliseconds()},
+			track.Event{Kind: track.KindRev, Line: id, Side: track.Original, Layer: track.LayerHeard, Text: l.Original.Text, Source: copyHearing},
+		)
+	}
+	for c := 0; time.Duration(c)*track.Cell < length; c++ {
+		events = append(events, track.Unit{Work: track.WorkHear, Gen: gen, Cell: c, Key: copyHearing}.Made())
+	}
+	return gen, m.append(events...)
 }
 
 // heardIn is the language generation gen's cells were heard in, as their records name it, "" when none was heard in a known one.
@@ -813,7 +905,7 @@ func (m *making) draft(ctx context.Context, in draftInput, language string, out 
 	lines := slices.Clone(in.lines)
 	ApplyRecurring(lines, in.terms)
 	var fixes []Fix
-	if pr, ok := m.p.(Proofreader); ok && !in.redraft {
+	if pr, ok := m.p.(Proofreader); ok && !in.redraft && !m.copied {
 		if fixed, err := pr.Proofread(ctx, lines, in.title); err == nil && len(fixed) == len(lines) {
 			lines = fixed
 		} else if ctx.Err() != nil {

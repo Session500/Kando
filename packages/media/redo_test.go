@@ -39,6 +39,16 @@ func (p *redoPipeline) Transcribe(context.Context, string) ([]core.Segment, erro
 	return nil, errors.New("no transcription")
 }
 
+func (p *redoPipeline) Length(context.Context, string) time.Duration {
+	p.t.Error("translating again measured the video")
+	return 0
+}
+
+func (p *redoPipeline) Hear(context.Context, string, time.Duration, time.Duration, func(core.Segment)) (string, error) {
+	p.t.Error("translating again heard the video")
+	return "", errors.New("no hearing")
+}
+
 func (p *redoPipeline) Translate(_ context.Context, segments []core.Segment, language string) ([]core.Segment, error) {
 	p.language = language
 	if p.translateErr != nil {
@@ -492,5 +502,101 @@ func TestMakeRedoHearsTheFilmAnew(t *testing.T) {
 	}
 	if gens != 3 {
 		t.Fatalf("%d generations, want the film, the redo by the small model and the one by the large", gens)
+	}
+}
+
+// remake makes job with p as the queue does, into language, returning the job it ended with and the stages it went through.
+func remake(p Pipeline, job core.Job, language string) (core.Job, []core.Stage) {
+	var stages []core.Stage
+	done := Make(context.Background(), p, job, language, "mac", nil, func(j core.Job) { stages = enteredStage(stages, j) })
+	return done, stages
+}
+
+// Translating a film from before the document again translates every line of its transcript into the language asked for, without downloading or hearing the film, and keeps its subtitles where they were.
+func TestMakeTranslatesAFilmAgainFromItsFiles(t *testing.T) {
+	job := doneFilm(t, "你好。", "", "再见。")
+	job.Redo = core.RedoTranslation
+	p := &redoPipeline{t: t}
+	final, stages := remake(p, job, "日本語")
+	if want := []core.Stage{core.StageTranslating, core.StageComplete}; !reflect.DeepEqual(stages, want) {
+		t.Fatalf("stages %v, want %v; err %v", stages, want, final.Err)
+	}
+	if want := []string{"Hello there.", "How are you?", "Goodbye."}; !reflect.DeepEqual(p.sent, want) || p.language != "日本語" {
+		t.Fatalf("sent %q in %q", p.sent, p.language)
+	}
+	if want := []string{"日本語:Hello there.\nHello there.", "日本語:How are you?\nHow are you?", "日本語:Goodbye.\nGoodbye."}; !reflect.DeepEqual(bilingualTexts(t, final), want) {
+		t.Fatalf("bilingual %q", bilingualTexts(t, final))
+	}
+	if final.Redo != "" || final.RedoLanguage != "" || final.Language != "日本語" || final.Untranslated != 0 || final.CompletedAt.IsZero() || final.SubtitlePath != job.SubtitlePath {
+		t.Fatalf("final %+v", final)
+	}
+}
+
+// A translation again that fails leaves the film as it was, files and job, and a film whose lines are gone cannot be translated again.
+func TestMakeTranslatingAgainThatFailsKeepsTheFilm(t *testing.T) {
+	job := doneFilm(t, "你好。", "", "再见。")
+	job.Redo, job.RedoLanguage = core.RedoTranslation, "日本語"
+	job.CompletedAt = time.Date(2026, 11, 1, 9, 0, 0, 0, time.UTC)
+	before := bilingualTexts(t, job)
+	final, _ := remake(&redoPipeline{t: t, translateErr: ErrOffline}, job, "日本語")
+	if final.Stage != core.StageFailed || final.Redo != core.RedoTranslation || !strings.HasPrefix(final.Err.Error(), "translate: ") {
+		t.Fatalf("final %+v", final)
+	}
+	if final.Language != "简体中文" || final.Untranslated != 1 || !final.CompletedAt.Equal(job.CompletedAt) {
+		t.Fatalf("the failed job no longer describes the film: %+v", final)
+	}
+	if after := bilingualTexts(t, final); !reflect.DeepEqual(after, before) {
+		t.Fatalf("subtitles %q, were %q", after, before)
+	}
+
+	gone := doneFilm(t, "你好。", "", "再见。")
+	gone.Redo = core.RedoTranslation
+	if err := os.Remove(strings.TrimSuffix(gone.VideoPath, ".mp4") + ".srt"); err != nil {
+		t.Fatal(err)
+	}
+	if final, _ := remake(&redoPipeline{t: t}, gone, "简体中文"); final.Stage != core.StageFailed || !errors.Is(final.Err, ErrNoTranscript) {
+		t.Fatalf("final %+v", final)
+	}
+}
+
+// A film made a part at a time translated again keeps its lines as they read, proofread already, and translates them alone: the film is not heard or proofread again.
+func TestMakeTranslatesAMadeFilmAgain(t *testing.T) {
+	job, video := makeJob(t)
+	job.SpeechLanguage = "ja"
+	f := &makeFilm{length: 70 * time.Second, language: "ja", say: sayFoo, proofread: correctFoo(1)}
+	film, _ := makeFilmOf(t, f, job, 0)
+	if film.Stage != core.StageComplete {
+		t.Fatalf("film %+v", film)
+	}
+	runs, proofreads, batches := len(f.runs), f.proofreads, len(f.translated)
+	// The translation goes after the first cell, then comes back: run again, the translation again goes on from the cell it stopped at.
+	gone := false
+	f.translate = func(s string) (string, error) {
+		if gone && len(f.translated) == batches+2 {
+			return "", ErrOffline
+		}
+		return "ja:" + s, nil
+	}
+	gone = true
+	again := film
+	again.Redo, again.RedoLanguage, again.Stage = core.RedoTranslation, "日本語", core.StageQueued
+	if failed, _ := makeFilmOf(t, f, again, 0); failed.Stage != core.StageFailed {
+		t.Fatalf("failed %+v", failed)
+	}
+	gone = false
+	done, _ := makeFilmOf(t, f, again, 0)
+	if sent := len(f.translated) - batches; sent != 4 {
+		t.Fatalf("%d drafts sent, want the 3 cells' and the one that failed", sent)
+	}
+	if done.Stage != core.StageComplete || done.Redo != "" || done.SpokenLanguage != "ja" {
+		t.Fatalf("done %+v", done)
+	}
+	if len(f.runs) != runs || f.proofreads != proofreads {
+		t.Fatalf("translating again heard the film %d times and proofread it %d times", len(f.runs)-runs, f.proofreads-proofreads)
+	}
+	doc, _ := track.Read(video)
+	lines := doc.View()
+	if len(lines) != 7 || lines[0].Original.Text != "say bar now" || lines[0].Translation.Text != "ja:say bar now" {
+		t.Fatalf("lines %+v", lines)
 	}
 }
