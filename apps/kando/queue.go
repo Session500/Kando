@@ -45,6 +45,8 @@ type jobQueue struct {
 	// cancel stops the running job; with errQuitting the job reports nothing more. done is closed once the running job's pipeline has returned.
 	cancel context.CancelCauseFunc
 	done   chan struct{}
+	// watch is where the film the running job makes is watched (queuePlaying), nil while none runs.
+	watch *queueWatch
 	// cancelled is set once the running job was asked to stop for good (stopActive with context.Canceled: Cancel, Withdraw, removing it), and cleared as the next one starts. A job the queue's pause stopped first then ends cancelled rather than going back to the queue (queuePausedJob), as the context keeps only the first cause it was stopped with.
 	cancelled bool
 	// stopped is set once the app quits (queueQuit): no job starts after it.
@@ -108,6 +110,7 @@ func (a *app) queueHooks() areaHooks {
 	return areaHooks{
 		save:    a.saveQueue,
 		restore: a.restoreQueue,
+		playing: a.queuePlaying,
 		ready: func() {
 			// The hold is taken under the app's scope, so it outlives the handler that started the job, as Enqueue from a button or the drop zone does.
 			a.queue.keepAwake = func(reason string, display bool) (release func()) {
@@ -880,6 +883,12 @@ func (a *app) queueRun(job core.Job) {
 	a.queue.active, a.queue.cancel, a.queue.done, a.queue.cancelled = job.ID, cancel, done, false
 	a.queueKeepAwake()
 	pipeline, update := a.queuePipeline(job), a.update
+	// A film made for the first time is made nearest where it is watched first: where the browser it came from was, until it is opened.
+	watch, device := newQueueWatch(job.ResumeAt), a.savedDevice()
+	if a.openKey != "" && a.openKey == job.ID && a.player.play != nil {
+		watch.move(a.player.play.head)
+	}
+	a.queue.watch = watch
 	a.queue.whisperModel = ""
 	if tools, ok := pipeline.(media.Tools); ok {
 		a.queue.whisperModel = tools.WhisperModel
@@ -902,11 +911,12 @@ func (a *app) queueRun(job core.Job) {
 			})
 		}
 		last := job
-		result := media.Run(ctx, pipeline, job, language, func(j core.Job) {
+		result := media.Make(ctx, pipeline, job, language, device, watch, func(j core.Job) {
 			if quitting() || pausing() {
 				return
 			}
-			onlyProgress := j.Stage == last.Stage && j.Title == last.Title && j.Thumbnail == last.Thumbnail && j.VideoPath == last.VideoPath && j.Err == nil
+			// A film made a part at a time shows its subtitles from the first lines written out, so a report that names them is shown as it comes.
+			onlyProgress := j.Stage == last.Stage && j.Title == last.Title && j.Thumbnail == last.Thumbnail && j.VideoPath == last.VideoPath && j.SubtitlePath == last.SubtitlePath && j.Err == nil
 			last = j
 			if !onlyProgress {
 				latest.Store(nil)
@@ -954,7 +964,7 @@ func (a *app) queuePipeline(job core.Job) media.Pipeline {
 // finished clears the job that just returned from the pipeline, remembers that the queue ran it (jobQueue.ran), says in the message bar how a job of another library ended (queueEndedElsewhere), and starts the next one, letting the computer sleep again when there is none.
 func (a *app) finished(id string) {
 	if a.queue.active == id {
-		a.queue.active, a.queue.cancel, a.queue.done, a.queue.whisperModel = "", nil, nil, ""
+		a.queue.active, a.queue.cancel, a.queue.done, a.queue.whisperModel, a.queue.watch = "", nil, nil, "", nil
 	}
 	if a.queue.ran == nil {
 		a.queue.ran = map[string]bool{}

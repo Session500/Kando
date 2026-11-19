@@ -3505,3 +3505,93 @@ func TestAFailedDownloadSaysWhenMacOSKeepsTheBrowserFolder(t *testing.T) {
 		})
 	}
 }
+
+// makerPipeline makes a film a part at a time (media.Maker): its speech recognition hears a line every ten seconds, "line N", and stops at a minute in until released is closed, the first cell heard by then; its translation puts "译:" before each line.
+type makerPipeline struct {
+	length   time.Duration
+	released chan struct{}
+}
+
+func (p *makerPipeline) Check() error { return nil }
+
+func (p *makerPipeline) Download(_ context.Context, source string) (string, error) {
+	parsed, err := url.Parse(source)
+	if err != nil {
+		return "", err
+	}
+	if path, ok := core.FilePath(parsed); ok {
+		return path, nil
+	}
+	return "", errors.New("not a link")
+}
+
+func (p *makerPipeline) Transcribe(context.Context, string) ([]core.Segment, error) {
+	return nil, errors.New("made a part at a time")
+}
+
+func (p *makerPipeline) Translate(_ context.Context, segments []core.Segment, _ string) ([]core.Segment, error) {
+	out := make([]core.Segment, len(segments))
+	for i, s := range segments {
+		s.Text = "译:" + s.Text
+		out[i] = s
+	}
+	return out, nil
+}
+
+func (p *makerPipeline) Export(context.Context, string, []core.Segment, []core.Segment) (string, error) {
+	return "", errors.New("made a part at a time")
+}
+
+func (p *makerPipeline) Length(context.Context, string) time.Duration { return p.length }
+
+func (p *makerPipeline) Hear(ctx context.Context, _ string, from, to time.Duration, heard func(core.Segment)) (string, error) {
+	for at := time.Duration(0); at < p.length; at += 10 * time.Second {
+		if at < from || at >= to {
+			continue
+		}
+		if at >= 60*time.Second {
+			select {
+			case <-p.released:
+			case <-ctx.Done():
+				return "", ctx.Err()
+			}
+		}
+		heard(core.Segment{Start: at, End: at + 2*time.Second, Text: "line " + at.String()})
+	}
+	return "ja", nil
+}
+
+// TestAFilmIsWatchedWhileItIsMade adds a video whose lines are made a part at a time: the film shows the lines made so far, translated, while the rest are still being heard, and every line once it is done.
+func TestAFilmIsWatchedWhileItIsMade(t *testing.T) {
+	p := &makerPipeline{length: 90 * time.Second, released: make(chan struct{})}
+	a, tt, updates := newTestApp(t, p)
+	video := filepath.Join(t.TempDir(), "talk", "talk.mp4")
+	writeFakeClip(t, video, 90, "202020", "101010")
+	if err := a.Enqueue(core.FileURL(video)); err != nil {
+		t.Fatal(err)
+	}
+	refresh(tt, a)
+	id := a.library.Jobs[0].ID
+	queueUntilState(t, updates, func() bool { return stageOf(t, a, id).SubtitlePath != "" })
+	job := stageOf(t, a, id)
+	if job.Stage.Done() || !strings.HasSuffix(job.SubtitlePath, "talk.bilingual.srt") {
+		t.Fatalf("job %s shows %q, want its bilingual subtitles while it is made", job.Stage, job.SubtitlePath)
+	}
+	item, ok := films.Find(a.films(), id)
+	if !ok {
+		t.Fatalf("no film for %s in %+v", video, a.films())
+	}
+	playerOpenFilm(t, a, tt, updates, item)
+	if got := len(a.player.subs.machine); got == 0 || got >= 9 || a.player.subs.machine[0].Text != "译:line 0s\nline 0s" {
+		t.Fatalf("while the film is made it shows %+v", a.player.subs.machine)
+	}
+	close(p.released)
+	settle(t, a, tt, updates)
+	if job := stageOf(t, a, id); job.Stage != core.StageComplete || job.Untranslated != 0 {
+		t.Fatalf("job %s, %d untranslated: %v", job.Stage, job.Untranslated, job.Err)
+	}
+	waitUntil(t, tt, a, updates, func() bool { return a.player.subs.ready && len(a.player.subs.machine) == 9 })
+	if last := a.player.subs.machine[8].Text; last != "译:line 1m20s\nline 1m20s" {
+		t.Fatalf("last line %q", last)
+	}
+}

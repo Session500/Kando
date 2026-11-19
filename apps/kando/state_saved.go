@@ -128,13 +128,18 @@ func (a *app) savedLoad(dir string) (saved.Book, error) {
 
 // savedOwn is book, read from its folder (saved.Load), to be changed on this computer by the saved lines' clock. The first time, this computer is given its id in the study record, which settings.json keeps from then on. UI thread only.
 func (a *app) savedOwn(book saved.Book) saved.Book {
+	book.Device = a.savedDevice()
+	book.Now = func() time.Time { return a.saved.now() }
+	return book
+}
+
+// savedDevice is this computer's id, by which the study record and each film's subtitle document (media.Make) know what it wrote, given the first time it is asked for and kept in settings.json from then on. UI thread only.
+func (a *app) savedDevice() string {
 	if a.saved.device == "" {
 		a.saved.device = study.NewID()
 		_ = a.saveSettingsChanged()
 	}
-	book.Device = a.saved.device
-	book.Now = func() time.Time { return a.saved.now() }
-	return book
+	return a.saved.device
 }
 
 // savedBook is the saved lines of the library open now, none while they are not read yet (savedSync) or while the library is locked (lockShut), for the bindings.
