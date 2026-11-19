@@ -138,12 +138,12 @@ kind 是封闭枚举：`dictionary`、`wordlist`、`glossary`、`ai-service`、`
 - 这是 NSGo 为「app 下载的代码」做的官方机制。`tsx/pkg/doc.go` 的原话是 "for code an app downloads: its own screens updated, or plugins"。
 - 要用的东西都有了：`tsx.Load`、`Plugin.Call`、`Plugin.Exports`（`tsx/view.go`）；`Sandbox{Limits, Capabilities, Grant, Host, Storage}`；Harden（禁 `eval`、`Function`）；节点、定时器、请求和存储配额；按插件分区的 Storage 和 Secrets；`core.Host` 白名单 handler；Ed25519 根密钥 → 发布密钥的证书链、吊销列表和防回滚（`tsx/pkg/trust.go`）。它没有的东西写在 6.7 节。
 - goja 是纯 Go 解释器：macOS hardened runtime 不需要 `allow-jit`，Windows 和 Linux 表现一致，交叉编译不受影响。
-- 不新增 module。goja `v0.0.0-20261027234916-5f913d1693d9` 已经以 indirect 形式出现在 `apps/kando/go.mod:46`，只是会被链接进二进制。
+- 不引入 NSGo 之外的新代码来源。goja `v0.0.0-20261027234916-5f913d1693d9` 已经以 indirect 形式出现在 `apps/kando/go.mod:46`；P3.0 实测链接 tsx 之后 `go mod tidy` 会在 `apps/kando/go.mod` 多两行 indirect（`github.com/dlclark/regexp2/v2 v2.11.0`、`github.com/google/pprof v0.0.0-20230207041349-798e818bf904`），版本都是 NSGo 的 go.mod 已经选定、go.sum 里已有的。P3a 起 regexp2 是直接依赖（第 11 节）。代价是二进制大 19–21 MiB（约 +37%），见第 15 节的 P3.0 测量。
 
 ### 3.3 已核实的运行时语义
 
-- **线程**：`tsx.Load(cx *core.Scope, ...)`（`tsx/view.go:65`）需要一个活着的 Scope，并且在 `Limits.Load` 之内同步执行入口模块。`Plugin.Call`（`view.go:118`）的注释写着 "Call it on the engine's goroutine"，签名是 `Call(name string, args []any, done func(result any, err error))`。`pkg.Trust.Verify` 在引擎 goroutine 之外做。所以 `ready` 先在后台 goroutine 里做 Scan 和 Verify，再按每个 `a.update` 只载一个插件的节奏逐个 Load，每次 Load 的预算是 1s。这样 UI 最长只卡 1s，不会是 12 个插件 × 3s。
-- **预算只算同步片段**：`tsx/sandbox.go:311` 的 `within` 只在最外层同步 JS 片段上挂 `Limits.Call` 计时器：`r.depth > 0` 时不计时，`fn()` 返回就停表，而且实现方式是 `time.AfterFunc(budget, func() { r.vm.Interrupt(ErrBudget) })`（`:322`）。所以 `await host.call(...)` 或 `await fetch` 的等待时间不算进预算。Kando 把每个同步片段的预算设为 500ms，Load 设为 1s：网络型插件不会被误杀，CPU 重的插件必须自己用 async 分片，否则会被打断。默认的 2s，以及 user-value 方案的 5s，都会让 UI 整段卡住，不采用。
+- **线程**：`tsx.Load(cx *core.Scope, ...)`（`tsx/view.go:65`）需要一个活着的 Scope，并且在 `Limits.Load` 之内同步执行入口模块。`Plugin.Call`（`view.go:118`）的注释写着 "Call it on the engine's goroutine"，签名是 `Call(name string, args []any, done func(result any, err error))`。`pkg.Trust.Verify` 在引擎 goroutine 之外做。所以 `ready` 先在后台 goroutine 里做 Scan 和 Verify，再按每个 `a.update` 只载一个插件的节奏逐个 Load，每次 Load 的预算是 1s。这样 UI 最长只卡 1s，不会是 12 个插件 × 3s。P3.0 实测正常的包远低于这个上限：空包 Load p50 0.6–0.8 ms，1.15 MB 源码的包 p50 30–47 ms（第 15 节）。
+- **预算只算同步片段**：`tsx/sandbox.go:311` 的 `within` 只在最外层同步 JS 片段上挂 `Limits.Call` 计时器：`r.depth > 0` 时不计时，`fn()` 返回就停表，而且实现方式是 `time.AfterFunc(budget, func() { r.vm.Interrupt(ErrBudget) })`（`:322`）。所以 `await host.call(...)` 或 `await fetch` 的等待时间不算进预算。Kando 把每个同步片段的预算设为 500ms，Load 设为 1s：网络型插件不会被误杀，CPU 重的插件必须自己用 async 分片，否则会被打断。默认的 2s，以及 user-value 方案的 5s，都会让 UI 整段卡住，不采用。P3.0 实测这条语义有两个后果：ErrBudget 只让这一次调用失败，不停掉插件（`within` 在 `:322-326` 只 Interrupt 再 ClearInterrupt，不调 `r.stop`），模块级变量里攒的数据一直留到 Close；每个片段都不到 500ms、用 `await new Promise(r => setTimeout(r, 0))` 让出的调用永远不会被切断，可以让引擎几乎一直忙（输入事件等待 p50 449ms）、内存一直涨。所以 Kando 在 Limits 之外还要有自己的看门狗，在片段之间 `Close` 插件（6.6、第 15 节）。
 - **Limits 的零值是「不限」**：`sandbox.go:24` 写的是 "Zero fields leave that unlimited"。`Harden` 是 bool，零值为 false。`:152-155` 是整体替换：`limits := DefaultLimits; if s.Limits != nil { limits = *s.Limits }`。所以 Kando 构造的每一份 Limits 都必须以 `tsx.DefaultLimits` 为底再覆盖字段，绝不写字面量：
 
   ```go
@@ -275,7 +275,7 @@ kind 是封闭枚举：`dictionary`、`wordlist`、`glossary`、`ai-service`、`
 
 ### 4.2 脚本插件示例
 
-`capabilities` 用 `pkg.Capabilities` 的 JSON 形状，只允许出现 `host` 和 `network` 两个键，`network` 只允许 `http` 规则。每条规则都必须写 `methods`，并写 `paths` 或 `pathPrefixes`；`network.hosts`（放行任意请求）一律拒收。
+`capabilities` 用 `pkg.Capabilities` 的 JSON 形状，只允许出现 `host` 和 `network` 两个键，`network` 只允许 `http` 规则。每条规则都必须写 `methods`，并写 `paths` 或 `pathPrefixes`，`host` 是一个确定的主机名（不带 `*`），最多 16 条；`network.hosts`（放行任意请求）一律拒收。下面的例子是完整形态，P3a 只认其中的 `commands`，`exporters`、`credentials` 和 `kando.sound.read` 要到 P3b（第 15 节）。
 
 ```json
 {
@@ -580,7 +580,7 @@ func (a *app) pluginCall(ctx context.Context, id, name string, args ...any) (jso
 }
 ```
 
-in-flight 标记从 `Call` 开始一直保留到 `done` 回调，所以 await 之后恢复执行的那些同步片段也在覆盖范围内。每次调用都要写一次小文件，这个代价算进 P3.0 的测量。每次调用的数据量也有上限，例如一批不超过 50 行，失败就丢弃这次的结果。
+in-flight 标记从 `Call` 开始一直保留到 `done` 回调，所以 await 之后恢复执行的那些同步片段也在覆盖范围内。每次调用都要写一次小文件，P3.0 实测写临时文件、rename、删除不 fsync 时 p99 0.13 ms（Ubuntu ext4）到 0.39 ms（Mac Studio APFS）；加 fsync 后 Mac 上 p50 3.3 ms、最大 70 ms（Go 在 darwin 上用 `F_FULLFSYNC`），所以不 fsync：进程卡死被强退或崩溃时内核照样会写下去，只有断电会丢，丢了只是少停用一次。每次调用的数据量也有上限，例如一批不超过 50 行，失败就丢弃这次的结果。
 
 ### 5.3 插件能调用的宿主能力
 
@@ -712,7 +712,7 @@ export function kandoManifest() { return { /* identical to kando-plugin.json fie
 
 - 脚本包只接受能链到受信根的 `.nsgopkg`（`pkg.Trust.Verify`，Trust 目录为 `<UserConfigDir>/Kando/plugins/trust`）。
 - **根密钥每次启动都要重新加入**：`Trust.AddRoot`（`tsx/pkg/trust.go:66-72`）只在内存里追加，`OpenTrust` 只恢复吊销列表和已接受的 build。所以 app 每次启动都要先 AddRoot 内嵌的官方插件根公钥；开发者模式开着时，再加入存在 `core.Secrets` 里的 dev root 公钥。dev root 公钥不放普通文件，这样同用户的程序没法悄悄塞进一把自己的根。
-- Kando 新建一把离线的插件根密钥，和应用更新用的 `NSGO_UPDATES_KEY`（`nsgo.yaml:31-33`）分开。用 `go tool nsgo certify` 给发布密钥签证书，限定 app-ID 前缀：官方是 `ai.yldm.kando.plugin.kando.*`，第三方是 `ai.yldm.kando.plugin.<publisher>.*`，和 id 的发布者段对齐（第 4 节）。证书有效期不超过一年。
+- Kando 新建一把离线的插件根密钥，和应用更新用的 `NSGO_UPDATES_KEY`（`nsgo.yaml:31-33`）分开。用 `go tool nsgo certify` 给发布密钥签证书，限定 app-ID 前缀：官方是 `ai.yldm.kando.plugin.kando.*`，第三方是 `ai.yldm.kando.plugin.<publisher>.*`，和 id 的发布者段对齐（第 4 节）。证书有效期不超过一年。注意证书有效期是拿包头里签名者自己写的 `CreatedAt` 去比的（`tsx/pkg/package.go:428`），不是验证时的时间：过期前签的包过期后照样能装，发布密钥被偷时小偷也能把 `CreatedAt` 写进有效期内。所以有效期只限制正常的发布节奏，发布密钥泄露只能靠吊销（`revoke -keys`）。生成、签证书、签包和吊销的具体命令见第 15 节的 P3.0 测量。
 - 吊销列表用 `go tool nsgo revoke` 生成，随 appcast 一起发布。`Trust.Accept` 持久化已接受的最高 build，用来防回滚。
 - 联网时每天拉一次吊销列表。列表过期时，只暂停申请了网络或凭据的非官方插件（依据 `Package.ExpiredRevocations`），不在全局调用 `RequireFreshRevocations`，免得长期离线的用户连纯本地插件都用不了。被吊销的插件立刻 Close，并显示「已被撤回」。
 - 可选的加固：把每个根已见过的最高吊销序号，以及每个插件已接受的最高 build，额外存一份摘要到 `core.Secrets`。启动时和 `plugins/trust/trust.json` 比对，发现回退就停用所有非官方脚本插件。是否做由 owner 决定（见 12.3 第 2 条）。
@@ -738,11 +738,12 @@ export function kandoManifest() { return { /* identical to kando-plugin.json fie
 - 每次调用都包在 recover 和超时里，失败就整段丢弃这次的产出。
 - 熔断按 (id, hash) 计：init 失败立即停用；最近 50 次调用里有 3 次出错或超出 `ErrBudget`，也停用；`llm.chat` 上的 `ErrHostTimeout` 不计入。结果写进 `plugins/health.json`，只存类别。
 - **卡死和崩溃后自愈**：每次 Call 之前先把 (id, hash) 写成 in-flight 记录，回调时清掉（5.2 节）。下次启动时如果发现残留的记录，就把那个插件标为 `hung` 并自动停用，详情页说明「上次运行时让看懂停止响应」。这一条覆盖了 Limits 拦不住的卡死和 OOM（见 6.7）。
+- **看门狗**（P3.0 加的，Limits 管不到的部分）：所有脚本插件的 Call 全局串行，同一时刻只有一个在跑，引擎变慢和内存上涨都能归到它头上。一个 goroutine 定时往引擎投心跳，并用 `runtime/metrics` 读 Go 堆；有调用在跑时，心跳连续几次等待超过 250ms，或者堆比 Load 前的基线多出 512 MiB，就在引擎上 `Plugin.Close()` 这个插件，记一次熔断并停用。Close 在两个片段之间生效（实测 0.05–0.4 s），单个同步片段由 500ms 预算兜住，所以最坏多占约 0.5 GB、多卡一个片段。正则另由进程级的 `regexp2.DefaultMatchTimeout` 兜住（6.7）。
 - `plugins/audit.log` 记录安装、授权、吊销、熔断、确认框结果，以及每次 `llm.chat` 的 token 数，不记录内容。写盘前先经过 `feedback.Scrubber`。
 
 ### 6.7 残余风险（在授权页如实写出）
 
-- **恶意或写坏的插件可以让窗口永久卡死，或者让整个 app 内存耗尽**，Limits 兜不住这两种情况。第一，时间预算靠 `vm.Interrupt` 实现，但 goja 的回溯正则走 regexp2（`goja/regexp.go:58`），没有设 MatchTimeout（`regexp2` 的 `DefaultMatchTimeout` 是 `math.MaxInt64`），执行原生匹配时也不检查中断标志。一句 `/(a+)+\1$/.test("a".repeat(40)+"!")` 就能让引擎 goroutine（也就是 UI 线程）一直卡住，500ms 的预算不会触发。这一点已用 goja 最小复现确认：200ms 时发出 Interrupt，10s 后匹配仍在运行，已提交为 [nsgo-dev/nsgo#759](https://github.com/nsgo-dev/nsgo/issues/759)。第二，`Limits` 没有任何堆内存上限，一个同步片段在 500ms 内就能分配出几个 GB，已提交为 [nsgo-dev/nsgo#760](https://github.com/nsgo-dev/nsgo/issues/760)。缓解手段只有 6.6 节的 in-flight 自愈（下次启动时自动停用）和签名问责。在上游修好之前，P3.0 spike 的放行门槛要把这一项算进去，P3 的绕行处写 `// TODO(nsgo#759): ...` 和 `// TODO(nsgo#760): ...`，带上 issue 链接。
+- **恶意或写坏的插件可以让窗口永久卡死，或者让整个 app 内存耗尽**，Limits 兜不住这两种情况。第一，时间预算靠 `vm.Interrupt` 实现，但 goja 的回溯正则走 regexp2（`goja/regexp.go:58`），没有设 MatchTimeout（`regexp2` 的 `DefaultMatchTimeout` 是 `math.MaxInt64`），执行原生匹配时也不检查中断标志。一句 `/(a+)+\1$/.test("a".repeat(40)+"!")` 就能让引擎 goroutine（也就是 UI 线程）一直卡住，500ms 的预算不会触发。这一点已用 goja 最小复现确认：200ms 时发出 Interrupt，10s 后匹配仍在运行，已提交为 [nsgo-dev/nsgo#759](https://github.com/nsgo-dev/nsgo/issues/759)。第二，`Limits` 没有任何堆内存上限，一个同步片段在 500ms 内就能分配出几个 GB，已提交为 [nsgo-dev/nsgo#760](https://github.com/nsgo-dev/nsgo/issues/760)。P3.0 用 Kando 的 Limits 实测：同一句正则 n=24 卡 4.2 s、n=28 卡 71 s、n=32 超过 300 s（推算约 19 分钟），预算要等匹配结束才报 ErrBudget；一个同步片段在 500ms 内能分配 0.15–0.46 GB；用 setTimeout 分片的调用永远不被切断，5 s 涨到 2 GB（3.3 节）。Kando 自己能做的缓解有两条，都已实测有效：一是在 main 里、任何 Load 之前设 `regexp2.DefaultMatchTimeout = 100 * time.Millisecond`（goja 用 `regexp2.Compile` 编译每个 JS 正则，`goja/regexp.go:58`，超时后抛 `RangeError`，`:138-139`），n=32 的匹配 0.2 s 就返回；二是 6.6 节的看门狗。剩下的残余风险是：最坏卡一个片段（500ms）加一次匹配超时，最多多占约 0.5 GB；看门狗漏掉的情况（例如它自己的阈值调得不对），仍靠 6.6 节的 in-flight 自愈（下次启动时自动停用）和签名问责。P3 的绕行处写 `// TODO(nsgo#759): ...` 和 `// TODO(nsgo#760): ...`，带上 issue 链接。
 - **本机状态文件对同用户可写**：同用户的进程可以改写 `state.json`（授权）、`health.json`（熔断），以及 `plugins/trust/trust.json`（已接受的最高 build 和吊销列表）。删掉或改掉 trust.json，防回滚和吊销就会清零：`OpenTrust` 在文件不存在时返回一个空的 Trust，而 "a root without a list revokes nothing"。所以「防回滚」和「已被撤回」只防得住网络上的攻击者，防不住本机程序。msime 尝试过 keychain HMAC，最后放弃了，这里不假装能防住。6.4 节的可选加固能把回退检测出来。
 - **凭据库按平台不同**：macOS 钥匙串条目的 ACL 信任写入它的那个二进制，其他同用户进程读不到插件的凭据。本设计让分区带上签名者、dev root 公钥也存进钥匙串，就是为了不让同用户程序借「同 id 换包」或「塞一把自己的根」拿到这些凭据。Windows 凭据管理器和 Linux Secret Service 对同用户进程本来就开放，在这两个平台上，同用户的恶意程序能直接读出插件凭据，插件系统不额外放大也无法缩小这个风险。
 - **网络是副作用通道**：获准联网的插件，可能被字幕内容诱导着，发出它声明范围内的任何请求（6.2 节）。
@@ -953,7 +954,8 @@ P1.1 的确认框只有数据包要显示的部分：名称（标题）、说明
 
 ### P3 脚本插件（只在桌面端，先过 spike 门槛）
 
-- PR 3.0（spike，不合并，或者只合并测量脚本）：链接 nsgo/tsx，量出三平台的体积增量、引擎阻塞时间、in-flight 写盘开销，以及 ReDoS 和大分配的实际表现，结果报给 owner，由 owner 决定是否继续。不达标就停在 P2，数据包的价值不受影响。
+- PR 3.0（spike，不合并，或者只合并测量脚本）：链接 nsgo/tsx，量出三平台的体积增量、引擎阻塞时间、in-flight 写盘开销，以及 ReDoS 和大分配的实际表现，结果报给 owner，由 owner 决定是否继续（2026-11-19 已测完，没有合并任何代码，结果和放行建议见第 15 节）。不达标就停在 P2，数据包的价值不受影响。
+- 实际按 P3a、P3b、P3c 三个 PR 落地（第 15 节）：P3a 合并了下面的 3.1、3.2（除 `llm.chat`、`sound.read`）、3.3 和 3.6 里的开发者模式与 `validate`；P3b 是 3.4、3.5 和 `llm.chat`；P3c 是 3.7 和吊销列表的发布、拉取。
 - PR 3.1：`plugins/script`：Trust（每次启动 AddRoot）、Verify、预读沙箱比对 kandoManifest、`Limits()`、Sandbox 构造、熔断和 in-flight 自愈（health.json），audit.log；`State` 的每一项加上 `Grant`、`Signer`、`OldHash`、`Budget`，`State.Format` 升一级；加上 Grant、Limits、Sandboxed 的不变量测试和假插件夹具。
 - PR 3.2：每个插件自己的 host 和 handler（film、line、lines.seen、saved、words、sound、toast、settings.get），`llm.chat` 代理和预算（用 `ChatWith`），事件推送，逐个 update 载入。
 - PR 3.3：命令贡献（`keys.go:83`），加运行时按键去重。
@@ -978,7 +980,7 @@ P1.1 的确认框只有数据包要显示的部分：名称（标题）、说明
 
 ## 11. 新依赖
 
-不新增任何 module。用到的都已经在 `apps/kando/go.mod` 里：
+P0–P2 不新增任何 module。P3a 起 `github.com/dlclark/regexp2/v2 v2.11.0` 成为 `apps/kando/go.mod` 的直接依赖（只用来设 `regexp2.DefaultMatchTimeout`，见 6.7），`go mod tidy` 多出 `github.com/google/pprof v0.0.0-20230207041349-798e818bf904`（indirect），两者的版本都是 NSGo 已经选定的，owner 已同意（12.3 第 3 条）。其余用到的都已经在 `apps/kando/go.mod` 里：
 
 | 模块 | 版本 | 用途 | 位置 |
 |---|---|---|---|
@@ -1001,8 +1003,8 @@ P1.1 的确认框只有数据包要显示的部分：名称（标题）、说明
 
 ### 12.1 风险
 
-1. **tsx 和 goja 在看懂里还没跑过**：三平台的成熟度、二进制体积和 goja 内存都没有测过。缓解：P3.0 spike 设门槛，数据包两期不依赖它。
-2. **插件跑在引擎 goroutine 上，而且卡死不一定能打断**：await 不计入预算（`sandbox.go:311` 的 `within`），同步片段有 500ms 预算；但 regexp2 的回溯匹配不响应中断，Limits 也没有内存上限，恶意插件可以让窗口永久卡死或耗尽内存（6.7 节）。缓解：in-flight 记录加下次启动自动停用，签名问责，重计算（分词、注音）留在 Go 原生实现，Load 逐个 tick 进行；上游已有 [nsgo-dev/nsgo#759](https://github.com/nsgo-dev/nsgo/issues/759)（正则不可中断，已复现：200ms 发 Interrupt，10s 后仍在跑）和 [nsgo-dev/nsgo#760](https://github.com/nsgo-dev/nsgo/issues/760)（没有内存上限）。如果 P3.0 测出引擎阻塞问题，再请求让无 UI 的插件跑在 worker goroutine 上。
+1. **tsx 和 goja 在看懂里还没跑过**：P3.0 已量过二进制体积（三平台 +19–21 MiB，约 +37%）、Linux 和 macOS 上的引擎阻塞和内存（第 15 节）；Windows 只量了体积，运行时没有跑过。缓解：数据包两期不依赖它；P3 的 CI 在 Windows 上跑插件测试。
+2. **插件跑在引擎 goroutine 上，而且卡死不一定能打断**：await 不计入预算（`sandbox.go:311` 的 `within`），同步片段有 500ms 预算；但 regexp2 的回溯匹配不响应中断，Limits 也没有内存上限，ErrBudget 不停掉插件，用 setTimeout 分片的调用永远不被切断（3.3、6.7 节）。缓解：进程级 `regexp2.DefaultMatchTimeout`、6.6 节的看门狗（全局串行、心跳和堆阈值、在片段之间 Close）、in-flight 记录加下次启动自动停用，签名问责，重计算（分词、注音）留在 Go 原生实现，Load 逐个 tick 进行；上游已有 [nsgo-dev/nsgo#759](https://github.com/nsgo-dev/nsgo/issues/759)（正则不可中断）和 [nsgo-dev/nsgo#760](https://github.com/nsgo-dev/nsgo/issues/760)（没有内存上限）。让插件跑在自己的 goroutine 上（独立的 `core.NewRoot`）P3.0 试过可行，但插件的 Storage 只能留在内存里（第 15 节），所以不作为默认做法。
 3. **签名元数据缺口**：靠比对 `kandoManifest()` 绕行，上游是 [nsgo-dev/nsgo#761](https://github.com/nsgo-dev/nsgo/issues/761)（见 4.3）。
 4. **`tsx.Sandboxed` 和共享 Host 才是绕开权限的入口**：`tsx.Sandboxed` 在 Capabilities 和 Grant 都为 nil 时拿到宿主的全部权限，连 `file://` 都能读；Load 路径上的 nil Grant 会让包声明的能力绕过用户勾选生效；handler 只要用 `a.cx` 调 NSGo 服务，就带着 app 的权限。缓解：AST 测试全仓禁止 `tsx.Sandboxed`；Grant 由唯一构造函数从零构造，并测试零值字段；每个插件独立的 Host；每个 handler 都查 `Effective`。
 5. **site 包**：已经改成独立的 `pluginSites`，不放宽全局闸门；剩下的风险是 JS 正则的校验漏了嵌套量词时会让页面卡顿，以及用户对「浏览器扩展不覆盖插件站点」的预期要讲清楚。插件正则现在也写进内置浏览器的页面脚本，在网页的 JS（回溯引擎）里跑，所以这条风险是真实的；缓解全靠 P4.0 的规则：不允许重复里套量词或多选、每条最多两个无上限量词、不超过 256 字节，链接最长 2048 字节，最坏是平方级，约几百万步。规则只在 Go 里校验，`ScriptWith` 写进页面前再校验一次。浏览器扩展不认插件站点（扩展的文件由 `go generate` 生成、随版本发布，装不进用户的包），设置页的说明写的是「浏览器扩展不支持插件网站，请在看懂内置的浏览器里使用」。另一个代价：同意的网站一变，内置浏览器的 web view 就重建，后退历史没了（nsgo#840）。
@@ -1025,14 +1027,14 @@ P1.1 的确认框只有数据包要显示的部分：名称（标题）、说明
 4. **P3 才有的东西本轮一律不写**：不导入 `nsgo/tsx`，不定义 `Grant`、`Perm`、`Credential`，不做 health.json、in-flight 标记和 audit.log。`state.json` 的每一项只有 `{id, hash, enabled}`，`Grant`、`Signer`、`OldHash`、`Budget` 到 P3 再加（5.1 节）。理由：同上，避免没有调用方的代码；`State.Format` 保留，P3 升格式时旧文件按 6.2 节的规则处理。
 5. **P1.2 的选择按测量结果定**：在 Ubuntu 编译机上（`ubuild`）量完整 features 的 `ipa.Dict()` 相对 `DictShrink()` 的常驻内存增量（RSS）和首次加载时间。增量不超过 200 MiB、加载不超过 3 s，就在桌面上、只在启用了日语的词典包或词表包时按需加载完整词典；否则用 E1 的退路：Annotated 不出 Base 和 Reading，读音只取自词典包。理由：原形和读音对查词命中率帮助很大，但不能让所有用户为它付内存；手机的分词始终不变。测量数字和最终选择写在第 15 节。
 6. **看懂自己的 LLM key 留在 settings.json 原处**，本轮不迁进 `core.Secrets`。理由：与插件系统无关，本轮的数据包也碰不到它；以后是否迁移见 12.3。
-7. **不新增任何 Go module**。确实需要时停下来报告，不自行加入 go.mod。
+7. **不新增任何 Go module**。确实需要时停下来报告，不自行加入 go.mod。（P3a 起由 owner 放开 regexp2 和 pprof 两项，见第 11 节。）
 8. **NSGo 的问题已提交上游**：[nsgo-dev/nsgo#759](https://github.com/nsgo-dev/nsgo/issues/759)（tsx 的回溯正则不响应 Interrupt，已复现：200ms 发 Interrupt，10s 后仍在跑）、[nsgo-dev/nsgo#760](https://github.com/nsgo-dev/nsgo/issues/760)（`tsx.Limits` 没有内存上限）、[nsgo-dev/nsgo#761](https://github.com/nsgo-dev/nsgo/issues/761)（`pkg.Contents` 不支持 app 自定义的签名条目）。三者都只影响 P3，本轮不需要绕行。
 
 ### 12.3 仍待 owner 决定
 
-1. **插件根密钥由谁保管，是否开放第三方证书**：离线介质、备份份数、轮换策略；是否开放第三方「已验证」证书，审核门槛（含 network 规则必须最窄）是什么。这是 P3 的前置条件；决定之前，P3 只跑官方插件和开发者模式插件。
+1. **（P3a 已定一部分）** 官方根公钥已定，写在 `script.OfficialRoot`；第三方脚本插件暂时只走开发者模式，不发「已验证」证书。仍待决定的：**插件根密钥由谁保管，是否开放第三方证书**：离线介质、备份份数、轮换策略；是否开放第三方「已验证」证书，审核门槛（含 network 规则必须最窄）是什么。这是 P3 的前置条件；决定之前，P3 只跑官方插件和开发者模式插件。
 2. **开发者模式的细节**：是否允许用户本机 dev root 侧载（默认建议允许，开着时一直显示徽标）；dev 包能否覆盖、何时过期；是否做 trust.json 的回退检测（6.4 节的可选加固）。
-3. **P3.0 spike 的放行门槛**：二进制体积增量上限、引擎单次阻塞上限，以及上游还没修 #759、#760 时，是否接受「卡死后下次启动自愈」作为过渡；默认每日 token 预算（建议每个插件 50k）。
+3. **（已定，P3a 按此实现）P3.0 spike 的放行门槛**：owner 接受约 +20 MiB 的体积和 regexp2、pprof 两个依赖；默认 token 预算随 `llm.chat` 到 P3b 再定。原文：测量已做完（第 15 节），建议是有条件放行，要 owner 拍板的是：能否接受安装包里的可执行文件大 19–21 MiB（约 +37%，削不掉，原因见第 15 节）；能否接受最坏卡一个 500ms 片段、多占约 0.5 GB，再由看门狗停掉插件；P3 要在 `apps/kando/go.mod` 加 `github.com/dlclark/regexp2/v2`（变成直接依赖，用来设 `DefaultMatchTimeout`）和 `github.com/google/pprof`（indirect），这与 12.2 第 7 条「不新增任何 Go module」字面上冲突，版本都是 NSGo 已经选定的；默认每日 token 预算（建议每个插件 50k）。
 4. ~~**是否做站点包（P4）**~~：owner 决定做，P4.0、P4.1 已完成（第 15 节）。
 5. **社区索引**（P5）：做不做，代码包审核由谁负责。
 6. **是否把看懂自己的 LLM key 迁进 `core.Secrets`**：与插件无关的加固，作为独立 PR，Linux 上需要保留明文退路。
@@ -1085,7 +1087,10 @@ P1.1 的确认框只有数据包要显示的部分：名称（标题）、说明
 | P1 收尾 | 等级改成彩色粗下划线、已学词改成虚线；卸载遇到更新版本的 state.json 时先拒绝，删掉后没存上 state.json 算卸载好；Scan 的哈希缓存；手机查词卡显示来源（协议加 `WordSource`）；查词卡的离线词典提示和「词典没有这个词，问了 AI」；插件页词典分组的截图 | `feat/plugins-polish` | 已完成 |
 | P1.5 | 官方词典包 | — | 不做（12.2 第 2 条） |
 | P2 | 学习任务、导出模板、翻译风格 | — | 未开始 |
-| P3 | 脚本插件 | — | 未开始（等 12.3 第 1、3 条） |
+| P3.0 | spike：体积、引擎阻塞、in-flight 开销、ReDoS 和大分配、缓解手段、签名命令 | `feat/plugins-script-spike`（只提交本文档） | 已测完，结果见下 |
+| P3a | 脚本插件的运行时和安装路径：`plugins/script`（Trust、Verify、预读沙箱、Limits、Sandbox、看门狗、熔断、in-flight 自愈）、script kind 的清单和校验、state.json 的授权、每个插件自己的 host 和 handler、命令贡献、安装确认和详情页的授权、声明式设置、审计日志、开发者模式、`kando plugin validate` 认脚本插件 | `feat/plugins-script` | 已完成，出入见下 |
+| P3b | 其余贡献点（查词来源、导出格式、学习导出目标、标注器）、`kando.llm.chat`（等 P2.0 的 `ChatWith`）、`kando.sound.read`、`credentialFetch` 和 `credentials` | — | 未开始 |
+| P3c | 官方参考插件 `kando.ankiconnect`，吊销列表随 appcast 发布和每日拉取 | — | 未开始 |
 | P4.0 | `core.ValidateVideoSite`、`ValidateVideoSites`、`VideoMatcher` | `feat/plugins-sites` | 已完成 |
 | P4.1 | site kind、`pluginSites`（工具栏的「下载视频」和网页按钮）、逐域名同意、站点包任务不借用登录 | `feat/plugins-sites` | 已完成 |
 | P5 | 按需单独立项 | — | 未开始 |
@@ -1187,3 +1192,129 @@ P1.2 的测量结果（Ubuntu 编译机，x86_64，Go 1.27.4，kagome-dict/ipa v
   - 设置页网站分组下的说明一行只说浏览器扩展不支持插件网站（网页按钮已经支持）。
   - 评审后的修正：插件站点页面只能问和加同一个包的视频（`browsePageTakes`）；包的域名不能和 catalog 里的网站重叠；保存 state.json 失败时不再重建两次 web view（已同意的网站在保存成功后才交给浏览器）；`BrowseScript` 只读，脚本在 `newBrowseUI` 里先建好。
   - 截图场景 `TestScreenshotsPlugins` 加了 `plugins-install-site`（站点包的安装确认，两个域名的复选框，勾了第一个）。Linux 上的 nsgotest 不出图，这一张只在 macOS 的截图任务里画得出来，本次只在 Linux 上跑通了场景本身。
+
+- P3a（已完成）：脚本插件的运行时和安装路径。owner 已定：接受链接 tsx 带来的约 +20 MiB；`github.com/dlclark/regexp2/v2 v2.11.0` 成为 `apps/kando/go.mod` 的直接依赖（设 `DefaultMatchTimeout`），`go mod tidy` 多出的 `github.com/google/pprof` indirect 一并接受；官方根公钥 `lGuPTFQh1ONLAwOz71PTtGYNDCJvNf3cHQXgg7tvZNk=` 写成 `script.OfficialRoot`，它给官方发布密钥签的证书只覆盖 `ai.yldm.kando.plugin.kando.*`；第三方脚本插件暂时只走开发者模式，不发「已验证」证书。和正文的出入如下，各节已同步改过或在此说明：
+  - 代码位置：非界面包 `plugins` 加了 `script.go`（script kind 的字段和校验、设置的取值、`RunsOn`）、`perm.go`、`grant.go`、`health.go`（health.json 和 in-flight 标记）、`audit.go`、`values.go`（插件设置的值）；`plugins/script` 是 `script.go`（根、Trust、Verify）、`sandbox.go`（`Limits`、`Sandbox`、`Load`、`Probe`）、`runner.go`（`Runner`：全局串行、看门狗、熔断、in-flight 标记）、`pack.go`（开发者打包）。app 一侧是 `state_plugins_script.go`、`state_plugins_host.go`（handler）、`bind_plugins_script.go`，界面是 `settings/plugins_script.go`；共享文件只动了 `keys.go`（`shortcuts` 里加 `a.pluginKeys(cx)`，`groupTitle` 加 `plugin:<id>` 的分支），插件块自己的 `state_plugins.go` 接上了钩子。
+  - 贡献点只做了 `contributes.commands`。其余贡献块（`exporters` 等）和 `credentials` 不在 `Contributes`、`Manifest` 里定义，严格解码按未知键拒收，到 P3b 再加；`kando.llm.chat`、`kando.sound.read`、`kando.glossary.suggest`、`kando.candidates.offer`、`kando.net.credentialFetch` 这一版没有 handler，申请它们的插件以 `ErrUnknownPerm` 拒收。`kando.llm.chat` 要等 P2.0 的 `media.ChatWith`，main 上还没有。
+  - `kando.settings.get` 是 host handler 的名字，tsx 的 Access 要求它出现在包签名的 `capabilities.host` 里，所以插件照样要声明它；它不需要用户授予（`Perm.Free`），声明了就一直生效，详情页不给它开关。
+  - state.json：`PluginState` 加了 `OldHash`、`Signer`、`Grant`（`omitzero`），`StateFormat` 升到 2，但 `Save` 只在有一项带这些字段时才写 2，没有脚本插件的文件照旧写 1，旧版还能读。`Budget` 跟 `llm.chat` 一起到 P3b。脚本插件没有条目就是停用（`State.EnabledPack`），数据包照旧没有条目就是启用。
+  - 更新时的授权（6.2）：拿新版本的声明和**旧版本的声明**比，不是和旧授权比。新声明是旧声明的子集，授权按「旧授权 ∩ 新声明」沿用、开关不变；超出旧声明就仍按「旧授权 ∩ 新声明」运行，并记下 `OldHash`，详情页标出「申请了更多权限」，用户动过任何一项授权就清掉。和旧授权比的话，用户只勾了部分权限时每次更新都会被标成扩大能力。签名者变了按新安装处理（停用、授权清空），并清掉旧签名者的 Storage 分区和宿主代管的 secret。
+  - 联网作为一项授权：`Grant.Network` 要么是声明的全部 HTTP 规则，要么没有，详情页一个开关（「联网：POST http://127.0.0.1:8765 /」这样列出规则）。高风险组合（`plugins.Risky`）是「读字幕（`line.current`、`lines.seen`）+ 联网」。
+  - health.json 的 Reason 多了 `memory`（看门狗按堆阈值停掉的）。Kando 停用插件时同时把 state.json 的开关关掉，并记 health；用户再打开开关就清掉 health。
+  - 看门狗（6.6）：每 100 ms 往引擎投一次心跳，连续 3 次等待超过 250 ms 就停（一次心跳一直没轮到时，过了 250 ms 就算一次，引擎完全卡住也停得下来）；堆是整个 app 的，所以只在一次 `runtime.GC()` 确认这些是活对象之后才算到插件头上（GC 只在堆看起来已经过线时才跑，实测 259 MiB 的堆一次约 39 ms）：调用进行中，堆比这次调用开始时多出 512 MiB；跨调用，这个插件自己的各次调用累计让堆长了 512 MiB 以上，并且 GC 之后的堆仍比它载入时多出 512 MiB（模块数组每次只长一点、每次调用都很短时靠这一条）。跨调用的检查在调用结束时做，从不在调用开始前停掉一个还没跑的插件，app 自己在两次调用之间涨的内存不算到插件头上。宿主替插件等用户回答（`kando.ui.openURL` 的确认框）、或在引擎上做插件系统自己的事（预读、载入）时，暂停正在跑的那次调用的看门狗（`Runner.Pause`）：期限不走，心跳的等待不算；其他来源的引擎卡顿仍会算到正在跑的调用头上，这是剩下的误判风险；另外加了单次调用最长 1 分钟的期限：调用是全局串行的，一个永远不结束的 await 会让所有插件的调用排在它后面。熔断：最近 50 次里 3 次失败就停；带 `code` 的拒绝（`core.Error`，插件故意报告的失败，比如 AnkiConnect 没开）不算。这只对 async 函数有效：同步 `throw` 带的 `code` tsx 不转成 `core.Error`（见下面的 NSGo 缺口）。
+  - 预读（4.3）在安装确认前做一次，之后每次载入前再做一次（包目录里的清单可以被改，签名管不到它）。「用到的 host handler 都已声明、声明的都用到」的双向检查没有做：代码里调哪些 handler 不能静态确定；未声明的本来就被 Grant 和 handler 的 `Effective` 检查挡住。`kandoManifest` 必须是普通函数（不是 async），预读的 Host 是 nil。
+  - 来源（`Pack.Source`）只由证书链和 id 的发布者段推出，从不读清单的 `author`：官方根下、发布者段是 `kando`、证书范围是 `ai.yldm.kando.plugin.kando.*` 的才是「官方」（徽标「官方」，安装确认「由看懂发布 · 已验证签名」）；官方根给别的发布者签的证书下的插件是「已验证」（徽标「已验证」，安装确认「由 <发布者段> 发布 · 看懂已验证」）；开发者密钥下的是「开发者」。`kando.` 的插件只认范围是整个 `kando.*` 的官方证书，点名单个 `kando.` id 的证书也拒收。截图场景 `plugins-script-install`（第三方、已验证）和 `plugins-script-install-official`（`kando.ankiconnect`）各一张。
+  - 证书范围：盖住 App ID 的证书模式只能是 `ai.yldm.kando.plugin.<发布者>.*` 或完整 App ID，`*` 和 `ai.yldm.kando.plugin.*` 即使来自官方根也拒收（`script.ErrScope`）；发布者 `kando` 只接受官方根。
+  - 开发者模式（6.4）：开发者密钥是一把 Ed25519 密钥，既当根也当发布密钥，私钥存在 `core.Secrets`（账号 `plugins.developer-key`），开关存在 settings.json 的 `pluginDeveloper`。「打包并安装文件夹…」读文件夹里的 `kando-plugin.json`（不用写 `script`，打包时填上）和入口 `plugin.tsx`，用 `bundler.Compile` 编译，证书在打包时现签，只覆盖这个插件 id 的发布者段，build 号取当前的 Unix 秒数；不读 `nsgo.yaml`。开发者插件不能用 `kando.` 发布者，也不能替换已安装的非开发者插件。
+  - `kando plugin validate`：脚本插件在同样的 Stage 之后，按官方根和插件文件夹里 trust.json 的吊销、build 记录（只读）验签，输出来源和签名者；开发者密钥只在应用的 `core.Secrets` 里，所以开发者插件在命令行里报「不是由看懂信任的密钥签名」；`kandoManifest` 的比对要跑沙箱，只在应用里做。`list` 对脚本插件只按条目的开关和哈希判断是否启用，不验签。
+  - 命令（E9）：插件的按键必须带 `mod`、`ctrl` 或 `alt`，键是字母、数字或 F1–F12；和看懂的任何一行（不论 `When`）或排在前面的插件撞键时清空按键，详情页列出这些命令。`when` 只有 `always` 和 `film`（有影片打开时）。`groupTitle` 没有 app，插件名经进程级的缓存 `pluginsNames` 取。
+  - 插件设置的值存在 `plugins/.settings/<id>.json`，不是 `plugins/<id>/settings.json`：包目录里多一个文件会让 `Validate` 拒收、哈希改变。secret 存在 `pluginhost.<id>.<signer>` 分区，`kando.settings.get` 从不返回它；P3a 还没有用它的地方（`credentialFetch` 在 P3b），先把声明式设置的五种类型都画出来。设置最多 16 项，text 最长 1–1000 字（默认 200），choice 最多 32 个选项。
+  - 插件看到的影片 id 是 `f_` 加 `HMAC(HMAC(filmKey, id + 签名者), 视频路径)` 的前 16 位 hex，`filmKey` 是插件文件夹里 `.filmkey` 的 32 个随机字节，第一次有脚本插件时生成。`kando.lines.seen` 的视界是调色板记的最远播放点，再加上正在播放的这一句。
+  - `kando.toast` 用 NSGo 的 `ui.Toaster`，画在主窗口上（`pluginsOverlay`），标题是插件名；`kando.ui.openURL` 只收 https，每次用系统提示框确认，同一时刻只问一个，结果记进 audit.log。每个插件每分钟最多 60 次 host 调用（错误码 `quota`），同时启用的脚本插件最多 12 个。
+  - audit.log 写到 512 KiB 时挪成 `audit.log.1`；清洗函数由调用方传进来（`feedbackScrubber().Clean`），`plugins` 不导入界面包。
+  - 吊销列表的每日拉取（6.4）没有做，归到 P3c 的签名运维；`Trust.Accept` 在插件第一次载入成功后调用。
+  - 插件 manifest 的 `kando` 写成 `>=MAJOR.MINOR.PATCH`，安装时和 `appVersion` 比，源码编译（版本不是三段数字）不拦。脚本包形状：zip 和解压后都不超过 16 MiB、最多 8 个文件，`.nsgopkg` 不超过 8 MiB。
+  - 插件页里脚本插件一组排在最前；来源徽标是「官方」「开发者」，验签没过的插件开关灰掉，原因写在行内。
+  - 测试：`plugins/script` 的测试自己起一个带 tree 的引擎（`core.NewRoot` 加 `core.NewTree`，`TODO(nsgo#838)`），用现场生成的根签包；spike 的三类敌意夹具都在（n=32 的正则 0.5 s 内失败、setTimeout 分片的 CPU 和内存插件 2 s 内被停、模块数组反复增长在过阈值后停用），`-race` 下时间放宽 5 倍。AST 不变量测试扫全仓：没有 `tsx.Sandboxed`，没有 `tsx.View`（这一期插件不画界面），`tsx.Load` 只在 `plugins/script` 的非测试代码里、第三个参数是 `Sandbox(...)` 或 `probeSandbox(...)`。app 的测试把测试密钥当官方根（`pluginsScripts.official`），用 `script.PackFolder` 签插件。截图场景是 `plugins-script-install` 和 `plugins-script-details`，在 Linux 上只跑了无头断言，没出图；Windows 上的插件运行时测试还没在 CI 上跑过。
+  - 评审后的修正：改授权时从 state.json 条目出发，签名者变了就清空授权，开关只在条目的哈希就是当前内容时保留（`State.GrantEntry`）；第一次验签读到的 health.json、in-flight 标记和影片密钥，即使被后一次验签取代也照样生效；每个验过签的插件（不论是否在运行）都读出设置的值和 secret 是否已存，值没读出来之前不写；预读拿插件文件里**未清洗**的清单（`Verified.Manifest`）和 `kandoManifest()` 比，`Validate` 去掉的首尾空白、零宽字符不会让正常插件被判为篡改；来源徽标随验签结果重建；卸载和换签名者时用 state.json 记的签名者清分区（插件现在验不过签时 `Pack.Signer` 是空的）；纯函数挪进了 `plugins`（`Grant.Key`、`Grant.AuditText`、`RulesText`、`State.GrantEntry`、`InstallEntry`、`FilmKey`、`FilmID`、`LineValue`、`Values.Clone`）。
+  - 和 P1 收尾、P4.1 合到一起后：`PluginState` 同时有站点包的 `Sites`（格式 1 就有）和脚本插件的 `OldHash`、`Signer`、`Grant`（格式 2）；`Save` 照 P1 收尾的做法先重读磁盘上的格式，磁盘上比 2 新就拒写，没有脚本插件的条目时仍写格式 1。`Scan` 的哈希缓存对脚本插件同样适用：缓存命中时不再重读包，但包的 SHA-256 每次验签（`script.Verify`）都会和清单比对，包被改过、修改时间变了就重新哈希并按 `ErrTampered` 拒收。
+  - NSGo 缺口：同步 `throw` 丢掉 `code` 已提交为 [nsgo-dev/nsgo#847](https://github.com/nsgo-dev/nsgo/issues/847)，熔断那里留了 `TODO(nsgo#847)`。原记录：同步导出函数 `throw` 的错误带了 `code` 时，`Plugin.Call` 不像 promise 的拒绝那样把它转成 `core.Error`：`tsx/view.go:142-150` 的 recover 直接把 goja 的异常交给 `done`，只有 `onReject`（`view.go:166-169`）经过 `rejection`（`view.go:182-197`）。插件因此只能在 async 函数里用 `code` 报告预期内的失败。
+
+### P3.0 spike 的测量结果
+
+2026-11-19 测量。测量代码只是一次性的，量完已删，没有提交。NSGo 固定在 `v0.1.1-0.20261118094851-ec272782be28`，Go 1.27.4。linux/amd64 和 windows/amd64 在 Ubuntu 编译机（x86_64，24 核）上编译，运行时只在 Ubuntu 上跑；darwin/arm64 在 Mac Studio（arm64，cgo，外接 PCIe SSD）上编译和跑。Windows 只量了体积。测量当天上游 #759、#760、#761 都还开着、没有评论，main 在固定版本之后没有改 `tsx/sandbox.go`、`tsx/view.go` 和 `tsx/pkg` 的相关逻辑。
+
+**1. 二进制体积**。命令是 `go build -trimpath -tags=nodra_nomygo -ldflags='-s -w' ./apps/kando`（CI 和 `nsgo.yaml` 用的 tag），对比加不加一个带 build tag 的文件。这个文件在 `init` 里按环境变量调用 `pkg.OpenTrust`、`AddRoot`、`Verify`、`Accept`、`tsx.Load`、`Call`、`Exports`、`Close`，让链接器保留 P3 会用到的路径。
+
+| 目标 | 不链接 tsx | 链接 tsx + tsx/pkg | 增量 |
+|---|---|---|---|
+| linux/amd64 | 56.31 MB | 77.61 MB | +21.30 MB（+20.3 MiB，+37.8%） |
+| windows/amd64 | 57.45 MB | 79.17 MB | +21.72 MB（+20.7 MiB，+37.8%） |
+| darwin/arm64 | 55.23 MB | 75.15 MB | +19.91 MB（+19.0 MiB，+36.1%） |
+
+不 strip 时增量是 24–26 MB，压缩后的安装包没有量。按符号大小分包看，goja 本身约 1.8 MB，tsx 约 1.2 MB，regexp2 约 0.4 MB，tsx 注册的 NSGo `base`、`ui` 组件和 `base/plot` 约 1–2 MB；其余大部分来自链接器的方法裁剪失效。goja（`object_goreflect.go:222`）和 tsx（`goface.go:1248-1249`、`classes.go:63`、`messages.go:44`）都用非常量参数调 `reflect.Value.Method`、`reflect.Type.Method` 或 `MethodByName`，链接器因此保留所有可达类型的全部导出方法。例如 tsx 完全没用到的 `aws-sdk-go-v2/service/s3` 也大了 2.3 MB，`apps/kando/locales` 大了 0.4 MB。这一部分 Kando 这边削不掉。`go mod tidy` 之后 `apps/kando/go.mod` 多两行 indirect，见 3.2 节。
+
+**2. 引擎 goroutine 的阻塞**。用 `core.NewRoot` 加一个独占 goroutine 的 post 队列模拟引擎，按 3.3 节的 Limits（`DefaultLimits` 为底，Load 1s、Call 500ms、Timers 64、Requests 4、Body 4 MiB、Storage 1 MiB）载入，Grant 只给 `host`。另一个 goroutine 每毫秒往同一个队列投一个空函数，记录它等了多久，也就是一个输入事件要等多久。nsgotest 下的数字相同（Load p50 0.87 ms，同步 Call p50 1.4 µs）。
+
+| 操作 | Ubuntu x86_64，p50 / p99 | Mac Studio arm64，p50 / p99 |
+|---|---|---|
+| Load 空包（1.9 KB 源码） | 0.83 / 2.1 ms | 0.60 / 3.5 ms |
+| Load 200 个导出函数（115 KB） | 4.9 / 6.8 ms | 3.1 / 6.5 ms |
+| Load 2000 个导出函数（1.15 MB） | 46.8 / 53.2 ms | 29.9 / 47.2 ms |
+| Call 同步的 `add(1, 2)`，引擎上占用的时间 | 1.3 / 10 µs | 1.1 / 17 µs |
+| Call `async ping()`，从投递到 done | 12 / 24 µs | 10 / 39 µs |
+| 一次 Call 里 1 万次 `await host.call`，handler 同步 Resolve | 共 111 ms，每次往返 11 µs；期间输入事件等待 p50 74 µs、p99 0.97 ms | 共 60 ms，每次 6 µs；p50 31 µs、p99 1.5 ms |
+| in-flight 标记：写临时文件、rename、删除，不 fsync | 46 / 125 µs（ext4） | 150 / 392 µs（APFS） |
+| 同上，加 fsync | 0.81 / 1.6 ms，最大 8.6 ms | 3.3 / 11 ms，最大 70 ms |
+
+正常插件对引擎的占用是毫秒级，Load 每个 tick 只载一个（5.2）足够。in-flight 标记不 fsync（5.2）。
+
+**3. 两个已知的洞，以及 Kando 能自己做的缓解**
+
+ReDoS：`new RegExp("(a+)+\\1$").test("a".repeat(n) + "!")` 在引擎上跑，n=20 卡 0.42 s，22 卡 1.07 s，24 卡 4.2 s，28 卡 71 s，32 超过 300 s 还在跑（每多一个字符时间翻倍，推算约 19 分钟）。500ms 的预算要等匹配结束才报 ErrBudget，这段时间里输入事件一直在排队。`^(a+)+$` 一样：这个版本的 goja 所有正则都走 regexp2，没有 RE2 的快路径（`goja/builtin_regexp.go:184-259`）。
+
+大分配：同步的死循环，500ms 时被 ErrBudget 切断。基线 RSS 37 MB。
+
+| 写法 | 峰值 RSS | Go 堆峰值 | Close 加 GC 之后 |
+|---|---|---|---|
+| 每次 push 一个 `new Array(1000)` | 156 MB | 123 MiB | 36 MB |
+| 拼字符串 | 460 MB | 411 MiB | 44 MB |
+| 小对象 | 359 MB | 307 MiB | 44 MB |
+
+`debug.SetMemoryLimit(1 GiB)` 不改变结果，因为数据都被插件引用着，GC 收不走。
+
+比 #759、#760 更要紧的两个新发现（3.3 节已写进运行时语义）：
+
+- **ErrBudget 不停掉插件**：一个把数据存进模块级数组的导出函数，每次调用在 500ms 内多占约 250 MB，每次都被切断，但连调 8 次后 RSS 到 1.74 GB，直到 Close 才释放。
+- **一次调用可以永远不结束**：`for (;;) { 忙 450 ms; await new Promise(r => setTimeout(r, 0)) }` 的每个片段都不超过 500ms，从不被切断，5 s 里输入事件等待 p50 449 ms，窗口等于卡死；同样的循环每个片段分配 20 万个对象，5 s 涨到 2.0 GB，一直不停。
+
+试过的缓解（都不 fork NSGo）：
+
+| 手段 | 结果 |
+|---|---|
+| main 在任何 Load 之前设 `regexp2.DefaultMatchTimeout = 100 * time.Millisecond` | 有效。goja 用 `regexp2.Compile` 编译每个 JS 正则（`goja/regexp.go:58`），会带上这个默认超时；超时后 goja 抛 `RangeError: match timeout after 100ms`（`goja/regexp.go:138-139`）。n=32 的匹配 0.2 s 就返回（regexp2 的时钟粒度约 100ms）；插件 catch 住再循环匹配，0.6 s 时被预算切断。代价：这是进程级的全局变量，要在启动时、任何正则编译之前设好；Kando 里目前只有 goja 用 regexp2；`github.com/dlclark/regexp2/v2` 要成为 `apps/kando/go.mod` 的直接依赖。 |
+| Load 前静态扫描 bundle：用 goja 的 parser 遍历 AST，拒收含嵌套量词、反向引用或环视的正则字面量，以及 `RegExp` 标识符和 `.match`、`.search`、`.matchAll` 调用 | 只能当 lint。字面量、`new RegExp("…")`、`s.match("…")` 都扫得出来；用 `(/x/).constructor` 拿到构造函数、用计算出来的属性名调 `match`，都扫不出来，而且照样卡 1 s 以上。有了上一条就不需要它。 |
+| 每个插件一个独立的图：`core.NewRoot(core.RootOptions{Post: …})` 加 `core.NewTree(root, nil)`，在专门的 goroutine 上 Load 和 Call | 可行。Load、Call、`host.call`、setTimeout、Close 都正常，`-race` 干净；handler 在插件的 goroutine 上跑，要读 app 的状态就转到引擎上，再从任意 goroutine Resolve。n=28 的正则卡住插件的 goroutine 时，引擎上输入事件等待 p99 27 µs。缺点：不调 `NewTree` 时 Load 返回空指针错误；这个图的 Storage 只能在内存里，重启就丢（见下面 NSGo 缺口 1）；卡住的 goroutine 回收不了，要等进程退出；内存仍然是同一个进程的。不作为默认做法。 |
+| 看门狗：全局串行的 Call，一个 goroutine 定时往引擎投心跳，用 `runtime/metrics` 读 `/memory/classes/heap/objects:bytes`，超阈值就在引擎上 `Plugin.Close()` | 有效，但只能在片段之间生效：tsx 不暴露 Interrupt，看门狗自己打断不了 JS。分片分配的插件 Close 等了 47 ms，CPU 分片的插件等了 0.4 s（等当前片段跑完），Close 之后 GC 回到 84–90 MB。单个同步片段的上限由 500ms 预算决定，约 0.3–0.5 GB。写进 6.6 节。 |
+| `debug.SetMemoryLimit` | 无效，见上。 |
+
+**4. 根密钥、证书、签包和吊销的命令**（固定版本的 `cmd/nsgo/main.go:169-220` 和 `cmd/nsgo/publish.go`）。私钥只从环境变量 `NSGO_ROOT_KEY`、`NSGO_RELEASE_KEY` 读，工具不写私钥文件，也不接受私钥 flag。
+
+```sh
+# On the offline machine: once for the root, once per release key. Prints "public: <base64>" and "secret: <base64>", writes nothing.
+go tool nsgo keygen
+# The root certifies a release key for the official publisher segment.
+NSGO_ROOT_KEY=<root secret> go tool nsgo certify -key <release public> -apps 'ai.yldm.kando.plugin.kando.*' -days 365 -out kando-official.cert
+# Compile the plugin folder (nsgo.yaml + entry) and sign it.
+NSGO_RELEASE_KEY=<release secret> go tool nsgo publish -cert kando-official.cert -entry plugin.tsx -out dist/<id>-<version>.nsgopkg <plugin dir>
+# Check it the way Kando will.
+go tool nsgo verify -root <root public> -revocations revocations-3.json dist/<id>-<version>.nsgopkg
+# Revoke release keys (by key ID) and packages (by SHA-256 or file); the sequence rises per root.
+NSGO_ROOT_KEY=<root secret> go tool nsgo revoke -sequence 3 -days 30 -keys <key ID,...> -packages <sha256 or .nsgopkg,...> -out revocations-3.json
+```
+
+- `keygen` 打印的公钥是 32 字节公钥的标准 base64，私钥是 32 字节 seed 的标准 base64；key ID 是公钥 SHA-256 的前 8 字节的 hex（`pkg.KeyID`），`keygen` 和 `verify` 的输出里都有。
+- `certify` 的 `-apps` 是逗号分隔的 `*`、`前缀.*` 或完整 id，`-days` 默认 365，`-out` 默认 `release.cert`（JSON）。
+- `publish` 读插件目录里的 `nsgo.yaml`：`name` 必填；`id` 就是签进包里的 `App.ID`，要写成 `ai.yldm.kando.plugin.<publisher>.<name>`，不写会按 name 生成一个；`version` 默认 `0.0.0`；`build_number` 是防回滚比较的 build，不写按 version 推算；`capabilities` 用 snake_case，P3 只许写 `host` 和 `network`。`-entry` 不给时先找主包运行的 TSX 入口，再找 `App.tsx`。`-min-runtime` 默认是工具自己的 runtime 版本。对一个已有的 `.nsgopkg` 加 `-out` 是用另一把发布密钥重签。
+- `revoke` 的 `-sequence` 每个根单调递增，Kando 拒收不比已有更新的列表（`ErrStale`）；`-days 0` 是永不过期，6.4 节按「过期只暂停联网和凭据类的非官方插件」处理，所以建议给有限期并随 appcast 续签。
+- 运行时：根公钥作为字符串常量写进 Kando，每次启动先 `pkg.DecodePublicKey`（标准 base64，必须正好 32 字节），再 `trust.AddRoot`（6.4）；吊销列表用 `pkg.ParseRevocations(data)` 读，再 `trust.UpdateRevocations(list)`。
+- 证书有效期拿包头里的 `CreatedAt` 比，不拿验证时的时间（`tsx/pkg/package.go:428`），所以有效期不能代替吊销（6.4）。
+
+**5. 新发现的 NSGo 缺口**（spike 不提 issue，由主会话查重后提交）：
+
+1. 第二个图没法持久化 Storage：`core.NewStore`（`core/storage.go:47`）要一个 `driver.StorageBackend`，它的 `Write` 参数是 `internal/driver.StorageChange`（`internal/driver/services.go:748-755`），app 实现不了；也没有导出的文件型 Store，拿不到 app 自己的 Store 给第二个图用。复现：`root := core.NewRoot(core.RootOptions{Post: post})`，在它上面 `tsx.Load` 一个插件，`Storage.setItem` 写进去的东西进程重启后就没了。
+2. 没有 Tree 的图上 `tsx.Load` 返回 `runtime error: invalid memory address or nil pointer dereference`，原因是 tsx 给运行时建一个 region 元素（`tsx/tsx.go:148`），`core.NewElement` 要用 `cx.tree()`（`core/ops.go:25-28`）。要先 `core.NewTree(root, nil)`，文档没有写。
+3. ErrBudget 不停掉插件，而预算只按最外层同步片段算（`tsx/sandbox.go:311-329`、`tsx/view.go:170-174`）：用 setTimeout 分片的调用永远不被切断，可以让引擎持续忙碌、内存无限上涨，`Limits` 里没有单次调用的总时长或 CPU 占比上限，也没有给宿主的 `Plugin.Interrupt`。复现：`export async function go() { for (;;) { const t = Date.now(); while (Date.now() - t < 450) {} await new Promise(r => setTimeout(r, 0)) } }`，在 `Limits.Call = 500ms` 下 Call，5 s 里引擎的空闲投递等待 p50 449 ms，done 一直不被调用。与 #760 相关，但这是时间上的缺口。
+4. #759 的一个可行修法：tsx 在建运行时的时候给 regexp2 设 `MatchTimeout`（例如取 `Limits.Call`），不必等 goja 支持中断。Kando 先用进程级的 `regexp2.DefaultMatchTimeout` 绕开，可以作为评论补到 #759。
+5. 链接 tsx 让二进制大约 37%，主要是 goja 和 tsx 里非常量的反射方法调用让链接器保留了所有导出方法（第 1 条）。不算 bug，可以作为体积问题报上去。
+6. 文档小出入：`docs/public/zh/tsx.md:92` 说 `tsx.Load` 「在后台运行它」，实际上 `Load` 在调用方的 goroutine 上同步执行入口模块（`tsx/view.go:64-93`）。
+
+**放行建议：有条件放行（go）**。正常插件的开销很小（Load 毫秒级，Call 微秒级，1 万次 host.call 期间输入延迟 p99 不到 2 ms），两个已知的洞加上新发现的分片问题都能由 Kando 自己兜到「最坏卡一个 500ms 片段、多占约 0.5 GB，然后插件被停用」。条件：
+
+1. owner 接受可执行文件大 19–21 MiB（约 +37%）。
+2. P3.1 起就带上三样东西，并有测试锁住：启动时设 `regexp2.DefaultMatchTimeout`；6.6 节的看门狗（全局串行、心跳、堆阈值、在片段之间 Close、记熔断）；不 fsync 的 in-flight 标记。测试夹具至少有：n=32 的回溯正则在 0.5 s 内失败，setTimeout 分片的 CPU 和内存插件在 2 s 内被停用，模块级数组反复调用在超出堆阈值后被停用。
+3. owner 同意 `apps/kando/go.mod` 加 `github.com/dlclark/regexp2/v2`（直接依赖）和 `github.com/google/pprof`（indirect），这与 12.2 第 7 条字面上冲突（12.3 第 3 条）。
+4. P3 的 CI 在 Windows 上也跑插件测试，这次没有量 Windows 的运行时。
+5. 根密钥的保管（12.3 第 1 条）定下来之前，只跑官方插件和开发者模式插件。
+
+如果 owner 不接受第 1 条的体积，就停在 P2；体积这一项不是 Kando 能削掉的，只能等上游。
