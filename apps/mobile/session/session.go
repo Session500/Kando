@@ -163,6 +163,8 @@ type Session struct {
 	settle *settle
 	// gloss are the films' glossaries (glossary.go).
 	gloss *glossaries
+	// marks are the word marks of the films' lines (marks.go).
+	marks *filmMarks
 }
 
 // filmSave is what is still to be written of a film's record: next, once pending; or its folder deleted, once removed.
@@ -222,6 +224,7 @@ func New(cx *core.Scope, cfg Config) *Session {
 		remote:       newRemote(cx),
 		subs:         newSubscriptions(cx),
 		gloss:        newGlossaries(cx),
+		marks:        newFilmMarks(cx),
 		studies:      core.NewSignalFunc(cx, map[string]study.Library{}, nil),
 		studyLoading: map[string]bool{}, studyRuns: map[string]*studyRun{}, finding: map[string]bool{},
 		studySaving: map[string]uint64{}, studySaved: map[string]uint64{},
@@ -532,11 +535,16 @@ func (s *Session) Follow(key string, changed func()) {
 			}
 			// The subtitles first: a record kept with the desktop's date says they are the desktop's, so an app closed between the two asks for them again.
 			s.work.Go(func() {
+				before, _, _ := s.st.Cues(cur.Desktop, cur.Film.ID)
 				err := s.st.SaveCues(cur.Desktop, cur.Film.ID, cues)
 				s.cx.Post(func() {
 					delete(s.following, key)
 					if err != nil {
 						return
+					}
+					// Lines whose originals changed, as more lines of a film whose subtitles are made while it plays, or one proofread, are marked again by the computer.
+					if !sameOriginals(before, cues) {
+						s.OpenMarks(key)
 					}
 					// Taken again as it stands now, so a position kept while the subtitles were written stays, and kept after the saves of the position before it.
 					if cur, ok := s.followed(key, listed); ok {
@@ -814,6 +822,8 @@ func (s *Session) finished(key string, j *job, got store.Film, err error, stoppe
 	switch {
 	case err == nil:
 		s.setTransfer(key, nil)
+		// The marks of its lines' words come with it, so it shows them offline.
+		s.OpenMarks(key)
 		if got.LibraryID == "" {
 			// The library's ID goes with the film, as its learning state goes by it, so lines can be saved from it away from the desktop; it is asked for once the film is done, so the download does not wait on it, and a desktop that does not answer leaves it to be asked for when the film opens (OpenStudy).
 			s.findLibrary(got)
