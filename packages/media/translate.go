@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -126,7 +127,8 @@ func (t ChatTranslator) Translate(ctx context.Context, segments []core.Segment, 
 	}
 	renewed := false
 	out := make([]core.Segment, 0, len(segments))
-	var earlier []string
+	// The lines said before segments, as a film translated a part at a time gives them (WithEarlier), go with the first batch as context, as the batches before it would.
+	earlier := slices.Clone(earlierOf(ctx))
 	// untranslated counts the lines of batches left untranslated, failedRun the batches in a row that failed, and lastErr why the last of them did.
 	var untranslated, failedRun int
 	var lastErr error

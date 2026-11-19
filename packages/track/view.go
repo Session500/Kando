@@ -28,9 +28,13 @@ type Line struct {
 	Translation Text
 }
 
-// View is the film's lines as they show, in the order they show: those of the generation the film shows (Shown), less the ones taken out of it, each side the revision of the highest layer written of it, and of two in one layer the later (Event.after).
+// View is the film's lines as they show, in the order they show: those of the generation the film shows (Shown), as Lines reads them.
 func (d Doc) View() []Line {
-	gen := d.Shown()
+	return d.Lines(d.Shown())
+}
+
+// Lines are the lines of generation gen in the order they show, less the ones taken out of it, each side the revision of the highest layer written of it, and of two in one layer the later (Event.after); none for "".
+func (d Doc) Lines(gen string) []Line {
 	if gen == "" {
 		return nil
 	}

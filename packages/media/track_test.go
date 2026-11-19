@@ -85,7 +85,7 @@ func TestReadTrackKeepsTheLinesOfTheDocument(t *testing.T) {
 	video, _, bilingual := trackVideo(t)
 	made := track.Generation(track.Made{Source: "whisper", Original: track.LayerHeard, Translation: track.LayerDraft},
 		[]core.Segment{cue(1, 2, "hello"), cue(3, 4, "bye")}, []core.Segment{cue(1, 2, "你好"), {}})
-	if err := track.Append(video, "mac", made...); err != nil {
+	if _, err := track.Append(video, "mac", made...); err != nil {
 		t.Fatal(err)
 	}
 	doc, _ := track.Read(video)
@@ -140,7 +140,7 @@ func TestPairCuesKeepsTheTranslationsOfLinesShownAtTheSameTime(t *testing.T) {
 
 func TestCompanionsIncludeTheSubtitlesLogs(t *testing.T) {
 	video, _, _ := trackVideo(t)
-	if err := track.Append(video, "mac", track.Event{Kind: track.KindGone}); err != nil {
+	if _, err := track.Append(video, "mac", track.Event{Kind: track.KindGone}); err != nil {
 		t.Fatal(err)
 	}
 	if got := Companions(video); !slices.Contains(got, track.LogPath(video, "mac")) {

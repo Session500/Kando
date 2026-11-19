@@ -34,7 +34,7 @@ func seg(start, end int, text string) core.Segment {
 
 func mustAppend(t *testing.T, path, device string, events ...Event) {
 	t.Helper()
-	if err := Append(path, device, events...); err != nil {
+	if _, err := Append(path, device, events...); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -208,7 +208,7 @@ func TestARecordCutOffByACrashIsDropped(t *testing.T) {
 func TestADeviceIDMustNameAFile(t *testing.T) {
 	path := video(t)
 	for _, device := range []string{"", "a.b", "../x", "a b"} {
-		if err := Append(path, device, Event{Kind: KindGone}); !errors.Is(err, ErrDevice) {
+		if _, err := Append(path, device, Event{Kind: KindGone}); !errors.Is(err, ErrDevice) {
 			t.Errorf("Append(%q) = %v, want ErrDevice", device, err)
 		}
 	}
@@ -223,7 +223,7 @@ func TestANewerKandosLogIsNotWrittenTo(t *testing.T) {
 	if !mustRead(t, path).Newer {
 		t.Fatal("Newer = false for a log a newer Kando wrote")
 	}
-	if err := Append(path, "mac", Event{Kind: KindGone}); !errors.Is(err, ErrNewer) {
+	if _, err := Append(path, "mac", Event{Kind: KindGone}); !errors.Is(err, ErrNewer) {
 		t.Fatalf("Append = %v, want ErrNewer", err)
 	}
 }

@@ -88,27 +88,28 @@ var (
 // Now is the clock Append stamps records with; tests set it.
 var Now = time.Now
 
-// Append adds events, in order, to the log device keeps of the video at videoPath (LogPath), numbering and stamping each (Event.Seq, Event.At), with a head first when the log is new. A record cut off at the end of the log, as by a crash while it was written, is dropped first, so the records written now follow whole ones. Records are written together, so a crash leaves a log of whole records and at most one cut off at its end, which Read skips.
-func Append(videoPath, device string, events ...Event) error {
+// Append adds events, in order, to the log device keeps of the video at videoPath (LogPath), numbering and stamping each (Event.Seq, Event.At), with a head first when the log is new, and returns the records it wrote, as Read would read them back, so a writer can keep the document in memory without reading it again. A record cut off at the end of the log, as by a crash while it was written, is dropped first, so the records written now follow whole ones. Records are written together, so a crash leaves a log of whole records and at most one cut off at its end, which Read skips.
+func Append(videoPath, device string, events ...Event) ([]Event, error) {
 	if !validDevice(device) {
-		return ErrDevice
+		return nil, ErrDevice
 	}
 	if len(events) == 0 {
-		return nil
+		return nil, nil
 	}
 	path := LogPath(videoPath, device)
 	logMu.Lock()
 	defer logMu.Unlock()
 	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0o644)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer f.Close()
 	t, err := tailOf(path, f)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	var buf bytes.Buffer
+	written := make([]Event, 0, len(events)+1)
 	if t.seq == 0 {
 		events = append([]Event{{Kind: KindHead, Version: Version}}, events...)
 	}
@@ -118,25 +119,28 @@ func Append(videoPath, device string, events ...Event) error {
 		e.Seq, e.At, e.Device = t.seq, t.at, ""
 		data, err := json.Marshal(e)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		buf.Write(data)
 		buf.WriteByte('\n')
+		e.Device = device
+		written = append(written, e)
 	}
 	if _, err := f.Seek(t.size, io.SeekStart); err != nil {
-		return err
+		return nil, err
 	}
 	if _, err := f.Write(buf.Bytes()); err != nil {
-		return err
+		delete(tails, path)
+		return nil, err
 	}
 	info, err := f.Stat()
 	if err != nil {
 		delete(tails, path)
-		return err
+		return written, nil
 	}
 	t.size, t.mod = info.Size(), info.ModTime()
 	tails[path] = t
-	return nil
+	return written, nil
 }
 
 // tailOf is the end of the log at path, open as f: what Append kept of it when the file is as Append left it, or else read from the file, which is cut back to its last whole record. A log that is not this format's, or that a newer Kando wrote, is ErrNewer.

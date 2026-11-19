@@ -92,3 +92,16 @@ func (c *checkpoint) keep(start int, lines []string) {
 	}
 	_ = writeFileAtomic(c.path, data)
 }
+
+type earlierKey struct{}
+
+// WithEarlier returns ctx carrying lines, the original lines said before the ones a translation is given, which a translator that reads the lines before (ChatTranslator with context on) sends with them, as a film translated a part at a time does.
+func WithEarlier(ctx context.Context, lines []string) context.Context {
+	return context.WithValue(ctx, earlierKey{}, lines)
+}
+
+// earlierOf is the lines WithEarlier put in ctx, none when it put none.
+func earlierOf(ctx context.Context) []string {
+	lines, _ := ctx.Value(earlierKey{}).([]string)
+	return lines
+}

@@ -1,0 +1,328 @@
+package media
+
+import (
+	"context"
+	"errors"
+	"os"
+	"path/filepath"
+	"slices"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"kando/packages/core"
+	"kando/packages/track"
+)
+
+// makeFilm is a film a fake speech recognition hears: a line every ten seconds, "line N" at N×10 s, for length.
+type makeFilm struct {
+	length    time.Duration
+	language  string
+	hearErr   error
+	failAfter int // hear fails after handing on this many lines in a run, when hearErr is set and it is > 0
+	// translate translates a line; nil puts "译:" before it.
+	translate func(string) (string, error)
+
+	// stall, when set, is called by the first run once it has heard past its first cell, and the run then waits until it is stopped, as a run far from a jump does.
+	stall func()
+
+	mu         sync.Mutex
+	runs       [][2]time.Duration
+	langs      []string
+	translated [][]string
+	earlier    [][]string
+}
+
+func (f *makeFilm) Check() error { return nil }
+func (f *makeFilm) Download(_ context.Context, source string) (string, error) {
+	if path, ok := localVideoPath(source); ok {
+		return path, nil
+	}
+	return "", errors.New("not a link")
+}
+func (f *makeFilm) Transcribe(context.Context, string) ([]core.Segment, error) {
+	return nil, errors.New("Make hears the film a part at a time")
+}
+func (f *makeFilm) Export(context.Context, string, []core.Segment, []core.Segment) (string, error) {
+	return "", errors.New("Make writes the film's subtitles itself")
+}
+func (f *makeFilm) Length(context.Context, string) time.Duration { return f.length }
+
+func (f *makeFilm) Hear(ctx context.Context, _ string, from, to time.Duration, heard func(core.Segment)) (string, error) {
+	f.mu.Lock()
+	f.runs = append(f.runs, [2]time.Duration{from, to})
+	f.langs = append(f.langs, speechLanguageOf(ctx))
+	f.mu.Unlock()
+	n := 0
+	for at := time.Duration(0); at < f.length; at += 10 * time.Second {
+		if at < from || at >= to {
+			continue
+		}
+		if ctx.Err() != nil {
+			return "", ctx.Err()
+		}
+		if f.hearErr != nil && n >= f.failAfter {
+			return "", f.hearErr
+		}
+		heard(core.Segment{Start: at, End: at + 2*time.Second, Text: "line " + at.String()})
+		n++
+		if f.stall != nil && at >= from+track.Cell+runPad {
+			stall := f.stall
+			f.stall = nil
+			stall()
+			<-ctx.Done()
+			return "", ctx.Err()
+		}
+	}
+	if f.hearErr != nil {
+		return "", f.hearErr
+	}
+	return f.language, nil
+}
+
+func (f *makeFilm) Translate(ctx context.Context, segments []core.Segment, _ string) ([]core.Segment, error) {
+	f.mu.Lock()
+	texts := make([]string, len(segments))
+	for i, s := range segments {
+		texts[i] = s.Text
+	}
+	f.translated = append(f.translated, texts)
+	f.earlier = append(f.earlier, slices.Clone(earlierOf(ctx)))
+	f.mu.Unlock()
+	out := make([]core.Segment, len(segments))
+	for i, s := range segments {
+		s.Text = "译:" + s.Text
+		if f.translate != nil {
+			text, err := f.translate(texts[i])
+			if err != nil {
+				return nil, err
+			}
+			s.Text = text
+		}
+		out[i] = s
+	}
+	return out, nil
+}
+
+func makeJob(t *testing.T) (core.Job, string) {
+	t.Helper()
+	video := filepath.Join(t.TempDir(), "Episode 1.mkv")
+	if err := os.WriteFile(video, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	job, err := core.NewJob(core.FileURL(video))
+	if err != nil {
+		t.Fatal(err)
+	}
+	job.VideoPath = video
+	return job, video
+}
+
+// makeFilmOf runs Make on job with f, watched from at, and returns the job it ended with and every job it reported.
+func makeFilmOf(t *testing.T, f *makeFilm, job core.Job, at time.Duration) (core.Job, []core.Job) {
+	t.Helper()
+	var reports []core.Job
+	done := Make(context.Background(), f, job, "简体中文", "mac", From(at), func(j core.Job) { reports = append(reports, j) })
+	return done, reports
+}
+
+func TestMakeMakesAFilmAPartAtATime(t *testing.T) {
+	job, video := makeJob(t)
+	f := &makeFilm{length: 95 * time.Second, language: "ja"}
+	done, reports := makeFilmOf(t, f, job, 0)
+	if done.Stage != core.StageComplete || done.Err != nil {
+		t.Fatalf("job ended %s: %v", done.Stage, done.Err)
+	}
+	bilingual := filepath.Join(filepath.Dir(video), "Episode 1.bilingual.srt")
+	if done.SubtitlePath != bilingual || done.SpokenLanguage != "ja" || done.Untranslated != 0 || done.TranslationErr != "" || !done.Transcribed {
+		t.Fatalf("job = %+v", done)
+	}
+	data, err := os.ReadFile(bilingual)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cues, _ := ParseSRT(data)
+	if len(cues) != 10 || cues[0].Text != "译:line 0s\nline 0s" || cues[9].Text != "译:line 1m30s\nline 1m30s" {
+		t.Fatalf("bilingual subtitles = %+v", cues)
+	}
+	if transcript, _ := os.ReadFile(filepath.Join(filepath.Dir(video), "Episode 1.srt")); !strings.Contains(string(transcript), "line 1m30s") || strings.Contains(string(transcript), "译") {
+		t.Fatalf("transcript = %q", transcript)
+	}
+	// The first run hears a cell alone to find the language; every run after is told it.
+	if f.runs[0] != [2]time.Duration{0, 45 * time.Second} || f.langs[0] != "" {
+		t.Fatalf("first run %v in %q, want the first cell alone, padded, in no language", f.runs[0], f.langs[0])
+	}
+	if f.runs[1] != [2]time.Duration{15 * time.Second, 135 * time.Second} || f.langs[1] != "ja" {
+		t.Fatalf("second run %v in %q, want the rest of the film in ja", f.runs[1], f.langs[1])
+	}
+	// Each cell's draft goes with the lines said before it.
+	if len(f.translated) != 4 || !slices.Equal(f.translated[1], []string{"line 30s", "line 40s", "line 50s"}) || !slices.Equal(f.earlier[1], []string{"line 0s", "line 10s", "line 20s"}) {
+		t.Fatalf("drafts %q with %q", f.translated, f.earlier)
+	}
+	// The film shows its bilingual subtitles before it is done.
+	if !slices.ContainsFunc(reports, func(j core.Job) bool { return j.SubtitlePath == bilingual && j.Stage != core.StageComplete }) {
+		t.Fatal("the subtitles were not shown before the film was done")
+	}
+	doc, err := track.Read(video)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gen := doc.Shown(); !doc.Done(gen) || len(doc.View()) != 10 {
+		t.Fatalf("document shows %d lines of %q, done %v", len(doc.View()), gen, doc.Done(gen))
+	}
+	// Reading the film back takes nothing in: the files are what the document wrote out.
+	read, err := ReadTrack(video, bilingual, filepath.Join(filepath.Dir(video), "Episode 1.srt"))
+	if err != nil || len(read.Events) != len(doc.Events) {
+		t.Fatalf("reading took in %d records (%v)", len(read.Events)-len(doc.Events), err)
+	}
+}
+
+func TestMakeStartsWhereTheFilmIsWatched(t *testing.T) {
+	job, _ := makeJob(t)
+	job.SpeechLanguage = "ja"
+	f := &makeFilm{length: 200 * time.Second, language: "ja"}
+	done, _ := makeFilmOf(t, f, job, 125*time.Second)
+	if done.Stage != core.StageComplete {
+		t.Fatalf("job ended %s: %v", done.Stage, done.Err)
+	}
+	// Told the language, the first run starts at the cell the playhead is in, 120 s, and hears on to the end; then the start of the film.
+	if f.runs[0] != [2]time.Duration{105 * time.Second, 225 * time.Second} || f.runs[1] != [2]time.Duration{0, 135 * time.Second} {
+		t.Fatalf("runs %v", f.runs)
+	}
+	if !slices.Equal(f.translated[0], []string{"line 2m0s", "line 2m10s", "line 2m20s"}) {
+		t.Fatalf("first draft %q, want the cell the playhead is in", f.translated[0])
+	}
+}
+
+func TestMakeGoesOnWhereAnEarlierRunStopped(t *testing.T) {
+	job, video := makeJob(t)
+	job.SpeechLanguage = "ja"
+	f := &makeFilm{length: 60 * time.Second, language: "ja"}
+	// An earlier run heard and drafted the first cell, then the app quit.
+	gen := track.NewID()
+	events := []track.Event{{Kind: track.KindGen, Gen: gen, Source: makeSource}}
+	events = append(events, track.Event{Kind: track.KindLine, Gen: gen, Line: "a", Start: 1000, End: 2000}, track.Event{Kind: track.KindRev, Line: "a", Side: track.Original, Layer: track.LayerHeard, Text: "earlier"})
+	events = append(events, track.Unit{Work: track.WorkHear, Gen: gen, Cell: 0, Key: "ja"}.Made())
+	if _, err := track.Append(video, "mac", events...); err != nil {
+		t.Fatal(err)
+	}
+	done, _ := makeFilmOf(t, f, job, 0)
+	if done.Stage != core.StageComplete {
+		t.Fatalf("job ended %s: %v", done.Stage, done.Err)
+	}
+	if len(f.runs) != 1 || f.runs[0][0] != 15*time.Second {
+		t.Fatalf("runs %v, want only the second cell heard", f.runs)
+	}
+	doc, _ := track.Read(video)
+	if lines := doc.View(); len(lines) != 4 || lines[0].Original.Text != "earlier" || lines[0].Translation.Text != "译:earlier" {
+		t.Fatalf("lines %+v", lines)
+	}
+}
+
+func TestMakeWithoutATranslationLeavesTheFilmUntranslated(t *testing.T) {
+	job, _ := makeJob(t)
+	job.SpeechLanguage = "ja"
+	f := &makeFilm{length: 150 * time.Second, language: "ja", translate: func(string) (string, error) { return "", errors.New("502 bad gateway") }}
+	done, _ := makeFilmOf(t, f, job, 0)
+	if done.Stage != core.StageComplete || done.TranslationErr == "" || done.Untranslated != 15 {
+		t.Fatalf("job = %s %q untranslated %d", done.Stage, done.TranslationErr, done.Untranslated)
+	}
+	// A service failing cell after cell is given up on after three cells, rather than tried for every cell three times.
+	if len(f.translated) != maxFailedBatches {
+		t.Fatalf("%d drafts sent, want %d", len(f.translated), maxFailedBatches)
+	}
+}
+
+func TestMakeFailsWhenTheSpeechRecognitionCannotRun(t *testing.T) {
+	job, _ := makeJob(t)
+	job.SpeechLanguage = "ja"
+	f := &makeFilm{length: 60 * time.Second, hearErr: errors.New("whisper-cli: failed to load model")}
+	done, _ := makeFilmOf(t, f, job, 0)
+	if done.Stage != core.StageFailed || done.Err == nil || !strings.Contains(done.Err.Error(), "failed to load model") {
+		t.Fatalf("job = %s %v", done.Stage, done.Err)
+	}
+	if len(f.runs) != 1 {
+		t.Fatalf("%d runs, want the job to fail at the first", len(f.runs))
+	}
+}
+
+func TestMakeGivesUpACellThatKeepsFailing(t *testing.T) {
+	job, video := makeJob(t)
+	job.SpeechLanguage = "ja"
+	// The speech recognition hears a line, then fails, every run.
+	f := &makeFilm{length: 30 * time.Second, language: "ja", hearErr: errors.New("whisper-cli: segfault"), failAfter: 1}
+	done, _ := makeFilmOf(t, f, job, 0)
+	if len(f.runs) != track.Attempts {
+		t.Fatalf("%d runs, want the cell tried %d times", len(f.runs), track.Attempts)
+	}
+	// Nothing was heard of the film, so it fails as a film without speech; the cell is given up, not tried for ever.
+	if done.Stage != core.StageFailed || !errors.Is(done.Err, ErrNoSpeech) {
+		t.Fatalf("job = %s %v", done.Stage, done.Err)
+	}
+	doc, _ := track.Read(video)
+	if p := doc.Plan(track.Making{Gen: doc.Shown(), Length: f.length, Hearing: "ja", Language: "简体中文"}); len(p.GivenUp) != 1 {
+		t.Fatalf("plan %+v, want the cell given up", p)
+	}
+}
+
+func TestMakeRunsAFilmItCannotMakeAPartAtATimeAsBefore(t *testing.T) {
+	f := &fakePipeline{transcribe: []core.Segment{{Start: 0, End: time.Second, Text: "hello"}}}
+	job, _ := core.NewJob("https://example.com/video")
+	done := Make(context.Background(), f, job, "简体中文", "mac", nil, func(core.Job) {})
+	if done.Stage != core.StageComplete || done.SubtitlePath != "/videos/talk.bilingual.srt" {
+		t.Fatalf("job = %s %q, want it run as Run runs it", done.Stage, done.SubtitlePath)
+	}
+}
+
+// jumper is a Watcher whose playhead the test moves.
+type jumper struct {
+	mu     sync.Mutex
+	at     time.Duration
+	jumped chan struct{}
+}
+
+func (j *jumper) Playhead() time.Duration {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	return j.at
+}
+
+func (j *jumper) Jumped() <-chan struct{} { return j.jumped }
+
+func (j *jumper) jump(to time.Duration) {
+	j.mu.Lock()
+	j.at = to
+	j.mu.Unlock()
+	j.jumped <- struct{}{}
+}
+
+func TestMakeGivesWayToAJump(t *testing.T) {
+	prev := minRun
+	minRun = 0
+	t.Cleanup(func() { minRun = prev })
+	job, video := makeJob(t)
+	job.SpeechLanguage = "ja"
+	watch := &jumper{jumped: make(chan struct{}, 1)}
+	f := &makeFilm{length: 600 * time.Second, language: "ja"}
+	// The first run, hearing from the start of the film, has heard its first cell when the user jumps to 8:20.
+	f.stall = func() { go watch.jump(500 * time.Second) }
+	done := Make(context.Background(), f, job, "简体中文", "mac", watch, func(core.Job) {})
+	if done.Stage != core.StageComplete {
+		t.Fatalf("job ended %s: %v", done.Stage, done.Err)
+	}
+	if len(f.runs) < 2 || f.runs[1][0] != 465*time.Second {
+		t.Fatalf("runs %v, want the second to start at the cell the jump landed in, padded", f.runs)
+	}
+	// What the stopped run heard is kept and not heard again: every line shows once.
+	doc, _ := track.Read(video)
+	lines := doc.View()
+	if len(lines) != 60 {
+		t.Fatalf("%d lines, want 60", len(lines))
+	}
+	for i, l := range lines {
+		if want := time.Duration(i) * 10 * time.Second; l.Start != want {
+			t.Fatalf("line %d starts at %v, want %v: a line heard twice or lost", i, l.Start, want)
+		}
+	}
+}
