@@ -17,7 +17,7 @@ func listed(t *testing.T, dir string, away ...string) []string {
 	var out []string
 	for _, v := range videos {
 		rel, _ := filepath.Rel(dir, v.Path)
-		out = append(out, rel)
+		out = append(out, filepath.ToSlash(rel))
 	}
 	slices.Sort(out)
 	return out
