@@ -2,6 +2,17 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.37.0 - 2026-11-20
+
+### Features
+
+- Plugin translation sources and the official DeepL plugin (#329)
+- Plugin panels in the player's Extensions tab (#327)
+
+### Fixes
+
+- Require the Kando versions the official plugins need (#331)
+
 ## 0.36.0 - 2026-11-20
 
 ### Features
