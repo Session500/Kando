@@ -2,6 +2,12 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.29.1 - 2026-11-19
+
+### Fixes
+
+- Address the review of #298 and #299 (#304)
+
 ## 0.29.0 - 2026-11-19
 
 ### Features
