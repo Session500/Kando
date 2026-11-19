@@ -47,30 +47,9 @@ func Sheet(cx *core.Scope, s *session.Session, open func() bool, close func(), s
 			q := s.Queue(to)
 			return q.Reach == session.Online && q.Can(sync.OpSubscribe) && !s.Subscribing(to)
 		}
-		return takes(s.Queue(to))
+		return Takes(s.Queue(to))
 	}
-	desktop := func() string {
-		list := s.Desktops()
-		for _, d := range list {
-			if d.ID == chosen.Get() {
-				return d.ID
-			}
-		}
-		for _, d := range list {
-			if q := s.Queue(d.ID); q.Reach == session.Online && takes(q) {
-				return d.ID
-			}
-		}
-		for _, d := range list {
-			if takes(s.Queue(d.ID)) {
-				return d.ID
-			}
-		}
-		if len(list) > 0 {
-			return list[0].ID
-		}
-		return ""
-	}
+	desktop := func() string { return Destination(s, chosen.Get()) }
 	desktopName := func() string { d, _ := s.Desktop(desktop()); return d.Name }
 	send := func() {
 		l, _ := link()
@@ -154,7 +133,7 @@ func Sheet(cx *core.Scope, s *session.Session, open func() bool, close func(), s
 					return locales.ComputersUnpaired(cx, desktopName())
 				case q.ReadOnly:
 					return locales.JobsReadOnly(cx, desktopName())
-				case !takes(q):
+				case !Takes(q):
 					return locales.AddNoLinks(cx, desktopName())
 				case q.Reach == session.Online && q.Relayed:
 					return locales.AddNoteRelay(cx, desktopName())
@@ -237,8 +216,8 @@ func pasteButton(cx *core.Scope, paste func()) core.Node {
 		}}
 }
 
-// takes reports whether a computer's queue may take a link: not one too old for links or that revoked the phone, nor one that answers without listing sync.OpJobCreate. One not reached yet may, and the link waits on the phone until it answers.
-func takes(q session.Queue) bool {
+// Takes reports whether a computer's queue may take a link: not one too old for links or that revoked the phone, nor one that answers without listing sync.OpJobCreate. One not reached yet may, and the link waits on the phone until it answers.
+func Takes(q session.Queue) bool {
 	switch q.Reach {
 	case session.Older, session.Revoked:
 		return false
@@ -246,6 +225,30 @@ func takes(q session.Queue) bool {
 		return q.Can(sync.OpJobCreate)
 	}
 	return true
+}
+
+// Destination is the paired computer a link goes to: chosen, the one the user picked, while it is paired; else the first that answers and takes links, else the first that may take them once it answers, else the first paired; "" with none paired.
+func Destination(s *session.Session, chosen string) string {
+	list := s.Desktops()
+	for _, d := range list {
+		if d.ID == chosen {
+			return d.ID
+		}
+	}
+	for _, d := range list {
+		if q := s.Queue(d.ID); q.Reach == session.Online && Takes(q) {
+			return d.ID
+		}
+	}
+	for _, d := range list {
+		if Takes(s.Queue(d.ID)) {
+			return d.ID
+		}
+	}
+	if len(list) > 0 {
+		return list[0].ID
+	}
+	return ""
 }
 
 // site is the site a link is on, as its chip names it: the site Kando knows it as, else its host.
