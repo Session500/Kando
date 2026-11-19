@@ -138,9 +138,12 @@ func TestPlanAlwaysEnds(t *testing.T) {
 		if r.IntN(4) == 0 {
 			m.Language = ""
 		}
+		if r.IntN(2) == 0 {
+			m.Final = func([]string) string { return "terms" }
+		}
 		doc := Doc{}
 		given := map[Unit]int{}
-		limit := 2 * int((length+Cell-1)/Cell) * Attempts
+		limit := 3 * int((length+Cell-1)/Cell) * Attempts
 		steps := 0
 		for p := doc.Plan(m); !p.Done(); p = doc.Plan(m) {
 			if steps++; steps > limit {
@@ -151,10 +154,14 @@ func TestPlanAlwaysEnds(t *testing.T) {
 			}
 			var u Unit
 			switch {
+			case len(p.Final) > 0 && r.IntN(3) == 0:
+				u = p.Final[0]
 			case len(p.Draft) > 0 && (len(p.Hear) == 0 || r.IntN(2) == 0):
 				u = p.Draft[0]
 			case len(p.Hear) > 0:
 				u = p.Hear[0]
+			case len(p.Final) > 0:
+				u = p.Final[0]
 			default:
 				t.Fatalf("seed %d: nothing to do yet not done: %+v", seed, p)
 			}
@@ -165,7 +172,7 @@ func TestPlanAlwaysEnds(t *testing.T) {
 				doc = doc.Plus("mac", u.Failed("failed"))
 				continue
 			}
-			if u.Work == WorkDraft {
+			if u.Work != WorkHear {
 				doc = doc.Plus("mac", u.Made())
 				continue
 			}
@@ -175,5 +182,53 @@ func TestPlanAlwaysEnds(t *testing.T) {
 			}
 			doc = doc.Plus("mac", hearCell(u, texts...)...)
 		}
+	}
+}
+
+func TestPlanProofreadsABlockOnceItIsDrafted(t *testing.T) {
+	m := making(330*time.Second, 0)
+	key := "terms:none"
+	m.Final = func([]string) string { return key }
+	doc := Doc{}
+	run := func() Plan {
+		for {
+			p := doc.Plan(m)
+			switch {
+			case len(p.Hear) > 0:
+				doc = doc.Plus("mac", hearCell(p.Hear[0], "line")...)
+			case len(p.Draft) > 0:
+				doc = doc.Plus("mac", p.Draft[0].Made())
+			default:
+				return p
+			}
+		}
+	}
+	p := run()
+	// 5:30 is two blocks: the first of ten cells, the second of one.
+	if p.Blocks != 2 || len(p.Final) != 2 || p.Final[0].Cell != 0 || p.Final[1].Cell != Block || p.Done() {
+		t.Fatalf("plan = %+v", p)
+	}
+	doc = doc.Plus("mac", p.Final[0].Made(), p.Final[1].Made())
+	if p := doc.Plan(m); !p.Done() || !p.Finished[0] || !p.Finished[1] {
+		t.Fatalf("plan = %+v, want done", p)
+	}
+	// A term found in the first block makes it proofread again; the second, without it, stays final.
+	m.Final = func(heard []string) string {
+		if len(heard) > 3 {
+			return "terms:foo"
+		}
+		return key
+	}
+	if p := doc.Plan(m); len(p.Final) != 1 || p.Final[0].Cell != 0 || p.Finished[0] || !p.Finished[1] {
+		t.Fatalf("plan = %+v, want the first block proofread again", p)
+	}
+}
+
+func TestABlockIsNotProofreadBeforeItsCellsAreDrafted(t *testing.T) {
+	m := making(60*time.Second, 0)
+	m.Final = func([]string) string { return "" }
+	doc := Doc{}.Plus("mac", hearCell(Doc{}.Plan(m).Hear[0], "line")...)
+	if p := doc.Plan(m); len(p.Final) != 0 {
+		t.Fatalf("Final = %v before the block is drafted", p.Final)
 	}
 }

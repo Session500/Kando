@@ -26,7 +26,12 @@ type Work string
 const (
 	WorkHear  Work = "hear"
 	WorkDraft Work = "draft"
+	// WorkFinal is the final proofread of a block of cells (Block), once every cell of it is drafted: a unit of it has the block's first cell as its Cell.
+	WorkFinal Work = "final"
 )
+
+// Block is how many cells the final proofread reads at once: five minutes, about as many lines as a batch of the final proofread holds, so it sees how the film writes a name across them.
+const Block = 10
 
 // Unit is a piece of work on generation Gen: Work on cell Cell, from the inputs Key names. Two units with the same fields are the same work, which is made once, or given up once tried Attempts times.
 type Unit struct {
@@ -71,6 +76,8 @@ type Making struct {
 	Hearing string
 	// Language is what the lines are translated into, "" when they are not translated, as a film heard in the language its subtitles are for.
 	Language string
+	// Final, when set, has each block of the film proofread as a whole once its cells are drafted (WorkFinal), and names what else its final proofread is made from besides its lines as heard, given those lines: the film's terms found in them, so a term found later in the film does not have the blocks it is not in proofread again. Nil makes no final proofread, as for a film not translated or a user who turned it off.
+	Final func(heard []string) string
 }
 
 // Plan is the work left on a film, each kind in the order it is to be done.
@@ -81,11 +88,15 @@ type Plan struct {
 	GivenUp []Unit
 	// Cells is how many cells the film has; Heard and Drafted how many are done, made or given up.
 	Cells, Heard, Drafted int
+	// Final are the blocks whose final proofread is needed, every cell of them drafted, nearest the playhead first. Blocks is how many blocks the film has when it is proofread as a whole, 0 when not; Finished the blocks whose final proofread is made from what they hold now, whose lines are final; Finaled how many blocks are done, Finished or given up.
+	Final           []Unit
+	Blocks, Finaled int
+	Finished        map[int]bool
 }
 
-// Done reports whether nothing is left to make: every cell heard and drafted, or given up.
+// Done reports whether nothing is left to make: every cell heard and drafted, and every block proofread as a whole when the film is, or given up.
 func (p Plan) Done() bool {
-	return p.Cells > 0 && len(p.Hear) == 0 && len(p.Draft) == 0 && p.Heard == p.Cells && p.Drafted == p.Cells
+	return p.Cells > 0 && len(p.Hear) == 0 && len(p.Draft) == 0 && len(p.Final) == 0 && p.Heard == p.Cells && p.Drafted == p.Cells && p.Finaled == p.Blocks
 }
 
 // Plan is the work left on making m of the film: every unit whose record is not in the document, made or given up. It is derived from the document alone, and nothing of it is kept, so a film run again, after a crash or a quit, goes on where it was.
@@ -122,6 +133,7 @@ func (d Doc) Plan(m Making) Plan {
 		}
 	}
 	p := Plan{Cells: cells}
+	done := make([]bool, cells)
 	for _, c := range order(cells, m.Playhead) {
 		hear := Unit{Work: WorkHear, Gen: m.Gen, Cell: c, Key: m.Hearing}
 		switch {
@@ -132,6 +144,7 @@ func (d Doc) Plan(m Making) Plan {
 			p.GivenUp = append(p.GivenUp, hear)
 			// A cell not heard has no lines to draft.
 			p.Drafted++
+			done[c] = true
 			continue
 		default:
 			p.Hear = append(p.Hear, hear)
@@ -139,17 +152,58 @@ func (d Doc) Plan(m Making) Plan {
 		}
 		if m.Language == "" || len(inCell[c]) == 0 {
 			p.Drafted++
+			done[c] = true
 			continue
 		}
 		draft := Unit{Work: WorkDraft, Gen: m.Gen, Cell: c, Key: draftKey(m.Language, inCell[c], heard)}
 		switch {
 		case made[draft]:
 			p.Drafted++
+			done[c] = true
 		case tried[draft] >= Attempts:
 			p.Drafted++
 			p.GivenUp = append(p.GivenUp, draft)
+			done[c] = true
 		default:
 			p.Draft = append(p.Draft, draft)
+		}
+	}
+	if m.Final == nil || m.Language == "" {
+		return p
+	}
+	// A block is proofread as a whole once every cell of it is drafted, nearest the playhead first; a block without lines has nothing to proofread.
+	p.Blocks = (cells + Block - 1) / Block
+	p.Finished = map[int]bool{}
+	for _, b := range rotate(p.Blocks, int(max(m.Playhead-Behind, 0)/(Cell*Block))) {
+		first, last := b*Block, min((b+1)*Block, cells)
+		var block []Event
+		ready := true
+		for c := first; c < last; c++ {
+			ready = ready && done[c]
+			block = append(block, inCell[c]...)
+		}
+		switch {
+		case !ready:
+			continue
+		case len(block) == 0:
+			p.Finaled++
+			p.Finished[b] = true
+			continue
+		}
+		texts := make([]string, len(block))
+		for i, l := range block {
+			texts[i] = heard[l.Line]
+		}
+		final := Unit{Work: WorkFinal, Gen: m.Gen, Cell: first, Key: draftKey(m.Language+"\x00"+m.Final(texts), block, heard)}
+		switch {
+		case made[final]:
+			p.Finaled++
+			p.Finished[b] = true
+		case tried[final] >= Attempts:
+			p.Finaled++
+			p.GivenUp = append(p.GivenUp, final)
+		default:
+			p.Final = append(p.Final, final)
 		}
 	}
 	return p
@@ -185,10 +239,14 @@ func draftKey(language string, lines []Event, heard map[string]string) string {
 
 // order is the film's cells in the order they are made: from the one the window before the playhead starts in to the end of the film, then from its start.
 func order(cells int, playhead time.Duration) []int {
-	first := int(max(playhead-Behind, 0) / Cell)
-	first = min(first, cells-1)
-	out := make([]int, 0, cells)
-	for c := first; c < cells; c++ {
+	return rotate(cells, int(max(playhead-Behind, 0)/Cell))
+}
+
+// rotate is 0 to n-1 from first to the end, then from 0.
+func rotate(n, first int) []int {
+	first = min(first, n-1)
+	out := make([]int, 0, n)
+	for c := first; c < n; c++ {
 		out = append(out, c)
 	}
 	for c := 0; c < first; c++ {
