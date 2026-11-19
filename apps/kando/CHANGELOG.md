@@ -2,6 +2,12 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.36.0 - 2026-11-20
+
+### Features
+
+- The official AnkiConnect plugin, official signing and revocation publishing (#328)
+
 ## 0.35.0 - 2026-11-19
 
 ### Features
