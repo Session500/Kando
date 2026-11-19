@@ -24,6 +24,10 @@ type makeFilm struct {
 	failAfter int // hear fails after handing on this many lines in a run, when hearErr is set and it is > 0
 	// translate translates a line; nil puts "译:" before it.
 	translate func(string) (string, error)
+	// say is what is said at a time, "line <time>" when nil; proofread corrects a batch of lines, the nth sent, nil leaving them as they are.
+	say        func(time.Duration) string
+	proofread  func(n int, lines []string) []string
+	proofreads int
 
 	// stall, when set, is called by the first run once it has heard past its first cell, and the run then waits until it is stopped, as a run far from a jump does.
 	stall func()
@@ -66,7 +70,11 @@ func (f *makeFilm) Hear(ctx context.Context, _ string, from, to time.Duration, h
 		if f.hearErr != nil && n >= f.failAfter {
 			return "", f.hearErr
 		}
-		heard(core.Segment{Start: at, End: at + 2*time.Second, Text: "line " + at.String()})
+		text := "line " + at.String()
+		if f.say != nil {
+			text = f.say(at)
+		}
+		heard(core.Segment{Start: at, End: at + 2*time.Second, Text: text})
 		n++
 		if f.stall != nil && at >= from+track.Cell+runPad {
 			stall := f.stall
@@ -80,6 +88,26 @@ func (f *makeFilm) Hear(ctx context.Context, _ string, from, to time.Duration, h
 		return "", f.hearErr
 	}
 	return f.language, nil
+}
+
+func (f *makeFilm) Proofread(_ context.Context, segments []core.Segment, _ string) ([]core.Segment, error) {
+	f.mu.Lock()
+	f.proofreads++
+	n := f.proofreads
+	f.mu.Unlock()
+	if f.proofread == nil {
+		return segments, nil
+	}
+	texts := make([]string, len(segments))
+	for i, s := range segments {
+		texts[i] = s.Text
+	}
+	fixed := f.proofread(n, texts)
+	out := slices.Clone(segments)
+	for i := range out {
+		out[i].Text = fixed[i]
+	}
+	return out, nil
 }
 
 func (f *makeFilm) Translate(ctx context.Context, segments []core.Segment, _ string) ([]core.Segment, error) {
@@ -383,5 +411,86 @@ func TestALineAcrossTwoCellsIsKeptOnce(t *testing.T) {
 		if across != 1 {
 			t.Fatalf("from %v: the line across the cells shows %d times, want once; runs %v", at, across, f.runs)
 		}
+	}
+}
+
+func TestMakeDraftsFarFromThePlayheadInBatches(t *testing.T) {
+	job, _ := makeJob(t)
+	job.SpeechLanguage = "ja"
+	f := &makeFilm{length: 600 * time.Second, language: "ja"}
+	done, _ := makeFilmOf(t, f, job, 0)
+	if done.Stage != core.StageComplete {
+		t.Fatalf("job ended %s: %v", done.Stage, done.Err)
+	}
+	// The three cells within 1:30 of the playhead are drafted one by one; the seventeen after, of three lines each, in batches of as many whole cells as fit in DefaultBatchSize lines.
+	sizes := make([]int, len(f.translated))
+	for i, lines := range f.translated {
+		sizes[i] = len(lines)
+	}
+	full := DefaultBatchSize / 3 * 3
+	if !slices.Equal(sizes, []int{3, 3, 3, full, 17*3 - full}) {
+		t.Fatalf("drafts of %v lines, want batches of %d", sizes, full)
+	}
+}
+
+// sayFoo is a film where every line says "say foo now", which its proofreading may correct to "say bar now".
+func sayFoo(time.Duration) string { return "say foo now" }
+
+// correctFoo corrects "foo" to "bar" in lines from the nth batch the proofreading is sent on.
+func correctFoo(from int) func(int, []string) []string {
+	return func(n int, lines []string) []string {
+		out := slices.Clone(lines)
+		if n >= from {
+			for i := range out {
+				out[i] = strings.ReplaceAll(out[i], "foo", "bar")
+			}
+		}
+		return out
+	}
+}
+
+func TestATermFoundInTwoLinesIsMadeInTheRestOfTheFilm(t *testing.T) {
+	job, video := makeJob(t)
+	job.SpeechLanguage = "ja"
+	// The proofreading corrects the first cell's lines only; what it found there is a term, which the cells after take.
+	f := &makeFilm{length: 150 * time.Second, language: "ja", say: sayFoo, proofread: func(n int, lines []string) []string {
+		if n == 1 {
+			return correctFoo(1)(n, lines)
+		}
+		return lines
+	}}
+	done, _ := makeFilmOf(t, f, job, 0)
+	if done.Stage != core.StageComplete {
+		t.Fatalf("job ended %s: %v", done.Stage, done.Err)
+	}
+	doc, _ := track.Read(video)
+	for _, l := range doc.View() {
+		if l.Original.Text != "say bar now" || l.Translation.Text != "译:say bar now" {
+			t.Fatalf("line at %v reads %q, %q; want the term made in it", l.Start, l.Original.Text, l.Translation.Text)
+		}
+	}
+	if terms := doc.Terms(doc.Shown()); len(terms) != 1 || !strings.Contains(terms[0].To, "bar") {
+		t.Fatalf("terms %q", terms)
+	}
+}
+
+func TestATermFoundLateRedraftsTheLinesNearThePlayhead(t *testing.T) {
+	job, video := makeJob(t)
+	job.SpeechLanguage = "ja"
+	// The proofreading finds the term only from the third batch, the cell at 1:00; the two cells before it, near the playhead, were drafted without it.
+	f := &makeFilm{length: 240 * time.Second, language: "ja", say: sayFoo, proofread: correctFoo(3)}
+	done, _ := makeFilmOf(t, f, job, 0)
+	if done.Stage != core.StageComplete {
+		t.Fatalf("job ended %s: %v", done.Stage, done.Err)
+	}
+	doc, _ := track.Read(video)
+	for _, l := range doc.View() {
+		if l.Original.Text != "say bar now" || l.Translation.Text != "译:say bar now" {
+			t.Fatalf("line at %v reads %q, %q; want it drafted again with the term", l.Start, l.Original.Text, l.Translation.Text)
+		}
+	}
+	// The lines drafted again are translated again, not proofread again: three proofreading batches for the cells near the playhead, one for the rest.
+	if f.proofreads != 4 {
+		t.Fatalf("%d proofreading batches, want 4", f.proofreads)
 	}
 }

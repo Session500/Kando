@@ -219,11 +219,24 @@ func ApplyFixes(line, fixed string) string {
 
 // spreadFixes makes in fixed, the proofread lines of heard, the corrections made in at least two lines wherever else the same words are left: each correction is the words put in place together with the word before and the word after them (only the one there is, at the start or end of a line), so "网罗" corrected to "网络" at the end of two lines corrects every other "网罗", "神经网罗是" corrected twice corrects no "张罗是", and "倒一" corrected once to "退一" corrects no "倒一杯水".
 func spreadFixes(heard, fixed []core.Segment) {
-	type fix struct {
-		from, to string
-		lines    int
+	var recurring []Fix
+	for _, f := range ObservedFixes(heard, fixed) {
+		if f.Lines >= 2 {
+			recurring = append(recurring, f)
+		}
 	}
-	fixes := map[string]*fix{}
+	ApplyRecurring(fixed, recurring)
+}
+
+// Fix is a correction proofreading made: the words From, with the word before and the word after them, put as To in Lines lines. From and To hold their words with a NUL between them.
+type Fix struct {
+	From, To string
+	Lines    int
+}
+
+// ObservedFixes are the corrections fixed, the proofread lines of heard, made, each once with the lines it was made in, sorted by From; a correction made two ways is left out, as one cannot tell which is right.
+func ObservedFixes(heard, fixed []core.Segment) []Fix {
+	fixes := map[string]*Fix{}
 	for i := range heard {
 		was, now := fixWords(heard[i].Text), fixWords(fixed[i].Text)
 		if len(was) != len(now) {
@@ -251,26 +264,33 @@ func spreadFixes(heard, fixed []core.Segment) {
 				from, to = was[a-1].text+"\x00"+from, was[a-1].text+"\x00"+to
 			}
 			if f, ok := fixes[from]; !ok {
-				fixes[from] = &fix{from: from, to: to}
-			} else if f.to != to {
-				f.lines = -1 << 30
+				fixes[from] = &Fix{From: from, To: to}
+			} else if f.To != to {
+				f.Lines = -1 << 30
 			}
 			if !seen[from] {
 				seen[from] = true
-				fixes[from].lines++
+				fixes[from].Lines++
 			}
 			a = b
 		}
 	}
-	// The corrections are made in the same order every run, as one may overlap another.
+	var out []Fix
 	for _, key := range slices.Sorted(maps.Keys(fixes)) {
-		f := fixes[key]
-		if f.lines < 2 {
-			continue
+		if f := fixes[key]; f.Lines > 0 {
+			out = append(out, *f)
 		}
-		from, to := strings.Split(f.from, "\x00"), strings.Split(f.to, "\x00")
-		for i := range fixed {
-			words := fixWords(fixed[i].Text)
+	}
+	return out
+}
+
+// ApplyRecurring makes each of fixes in lines wherever its words are, in the order given, as one may overlap another, and reports which lines it changed.
+func ApplyRecurring(lines []core.Segment, fixes []Fix) []bool {
+	changed := make([]bool, len(lines))
+	for _, f := range fixes {
+		from, to := strings.Split(f.From, "\x00"), strings.Split(f.To, "\x00")
+		for i := range lines {
+			words := fixWords(lines[i].Text)
 			replace := map[int]string{}
 			for a := 0; a+len(from) <= len(words); a++ {
 				match := true
@@ -287,10 +307,13 @@ func spreadFixes(heard, fixed []core.Segment) {
 				}
 			}
 			if len(replace) > 0 {
-				fixed[i].Text = replaceWords(fixed[i].Text, words, replace)
+				if text := replaceWords(lines[i].Text, words, replace); text != lines[i].Text {
+					lines[i].Text, changed[i] = text, true
+				}
 			}
 		}
 	}
+	return changed
 }
 
 // wordsText is words joined with a NUL between them, so a run of two words is not taken for one word of the same letters.

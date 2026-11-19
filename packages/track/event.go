@@ -30,6 +30,8 @@ const (
 	KindUnit Kind = "unit"
 	// KindAttempt records a failed attempt at a unit (Unit.Failed), with why in Text; a unit tried Attempts times is given up.
 	KindAttempt Kind = "attempt"
+	// KindFix records a correction the proofreading of generation Gen made: the words Text, put as To, in Count lines. A correction made in two lines or more, and never another way, is a term of the film (Doc.Terms).
+	KindFix Kind = "fix"
 )
 
 // Side is which text of a line a revision is of.
@@ -71,6 +73,8 @@ type Event struct {
 	Text    string `json:"x,omitempty"`
 	Source  string `json:"src,omitempty"`
 	Key     string `json:"key,omitempty"`
+	To      string `json:"to,omitempty"`
+	Count   int    `json:"count,omitempty"`
 }
 
 // Span is when the line shows.
