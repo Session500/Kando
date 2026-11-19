@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"kando/packages/core"
+	"kando/packages/media"
 )
 
 // The error of a stopped job is stored as one of these words so it reads back as the same error; any other error is stored as its text.
@@ -347,6 +348,9 @@ type storedJob struct {
 	LibraryDir   string     `json:"libraryDir,omitempty"`
 	CompletedAt  time.Time  `json:"completedAt,omitzero"`
 	Error        string     `json:"error,omitempty"`
+	// ErrorStage is the step a failed job failed at (media.StageError.Stage), and ErrorSource the translation source whose failure stopped it (media.StageError.Source), both kept beside Error, whose text still starts with the step as it always has, so an older Kando, which reads the step from the text and knows neither field, reads the job as before. A library saved before them has neither, and its Error is read for the step (media.ReadStageError).
+	ErrorStage  media.Stage `json:"errorStage,omitempty"`
+	ErrorSource string      `json:"errorSource,omitempty"`
 	// FailKind is why the download failed (core.FailKind), and Cookies the browser whose login the job borrows.
 	FailKind core.FailKind `json:"failKind,omitempty"`
 	Cookies  string        `json:"cookies,omitempty"`
@@ -354,6 +358,8 @@ type storedJob struct {
 	Untranslated int `json:"untranslated,omitempty"`
 	// TranslationError is why a completed job translated none of its lines (core.Job.TranslationErr).
 	TranslationError string `json:"translationError,omitempty"`
+	// TranslationSource is the translation source other than the AI service whose failure TranslationError says (core.Job.TranslationSource); an older Kando, and a library saved before it, have none, which reads as the AI service's.
+	TranslationSource string `json:"translationSource,omitempty"`
 	// Transcribed is whether the job saved its transcript beside its video (core.Job.Transcribed).
 	Transcribed bool `json:"transcribed,omitempty"`
 	// Proofread is whether the job's transcript has been proofread (core.Job.Proofread), and SameLanguage whether the film needed no translation (core.Job.SameLanguage).
@@ -395,7 +401,7 @@ func storeJob(job core.Job) storedJob {
 		ID: job.ID, Source: job.Source, Language: job.Language, Stage: job.Stage,
 		Title: job.Title, Thumbnail: job.Thumbnail,
 		VideoPath: job.VideoPath, SubtitlePath: job.SubtitlePath, LibraryDir: job.LibraryDir,
-		CompletedAt: job.CompletedAt, FailKind: job.FailKind, Cookies: job.Cookies, Untranslated: job.Untranslated, TranslationError: job.TranslationErr,
+		CompletedAt: job.CompletedAt, FailKind: job.FailKind, Cookies: job.Cookies, Untranslated: job.Untranslated, TranslationError: job.TranslationErr, TranslationSource: job.TranslationSource,
 		Transcribed: job.Transcribed, Proofread: job.Proofread, SameLanguage: job.SameLanguage, Redo: job.Redo, RedoLanguage: job.RedoLanguage, SpokenLanguage: job.SpokenLanguage, SpeechLanguage: job.SpeechLanguage, FromFolder: job.FromFolder, Device: job.Device,
 	}
 	stored.Quality, stored.SubtitleSource = job.Quality, job.SubtitleSource
@@ -411,8 +417,25 @@ func storeJob(job core.Job) storedJob {
 		stored.Error = storedLibrarySwitched
 	case job.Err != nil:
 		stored.Error = job.Err.Error()
+		// Only a step's error as it is, whose text starts with the step, keeps the step apart, so its text reads back the same (failure).
+		if failed, ok := job.Err.(*media.StageError); ok {
+			stored.ErrorStage, stored.ErrorSource = failed.Stage, failed.Source
+		}
 	}
 	return stored
+}
+
+// failure is the error of a failed job as it was saved: the step it failed at, with what stopped it as text, or, for a library saved before the step was kept apart (ErrorStage), the step its text names.
+func (s storedJob) failure() error {
+	if s.ErrorStage == "" {
+		return media.ReadStageError(s.Error)
+	}
+	rest, ok := strings.CutPrefix(s.Error, string(s.ErrorStage)+": ")
+	if !ok {
+		// Not as storeJob writes it: the text is kept as it is.
+		return errors.New(s.Error)
+	}
+	return &media.StageError{Stage: s.ErrorStage, Source: s.ErrorSource, Err: errors.New(rest)}
 }
 
 func (s storedJob) job() core.Job {
@@ -420,7 +443,7 @@ func (s storedJob) job() core.Job {
 		ID: s.ID, Source: s.Source, Language: s.Language, Stage: s.Stage,
 		Title: s.Title, Thumbnail: s.Thumbnail,
 		VideoPath: s.VideoPath, SubtitlePath: s.SubtitlePath, LibraryDir: s.LibraryDir,
-		CompletedAt: s.CompletedAt, FailKind: s.FailKind, Cookies: s.Cookies, Untranslated: s.Untranslated, TranslationErr: s.TranslationError,
+		CompletedAt: s.CompletedAt, FailKind: s.FailKind, Cookies: s.Cookies, Untranslated: s.Untranslated, TranslationErr: s.TranslationError, TranslationSource: s.TranslationSource,
 		Transcribed: s.Transcribed, Proofread: s.Proofread, SameLanguage: s.SameLanguage, Redo: s.Redo, RedoLanguage: s.RedoLanguage, SpokenLanguage: s.SpokenLanguage, SpeechLanguage: s.SpeechLanguage, FromFolder: s.FromFolder, Device: s.Device,
 	}
 	job.Quality, job.SubtitleSource = s.Quality, s.SubtitleSource
@@ -436,7 +459,7 @@ func (s storedJob) job() core.Job {
 	case storedLibrarySwitched:
 		job.Err = core.ErrLibrarySwitched
 	default:
-		job.Err = errors.New(s.Error)
+		job.Err = s.failure()
 	}
 	if job.Stage != "" && !job.Stage.Done() {
 		job.Stage = core.StageQueued

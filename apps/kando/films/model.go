@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"kando/apps/kando/films/sitename"
+	"kando/apps/kando/jobfailure"
 	"kando/apps/kando/locales"
 	"kando/apps/kando/sidebar"
 	"kando/packages/core"
@@ -40,6 +41,8 @@ type Film struct {
 	// SameLanguage is true for a film heard in the language its subtitles are for, which was not translated: its subtitles are its own lines alone (core.Job.SameLanguage).
 	SameLanguage   bool
 	TranslationErr string
+	// TranslationSource is the translation source other than the AI service whose failure TranslationErr says (core.Job.TranslationSource).
+	TranslationSource string
 	// PlatformSubtitles is true for a film whose original lines are its site's subtitles, and LocalLines how many of their lines the speech recognition replaced (core.Job.PlatformSubtitles).
 	PlatformSubtitles bool
 	LocalLines        int
@@ -48,6 +51,8 @@ type Film struct {
 	VideoComing   bool
 	// Stopped reports a failed job that was cancelled rather than one that went wrong; Canceled reads it.
 	Stopped bool
+	// Failure is the step a failed job failed at and why (media.StageError), which the card reads its reason from; nil for a job that did not fail, or one whose error names no step.
+	Failure *media.StageError
 	// Library is the name of the library the job saves into when that is not the open one, as for a job that kept running after another library was opened; empty for the open library's films.
 	Library string
 	// Ahead is how many jobs run before a waiting one; 0 for any other film.
@@ -153,8 +158,8 @@ func FromJob(job core.Job, name, detail string) Film {
 		Key: job.ID, Title: Shorten(name, 22), Name: name, Source: job.Source,
 		Detail: detail, Stage: job.Stage, JobID: job.ID,
 		VideoPath: job.VideoPath, SubtitlePath: job.SubtitlePath, Language: job.Language, Spoken: job.SpokenLanguage, SpeechLanguage: job.SpeechLanguage,
-		Progress: job.Progress, Thumbnail: job.Thumbnail, Untranslated: job.Untranslated, TranslationErr: job.TranslationErr, SameLanguage: job.SameLanguage,
-		Stopped: errors.Is(job.Err, context.Canceled), Target: jobTarget(job), Device: job.Device, PausedBy: job.PausedBy,
+		Progress: job.Progress, Thumbnail: job.Thumbnail, Untranslated: job.Untranslated, TranslationErr: job.TranslationErr, TranslationSource: job.TranslationSource, SameLanguage: job.SameLanguage,
+		Stopped: errors.Is(job.Err, context.Canceled), Failure: jobfailure.Of(job), Target: jobTarget(job), Device: job.Device, PausedBy: job.PausedBy,
 		PlatformSubtitles: job.PlatformSubtitles, LocalLines: job.LocalLines,
 		SubtitlesOnly: job.SubtitlesOnly, VideoComing: job.Redo == core.RedoVideo && !job.Stage.Done(),
 	}

@@ -43,6 +43,9 @@ type Tools struct {
 	WhisperThreads int
 	WhisperHints   string
 	Translator     ChatTranslator
+	// Engine, when set, is the translation source Translate translates a film's lines with in place of Translator, such as a machine translation service a plugin offers; nil translates with Translator, as Kando always has. Only the translation goes to it: proofreading, the final proofread and term suggestions stay with Translator. EngineName is what the viewer knows it by, which a job it fails names (StageError.Source); one left empty is named by the engine's Go type (engineName). With Engine set and Translator not set up (chats), Make leaves out proofreading, the final proofread and term suggestions rather than fail at them.
+	Engine     SegmentTranslator
+	EngineName string
 	// Cookies is the browser whose login Download borrows, as yt-dlp's --cookies-from-browser names it (chrome, safari, firefox, edge, brave); empty borrows none.
 	Cookies string
 	// OEmbed is YouTube's oEmbed endpoint, which names a video yt-dlp could not look up, as one that is age-restricted or blocked where this machine is; empty asks nothing.
@@ -269,8 +272,20 @@ func (t Tools) hearing(ctx context.Context) (model, language string) {
 	return t.WhisperModel, language
 }
 
-// CheckTranslate reports what translating needs and is missing, the translator's model and its sign-in, which Check leaves out (TranslateChecker).
+// CheckTranslate reports what translating needs and is missing, which Check leaves out (TranslateChecker): the translator's model and its sign-in, or, with Engine set, what Engine says it needs (its own CheckTranslate) and offline mode for one not on this computer.
 func (t Tools) CheckTranslate() error {
+	// A source of its own is checked by itself, as it needs neither the model nor the sign-in.
+	if t.Engine != nil {
+		if err := t.engineOffline(); err != nil {
+			return err
+		}
+		if tc, ok := t.Engine.(TranslateChecker); ok {
+			if err := tc.CheckTranslate(); err != nil {
+				return t.engineErr(err)
+			}
+		}
+		return nil
+	}
 	// The sign-in asks EveryAPI's servers, so offline mode refuses before it, as it refuses the translation.
 	if err := t.withOffline().offline(); err != nil {
 		return err
@@ -501,8 +516,68 @@ func whisperThreadCount() int {
 	return n
 }
 
+// SegmentTranslator translates a film's lines into language, as Pipeline.Translate does: ChatTranslator, or a source of its own set as Tools.Engine. One that leaves some lines untranslated returns every line with an *UntranslatedError. One that implements TranslateChecker is asked before a film is translated what it needs and is missing, and one whose Local method reports true is used in offline mode too.
+type SegmentTranslator interface {
+	Translate(ctx context.Context, segments []core.Segment, language string) ([]core.Segment, error)
+}
+
+// localSource is a translation source that may say it runs on this computer, as ChatTranslator does, which offline mode leaves on.
+type localSource interface {
+	Local() bool
+}
+
+// engineOffline is ErrOffline, as Engine's failure (engineErr), while offline mode is on and Engine is not on this computer, as the translator refuses a service that is not.
+func (t Tools) engineOffline() error {
+	if local, ok := t.Engine.(localSource); ok && local.Local() {
+		return nil
+	}
+	if t.offlineNow() {
+		return t.engineErr(ErrOffline)
+	}
+	return nil
+}
+
+// engineName is what Engine's failures name it by: EngineName, or, when the caller set none, which is a mistake, the engine's Go type, so a failure is never taken for the AI service's.
+func (t Tools) engineName() string {
+	if name := strings.TrimSpace(t.EngineName); name != "" {
+		return name
+	}
+	return fmt.Sprintf("%T", t.Engine)
+}
+
+// engineErr is err as Engine's failure, which names it (EngineOf).
+func (t Tools) engineErr(err error) error {
+	return &engineError{name: t.engineName(), err: err}
+}
+
+// chats reports whether Translator is set up to do what Kando asks of an AI service apart from translating, which goes to it even with Engine set: proofreading what the speech recognition heard, the final proofread and term suggestions. Without Engine it always is, as a job without its translator is told so before translating (CheckTranslate). With Engine it is when Translator has a model, an address and a key or a sign-in, and offline mode leaves it on; whether the sign-in still works is not asked, as that asks EveryAPI's servers. Make leaves those steps out when it is not (chatter).
+func (t Tools) chats() bool {
+	if t.Engine == nil {
+		return true
+	}
+	tr := t.withOffline()
+	switch {
+	case strings.TrimSpace(tr.Model) == "", strings.TrimSpace(tr.BaseURL) == "":
+		return false
+	case tr.BaseURL == EveryAPIBaseURL && tr.APIKey == "" && tr.Credential == nil:
+		return false
+	}
+	return tr.offline() == nil
+}
+
+// Translate translates segments into language with Engine when one is set, else with Translator (ChatTranslator.Translate). Engine's failure names it (StageError.Source); offline mode refuses one not on this computer before anything is sent.
 func (t Tools) Translate(ctx context.Context, segments []core.Segment, language string) ([]core.Segment, error) {
-	return t.withOffline().Translate(ctx, segments, language)
+	if t.Engine == nil {
+		return t.withOffline().Translate(ctx, segments, language)
+	}
+	if err := t.engineOffline(); err != nil {
+		return nil, err
+	}
+	translated, err := t.Engine.Translate(ctx, segments, language)
+	if err != nil {
+		err = t.engineErr(err)
+	}
+	return translated, err
 }
 
 // Proofread corrects what whisper misheard through the translator (ChatTranslator.Proofread).
