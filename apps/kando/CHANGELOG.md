@@ -2,6 +2,13 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.30.0 - 2026-11-19
+
+### Features
+
+- Look words up in installed dictionaries, offline (#300)
+- Word lists and readings over subtitles (#301)
+
 ## 0.29.1 - 2026-11-19
 
 ### Fixes
