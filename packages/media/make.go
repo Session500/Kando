@@ -40,13 +40,15 @@ func (From) Jumped() <-chan struct{}   { return nil }
 
 // Making a film a part at a time: how much of it one run of the speech recognition hears, and how much sound before and after that run hears too, so a line cut by the run's ends is heard whole by one of the runs on either side, which keeps it where its middle falls (track.Cell).
 const (
-	runCells = 10
-	runPad   = 15 * time.Second
+	runPad = 15 * time.Second
 	// draftContext is how many lines said before a cell go with its draft, as the translation sends the lines before a batch (contextLines).
 	draftContext = 80
 	// projectEvery is how often the subtitle files beside the video are written out while the film is made, at most.
 	projectEvery = 3 * time.Second
 )
+
+// runCellsMax is how many cells one run of the speech recognition hears at most; tests shorten it.
+var runCellsMax = 10
 
 // minRun is how long a run of the speech recognition goes before a jump may stop it, so jumping back and forth does not stop every run before it hears anything; tests shorten it.
 var minRun = 10 * time.Second
@@ -129,10 +131,11 @@ type making struct {
 	projected             time.Time
 }
 
-// heardCell is a cell a run of the speech recognition heard, with its lines.
+// heardCell is a cell a run of the speech recognition heard, with its lines, and edges, the lines the run heard outside its cells, which it hands on with its first and last cell for the making to keep where no run has them (commitHeard).
 type heardCell struct {
 	cell  int
 	lines []core.Segment
+	edges []core.Segment
 }
 
 // hearDone is how a run of the speech recognition ended: the language it heard, and why it failed, with whether it had heard any line when it did.
@@ -365,12 +368,21 @@ func (m *making) hear(ctx context.Context, cells []int, heardCh chan<- heardCell
 	from := time.Duration(first) * track.Cell
 	to := time.Duration(last+1) * track.Cell
 	buffers := map[int][]core.Segment{}
+	// before and after are the lines heard in the sound before and after the run's cells.
+	var before, after []core.Segment
 	next := first
 	heard := false
 	send := func(upTo int) {
 		for ; next <= last && next < upTo; next++ {
+			c := heardCell{cell: next, lines: buffers[next]}
+			if next == first {
+				c.edges = append(c.edges, before...)
+			}
+			if next == last {
+				c.edges = append(c.edges, after...)
+			}
 			select {
-			case heardCh <- heardCell{cell: next, lines: buffers[next]}:
+			case heardCh <- c:
 			case <-ctx.Done():
 				return
 			}
@@ -380,7 +392,12 @@ func (m *making) hear(ctx context.Context, cells []int, heardCh chan<- heardCell
 		// A line heard, wherever it is, says the speech recognition runs: a run that fails after it fails a cell, not every run.
 		heard = true
 		mid := (s.Start + s.End) / 2
-		if mid < from || mid >= to {
+		switch {
+		case mid < from:
+			before = append(before, s)
+			return
+		case mid >= to:
+			after = append(after, s)
 			return
 		}
 		cell := int(mid / track.Cell)
@@ -394,10 +411,19 @@ func (m *making) hear(ctx context.Context, cells []int, heardCh chan<- heardCell
 	doneCh <- hearDone{language: language, err: err, heard: heard}
 }
 
-// commitHeard writes a cell's lines, then that it is heard, at once, so a run stopped never leaves part of a cell.
+// commitHeard writes a cell's lines, then that it is heard, at once, so a run stopped never leaves part of a cell. With them go the lines the run heard beside its cells (heardCell.edges) that no run has: a line said across two cells can be placed in one by one run and in the other by the next, as each hears it cut differently, and kept by neither. One whose cell is heard and that shows over no line heard there for at least half its time is kept; one whose cell is not heard yet is left to the run that hears it.
 func (m *making) commitHeard(gen, hearing string, c heardCell) {
+	lines := c.lines
+	if len(c.edges) > 0 {
+		have := m.doc.Lines(gen)
+		for _, s := range c.edges {
+			if m.heard(gen, hearing, int((s.Start+s.End)/2/track.Cell)) && !overlapsAny(s, have) {
+				lines = append(lines, s)
+			}
+		}
+	}
 	var events []track.Event
-	for _, s := range c.lines {
+	for _, s := range lines {
 		id := track.NewID()
 		events = append(events,
 			track.Event{Kind: track.KindLine, Gen: gen, Line: id, Start: s.Start.Milliseconds(), End: s.End.Milliseconds()},
@@ -406,6 +432,28 @@ func (m *making) commitHeard(gen, hearing string, c heardCell) {
 	}
 	events = append(events, track.Unit{Work: track.WorkHear, Gen: gen, Cell: c.cell, Key: hearing}.Made())
 	_ = m.append(events...)
+}
+
+// heard reports whether cell of generation gen is heard, as hearing hears it.
+func (m *making) heard(gen, hearing string, cell int) bool {
+	want := track.Unit{Work: track.WorkHear, Gen: gen, Cell: cell, Key: hearing}.Made()
+	for _, e := range m.doc.Events {
+		if e.Kind == track.KindUnit && e.Source == want.Source && e.Gen == gen && e.Start == want.Start && e.Key == hearing {
+			return true
+		}
+	}
+	return false
+}
+
+// overlapsAny reports whether s shows with one of lines for at least half of the shorter of the two: the same line, heard by another run.
+func overlapsAny(s core.Segment, lines []track.Line) bool {
+	for _, l := range lines {
+		overlap := min(s.End, l.End) - max(s.Start, l.Start)
+		if overlap > 0 && 2*overlap >= min(s.End-s.Start, l.End-l.Start) {
+			return true
+		}
+	}
+	return false
 }
 
 // firstUnheard is the first of cells not heard yet, the one a run that failed was hearing.
@@ -525,7 +573,7 @@ func runOf(needed []track.Unit, known bool) []int {
 		return cells
 	}
 	for _, u := range needed[1:] {
-		if u.Cell != cells[len(cells)-1]+1 || len(cells) == runCells {
+		if u.Cell != cells[len(cells)-1]+1 || len(cells) == runCellsMax {
 			break
 		}
 		cells = append(cells, u.Cell)

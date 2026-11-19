@@ -3,6 +3,7 @@ package media
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -120,7 +121,7 @@ func makeJob(t *testing.T) (core.Job, string) {
 }
 
 // makeFilmOf runs Make on job with f, watched from at, and returns the job it ended with and every job it reported.
-func makeFilmOf(t *testing.T, f *makeFilm, job core.Job, at time.Duration) (core.Job, []core.Job) {
+func makeFilmOf(t *testing.T, f Pipeline, job core.Job, at time.Duration) (core.Job, []core.Job) {
 	t.Helper()
 	var reports []core.Job
 	done := Make(context.Background(), f, job, "简体中文", "mac", From(at), func(j core.Job) { reports = append(reports, j) })
@@ -202,7 +203,10 @@ func TestMakeGoesOnWhereAnEarlierRunStopped(t *testing.T) {
 	// An earlier run heard and drafted the first cell, then the app quit.
 	gen := track.NewID()
 	events := []track.Event{{Kind: track.KindGen, Gen: gen, Source: makeSource}}
-	events = append(events, track.Event{Kind: track.KindLine, Gen: gen, Line: "a", Start: 1000, End: 2000}, track.Event{Kind: track.KindRev, Line: "a", Side: track.Original, Layer: track.LayerHeard, Text: "earlier"})
+	for i, at := range []int64{0, 10_000, 20_000} {
+		id := fmt.Sprintf("e%d", i)
+		events = append(events, track.Event{Kind: track.KindLine, Gen: gen, Line: id, Start: at, End: at + 2000}, track.Event{Kind: track.KindRev, Line: id, Side: track.Original, Layer: track.LayerHeard, Text: "earlier"})
+	}
 	events = append(events, track.Unit{Work: track.WorkHear, Gen: gen, Cell: 0, Key: "ja"}.Made())
 	if _, err := track.Append(video, "mac", events...); err != nil {
 		t.Fatal(err)
@@ -215,7 +219,9 @@ func TestMakeGoesOnWhereAnEarlierRunStopped(t *testing.T) {
 		t.Fatalf("runs %v, want only the second cell heard", f.runs)
 	}
 	doc, _ := track.Read(video)
-	if lines := doc.View(); len(lines) != 4 || lines[0].Original.Text != "earlier" || lines[0].Translation.Text != "译:earlier" {
+	// The cell heard before keeps its lines, not heard again, and each of the next shows once.
+	lines := doc.View()
+	if len(lines) != 6 || lines[2].Original.Text != "earlier" || lines[2].Translation.Text != "译:earlier" || lines[3].Original.Text != "line 30s" {
 		t.Fatalf("lines %+v", lines)
 	}
 }
@@ -323,6 +329,59 @@ func TestMakeGivesWayToAJump(t *testing.T) {
 	for i, l := range lines {
 		if want := time.Duration(i) * 10 * time.Second; l.Start != want {
 			t.Fatalf("line %d starts at %v, want %v: a line heard twice or lost", i, l.Start, want)
+		}
+	}
+}
+
+// boundaryFilm is a film whose speech recognition places a line said across 1:00, where two cells meet, by where a run starts: a run starting before 0:45 hears it end after 1:00, so its middle is in the second cell; one starting after hears it start earlier, so its middle is in the first. Each run alone keeps it out of its cells.
+type boundaryFilm struct{ makeFilm }
+
+func (f *boundaryFilm) Hear(ctx context.Context, video string, from, to time.Duration, heard func(core.Segment)) (string, error) {
+	f.mu.Lock()
+	f.runs = append(f.runs, [2]time.Duration{from, to})
+	f.mu.Unlock()
+	for _, at := range []time.Duration{10, 20, 30, 40, 50} {
+		if at*time.Second >= from && at*time.Second < to {
+			heard(core.Segment{Start: at * time.Second, End: at*time.Second + 2*time.Second, Text: "line"})
+		}
+	}
+	across := core.Segment{Start: 58 * time.Second, End: 63 * time.Second, Text: "across"}
+	if from >= 45*time.Second {
+		across = core.Segment{Start: 56 * time.Second, End: 61 * time.Second, Text: "across"}
+	}
+	if across.Start >= from && across.End <= to {
+		heard(across)
+	}
+	for _, at := range []time.Duration{70, 80} {
+		if at*time.Second >= from && at*time.Second < to {
+			heard(core.Segment{Start: at * time.Second, End: at*time.Second + 2*time.Second, Text: "line"})
+		}
+	}
+	return "ja", nil
+}
+
+func TestALineAcrossTwoCellsIsKeptOnce(t *testing.T) {
+	for _, at := range []time.Duration{0, 65 * time.Second} {
+		job, video := makeJob(t)
+		job.SpeechLanguage = "ja"
+		f := &boundaryFilm{makeFilm{length: 90 * time.Second, language: "ja"}}
+		// Watched from 1:05 the second cell is heard first, then the first; from the start, the other way round. Runs of one cell each show the boundary.
+		prev := runCellsMax
+		runCellsMax = 1
+		done, _ := makeFilmOf(t, f, job, at)
+		runCellsMax = prev
+		if done.Stage != core.StageComplete {
+			t.Fatalf("from %v: job ended %s: %v", at, done.Stage, done.Err)
+		}
+		doc, _ := track.Read(video)
+		across := 0
+		for _, l := range doc.View() {
+			if l.Original.Text == "across" {
+				across++
+			}
+		}
+		if across != 1 {
+			t.Fatalf("from %v: the line across the cells shows %d times, want once; runs %v", at, across, f.runs)
 		}
 	}
 }
