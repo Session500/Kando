@@ -26,6 +26,10 @@ const (
 	KindGone Kind = "gone"
 	// KindFile records the subtitle file the document last took in or wrote out: its name (Source) and the hash of what it held (Key). A file that holds anything else was written by something other than the document, as an older Kando or the user's editor, and is taken in again (media.ReadTrack).
 	KindFile Kind = "file"
+	// KindUnit records that a unit of work was made (Unit.Made): Source is its Work, Gen its generation, Start and End its cell, Key its inputs. What it wrote comes before it in the log, so a unit recorded made has all it wrote.
+	KindUnit Kind = "unit"
+	// KindAttempt records a failed attempt at a unit (Unit.Failed), with why in Text; a unit tried Attempts times is given up.
+	KindAttempt Kind = "attempt"
 )
 
 // Side is which text of a line a revision is of.

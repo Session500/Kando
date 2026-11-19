@@ -1,0 +1,198 @@
+package track
+
+import (
+	"cmp"
+	"crypto/sha256"
+	"encoding/hex"
+	"slices"
+	"time"
+)
+
+// Cell is how much of the film one unit of work takes: the speech recognition hears, and the draft translates, the film cell by cell, as the speech recognition hears 30 seconds at a time. A line belongs to the cell its middle falls in.
+const Cell = 30 * time.Second
+
+// Attempts is how many times a unit is tried with the same inputs before it is given up, its cell then needing the user's attention rather than being tried again and again.
+const Attempts = 3
+
+// Ahead is how far past the playhead the window the film is made in first reaches; Behind how far before it, so the line just said shows too.
+const (
+	Ahead  = 90 * time.Second
+	Behind = 2 * time.Second
+)
+
+// Work is the kind of a unit: hearing a cell's speech, or making a draft of its lines.
+type Work string
+
+const (
+	WorkHear  Work = "hear"
+	WorkDraft Work = "draft"
+)
+
+// Unit is a piece of work on generation Gen: Work on cell Cell, from the inputs Key names. Two units with the same fields are the same work, which is made once, or given up once tried Attempts times.
+type Unit struct {
+	Work Work
+	Gen  string
+	Cell int
+	Key  string
+}
+
+// Span is the part of the film the unit's cell covers.
+func (u Unit) Span() (time.Duration, time.Duration) {
+	return time.Duration(u.Cell) * Cell, time.Duration(u.Cell+1) * Cell
+}
+
+// Made is the record that unit u was made: what it wrote, as its lines and revisions, is already in the log before it.
+func (u Unit) Made() Event {
+	start, end := u.Span()
+	return Event{Kind: KindUnit, Source: string(u.Work), Gen: u.Gen, Start: start.Milliseconds(), End: end.Milliseconds(), Key: u.Key}
+}
+
+// Failed is the record of a failed attempt at unit u, and why.
+func (u Unit) Failed(reason string) Event {
+	e := u.Made()
+	e.Kind, e.Text = KindAttempt, reason
+	return e
+}
+
+// unitOf is the unit e, a record of one made or tried, is of.
+func unitOf(e Event) Unit {
+	return Unit{Work: Work(e.Source), Gen: e.Gen, Cell: int(e.Start / Cell.Milliseconds()), Key: e.Key}
+}
+
+// Making is what is being made of a film, and from where it is watched: what Plan plans the work for.
+type Making struct {
+	// Gen is the generation being made.
+	Gen string
+	// Length is how long the film is; its cells cover it. A film of unknown length has none planned.
+	Length time.Duration
+	// Playhead is where the film is watched, or will be: the work nearest it after it comes first.
+	Playhead time.Duration
+	// Hearing names how the speech is heard, as the language it is heard in: a cell heard another way is heard again.
+	Hearing string
+	// Language is what the lines are translated into, "" when they are not translated, as a film heard in the language its subtitles are for.
+	Language string
+}
+
+// Plan is the work left on a film, each kind in the order it is to be done.
+type Plan struct {
+	// Hear and Draft are the units needed: the cells not heard yet, and the heard cells whose lines have no draft, nearest the playhead first, then on to the end of the film, then from its start.
+	Hear, Draft []Unit
+	// GivenUp are the units tried Attempts times without being made, whose cells need the user's attention.
+	GivenUp []Unit
+	// Cells is how many cells the film has; Heard and Drafted how many are done, made or given up.
+	Cells, Heard, Drafted int
+}
+
+// Done reports whether nothing is left to make: every cell heard and drafted, or given up.
+func (p Plan) Done() bool {
+	return p.Cells > 0 && len(p.Hear) == 0 && len(p.Draft) == 0 && p.Heard == p.Cells && p.Drafted == p.Cells
+}
+
+// Plan is the work left on making m of the film: every unit whose record is not in the document, made or given up. It is derived from the document alone, and nothing of it is kept, so a film run again, after a crash or a quit, goes on where it was.
+func (d Doc) Plan(m Making) Plan {
+	if m.Length <= 0 || m.Gen == "" {
+		return Plan{}
+	}
+	cells := int((m.Length + Cell - 1) / Cell)
+	made := map[Unit]bool{}
+	tried := map[Unit]int{}
+	heard := map[string]string{}
+	var lines []Event
+	for _, e := range d.Events {
+		switch {
+		case e.Kind == KindUnit && e.Gen == m.Gen:
+			made[unitOf(e)] = true
+		case e.Kind == KindAttempt && e.Gen == m.Gen:
+			tried[unitOf(e)]++
+		case e.Kind == KindLine && e.Gen == m.Gen:
+			lines = append(lines, e)
+		case e.Kind == KindRev && e.Side == Original && e.Layer == LayerHeard:
+			heard[e.Line] = e.Text
+		}
+	}
+	// A cell's lines, in the order they show, which its draft translates: their text as heard is what the draft's key is made from, so a draft that corrects them does not make itself needed again.
+	inCell := make([][]Event, cells)
+	gone := d.gone()
+	for _, l := range lines {
+		if gone[l.Line] {
+			continue
+		}
+		if c := int((l.Start + l.End) / 2 / Cell.Milliseconds()); c >= 0 && c < cells {
+			inCell[c] = append(inCell[c], l)
+		}
+	}
+	p := Plan{Cells: cells}
+	for _, c := range order(cells, m.Playhead) {
+		hear := Unit{Work: WorkHear, Gen: m.Gen, Cell: c, Key: m.Hearing}
+		switch {
+		case made[hear]:
+			p.Heard++
+		case tried[hear] >= Attempts:
+			p.Heard++
+			p.GivenUp = append(p.GivenUp, hear)
+			// A cell not heard has no lines to draft.
+			p.Drafted++
+			continue
+		default:
+			p.Hear = append(p.Hear, hear)
+			continue
+		}
+		if m.Language == "" || len(inCell[c]) == 0 {
+			p.Drafted++
+			continue
+		}
+		draft := Unit{Work: WorkDraft, Gen: m.Gen, Cell: c, Key: draftKey(m.Language, inCell[c], heard)}
+		switch {
+		case made[draft]:
+			p.Drafted++
+		case tried[draft] >= Attempts:
+			p.Drafted++
+			p.GivenUp = append(p.GivenUp, draft)
+		default:
+			p.Draft = append(p.Draft, draft)
+		}
+	}
+	return p
+}
+
+// gone is the lines taken out of their generation.
+func (d Doc) gone() map[string]bool {
+	out := map[string]bool{}
+	for _, e := range d.Events {
+		if e.Kind == KindGone {
+			out[e.Line] = true
+		}
+	}
+	return out
+}
+
+// draftKey names the inputs of a cell's draft: the language it is made in and its lines as they were heard.
+func draftKey(language string, lines []Event, heard map[string]string) string {
+	sorted := slices.Clone(lines)
+	slices.SortFunc(sorted, func(a, b Event) int {
+		return cmp.Or(cmp.Compare(a.Start, b.Start), cmp.Compare(a.End, b.End), cmp.Compare(a.Line, b.Line))
+	})
+	h := sha256.New()
+	h.Write([]byte(language))
+	for _, l := range sorted {
+		h.Write([]byte{0})
+		h.Write([]byte(l.Line))
+		h.Write([]byte{1})
+		h.Write([]byte(heard[l.Line]))
+	}
+	return hex.EncodeToString(h.Sum(nil)[:12])
+}
+
+// order is the film's cells in the order they are made: from the one the window before the playhead starts in to the end of the film, then from its start.
+func order(cells int, playhead time.Duration) []int {
+	first := int(max(playhead-Behind, 0) / Cell)
+	first = min(first, cells-1)
+	out := make([]int, 0, cells)
+	for c := first; c < cells; c++ {
+		out = append(out, c)
+	}
+	for c := 0; c < first; c++ {
+		out = append(out, c)
+	}
+	return out
+}
