@@ -2,6 +2,13 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.34.0 - 2026-11-19
+
+### Features
+
+- Script plugin lookups, formats, exporters, annotators, AI budget and key proxy (#322)
+- A signed community plugin directory and kando plugin index (#323)
+
 ## 0.33.0 - 2026-11-19
 
 ### Features
