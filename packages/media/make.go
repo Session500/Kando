@@ -209,6 +209,10 @@ func Make(ctx context.Context, p Pipeline, job core.Job, language, device string
 			coming <- downloaded{path: path, err: err}
 		}()
 	}
+	// A local film marks its chapters in its file, if anywhere, as an audiobook does; its titles are translated as a site's are.
+	if ec, ok := p.(EmbeddedChapterer); ok && local && len(chapters) == 0 {
+		chapters = ec.EmbeddedChapters(ctx, video)
+	}
 	if len(chapters) > 0 {
 		keepChapters(video, chapters, job.ChapterUse)
 	}
