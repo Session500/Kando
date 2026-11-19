@@ -106,6 +106,18 @@ func Make(ctx context.Context, p Pipeline, job core.Job, language, device string
 	}
 	var chapters []core.Chapter
 	ctx = WithTrace(ctx, &Trace{
+		// How far a download has gone, while the job downloads: once the film is made, the making tells how far it is (making.progress).
+		Progress: func(progress core.Progress) {
+			if job.Stage != core.StageDownloading {
+				return
+			}
+			progress.Started, progress.From = job.Progress.Started, job.Progress.From
+			if progress.Known && progress.Started.IsZero() {
+				progress.Started, progress.From = time.Now(), progress.Fraction
+			}
+			job.Progress = progress
+			report(job)
+		},
 		Info: func(info Info) {
 			if info.Title == "" || (info.Title == job.Title && info.Thumbnail == job.Thumbnail) {
 				return
@@ -212,6 +224,8 @@ type making struct {
 	coming <-chan downloaded
 	// videoErr is why the video failed to download, which fails the job once its subtitles are made.
 	videoErr error
+	// writeErr is why the film's log could not be written, which fails the job at once: what is not written is not made, and would be made again and again.
+	writeErr error
 }
 
 // heardCell is a cell a run of the speech recognition heard, with its lines, and edges, the lines the run heard outside its cells, which it hands on with its first and last cell for the making to keep where no run has them (commitHeard).
@@ -418,7 +432,10 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 				}
 			}
 		}
-		m.project(false)
+		m.project(gen)
+		if m.writeErr != nil {
+			return m.fail("export", m.writeErr)
+		}
 	}
 
 	lines := m.doc.Lines(gen)
@@ -440,11 +457,12 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 		job.FailKind = downloadFailKind(*job, m.videoErr)
 		return m.fail("download", m.videoErr)
 	}
+	if err := m.finish(gen); err != nil {
+		return m.fail("export", err)
+	}
 	if m.hearFrom != job.VideoPath {
 		_ = os.Remove(m.hearFrom)
 	}
-	m.append(track.Event{Kind: track.KindDone, Gen: gen})
-	m.project(true)
 	same := core.SameLanguage(job.SpokenLanguage, language, track.Originals(lines))
 	untranslated := 0
 	if !same {
@@ -454,7 +472,8 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 			}
 		}
 	}
-	if notTranslated == "" && !same {
+	// The chapters' titles are translated as the lines are; a film not translated has their earlier translations cleared (translateChapters).
+	if notTranslated == "" {
 		if err := translateChapters(m.ctx, m.p, m.video, language, same); err != nil {
 			return m.fail("translate", err)
 		}
@@ -500,6 +519,9 @@ const makeSource = "make"
 func (m *making) append(events ...track.Event) error {
 	written, err := track.Append(m.video, m.device, events...)
 	m.doc.Events = append(m.doc.Events, written...)
+	if err != nil && m.writeErr == nil {
+		m.writeErr = err
+	}
 	return err
 }
 
@@ -554,6 +576,13 @@ func (m *making) hear(ctx context.Context, cells []int, heardCh chan<- heardCell
 
 // commitHeard writes a cell's lines, then that it is heard, at once, so a run stopped never leaves part of a cell. With them go the lines the run heard beside its cells (heardCell.edges) that no run has: a line said across two cells can be placed in one by one run and in the other by the next, as each hears it cut differently, and kept by neither. One whose cell is heard and that shows over no line heard there for at least half its time is kept; one whose cell is not heard yet is left to the run that hears it.
 func (m *making) commitHeard(gen, hearing string, c heardCell) {
+	var events []track.Event
+	// A cell heard again another way, as in another language, holds the lines it is heard as now in place of those it was heard as before.
+	for _, l := range m.doc.Lines(gen) {
+		if int((l.Start+l.End)/2/track.Cell) == c.cell {
+			events = append(events, track.Event{Kind: track.KindGone, Line: l.ID})
+		}
+	}
 	lines := c.lines
 	if len(c.edges) > 0 {
 		have := m.doc.Lines(gen)
@@ -563,7 +592,6 @@ func (m *making) commitHeard(gen, hearing string, c heardCell) {
 			}
 		}
 	}
-	var events []track.Event
 	for _, s := range lines {
 		id := track.NewID()
 		events = append(events,
@@ -976,15 +1004,16 @@ func (m *making) videoCame(d downloaded) {
 	m.report(*m.job)
 }
 
-// project writes the film's lines out beside the video, as they are now, at most every projectEvery unless final (projectTrack). It reads the film's logs again first, so what was written beside the making, as the user's decision on a change of the final proofread (DecideProofs), is written out too and not lost. The film shows its bilingual subtitles from the first lines written out.
-func (m *making) project(final bool) {
-	if !final && time.Since(m.projected) < projectEvery {
+// project writes the lines of gen out beside the video, as they are now, at most every projectEvery (projectTrack), while gen is what the film shows: a redo, whose lines show once it is done, writes nothing until then (finish). It reads the film's logs again first (reread). The film shows its bilingual subtitles from the first lines written out.
+func (m *making) project(gen string) {
+	if time.Since(m.projected) < projectEvery {
 		return
 	}
-	if doc, err := track.Read(m.video); err == nil && len(doc.Events) >= len(m.doc.Events) {
-		m.doc = doc
+	m.reread()
+	if m.doc.Shown() != gen {
+		return
 	}
-	events, err := projectTrack(m.doc, m.transcript, m.bilingual)
+	events, err := projectTrack(m.doc.Lines(gen), m.transcript, m.bilingual)
 	if err != nil || len(events) == 0 {
 		return
 	}
@@ -997,9 +1026,25 @@ func (m *making) project(final bool) {
 	}
 }
 
-// projectTrack writes the lines doc shows out to transcript, the film's .srt of the speech alone, and bilingual, its bilingual subtitles, each written whole or not at all, and returns the records of what it wrote for the caller to keep in the film's log, so a read does not take the files back in as written by something else (ReadTrack). A document that shows no line writes nothing.
-func projectTrack(doc track.Doc, transcript, bilingual string) ([]track.Event, error) {
-	lines := doc.View()
+// reread reads the film's logs again, so what was written beside the making, as the user's decision on a change of the final proofread (DecideProofs), is written out too and not lost.
+func (m *making) reread() {
+	if doc, err := track.Read(m.video); err == nil && len(doc.Events) >= len(m.doc.Events) {
+		m.doc = doc
+	}
+}
+
+// finish writes the lines of gen out beside the video whole, then records that gen holds every line of the film, which makes it the one the film shows: a film whose subtitles cannot be written stays as it was, a redo the film it redoes.
+func (m *making) finish(gen string) error {
+	m.reread()
+	files, err := projectTrack(m.doc.Lines(gen), m.transcript, m.bilingual)
+	if err != nil {
+		return err
+	}
+	return m.append(append([]track.Event{{Kind: track.KindDone, Gen: gen}}, files...)...)
+}
+
+// projectTrack writes lines out to transcript, the film's .srt of the speech alone, and bilingual, its bilingual subtitles, each written whole or not at all, and returns the records of what it wrote for the caller to keep in the film's log, so a read does not take the files back in as written by something else (ReadTrack). No lines write nothing.
+func projectTrack(lines []track.Line, transcript, bilingual string) ([]track.Event, error) {
 	if len(lines) == 0 {
 		return nil, nil
 	}

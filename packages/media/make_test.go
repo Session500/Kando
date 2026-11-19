@@ -297,6 +297,58 @@ func TestMakeGoesOnWhereAnEarlierRunStopped(t *testing.T) {
 	}
 }
 
+// A film heard again in another language, as after the user named the language it is spoken in, holds the lines heard in it in place of those heard before, not both.
+func TestACellHeardAgainHoldsItsNewLinesAlone(t *testing.T) {
+	job, video := makeJob(t)
+	job.SpeechLanguage = "en"
+	f := &makeFilm{length: 60 * time.Second}
+	if done, _ := makeFilmOf(t, f, job, 0); done.Stage != core.StageComplete {
+		t.Fatalf("job ended %s: %v", done.Stage, done.Err)
+	}
+	// The film is made again, as a first making stopped is, but heard in Japanese.
+	doc, _ := track.Read(video)
+	var unfinished []track.Event
+	for _, e := range doc.Events {
+		if e.Kind != track.KindDone && e.Kind != track.KindHead {
+			unfinished = append(unfinished, e)
+		}
+	}
+	other := filepath.Join(filepath.Dir(video), "Episode 2.mkv")
+	if err := os.WriteFile(other, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := track.Append(other, "mac", unfinished...); err != nil {
+		t.Fatal(err)
+	}
+	job.VideoPath, job.Source, job.SpeechLanguage = other, core.FileURL(other), "ja"
+	f.say = func(at time.Duration) string { return "ja " + at.String() }
+	if done, _ := makeFilmOf(t, f, job, 0); done.Stage != core.StageComplete {
+		t.Fatalf("job ended %s: %v", done.Stage, done.Err)
+	}
+	doc, _ = track.Read(other)
+	lines := doc.View()
+	if len(lines) != 6 || lines[0].Original.Text != "ja 0s" || lines[5].Original.Text != "ja 50s" {
+		t.Fatalf("lines %+v", lines)
+	}
+}
+
+// A film whose subtitles cannot be written out fails, and is not recorded done: its document still says it has lines to make.
+func TestMakeFailsWhenItCannotWriteTheSubtitles(t *testing.T) {
+	job, video := makeJob(t)
+	job.SpeechLanguage = "ja"
+	if err := os.Mkdir(strings.TrimSuffix(video, ".mkv")+".bilingual.srt", 0o755); err != nil {
+		t.Fatal(err)
+	}
+	done, _ := makeFilmOf(t, &makeFilm{length: 60 * time.Second, language: "ja"}, job, 0)
+	if done.Stage != core.StageFailed || !strings.HasPrefix(done.Err.Error(), "export: ") {
+		t.Fatalf("job ended %s: %v", done.Stage, done.Err)
+	}
+	doc, _ := track.Read(video)
+	if doc.Done(doc.Shown()) {
+		t.Fatal("a film whose subtitles were not written is recorded done")
+	}
+}
+
 func TestMakeWithoutATranslationLeavesTheFilmUntranslated(t *testing.T) {
 	job, _ := makeJob(t)
 	job.SpeechLanguage = "ja"
