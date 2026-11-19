@@ -157,6 +157,8 @@ type Session struct {
 	remote *remote
 	// learn is the learner's study (learning.go).
 	learn *learn
+	// subs are the computers' subscriptions (subscriptions.go).
+	subs *subscriptions
 	// settle is the conflicts being resolved (conflicts.go).
 	settle *settle
 }
@@ -214,6 +216,7 @@ func New(cx *core.Scope, cfg Config) *Session {
 		filmSaves:    map[string]*filmSave{},
 		closed:       make(chan struct{}),
 		remote:       newRemote(cx),
+		subs:         newSubscriptions(cx),
 		studies:      core.NewSignalFunc(cx, map[string]study.Library{}, nil),
 		studyLoading: map[string]bool{}, studyRuns: map[string]*studyRun{}, finding: map[string]bool{},
 		studySaving: map[string]uint64{}, studySaved: map[string]uint64{},

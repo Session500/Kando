@@ -1,7 +1,8 @@
-// Package add is the Add sheet: a link to a video, pasted or typed, the site it is on, the computer it goes to, which downloads, transcribes and translates it while the Jobs page follows it, and, where that computer takes them, the picture it downloads and where the original lines come from.
+// Package add is the Add sheet: a link to a video, pasted or typed, the site it is on, the computer it goes to, which downloads, transcribes and translates it while the Jobs page follows it, and, where that computer takes them, the picture it downloads and where the original lines come from. A link to a channel, an uploader's space, a collection or a playlist becomes a subscription of the computer's instead, whose new videos it adds as they come (Session.Subscribe), where the computer shares its subscriptions.
 package add
 
 import (
+	"slices"
 	"strings"
 
 	"kando/apps/mobile/locales"
@@ -32,6 +33,22 @@ func Sheet(cx *core.Scope, s *session.Session, open func() bool, close func(), s
 		return l, ok && l.Platform != kcore.PlatformLocal
 	}
 	valid := func() bool { _, ok := link(); return ok }
+	// list is a link the computer subscribes to rather than downloads: a list, sent to a computer that shares its subscriptions.
+	list := func(to string) bool {
+		l, ok := link()
+		return ok && l.IsList() && slices.Contains(s.Queue(to).Ops, sync.OpSubscribe)
+	}
+	// ready reports whether the link can go to computer to now: a subscription needs the computer to answer, and to let this phone subscribe; a video waits on the phone for a computer not reached yet.
+	ready := func(to string) bool {
+		if to == "" || !valid() {
+			return false
+		}
+		if list(to) {
+			q := s.Queue(to)
+			return q.Reach == session.Online && q.Can(sync.OpSubscribe) && !s.Subscribing(to)
+		}
+		return takes(s.Queue(to))
+	}
 	desktop := func() string {
 		list := s.Desktops()
 		for _, d := range list {
@@ -56,9 +73,15 @@ func Sheet(cx *core.Scope, s *session.Session, open func() bool, close func(), s
 	}
 	desktopName := func() string { d, _ := s.Desktop(desktop()); return d.Name }
 	send := func() {
-		l, ok := link()
+		l, _ := link()
 		to := desktop()
-		if !ok || to == "" || !takes(s.Queue(to)) {
+		if !ready(to) {
+			return
+		}
+		if list(to) {
+			text.Set("")
+			close()
+			s.Subscribe(to, l.URL)
 			return
 		}
 		// Only the options the sheet shows for this computer go with the link: one picked for another computer, or before this one went offline, is not on screen and not sent.
@@ -110,15 +133,21 @@ func Sheet(cx *core.Scope, s *session.Session, open func() bool, close func(), s
 					)}},
 				}}
 			}},
-			core.Show{When: func() bool { return s.Queue(desktop()).Offers(sync.OptionQuality) }, Then: func(cx *core.Scope) core.Node {
+			core.Show{When: func() bool { return !list(desktop()) && s.Queue(desktop()).Offers(sync.OptionQuality) }, Then: func(cx *core.Scope) core.Node {
 				return qualityChoice(cx, desktopName, quality)
 			}},
-			core.Show{When: func() bool { return s.Queue(desktop()).Offers(sync.OptionSubtitles) }, Then: func(cx *core.Scope) core.Node {
+			core.Show{When: func() bool { return !list(desktop()) && s.Queue(desktop()).Offers(sync.OptionSubtitles) }, Then: func(cx *core.Scope) core.Node {
 				return subtitlesChoice(cx, desktopName, subtitles)
 			}},
 			core.Text{TestID: "add-note", ContentFunc: func() string {
 				q := s.Queue(desktop())
 				switch {
+				case list(desktop()) && q.Reach == session.Online && !q.Can(sync.OpSubscribe):
+					return locales.AddSubscribeReadOnly(cx, desktopName())
+				case list(desktop()) && q.Reach == session.Online:
+					return locales.AddSubscribeNote(cx, desktopName())
+				case list(desktop()):
+					return locales.AddSubscribeOffline(cx, desktopName())
 				case q.Reach == session.Older:
 					return locales.JobsOlder(cx)
 				case q.Reach == session.Revoked:
@@ -139,8 +168,21 @@ func Sheet(cx *core.Scope, s *session.Session, open func() bool, close func(), s
 		},
 		Footer: []core.Node{
 			look.Button{Kind: look.Plain, Text: func() string { return locales.CommonCancel(cx) }, TestID: "add-cancel", OnPress: close},
-			look.Button{Kind: look.Primary, Text: func() string { return locales.AddSend(cx) }, Icon: lucide.Send, TestID: "add-send",
-				Disabled: func() bool { to := desktop(); return !valid() || to == "" || !takes(s.Queue(to)) }, OnPress: send},
+			look.Button{Kind: look.Primary, TestID: "add-send",
+				Text: func() string {
+					if list(desktop()) {
+						return locales.AddSubscribe(cx)
+					}
+					return locales.AddSend(cx)
+				},
+				Icon: func() *core.SVG {
+					if list(desktop()) {
+						return lucide.Rss()
+					}
+					return lucide.Send()
+				},
+				Busy:     func() bool { return s.Subscribing(desktop()) },
+				Disabled: func() bool { return !ready(desktop()) }, OnPress: send},
 		}}
 }
 

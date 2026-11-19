@@ -65,11 +65,12 @@ type Outgoing struct {
 	store.Link
 }
 
-// QueueEvents are what the app is told of the queues, on the engine's goroutine: a job that finished while the app followed it, a link a computer took, and an action on a job or a link that failed.
+// QueueEvents are what the app is told of the queues, on the engine's goroutine: a job that finished while the app followed it, a link a computer took, a list a computer subscribed to (Session.Subscribe), and an action on a job, a link or a subscription that failed.
 type QueueEvents struct {
-	Done   func(desktop string, job sync.Job)
-	Sent   func(desktop string, created sync.JobCreated)
-	Failed func(desktop string, err error)
+	Done       func(desktop string, job sync.Job)
+	Sent       func(desktop string, created sync.JobCreated)
+	Subscribed func(desktop string, got sync.Subscribed)
+	Failed     func(desktop string, err error)
 }
 
 // remote is the session's part that follows the queues. Its fields belong to the engine's goroutine, but for linksMu's and ctx.
