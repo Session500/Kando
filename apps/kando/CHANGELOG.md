@@ -2,6 +2,20 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.33.0 - 2026-11-19
+
+### Features
+
+- Script plugins — sandboxed runtime, trust, permissions and commands (#314)
+- Make a film's subtitles while it plays, from one subtitle document per film (#306)
+- Learning tasks, translation styles, export templates and your own packs (#313)
+- Word marks on phones, computed on the desktop (#318)
+
+### Fixes
+
+- Keep a moved video's path from another file, and make the remux note readable (#312)
+- The review fixes for playhead-first making (#306) (#317)
+
 ## 0.32.0 - 2026-11-19
 
 ### Features
