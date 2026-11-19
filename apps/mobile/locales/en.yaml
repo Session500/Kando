@@ -117,6 +117,41 @@ commonOK:
 commonRetry:
   message: "Try Again"
   description: "Row or button that asks the computer again after it could not be reached."
+computerContext:
+  message: "Use Context When Translating"
+  description: "Switch on a computer's page: whether its translation sends the lines before each batch to the AI service."
+computerContextDetail:
+  message: "Lets the AI see the lines before each batch, for smoother translations."
+  description: "Detail under the Use Context When Translating switch."
+computerContextFailed:
+  message: "Couldn't Change the Setting on {computer}"
+  description: "Title of the alert when the computer could not be reached to change its context switch."
+  placeholders:
+    computer: { type: "String", example: "Studio" }
+computerContextFailedMessage:
+  message: "Make sure the computer is on and Phone Sync is on, then try again."
+  description: "Message of the alert when the computer could not be reached to change a setting."
+computerReadOnly:
+  message: "This device can only view this computer's settings."
+  description: "Note on a computer's page when the computer made this device read-only."
+computerService:
+  message: "Translation Service"
+  description: "Row on a computer's page naming the AI service the computer translates and explains with."
+computerServiceNone:
+  message: "Not Set Up"
+  description: "Value of the Translation Service row when the computer has no AI service set up."
+computerServiceNote:
+  message: "The computer keeps its AI service and key. Change them in Kando on the computer."
+  description: "Note under a computer's translation settings: the AI service can only be changed on the computer."
+computerTooOld:
+  message: "Update Kando on this computer to see and change its translation settings here."
+  description: "Note on a computer's page when the computer's Kando is too old to share its AI service and context switch."
+computerTranslation:
+  message: "Translation"
+  description: "Heading of a computer's page in Settings over its translation settings."
+computerUnknown:
+  message: "Shown once this device reaches the computer."
+  description: "Note on a computer's page before a sync reached it, so its settings are not known yet."
 computersCertificate:
   message: "{name} answered with another certificate. Pair with it again."
   description: "In a computer's section: it answered with another certificate."
@@ -151,27 +186,81 @@ computersUnreachable:
   description: "In a computer's section and on a library's page: it does not answer."
   placeholders:
     name: { type: "String", example: "Studio" }
-exportFilm:
-  message: "Film"
-  description: "Heading of the exported tables' column of the film a word or line is from."
-exportLine:
-  message: "Line"
-  description: "Heading of the exported tables' column of the line: the line a word was looked up in, or the saved line."
-exportMeaning:
-  message: "Meaning"
-  description: "Heading of the exported vocabulary's column of a word's meaning."
-exportNote:
-  message: "Note"
-  description: "Heading of the exported saved lines' column of the learner's note."
-exportReading:
-  message: "Reading"
-  description: "Heading of the exported vocabulary's column of how a word is said."
-exportTranslation:
-  message: "Translation"
-  description: "Heading of the exported tables' column of a line's translation."
-exportWord:
-  message: "Word"
-  description: "Heading of the exported vocabulary's column of the word."
+dictationCantPlay:
+  message: "This line can't be played on this device."
+  description: "Under the dictation card's heading when the film's sound could not be played."
+dictationCheck:
+  message: "Check"
+  description: "Button of the review that checks what the learner typed in a dictation."
+dictationHint:
+  message: "Listen as many times as you like, then type what you hear."
+  description: "Under the dictation card's heading."
+dictationLabel:
+  message: "What You Heard"
+  description: "Accessibility label of the dictation card's text box."
+dictationNoFilm:
+  message: "Save this film to this device to hear its lines."
+  description: "Under a review card in dictation mode when the film is not kept on the phone, so the line cannot be played."
+dictationPlaceholder:
+  message: "Type what you heard"
+  description: "Placeholder of the dictation card's text box."
+dictationPlay:
+  message: "Play the Line"
+  description: "Accessibility label of the dictation card's play button."
+dictationScore:
+  message: "{hit} of {total, plural, one {# word} other {# words}} heard right"
+  description: "Dictation card after the check: how many of the line's words the learner typed."
+  placeholders:
+    hit: { type: "int", example: 3 }
+    total: { type: "int", example: 5 }
+dictationStop:
+  message: "Stop"
+  description: "Accessibility label of the dictation card's play button while the line plays."
+dictationTitle:
+  message: "Dictate This Line"
+  description: "Heading of the dictation card in the review."
+exportAnki:
+  message: "Anki"
+  description: "Export page: the format of notes Anki's File › Import reads."
+exportAnkiDetail:
+  message: "Notes for Anki's File › Import: the word on the front, the rest on the back"
+  description: "Export page: what the Anki format writes."
+exportCSV:
+  message: "CSV Spreadsheet"
+  description: "Export page: a CSV table, which spreadsheets open."
+exportCSVDetail:
+  message: "One word a row; opens in spreadsheet apps and Notion"
+  description: "Export page: what the CSV format writes."
+exportCount:
+  message: "{words, plural, one {# word} other {# words}} · {lines, plural, one {# saved line} other {# saved lines}} · from every computer"
+  description: "Export page: what the export writes, counted."
+  placeholders:
+    words: { type: "int", example: 12 }
+    lines: { type: "int", example: 3 }
+exportFormat:
+  message: "Format"
+  description: "Export page: heading of the formats."
+exportInclude:
+  message: "Include"
+  description: "Export page: heading of the switches of what the export writes."
+exportTSV:
+  message: "Plain Text (Tab-Separated)"
+  description: "Export page: plain text with a tab between the fields."
+exportTSVDetail:
+  message: "Imports into Quizlet and most flashcard apps"
+  description: "Export page: what the plain text format is for."
+exportTitle:
+  message: "Export Vocabulary"
+  description: "Title of the page that exports the vocabulary, and the saved lines when asked, through the share sheet."
+exportWithLines:
+  message: "Saved Lines, After the Words"
+  description: "Export page: switch that adds the saved lines after the words."
+exportWithSentence:
+  message: "The Sentence Each Word Is From"
+  description: "Export page: switch that writes with each word the line it was looked up in."
+exportWithTranslation:
+  message: "The Sentence's Translation"
+  description: "Export page: switch that writes with each word the translation of the line it was looked up in."
 filmCancel:
   message: "Cancel Download"
   description: "Button on a film's page that stops its download and deletes what was downloaded."
@@ -453,6 +542,11 @@ filmsUnpairedBody:
 filmsUnpairedTitle:
   message: "Not connected to a computer yet"
   description: "Title of the Library's card while no computer is paired."
+learnDays:
+  message: "{count, plural, one {# day} other {# days}}"
+  description: "Learn's week: the streak, in days."
+  placeholders:
+    count: { type: "int", example: 5 }
 filmsUnsubscribe:
   message: "Unsubscribe"
   description: "Subscription sheet: the row that removes the subscription, and its confirmation's button."
@@ -782,7 +876,7 @@ learnEmpty:
   description: "Learn tab while nothing is saved."
 learnExport:
   message: "Export and Share"
-  description: "Row of Learn that exports the vocabulary and the saved lines as tables and opens the share sheet."
+  description: "Row of Learn that opens the export of the vocabulary and the saved lines, and the button of that page that writes the file and opens the share sheet."
 learnExportFailed:
   message: "Couldn't export the vocabulary"
   description: "Alert when the export could not be written."
@@ -823,6 +917,9 @@ learnMinutes:
 learnMon:
   message: "M"
   description: "Short name of Monday under its bar in the week's chart."
+learnNewWords:
+  message: "New Words"
+  description: "Learn's week: label under how many words were put in the vocabulary in the last seven days."
 learnNoComputer:
   message: "Connect a computer to study the words and lines you save while you watch there."
   description: "Learn while no computer is paired."
@@ -840,6 +937,12 @@ learnReminderTitle:
 learnRemove:
   message: "Remove"
   description: "Destructive button of the alert that removes a word or a line."
+learnReviewCards:
+  message: "Cards"
+  description: "Review mode: a card that shows its answer on a press."
+learnReviewDictation:
+  message: "Dictation"
+  description: "Review mode: the line is played and the learner types what they hear."
 learnReviewDue:
   message: "{count, plural, one {Review # item} other {Review # items}}"
   description: "Title of Learn's review card: how many words and lines are due."
@@ -850,6 +953,9 @@ learnReviewDueDetail:
   description: "Under the review card's title: how long the review takes."
   placeholders:
     count: { type: "int", example: "3" }
+learnReviewMode:
+  message: "Review Mode"
+  description: "Accessibility label of Learn's choice of how the review goes: cards or dictation."
 learnReviewNone:
   message: "Nothing to review today"
   description: "Title of Learn's review card while nothing is due."
@@ -870,6 +976,12 @@ learnStreak:
   description: "Beside today's minutes: how many days in a row films played."
   placeholders:
     count: { type: "int", example: "5" }
+learnStreakLabel:
+  message: "Streak"
+  description: "Learn's week: label under the streak."
+learnStudyTime:
+  message: "Study Time"
+  description: "Learn's week: label under the minutes watched in the last seven days."
 learnSun:
   message: "S"
   description: "Short name of Sunday under its bar in the week's chart."
@@ -893,7 +1005,10 @@ learnWed:
   description: "Short name of Wednesday under its bar in the week's chart."
 learnWeek:
   message: "This Week"
-  description: "Heading of the chart of the last seven days' minutes."
+  description: "Heading of the card of the last seven days on every device: the streak, the minutes and the new words, and the chart of each day's minutes."
+learnWeekAll:
+  message: "All Devices"
+  description: "Beside This Week on Learn: the week's figures add up every device's."
 learnWeekBars:
   message: "{count} minutes of films in the last 7 days"
   description: "Spoken name of the week's chart."

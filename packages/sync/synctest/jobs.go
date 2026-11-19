@@ -147,7 +147,7 @@ func (s jobService) Hello(context.Context, sync.Caller) (sync.Hello, error) {
 		ops = append(ops, sync.OpSubscriptions, sync.OpSubscribe, sync.OpSubscriptionSet, sync.OpSubscriptionTake, sync.OpUnsubscribe)
 	}
 	return sync.Hello{Ops: ops,
-		Options: slices.Clone(s.d.queue.options), State: []string{sync.KindPosition, sync.KindLine, sync.KindCorrection, sync.KindWord}, Receive: s.d.queue.receive}, nil
+		Options: slices.Clone(s.d.queue.options), State: []string{sync.KindPosition, sync.KindLine, sync.KindCorrection, sync.KindWord, sync.KindWatched}, Receive: s.d.queue.receive}, nil
 }
 
 // CreateJob queues link as a waiting job of the caller's, puts it among the pending links, or refuses it, as the desktop's setting says.

@@ -303,7 +303,7 @@ func (p *play) keep(send bool) {
 	} else {
 		p.s.KeepPosition(p.key, p.saved)
 	}
-	p.s.Watch(p.watched)
+	p.s.Watch(p.key, p.watched)
 	p.watched = 0
 }
 

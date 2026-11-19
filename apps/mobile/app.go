@@ -46,6 +46,8 @@ const (
 	goalPage
 	revokedPage
 	jobsPage
+	computerPage
+	exportPage
 	conflictsPage
 )
 
@@ -104,7 +106,7 @@ func App(cx *core.Scope, cfg session.Config) core.Node {
 		navs[filmsTab].PopToRoot()
 		outer.Pop(1)
 	}
-	// Unpaired, a computer's films not on the phone go from the Library's stack, and from a tablet's Jobs, with the pages opened from them: with no client left they could not be downloaded. A film's page of one on the phone stays.
+	// Unpaired, a computer's films not on the phone go from the Library's stack, and from a tablet's Jobs, with the pages opened from them: with no client left they could not be downloaded. A film's page of one on the phone stays. Its page in Settings goes.
 	unpaired := func(id string) {
 		for _, n := range []*base.Nav[route]{navs[filmsTab], navs[jobsTab]} {
 			routes := n.Routes()
@@ -114,6 +116,11 @@ func App(cx *core.Scope, cfg session.Config) core.Node {
 			}); i >= 0 {
 				n.Pop(len(routes) - i)
 			}
+		}
+		// The computer's page in Settings goes too.
+		routes := navs[settingsTab].Routes()
+		if i := slices.IndexFunc(routes, func(r route) bool { return r.page == computerPage && r.desktop == id }); i >= 0 {
+			navs[settingsTab].Pop(len(routes) - i)
 		}
 	}
 	// The film playing shows over the tabs, or in the mini player over them.
@@ -146,13 +153,16 @@ func App(cx *core.Scope, cfg session.Config) core.Node {
 					return learn.Page(cx, s, learn.Actions{Pair: openPair,
 						Review:     func() { n.Push(route{page: reviewPage}) },
 						Vocabulary: func() { n.Push(route{page: vocabularyPage}) },
-						Lines:      func() { n.Push(route{page: linesPage}) }})
+						Lines:      func() { n.Push(route{page: linesPage}) },
+						Export:     func() { n.Push(route{page: exportPage}) }})
 				case reviewPage:
 					return learn.ReviewPage(cx, s, back)
 				case vocabularyPage:
 					return learn.VocabularyPage(cx, s, back)
 				case linesPage:
 					return learn.LinesPage(cx, s, back)
+				case exportPage:
+					return learn.ExportPage(cx, s, back)
 				case stylePage:
 					return settings.StylePage(cx, s, back)
 				case goalPage:
@@ -167,7 +177,13 @@ func App(cx *core.Scope, cfg session.Config) core.Node {
 							n.Push(route{page: conflictsPage})
 						},
 						Introduction: func() { outer.Push(route{page: introductionPage}) },
-						Unpaired:     unpaired})
+						Computer: func(id string) {
+							n.Push(route{page: computerPage, desktop: id})
+							s.SyncLearning()
+						},
+						Unpaired: unpaired})
+				case computerPage:
+					return settings.ComputerPage(cx, s, r.desktop, unpaired, back)
 				case targetPage:
 					return settings.TargetPage(cx, s, back)
 				case conflictsPage:
@@ -235,7 +251,7 @@ func App(cx *core.Scope, cfg session.Config) core.Node {
 		}
 		return base.NavPage{TestID: "root", HeaderHidden: true, StyleFunc: ui.Filled(colors.Background), StatusBarFunc: layer.StatusBar, Children: []core.Node{
 			// Under the player, the tabs are out of assistive technology's reach.
-			core.View{Style: core.Style{FlexGrow: 1}, AccessibilityElementsHidden: layer.Full, Children: []core.Node{root}},
+			core.View{Style: core.Style{FlexGrow: 1, FlexShrink: 1, MinHeight: core.Pt(0)}, AccessibilityElementsHidden: layer.Full, Children: []core.Node{root}},
 			add.Sheet(cx, s, adding.Get, func() { adding.Set(false) }, openJobs),
 			ui.Toasts{Toaster: toaster, TestID: "toasts"},
 			layer.Node(cx),
