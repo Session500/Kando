@@ -50,7 +50,7 @@ func TestLibraryShowsAndRestoresJob(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(reloaded.Jobs) != 1 || reloaded.Jobs[0].SubtitlePath != "/videos/talk.bilingual.srt" || reloaded.Jobs[0].Language != "简体中文" {
+	if len(reloaded.Jobs) != 1 || reloaded.Jobs[0].SubtitlePath != filepath.Join(testVideos, "talk.bilingual.srt") || reloaded.Jobs[0].Language != "简体中文" {
 		t.Fatalf("saved %#v", reloaded.Jobs)
 	}
 }
@@ -509,7 +509,7 @@ func TestAddingShowsTheNewJob(t *testing.T) {
 func TestQueueShowsEveryWaitingJob(t *testing.T) {
 	a, tt, _ := newTestApp(t, &fakePipeline{})
 	for i := range 8 {
-		a.library.Jobs = append(a.library.Jobs, core.Job{ID: string(rune('a' + i)), Source: "https://youtu.be/clip" + string(rune('a'+i)), Stage: core.StageQueued, LibraryDir: "/videos"})
+		a.library.Jobs = append(a.library.Jobs, core.Job{ID: string(rune('a' + i)), Source: "https://youtu.be/clip" + string(rune('a'+i)), Stage: core.StageQueued, LibraryDir: testVideos})
 	}
 	refresh(tt, a)
 	if got := countText(tt, "排队中"); got != 6 || !shows(tt, "显示全部 8 个") || !shows(tt, "8 个排队") {
@@ -532,8 +532,8 @@ func TestLibraryControlsStayOpenWhileAJobRuns(t *testing.T) {
 		}
 	})
 	a.library.Jobs = []core.Job{
-		{ID: "gone", Source: "https://example.com/gone", Language: "简体中文", Stage: core.StageFailed, Err: errors.New("boom"), LibraryDir: "/videos"},
-		{ID: "old", Source: "https://example.com/old", Language: "简体中文", Stage: core.StageFailed, Err: errors.New("boom"), LibraryDir: "/videos"},
+		{ID: "gone", Source: "https://example.com/gone", Language: "简体中文", Stage: core.StageFailed, Err: errors.New("boom"), LibraryDir: testVideos},
+		{ID: "old", Source: "https://example.com/old", Language: "简体中文", Stage: core.StageFailed, Err: errors.New("boom"), LibraryDir: testVideos},
 	}
 	if err := a.Enqueue("https://example.com/a"); err != nil {
 		t.Fatal(err)
@@ -761,6 +761,7 @@ func TestAddingWithoutAnAIServiceSaysTheSubtitlesStayOriginal(t *testing.T) {
 }
 
 func TestPrecheckSaysWhatToFix(t *testing.T) {
+	testVideosFor(t)
 	ready := media.Tools{YTDLP: "yt-dlp", FFmpeg: "ffmpeg", Whisper: "whisper-cli", WhisperModel: "model.bin", Translator: media.ChatTranslator{BaseURL: media.EveryAPIBaseURL, Model: "m", APIKey: "k"}}
 	link := []string{"https://youtu.be/TRWgBxVAb1M"}
 	for _, tc := range []struct {
@@ -807,7 +808,7 @@ func TestPrecheckSaysWhatToFix(t *testing.T) {
 		}
 		a := newApp(tools, func(func()) {})
 		if !tc.noLib {
-			a.edit(func(s *session) { s.LibraryDir = "/videos" })
+			a.edit(func(s *session) { s.LibraryDir = testVideos })
 		}
 		msg, section := a.precheck(tc.sources)
 		if msg != tc.msg || section != tc.section {
@@ -899,12 +900,13 @@ func TestLibraryNoticeFollowsWhatItSays(t *testing.T) {
 
 // TestPrecheckAsksForWhatCheckAsks keeps precheck and the pipeline's own Check in step: a local video precheck lets through must not fail Check for a missing tool.
 func TestPrecheckAsksForWhatCheckAsks(t *testing.T) {
+	testVideosFor(t)
 	model := filepath.Join(t.TempDir(), "model.bin")
 	if err := os.WriteFile(model, []byte("m"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	ready := media.Tools{YTDLP: "yt-dlp", FFmpeg: "ffmpeg", Whisper: "whisper-cli", WhisperModel: model, Translator: media.ChatTranslator{BaseURL: media.EveryAPIBaseURL, Model: "m", APIKey: "k"}}
-	local := []string{core.FileURL("/videos/v.mp4")}
+	local := []string{core.FileURL(testVideos + "/v.mp4")}
 	for _, name := range []string{"yt-dlp", "ffmpeg", "whisper-cli"} {
 		tools := ready
 		switch name {
@@ -916,7 +918,7 @@ func TestPrecheckAsksForWhatCheckAsks(t *testing.T) {
 			tools.Whisper = ""
 		}
 		a := newApp(tools, func(func()) {})
-		a.edit(func(s *session) { s.LibraryDir = "/videos" })
+		a.edit(func(s *session) { s.LibraryDir = testVideos })
 		msg, _ := a.precheck(local)
 		err := tools.Check()
 		if err == nil || !strings.Contains(err.Error(), name+" is not installed") {
@@ -958,7 +960,7 @@ func TestFailedCardOpensTheSettingThatFixesIt(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			a, tt, _ := newTestApp(t, &fakePipeline{})
-			a.library.Jobs = []core.Job{{ID: "j", Source: "https://youtu.be/TRWgBxVAb1M", Stage: core.StageFailed, Err: tc.err, LibraryDir: "/videos"}}
+			a.library.Jobs = []core.Job{{ID: "j", Source: "https://youtu.be/TRWgBxVAb1M", Stage: core.StageFailed, Err: tc.err, LibraryDir: testVideos}}
 			refresh(tt, a)
 			if !shows(tt, tc.reason()) || !shows(tt, "1 个需要处理") {
 				t.Fatalf("want %q, texts %q", tc.reason(), tt.Texts())
@@ -980,7 +982,7 @@ func TestFailedCardSaysTheVideoHasNoSound(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			a, tt, _ := newTestApp(t, &fakePipeline{})
-			a.library.Jobs = []core.Job{{ID: "j", Source: "https://x.com/seanaiux/status/2119830876703879366", Stage: core.StageFailed, Err: tc.err, LibraryDir: "/videos"}}
+			a.library.Jobs = []core.Job{{ID: "j", Source: "https://x.com/seanaiux/status/2119830876703879366", Stage: core.StageFailed, Err: tc.err, LibraryDir: testVideos}}
 			refresh(tt, a)
 			if !shows(tt, testlocale.Messages().PrecheckNoAudio()) {
 				t.Fatalf("want %q, texts %q", testlocale.Messages().PrecheckNoAudio(), tt.Texts())

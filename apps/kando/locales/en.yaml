@@ -1717,6 +1717,9 @@ filmKindOriginal:
 filmKindVideo:
   message: "Video"
   description: "What a file in the film's folder is: the video."
+filmLineDraft:
+  message: "Draft"
+  description: "Said of a subtitle line of a film made while it plays that is not proofread as a whole yet: what the accessible name of its row in the subtitle list adds, beside the small dot the row shows."
 filmLineOf:
   message: "Line {line} of {total}"
   description: "Message on the picture after moving to a subtitle line: its number, counting from 1, and how many lines the film has."
@@ -2011,6 +2014,11 @@ filmsSelectedCount:
   description: "First row of the menu a right click or ⋯ opens on one of several selected films, dimmed: how many films the menu acts on."
   placeholders:
     count: { type: "int", example: "12" }
+filmStatusDraft:
+  message: "Draft subtitles · {percent}% proofread"
+  description: "Line under the film's title in the player, in place of how much is translated, while the subtitles of a film made as it plays are not all proofread as a whole yet: how many of its lines are."
+  placeholders:
+    percent: { type: "int", example: "63" }
 filmStatusTranslated:
   message: "{percent}% translated"
   description: "Line under the film's title in the player: how much of its subtitles is translated."
@@ -4095,6 +4103,12 @@ precheckNoSpeechModel:
 precheckNoTools:
   message: "The programs that process videos aren't installed yet"
   description: "Card of a failed job when a program it needs (yt-dlp, ffmpeg, whisper-cli) is not installed."
+precheckNewerKando:
+  message: "A newer version of Kando last made this film's subtitles. Update Kando to process it."
+  description: "Why making a film's subtitles failed: its subtitle document was written by a newer Kando, which this one does not write over, so the newer subtitles are not lost."
+precheckNoLength:
+  message: "Kando can't tell how long this video is, so it can't make its subtitles. The file may be damaged or not a video."
+  description: "Why making a film's subtitles failed: ffmpeg could not read the video's length, so its parts cannot be made one by one."
 precheckNoTranscript:
   message: "This film's original subtitles are gone, so its translation can't be redone on its own. Process the entire film again instead."
   description: "Why translating a finished film again failed, the reason in queueRedoFailed: the transcript beside its video was deleted, so only Process Again (which downloads and transcribes the film again) can make new subtitles."

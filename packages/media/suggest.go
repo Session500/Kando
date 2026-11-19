@@ -17,7 +17,7 @@ import (
 	"kando/packages/core"
 )
 
-// Terms suggested for a film's glossary (yldm-tech/Kando#213): once a film is translated, a pipeline that is a TermSuggester reads its lines with their translation and names the names and terms a glossary should fix, as the people, places and recurring proper nouns of the film, each with how the translation wrote it. Run asks for it when the job's context says so (WithTermSuggestions) and keeps what it found beside the video (SuggestionsPath), for the user to add to the glossary or dismiss in the player's 术语 tab. A suggestion is kept only when the film's lines hold it at least twice and its glossary does not hold it yet, and a dismissed one is not suggested again.
+// Terms suggested for a film's glossary (yldm-tech/Kando#213): once a film is translated, a pipeline that is a TermSuggester reads its lines with their translation and names the names and terms a glossary should fix, as the people, places and recurring proper nouns of the film, each with how the translation wrote it. Make asks for it when the job's context says so (WithTermSuggestions) and keeps what it found beside the video (SuggestionsPath), for the user to add to the glossary or dismiss in the player's 术语 tab. A suggestion is kept only when the film's lines hold it at least twice and its glossary does not hold it yet, and a dismissed one is not suggested again.
 
 // TermSuggester is a Pipeline that can suggest terms for a film's glossary, as Tools does through its translator.
 type TermSuggester interface {
@@ -27,7 +27,7 @@ type TermSuggester interface {
 
 type suggestKey struct{}
 
-// WithTermSuggestions returns ctx asking Run to suggest terms for the glossary of the film it translates.
+// WithTermSuggestions returns ctx asking Make to suggest terms for the glossary of the film it translates.
 func WithTermSuggestions(ctx context.Context) context.Context {
 	return context.WithValue(ctx, suggestKey{}, true)
 }

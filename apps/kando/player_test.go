@@ -20,6 +20,7 @@ import (
 	"kando/apps/kando/shelf"
 	"kando/packages/core"
 	"kando/packages/media"
+	"kando/packages/track"
 
 	ns "github.com/nsgo-dev/nsgo/core"
 	"github.com/nsgo-dev/nsgo/nsgotest"
@@ -112,6 +113,33 @@ func TestOpenFilmShowsBilingualLines(t *testing.T) {
 	tt.Press("id:film-back")
 	if a.openKey != "" || a.player.play != nil || tt.Exists("id:film") {
 		t.Fatalf("back left open %q play %v", a.openKey, a.player.play != nil)
+	}
+}
+
+// TestOpenFilmReadsItsLinesThroughItsDocument checks that the open film's lines are read through its subtitle document (media.ReadTrack): a subtitle file rewritten by something else, as an older Kando or an editor, shows its new lines once read again, and reading writes nothing beside the video.
+func TestOpenFilmReadsItsLinesThroughItsDocument(t *testing.T) {
+	a, tt, updates, item := playerFilm(t, 12, nil)
+	playerOpenFilm(t, a, tt, updates, item)
+	data, err := os.ReadFile(item.SubtitlePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	edited := strings.Replace(string(data), "Bye.", "See you.", 1)
+	if edited == string(data) {
+		t.Fatalf("the film's subtitles hold no %q: %q", "Bye.", data)
+	}
+	if err := os.WriteFile(item.SubtitlePath, []byte(edited), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	later := time.Now().Add(time.Minute)
+	if err := os.Chtimes(item.SubtitlePath, later, later); err != nil {
+		t.Fatal(err)
+	}
+	apply(tt, a, a.reloadOpenSubtitles)
+	waitUntil(t, tt, a, updates, func() bool { return a.player.subs.ready })
+	wantText(t, tt, "See you.")
+	if logs := track.Logs(item.VideoPath); logs != nil {
+		t.Fatalf("reading the film wrote %v", logs)
 	}
 }
 
@@ -424,8 +452,9 @@ func TestOpenFilmStartsLocalVideo(t *testing.T) {
 	if a.queue.job == nil || a.queue.job.Stage != core.StageComplete || a.openKey != a.queue.job.ID {
 		t.Fatalf("open %q job %#v", a.openKey, a.queue.job)
 	}
+	// Its subtitles, written beside it as they were made, show.
 	waitUntil(t, tt, a, updates, func() bool { return a.player.subs.ready })
-	wantText(t, tt, testlocale.Messages().PlayerSubsMissing())
+	wantText(t, tt, "hello")
 }
 
 // TestOpenFilmClearsTheTitleBar checks that an open film hides the sidebar and fills the window up to its top edge, its header bar putting the back button after the traffic lights.
@@ -2602,7 +2631,7 @@ func TestFilmKeepsTheSpokenLanguageNamed(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "library.json")
 	a.openLibrary(path)
 	a.library.Upsert(core.Job{ID: "talk", Source: "https://youtu.be/TRWgBxVAb1M", Stage: core.StageComplete, Language: "简体中文", SpokenLanguage: "ja",
-		VideoPath: "/videos/talk.mp4", SubtitlePath: "/videos/talk.bilingual.srt", CompletedAt: time.Now()})
+		VideoPath: testVideos + "/talk.mp4", SubtitlePath: testVideos + "/talk.bilingual.srt", CompletedAt: time.Now()})
 	a.openKey = "talk"
 	refresh(tt, a)
 	a.SetFilmSpeechLanguage("xx")
@@ -2709,5 +2738,40 @@ func TestPlayerFollowsTheMainWindowsLifecycle(t *testing.T) {
 	refresh(tt, a)
 	if a.player.windowAway {
 		t.Fatal("the player did not hear that the main window shows again")
+	}
+}
+
+// TestALineOnScreenIsNotRewrittenWhileItIsRead checks that a line the machine rewrites while it is on screen keeps showing as it was until the playhead leaves it, while a line not on screen takes its new text at once, and so does a line on screen that had no translation and gets one.
+func TestALineOnScreenIsNotRewrittenWhileItIsRead(t *testing.T) {
+	a, tt, updates := playerOpen(t)
+	path := a.player.subs.path
+	rewrite := func(srt string) {
+		t.Helper()
+		if err := os.WriteFile(path, []byte(srt), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		later := time.Now().Add(time.Minute)
+		if err := os.Chtimes(path, later, later); err != nil {
+			t.Fatal(err)
+		}
+		apply(tt, a, a.reloadOpenSubtitles)
+		waitUntil(t, tt, a, updates, func() bool { return a.player.subs.ready })
+	}
+	machine := func(i int) string { return a.player.subs.machine[i].Text }
+	playerPlayTo(tt, a, 1500*time.Millisecond)
+	rewrite("1\n00:00:01,000 --> 00:00:02,500\n您好。\nHello.\n\n2\n00:00:04,000 --> 00:00:05,000\n再见。\nBye.\n\n")
+	if machine(0) != "你好。\nHello." || machine(1) != "再见。\nBye." {
+		t.Fatalf("lines %q, %q: want the one on screen as it was and the other rewritten", machine(0), machine(1))
+	}
+	playerPlayTo(tt, a, 3*time.Second)
+	if machine(0) != "您好。\nHello." {
+		t.Fatalf("line left reads %q, want its new text", machine(0))
+	}
+	// A line on screen without a translation takes the one that comes at once.
+	rewrite("1\n00:00:01,000 --> 00:00:02,500\n您好。\nHello.\n\n2\n00:00:04,000 --> 00:00:05,000\nBye.\n\n")
+	playerPlayTo(tt, a, 4500*time.Millisecond)
+	rewrite("1\n00:00:01,000 --> 00:00:02,500\n您好。\nHello.\n\n2\n00:00:04,000 --> 00:00:05,000\n回头见。\nBye.\n\n")
+	if machine(1) != "回头见。\nBye." {
+		t.Fatalf("line on screen without a translation reads %q, want the translation at once", machine(1))
 	}
 }

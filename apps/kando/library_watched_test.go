@@ -12,8 +12,9 @@ import (
 
 // TestMarkingAFilmWatchedSurvivesARestart checks that 标记为已看完 has a film played partway count as played to its end, forgetting where it stopped but not when it played, and lets the palette find every line of it; that 标记为未看 forgets all three, so it shows as never played and the palette finds none of its lines; that both are saved with the library at once; and that a film whose length is not known is not marked watched.
 func TestMarkingAFilmWatchedSurvivesARestart(t *testing.T) {
+	testVideosFor(t)
 	path := filepath.Join(t.TempDir(), "library.json")
-	video := "/videos/talk/video.mp4"
+	video := testVideos + "/talk/video.mp4"
 	a, _, _ := newTestApp(t, &fakePipeline{})
 	a.openLibrary(path)
 	a.library.Jobs = []core.Job{{ID: "talk", Source: core.FileURL(video), Stage: core.StageComplete, VideoPath: video}}

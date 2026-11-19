@@ -147,7 +147,7 @@ func (a *app) privacyHolds(job core.Job) bool {
 	if !a.privacy.offline || job.Redo.TranslatesOnly() || queueLocalPath(job.Source) != "" {
 		return false
 	}
-	// The same test the pipeline makes before it downloads again (media.Run), so a job it would download is held rather than refused.
+	// The same test the pipeline makes before it downloads again (media.Downloaded), so a job it would download is held rather than refused.
 	return !media.Downloaded(job.VideoPath)
 }
 

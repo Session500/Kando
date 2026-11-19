@@ -21,8 +21,6 @@ type Trace struct {
 	Progress func(core.Progress)
 	// Info is the video's title and thumbnail, once the download knows them.
 	Info func(Info)
-	// Spoken is the language the transcription heard, as whisper's code (ja, en), once it knows it.
-	Spoken func(language string)
 	// Chapters is the chapters the site marks in the video (core.Chapter), once the download has looked it up; a video without any reports none.
 	Chapters func([]core.Chapter)
 }
@@ -57,15 +55,9 @@ func reportChapters(ctx context.Context, chapters []core.Chapter) {
 	}
 }
 
-func reportSpoken(ctx context.Context, language string) {
-	if trace := traceOf(ctx); trace != nil && trace.Spoken != nil && language != "" {
-		trace.Spoken(language)
-	}
-}
-
 type speechLanguageKey struct{}
 
-// withSpeechLanguage returns ctx telling Tools.Transcribe the language spoken in the video, as whisper's code, in place of Tools.SpeechLanguage: the language the user said a film is spoken in (core.Job.SpeechLanguage).
+// withSpeechLanguage returns ctx telling Tools.Hear the language spoken in the video, as whisper's code, in place of Tools.SpeechLanguage: the language the user said a film is spoken in (core.Job.SpeechLanguage).
 func withSpeechLanguage(ctx context.Context, code string) context.Context {
 	return context.WithValue(ctx, speechLanguageKey{}, code)
 }

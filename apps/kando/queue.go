@@ -45,6 +45,10 @@ type jobQueue struct {
 	// cancel stops the running job; with errQuitting the job reports nothing more. done is closed once the running job's pipeline has returned.
 	cancel context.CancelCauseFunc
 	done   chan struct{}
+	// watch is where the film the running job makes is watched (queuePlaying), nil while none runs.
+	watch *queueWatch
+	// preferred is the film last opened whose job was put first (queuePreferOpen).
+	preferred string
 	// cancelled is set once the running job was asked to stop for good (stopActive with context.Canceled: Cancel, Withdraw, removing it), and cleared as the next one starts. A job the queue's pause stopped first then ends cancelled rather than going back to the queue (queuePausedJob), as the context keeps only the first cause it was stopped with.
 	cancelled bool
 	// stopped is set once the app quits (queueQuit): no job starts after it.
@@ -108,6 +112,7 @@ func (a *app) queueHooks() areaHooks {
 	return areaHooks{
 		save:    a.saveQueue,
 		restore: a.restoreQueue,
+		playing: a.queuePlaying,
 		ready: func() {
 			// The hold is taken under the app's scope, so it outlives the handler that started the job, as Enqueue from a button or the drop zone does.
 			a.queue.keepAwake = func(reason string, display bool) (release func()) {
@@ -143,8 +148,11 @@ func (a *app) queueHooks() areaHooks {
 			shelf.MoveKeys(a.subtitleDelays(), move)
 			shelf.MoveKeys(a.subtitleLifts(), move)
 		},
-		afterChange: a.queueQuitModal,
-		beforeQuit:  a.queueBeforeQuit,
+		afterChange: func() bool {
+			quit, prefer := a.queueQuitModal(), a.queuePreferOpen()
+			return quit || prefer
+		},
+		beforeQuit: a.queueBeforeQuit,
 		quitting: func() {
 			a.queueQuit()
 			a.queueLetSleep()
@@ -488,7 +496,7 @@ func (a *app) startFilm(item films.Film) {
 	if a.openKey != "" && (a.openKey == item.Key || a.openKey == id) {
 		a.openKey = id
 		job, _ := a.library.Find(id)
-		a.loadSubtitles(id, job.SubtitlePath)
+		a.loadSubtitles(id, job.VideoPath, job.SubtitlePath)
 	}
 }
 
@@ -551,7 +559,7 @@ func (a *app) remove(id string) {
 	a.queueTellSystem()
 }
 
-// retry queues a failed, cancelled or finished job again under the same ID and goes to the library, where the card already on screen follows it. It resumes after the stages it finished (media.Run): the video it downloaded and the speech it transcribed are used again. A done film is processed again entirely but for its download, as Process Entire Film Again says (core.RedoAll): its speech is transcribed anew, and translated into the language it was translated into (queueReprocessLanguage), and it stays the done film it was until the new subtitles are written, so a run that fails or is stopped puts it back as it was (queueRedoEnded). A job still running or waiting is left alone; one without a language when the settings name none says so on the line under the link field.
+// retry queues a failed, cancelled or finished job again under the same ID and goes to the library, where the card already on screen follows it. It goes on with what the film's document lacks (media.Make): the video it downloaded and the speech it heard are used again. A done film is processed again entirely but for its download, as Process Entire Film Again says (core.RedoAll): its speech is transcribed anew, and translated into the language it was translated into (queueReprocessLanguage), and it stays the done film it was until the new subtitles are written, so a run that fails or is stopped puts it back as it was (queueRedoEnded). A job still running or waiting is left alone; one without a language when the settings name none says so on the line under the link field.
 func (a *app) retry(job core.Job) {
 	a.queueAgain(a.queueRetryable(job))
 }
@@ -591,7 +599,7 @@ func (a *app) queueRetranslatable(job core.Job, redo core.Redo, into string) (co
 	return job, nil
 }
 
-// queueRedoEnded is job, which was processing or translating a done film again (core.Job.Redo) and has failed or been stopped, put back as the done film it was: its subtitles are still the ones it had, which the job still describes, and so is the language heard in it (media.Run). The message bar says why the job failed, and the film page too while the film is open (jobQueue.redoEnded); a job the user cancelled, or one stopped by a switch of library, says nothing.
+// queueRedoEnded is job, which was processing or translating a done film again (core.Job.Redo) and has failed or been stopped, put back as the done film it was: its subtitles are still the ones it had, which the job still describes, and so is the language heard in it (media.Make). The message bar says why the job failed, and the film page too while the film is open (jobQueue.redoEnded); a job the user cancelled, or one stopped by a switch of library, says nothing.
 func (a *app) queueRedoEnded(job core.Job) core.Job {
 	if a.queue.redoEnded == nil {
 		a.queue.redoEnded = map[string]core.Job{}
@@ -672,7 +680,7 @@ func (a *app) queueFolderEnded(job core.Job) {
 	a.queue.folderEnded[job.ID] = job
 	if following {
 		if item, ok := films.Find(a.films(), job.VideoPath); ok {
-			a.loadSubtitles(item.Key, item.SubtitlePath)
+			a.loadSubtitles(item.Key, item.VideoPath, item.SubtitlePath)
 		} else {
 			a.closeFilm()
 		}
@@ -880,6 +888,12 @@ func (a *app) queueRun(job core.Job) {
 	a.queue.active, a.queue.cancel, a.queue.done, a.queue.cancelled = job.ID, cancel, done, false
 	a.queueKeepAwake()
 	pipeline, update := a.queuePipeline(job), a.update
+	// A film made for the first time is made nearest where it is watched first: where the browser it came from was, until it is opened.
+	watch, device := newQueueWatch(job.ResumeAt), a.savedDevice()
+	if a.openKey != "" && a.openKey == job.ID && a.player.play != nil {
+		watch.move(a.player.play.head)
+	}
+	a.queue.watch = watch
 	a.queue.whisperModel = ""
 	if tools, ok := pipeline.(media.Tools); ok {
 		a.queue.whisperModel = tools.WhisperModel
@@ -902,11 +916,12 @@ func (a *app) queueRun(job core.Job) {
 			})
 		}
 		last := job
-		result := media.Run(ctx, pipeline, job, language, func(j core.Job) {
+		result := media.Make(ctx, pipeline, job, language, device, watch, func(j core.Job) {
 			if quitting() || pausing() {
 				return
 			}
-			onlyProgress := j.Stage == last.Stage && j.Title == last.Title && j.Thumbnail == last.Thumbnail && j.VideoPath == last.VideoPath && j.Err == nil
+			// A film made a part at a time shows its subtitles from the first lines written out, so a report that names them is shown as it comes.
+			onlyProgress := j.Stage == last.Stage && j.Title == last.Title && j.Thumbnail == last.Thumbnail && j.VideoPath == last.VideoPath && j.SubtitlePath == last.SubtitlePath && j.Err == nil
 			last = j
 			if !onlyProgress {
 				latest.Store(nil)
@@ -954,7 +969,7 @@ func (a *app) queuePipeline(job core.Job) media.Pipeline {
 // finished clears the job that just returned from the pipeline, remembers that the queue ran it (jobQueue.ran), says in the message bar how a job of another library ended (queueEndedElsewhere), and starts the next one, letting the computer sleep again when there is none.
 func (a *app) finished(id string) {
 	if a.queue.active == id {
-		a.queue.active, a.queue.cancel, a.queue.done, a.queue.whisperModel = "", nil, nil, ""
+		a.queue.active, a.queue.cancel, a.queue.done, a.queue.whisperModel, a.queue.watch = "", nil, nil, "", nil
 	}
 	if a.queue.ran == nil {
 		a.queue.ran = map[string]bool{}
@@ -1065,8 +1080,8 @@ func (a *app) show(job core.Job) {
 		if rewritten && a.player.subs.key == job.ID {
 			a.player.subs.path = ""
 		}
-		a.loadSubtitles(job.ID, job.SubtitlePath)
-		// The job translated the chapters' titles before it completed (media.Run), so the open film's 片段 and info tab read them again.
+		a.loadSubtitles(job.ID, job.VideoPath, job.SubtitlePath)
+		// The job translated the chapters' titles before it completed (media.Make), so the open film's 片段 and info tab read them again.
 		if rewritten && a.player.film.infoFor != "" {
 			a.readFilmInfo(a.player.film.infoFor)
 		}

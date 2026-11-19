@@ -29,16 +29,16 @@ func (p *captionPipeline) AutoCaptions(_ context.Context, source, language strin
 }
 
 // A link's job that keeps its site's captions as a reference layer hears the film alone, never takes the uploader's subtitles, and keeps the captions in the language heard beside the video, where the film's other files go when it moves.
-func TestRunKeepsTheSitesCaptionsAsAReference(t *testing.T) {
+func TestMakeKeepsTheSitesCaptionsAsAReference(t *testing.T) {
 	p := &captionPipeline{platformPipeline: newPlatformPipeline(t), captions: []core.Segment{seg(0, 2, "hello every one"), seg(2, 4, "welcome to the show")}}
 	job, _ := core.NewJob("https://www.youtube.com/watch?v=jNQXAC9IVRw")
 	job.SubtitleSource = core.SubtitlesAuto
-	done := Run(context.Background(), p, job, "简体中文", func(core.Job) {})
+	done := platformMake(context.Background(), p, job, "简体中文", func(core.Job) {})
 	if done.Stage != core.StageComplete || done.PlatformSubtitles || len(p.fetched) != 0 {
 		t.Fatalf("job %+v, fetched the uploader's %q", done, p.fetched)
 	}
-	if want := []string{"hello everyone", "welcome to the shoe", "um, so"}; !reflect.DeepEqual(texts(p.exported), want) {
-		t.Fatalf("exported %q", texts(p.exported))
+	if want := []string{"hello everyone", "welcome to the shoe", "um, so"}; !reflect.DeepEqual(p.lines(t), want) {
+		t.Fatalf("exported %q", p.lines(t))
 	}
 	if !reflect.DeepEqual(p.asked, []string{"en"}) {
 		t.Fatalf("asked for the captions in %q", p.asked)
@@ -59,7 +59,7 @@ func TestRunKeepsTheSitesCaptionsAsAReference(t *testing.T) {
 }
 
 // A job that does not keep the captions, a local video and a site without them leave the film without a reference layer; a job stopped while it fetches them stops.
-func TestRunWithoutTheSitesCaptions(t *testing.T) {
+func TestMakeWithoutTheSitesCaptions(t *testing.T) {
 	cases := map[string]func(*captionPipeline, *core.Job){
 		"heard alone":   func(_ *captionPipeline, job *core.Job) { job.SubtitleSource = core.SubtitlesLocal },
 		"uploader's":    func(_ *captionPipeline, job *core.Job) { job.SubtitleSource = core.SubtitlesPlatform },
@@ -72,7 +72,7 @@ func TestRunWithoutTheSitesCaptions(t *testing.T) {
 			job, _ := core.NewJob("https://www.youtube.com/watch?v=jNQXAC9IVRw")
 			job.SubtitleSource = core.SubtitlesAuto
 			tweak(p, &job)
-			done := Run(context.Background(), p, job, "简体中文", func(core.Job) {})
+			done := platformMake(context.Background(), p, job, "简体中文", func(core.Job) {})
 			if done.Stage != core.StageComplete {
 				t.Fatalf("job %+v", done)
 			}
@@ -88,7 +88,7 @@ func TestRunWithoutTheSitesCaptions(t *testing.T) {
 	p.onCaptions = cancel
 	job, _ := core.NewJob("https://www.youtube.com/watch?v=jNQXAC9IVRw")
 	job.SubtitleSource = core.SubtitlesAuto
-	if done := Run(ctx, p, job, "简体中文", func(core.Job) {}); done.Stage == core.StageComplete {
+	if done := platformMake(ctx, p, job, "简体中文", func(core.Job) {}); done.Stage == core.StageComplete {
 		t.Fatalf("a job stopped while fetching the captions completed: %+v", done)
 	}
 }

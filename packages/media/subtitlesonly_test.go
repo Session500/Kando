@@ -49,20 +49,36 @@ func (p *soundPipeline) Transcribe(context.Context, string) ([]core.Segment, err
 	return []core.Segment{{End: time.Second, Text: "hello"}}, nil
 }
 
+func (p *soundPipeline) Length(context.Context, string) time.Duration { return 30 * time.Second }
+
+// Hear hears "hello" at the start of the sound, wherever it is heard from, counting each run as a transcription.
+func (p *soundPipeline) Hear(_ context.Context, _ string, from, _ time.Duration, heard func(core.Segment)) (string, error) {
+	p.transcribed++
+	if from == 0 {
+		heard(core.Segment{End: time.Second, Text: "hello"})
+	}
+	return "en", nil
+}
+
 func (p *soundPipeline) Translate(_ context.Context, segments []core.Segment, _ string) ([]core.Segment, error) {
 	return segments, nil
 }
 
 func (p *soundPipeline) Export(ctx context.Context, video string, original, translated []core.Segment) (string, error) {
-	return exportSubtitles(ctx, video, original, translated)
+	return exportSubtitles(video, original, translated)
+}
+
+// soundMake makes job with p, as the queue does.
+func soundMake(p Pipeline, job core.Job) core.Job {
+	return Make(context.Background(), p, job, "简体中文", "mac", nil, func(core.Job) {})
 }
 
 // A film at 仅字幕 downloads the sound alone and removes it once its subtitles are written beside it, keeping the path they are named after; any other quality keeps its video.
-func TestRunSubtitlesOnlyRemovesTheSound(t *testing.T) {
+func TestSubtitlesOnlyRemovesTheSound(t *testing.T) {
 	p := &soundPipeline{t: t, root: t.TempDir(), folder: "Talk [abc]"}
 	job, _ := core.NewJob("https://www.youtube.com/watch?v=jNQXAC9IVRw")
 	job.Quality = core.QualitySubtitles
-	done := Run(context.Background(), p, job, "简体中文", func(core.Job) {})
+	done := soundMake(p, job)
 	if done.Stage != core.StageComplete || done.Err != nil {
 		t.Fatalf("job %+v", done)
 	}
@@ -70,8 +86,10 @@ func TestRunSubtitlesOnlyRemovesTheSound(t *testing.T) {
 	if done.VideoPath != want || !done.SubtitlesOnly {
 		t.Fatalf("video %q, subtitles only %v", done.VideoPath, done.SubtitlesOnly)
 	}
-	if _, err := os.Stat(want); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("the sound is still there: %v", err)
+	for _, sound := range []string{want, soundPath(want)} {
+		if _, err := os.Stat(sound); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("the sound is still there: %v", err)
+		}
 	}
 	if _, err := os.Stat(done.SubtitlePath); err != nil || filepath.Dir(done.SubtitlePath) != filepath.Dir(want) {
 		t.Fatalf("subtitles %q: %v", done.SubtitlePath, err)
@@ -83,7 +101,7 @@ func TestRunSubtitlesOnlyRemovesTheSound(t *testing.T) {
 	// Processed again at a quality that keeps the video, as after a download of its video failed, the film has its video again.
 	redo := done
 	redo.Redo, redo.Quality, redo.Stage = core.RedoAll, core.QualityBest, core.StageQueued
-	done = Run(context.Background(), p, redo, "简体中文", func(core.Job) {})
+	done = soundMake(p, redo)
 	if done.SubtitlesOnly || done.Stage != core.StageComplete {
 		t.Fatalf("job %+v", done)
 	}
@@ -93,7 +111,7 @@ func TestRunSubtitlesOnlyRemovesTheSound(t *testing.T) {
 
 	kept := &soundPipeline{t: t, root: t.TempDir(), folder: "Talk [abc]"}
 	job.Quality = core.QualityBest
-	done = Run(context.Background(), kept, job, "简体中文", func(core.Job) {})
+	done = soundMake(kept, job)
 	if done.SubtitlesOnly {
 		t.Fatal("a film at the best picture keeps no video")
 	}
@@ -103,7 +121,7 @@ func TestRunSubtitlesOnlyRemovesTheSound(t *testing.T) {
 }
 
 // A local video at 仅字幕, which no download fetched, stays as it is.
-func TestRunSubtitlesOnlyKeepsALocalVideo(t *testing.T) {
+func TestSubtitlesOnlyKeepsALocalVideo(t *testing.T) {
 	dir := t.TempDir()
 	video := filepath.Join(dir, "clip.mp4")
 	if err := os.WriteFile(video, []byte("clip"), 0o644); err != nil {
@@ -112,7 +130,7 @@ func TestRunSubtitlesOnlyKeepsALocalVideo(t *testing.T) {
 	p := &soundPipeline{t: t, root: dir}
 	job, _ := core.NewJob(core.FileURL(video))
 	job.Quality = core.QualitySubtitles
-	done := Run(context.Background(), p, job, "简体中文", func(core.Job) {})
+	done := soundMake(p, job)
 	if done.Stage != core.StageComplete || done.SubtitlesOnly {
 		t.Fatalf("job %+v", done)
 	}
@@ -122,11 +140,11 @@ func TestRunSubtitlesOnlyKeepsALocalVideo(t *testing.T) {
 }
 
 // Downloading the video of a film that keeps none (core.RedoVideo) puts it beside the film's subtitles, under the name they go by, even when the site renamed the video since, and neither transcribes nor translates the film again.
-func TestRunVideoRedoDownloadsBesideTheSubtitles(t *testing.T) {
+func TestVideoRedoDownloadsBesideTheSubtitles(t *testing.T) {
 	p := &soundPipeline{t: t, root: t.TempDir(), folder: "Talk [abc]"}
 	job, _ := core.NewJob("https://www.youtube.com/watch?v=jNQXAC9IVRw")
 	job.Quality = core.QualitySubtitles
-	film := Run(context.Background(), p, job, "简体中文", func(core.Job) {})
+	film := soundMake(p, job)
 	if !film.SubtitlesOnly {
 		t.Fatalf("film %+v", film)
 	}
@@ -134,7 +152,7 @@ func TestRunVideoRedoDownloadsBesideTheSubtitles(t *testing.T) {
 	redo := film
 	redo.Redo, redo.Quality, redo.Stage = core.RedoVideo, core.Quality720, core.StageQueued
 	var stages []core.Stage
-	done := Run(context.Background(), p, redo, "简体中文", func(j core.Job) { stages = append(stages, j.Stage) })
+	done := Make(context.Background(), p, redo, "简体中文", "mac", nil, func(j core.Job) { stages = append(stages, j.Stage) })
 	if !reflect.DeepEqual(stages, []core.Stage{core.StageDownloading, core.StageComplete}) {
 		t.Fatalf("stages %v", stages)
 	}
@@ -157,11 +175,11 @@ func TestRunVideoRedoDownloadsBesideTheSubtitles(t *testing.T) {
 }
 
 // A video download that fails leaves the film keeping none, and the job still says it was downloading its video, so the queue puts the film back as it was.
-func TestRunVideoRedoThatFailsKeepsTheFilm(t *testing.T) {
+func TestVideoRedoThatFailsKeepsTheFilm(t *testing.T) {
 	p := &soundPipeline{t: t, root: t.TempDir(), folder: "Talk [abc]", downloadErr: errors.New("ERROR: [youtube] jNQXAC9IVRw: Video unavailable. This video is private")}
 	job := core.Job{ID: "1", Source: "https://www.youtube.com/watch?v=jNQXAC9IVRw", Stage: core.StageQueued, Redo: core.RedoVideo, SubtitlesOnly: true,
 		VideoPath: filepath.Join(p.root, "Talk [abc]", "video.webm"), Quality: core.QualityBest, CompletedAt: time.Now()}
-	done := Run(context.Background(), p, job, "简体中文", func(core.Job) {})
+	done := soundMake(p, job)
 	if done.Stage != core.StageFailed || done.Redo != core.RedoVideo || !done.SubtitlesOnly || done.VideoPath != job.VideoPath {
 		t.Fatalf("job %+v", done)
 	}

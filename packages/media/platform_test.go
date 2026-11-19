@@ -3,6 +3,7 @@ package media
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"kando/packages/core"
+	"kando/packages/track"
 )
 
 func seg(from, to float64, text string) core.Segment {
@@ -129,7 +131,7 @@ type platformPipeline struct {
 	transcribed int
 	fetched     []string
 	proofread   int
-	exported    []core.Segment
+	length      time.Duration
 }
 
 func (p *platformPipeline) Check() error { return nil }
@@ -141,10 +143,22 @@ func (p *platformPipeline) Download(context.Context, string) (string, error) {
 	return p.video, nil
 }
 
-func (p *platformPipeline) Transcribe(ctx context.Context, _ string) ([]core.Segment, error) {
+func (p *platformPipeline) Length(context.Context, string) time.Duration {
+	if p.length > 0 {
+		return p.length
+	}
+	return 6 * time.Second
+}
+
+// Hear hears the lines of heard in from to to, in English, counting each run.
+func (p *platformPipeline) Hear(_ context.Context, _ string, from, to time.Duration, heard func(core.Segment)) (string, error) {
 	p.transcribed++
-	reportSpoken(ctx, "en")
-	return p.heard, nil
+	for _, s := range p.heard {
+		if s.Start >= from && s.Start < to {
+			heard(s)
+		}
+	}
+	return "en", nil
 }
 
 func (p *platformPipeline) PlatformSubtitles(_ context.Context, source, language string) ([]core.Segment, error) {
@@ -168,9 +182,29 @@ func (p *platformPipeline) Translate(_ context.Context, segments []core.Segment,
 	return segments, nil
 }
 
-func (p *platformPipeline) Export(ctx context.Context, video string, original, translated []core.Segment) (string, error) {
-	p.exported = original
-	return exportSubtitles(ctx, video, original, translated)
+func (p *platformPipeline) Transcribe(context.Context, string) ([]core.Segment, error) {
+	p.t.Error("the film was heard whole")
+	return nil, errors.New("heard a part at a time")
+}
+
+func (p *platformPipeline) Export(context.Context, string, []core.Segment, []core.Segment) (string, error) {
+	p.t.Error("the film was exported whole")
+	return "", errors.New("written out by the document")
+}
+
+// lines are the film's original lines, as its document shows them.
+func (p *platformPipeline) lines(t *testing.T) []string {
+	t.Helper()
+	doc, err := track.Read(p.video)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return texts(track.Originals(doc.View()))
+}
+
+// platformMake makes job with p as the queue does.
+func platformMake(ctx context.Context, p Pipeline, job core.Job, language string, report func(core.Job)) core.Job {
+	return Make(ctx, p, job, language, "mac", nil, report)
 }
 
 func newPlatformPipeline(t *testing.T) *platformPipeline {
@@ -181,16 +215,16 @@ func newPlatformPipeline(t *testing.T) *platformPipeline {
 }
 
 // A link's job that takes its site's subtitles makes the film of the uploader's lines where they match the speech, with the speech, proofread, in place of the one that does not, and keeps them as the transcript, so a job run again reads them back without fetching them or proofreading again.
-func TestRunTakesTheSitesSubtitles(t *testing.T) {
+func TestMakeTakesTheSitesSubtitles(t *testing.T) {
 	p := newPlatformPipeline(t)
 	job, _ := core.NewJob("https://www.youtube.com/watch?v=jNQXAC9IVRw")
 	job.SubtitleSource = core.SubtitlesPlatform
-	done := Run(context.Background(), p, job, "简体中文", func(core.Job) {})
+	done := platformMake(context.Background(), p, job, "简体中文", func(core.Job) {})
 	if done.Stage != core.StageComplete || !done.PlatformSubtitles || done.LocalLines != 1 {
 		t.Fatalf("job %+v", done)
 	}
-	if want := []string{"Hello, everyone.", "Welcome to the show!", "um, so"}; !reflect.DeepEqual(texts(p.exported), want) {
-		t.Fatalf("exported %q", texts(p.exported))
+	if want := []string{"Hello, everyone.", "Welcome to the show!", "um, so"}; !reflect.DeepEqual(p.lines(t), want) {
+		t.Fatalf("exported %q", p.lines(t))
 	}
 	if !reflect.DeepEqual(p.fetched, []string{"en"}) || p.proofread != 1 {
 		t.Fatalf("fetched %q, proofread %d times", p.fetched, p.proofread)
@@ -198,17 +232,20 @@ func TestRunTakesTheSitesSubtitles(t *testing.T) {
 	if got := mustLoad(t, TranscriptOf(p.video)); got[0].Text != "Hello, everyone." {
 		t.Fatalf("transcript %+v", got)
 	}
+	if doc, _ := track.Read(p.video); doc.View()[0].Original.Source != siteSource || doc.View()[2].Original.Source == siteSource {
+		t.Fatalf("lines %+v", doc.View())
+	}
 
 	// Translated again, the film's lines are still the uploader's and are not proofread again.
 	done.Redo, done.Stage = core.RedoTranslation, core.StageQueued
-	again := Run(context.Background(), p, done, "日本語", func(core.Job) {})
+	again := platformMake(context.Background(), p, done, "日本語", func(core.Job) {})
 	if again.Stage != core.StageComplete || !again.PlatformSubtitles || again.LocalLines != 1 || p.proofread != 1 || len(p.fetched) != 1 {
 		t.Fatalf("again %+v, proofread %d, fetched %q", again, p.proofread, p.fetched)
 	}
 }
 
 // A job heard alone, one whose site has no subtitles or whose fetch failed, and subtitles that do not match the speech make the film of the speech heard, which is proofread as before.
-func TestRunHearsTheFilmWithoutTheSitesSubtitles(t *testing.T) {
+func TestMakeHearsTheFilmWithoutTheSitesSubtitles(t *testing.T) {
 	cases := map[string]func(*platformPipeline, *core.Job){
 		"heard alone":  func(_ *platformPipeline, job *core.Job) { job.SubtitleSource = core.SubtitlesLocal },
 		"not chosen":   func(_ *platformPipeline, job *core.Job) { job.SubtitleSource = "" },
@@ -225,55 +262,52 @@ func TestRunHearsTheFilmWithoutTheSitesSubtitles(t *testing.T) {
 			job, _ := core.NewJob("https://www.youtube.com/watch?v=jNQXAC9IVRw")
 			job.SubtitleSource = core.SubtitlesPlatform
 			tweak(p, &job)
-			done := Run(context.Background(), p, job, "简体中文", func(core.Job) {})
+			done := platformMake(context.Background(), p, job, "简体中文", func(core.Job) {})
 			if done.Stage != core.StageComplete || done.PlatformSubtitles || done.LocalLines != 0 || p.proofread != 1 {
 				t.Fatalf("job %+v, proofread %d", done, p.proofread)
 			}
-			if want := []string{"hello everyone", "welcome to the shoe", "um, so"}; !reflect.DeepEqual(texts(p.exported), want) {
-				t.Fatalf("exported %q", texts(p.exported))
+			if want := []string{"hello everyone", "welcome to the shoe", "um, so"}; !reflect.DeepEqual(p.lines(t), want) {
+				t.Fatalf("exported %q", p.lines(t))
 			}
 		})
 	}
 }
 
 // A job stopped while it fetches the subtitles keeps the speech it heard, so the one run again fetches them without transcribing the film again.
-func TestRunStoppedFetchingKeepsTheSpeech(t *testing.T) {
+func TestMakeStoppedFetchingKeepsTheSpeech(t *testing.T) {
 	p := newPlatformPipeline(t)
 	job, _ := core.NewJob("https://www.youtube.com/watch?v=jNQXAC9IVRw")
 	job.SubtitleSource = core.SubtitlesPlatform
 	ctx, cancel := context.WithCancel(context.Background())
 	p.onFetch = cancel
-	stopped := Run(ctx, p, job, "简体中文", func(core.Job) {})
-	if stopped.Stage != core.StageFailed || !errors.Is(stopped.Err, context.Canceled) || !stopped.Transcribed || stopped.PlatformSubtitles {
+	stopped := platformMake(ctx, p, job, "简体中文", func(core.Job) {})
+	if stopped.Stage != core.StageFailed || !errors.Is(stopped.Err, context.Canceled) || stopped.PlatformSubtitles {
 		t.Fatalf("stopped %+v", stopped)
-	}
-	if got := texts(mustLoad(t, TranscriptOf(p.video))); !reflect.DeepEqual(got, []string{"hello everyone", "welcome to the shoe", "um, so"}) {
-		t.Fatalf("transcript kept %q", got)
 	}
 
 	p.onFetch = nil
 	stopped.Stage, stopped.Err = core.StageQueued, nil
-	done := Run(context.Background(), p, stopped, "简体中文", func(core.Job) {})
+	done := platformMake(context.Background(), p, stopped, "简体中文", func(core.Job) {})
 	if done.Stage != core.StageComplete || !done.PlatformSubtitles || done.LocalLines != 1 || p.transcribed != 1 || p.proofread != 1 || len(p.fetched) != 2 {
 		t.Fatalf("done %+v, transcribed %d, proofread %d, fetched %q", done, p.transcribed, p.proofread, p.fetched)
 	}
-	if want := []string{"Hello, everyone.", "Welcome to the show!", "um, so"}; !reflect.DeepEqual(texts(p.exported), want) {
-		t.Fatalf("exported %q", texts(p.exported))
+	if want := []string{"Hello, everyone.", "Welcome to the show!", "um, so"}; !reflect.DeepEqual(p.lines(t), want) {
+		t.Fatalf("exported %q", p.lines(t))
 	}
 }
 
 // Processing a film again entirely fetches the subtitles again, and until it completes the film keeps what its own job found.
-func TestRunRedoAllFetchesTheSubtitlesAgain(t *testing.T) {
+func TestMakeRedoAllFetchesTheSubtitlesAgain(t *testing.T) {
 	p := newPlatformPipeline(t)
 	job, _ := core.NewJob("https://www.youtube.com/watch?v=jNQXAC9IVRw")
 	job.SubtitleSource = core.SubtitlesLocal
-	done := Run(context.Background(), p, job, "简体中文", func(core.Job) {})
+	done := platformMake(context.Background(), p, job, "简体中文", func(core.Job) {})
 	if done.PlatformSubtitles {
 		t.Fatalf("job %+v", done)
 	}
 	done.Redo, done.Stage, done.SubtitleSource = core.RedoAll, core.StageQueued, core.SubtitlesPlatform
 	var seen []core.Job
-	again := Run(context.Background(), p, done, "简体中文", func(j core.Job) { seen = append(seen, j) })
+	again := platformMake(context.Background(), p, done, "简体中文", func(j core.Job) { seen = append(seen, j) })
 	if again.Stage != core.StageComplete || !again.PlatformSubtitles || again.LocalLines != 1 {
 		t.Fatalf("again %+v", again)
 	}
@@ -281,6 +315,46 @@ func TestRunRedoAllFetchesTheSubtitlesAgain(t *testing.T) {
 		if j.PlatformSubtitles {
 			t.Fatalf("the film took the subtitles before the redo completed: %+v", j)
 		}
+	}
+}
+
+// The uploader's lines are the film's as they are written, which the proofreading does not change: only the lines heard are proofread.
+func TestMakeLeavesTheUploadersLinesAsWritten(t *testing.T) {
+	p := newPlatformPipeline(t)
+	p.heard = []core.Segment{seg(0, 2, "um so hello everyone"), seg(2, 4, "welcome to the shoe"), seg(4, 6, "um so")}
+	p.subtitles = []core.Segment{seg(0, 2, "um so hello everyone"), seg(2, 4, "Welcome to the show!"), seg(4, 6, "Totally different words.")}
+	job, _ := core.NewJob("https://www.youtube.com/watch?v=jNQXAC9IVRw")
+	job.SubtitleSource = core.SubtitlesPlatform
+	if done := platformMake(context.Background(), p, job, "简体中文", func(core.Job) {}); done.Stage != core.StageComplete || !done.PlatformSubtitles {
+		t.Fatalf("job %+v", done)
+	}
+	if want := []string{"um so hello everyone", "Welcome to the show!", "um, so"}; !reflect.DeepEqual(p.lines(t), want) {
+		t.Fatalf("lines %q", p.lines(t))
+	}
+}
+
+// Whether a film takes its site's subtitles is decided once, for the whole film, by enough of their lines: a film of many cells takes them in each cell where they match, and counts the lines the speech replaced in all of them.
+func TestMakeTakesTheSitesSubtitlesAcrossTheFilm(t *testing.T) {
+	p := newPlatformPipeline(t)
+	p.heard, p.subtitles, p.length = nil, nil, 5*time.Minute
+	for at := 0; at < 300; at += 10 {
+		p.heard = append(p.heard, seg(float64(at), float64(at+2), fmt.Sprintf("we say %d things", at)))
+		text := fmt.Sprintf("We say %d things.", at)
+		// The first cell's subtitles mostly do not match, the film's do.
+		if at%60 == 0 || at == 10 {
+			text = fmt.Sprintf("Something else entirely %d.", at)
+		}
+		p.subtitles = append(p.subtitles, seg(float64(at), float64(at+2), text))
+	}
+	job, _ := core.NewJob("https://www.youtube.com/watch?v=jNQXAC9IVRw")
+	job.SubtitleSource = core.SubtitlesPlatform
+	done := platformMake(context.Background(), p, job, "简体中文", func(core.Job) {})
+	if done.Stage != core.StageComplete || !done.PlatformSubtitles || done.LocalLines != 6 {
+		t.Fatalf("job %+v", done)
+	}
+	lines := p.lines(t)
+	if len(lines) != 30 || lines[0] != "we say 0 things" || lines[2] != "We say 20 things." || lines[6] != "we say 60 things" || lines[7] != "We say 70 things." {
+		t.Fatalf("lines %q", lines)
 	}
 }
 

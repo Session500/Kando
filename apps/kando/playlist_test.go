@@ -84,7 +84,7 @@ func TestPlaylistAddsItsVideosOnceAsked(t *testing.T) {
 	p := newListingPipeline(map[string]media.Listing{testPlaylist: testListing})
 	a, tt, updates := newTestApp(t, p)
 	msgs := testlocale.Messages()
-	a.library.Jobs = []core.Job{{ID: "have", Source: "https://youtu.be/bbbbbbbbbbb", Stage: core.StageComplete, VideoPath: "/videos/Episode 2/video.mp4", LibraryDir: "/videos"}}
+	a.library.Jobs = []core.Job{{ID: "have", Source: "https://youtu.be/bbbbbbbbbbb", Stage: core.StageComplete, VideoPath: testVideos + "/Episode 2/video.mp4", LibraryDir: testVideos}}
 	refresh(tt, a)
 
 	startJob(t, tt, testPlaylist)
@@ -239,7 +239,7 @@ func TestRemoteListsAPlaylist(t *testing.T) {
 	p := newListingPipeline(map[string]media.Listing{testPlaylist: testListing, testChannel: {Title: "Veritasium", Videos: testListing.Videos[:1]}})
 	a, _, updates := newTestApp(t, p)
 	remoteServe(t, a)
-	a.library.Jobs = []core.Job{{ID: "have", Source: "https://youtu.be/bbbbbbbbbbb", Stage: core.StageQueued, LibraryDir: "/videos"}}
+	a.library.Jobs = []core.Job{{ID: "have", Source: "https://youtu.be/bbbbbbbbbbb", Stage: core.StageQueued, LibraryDir: testVideos}}
 	lists, err := remoteCall[[]remote.List](t, updates, remote.MethodLists, remote.ListsParams{Sources: []string{testPlaylist, testChannel, "https://youtu.be/TRWgBxVAb1M"}})
 	if err != nil {
 		t.Fatal(err)
@@ -267,7 +267,7 @@ func TestPlaylistChannelAddsItsLatest(t *testing.T) {
 	p := newListingPipeline(map[string]media.Listing{testChannel: {Title: "Veritasium", Videos: videos}})
 	a, tt, updates := newTestApp(t, p)
 	msgs := testlocale.Messages()
-	a.library.Jobs = []core.Job{{ID: "have", Source: "https://youtu.be/bbbbbbbbbbb", Stage: core.StageComplete, VideoPath: "/videos/Episode 2/video.mp4", LibraryDir: "/videos"}}
+	a.library.Jobs = []core.Job{{ID: "have", Source: "https://youtu.be/bbbbbbbbbbb", Stage: core.StageComplete, VideoPath: testVideos + "/Episode 2/video.mp4", LibraryDir: testVideos}}
 	refresh(tt, a)
 	startJob(t, tt, testChannel)
 	<-p.calls

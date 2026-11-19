@@ -169,7 +169,7 @@ func fileNames(entries []os.DirEntry) map[string]bool {
 	return names
 }
 
-// bilingualBeside is the path of video's bilingual subtitles in dir, <video>.bilingual.srt as exportSubtitles names them, when files, the names of the files in dir, holds it; "" otherwise.
+// bilingualBeside is the path of video's bilingual subtitles in dir, <video>.bilingual.srt as Make writes them, when files, the names of the files in dir, holds it; "" otherwise.
 func bilingualBeside(dir, video string, files map[string]bool) string {
 	name := strings.TrimSuffix(video, filepath.Ext(video)) + ".bilingual.srt"
 	if !files[name] {

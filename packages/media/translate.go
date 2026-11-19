@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -126,12 +127,11 @@ func (t ChatTranslator) Translate(ctx context.Context, segments []core.Segment, 
 	}
 	renewed := false
 	out := make([]core.Segment, 0, len(segments))
-	var earlier []string
+	// The lines said before segments, as a film translated a part at a time gives them (WithEarlier), go with the first batch as context, as the batches before it would.
+	earlier := slices.Clone(earlierOf(ctx))
 	// untranslated counts the lines of batches left untranslated, failedRun the batches in a row that failed, and lastErr why the last of them did.
 	var untranslated, failedRun int
 	var lastErr error
-	// The batches an earlier run of this translation kept are not sent again; each batch translated now is kept as soon as it is (withCheckpoint).
-	kept := openCheckpoint(ctx, segments, language)
 	size := t.batchSize()
 	batches := (len(segments) + size - 1) / size
 	for start := 0; start < len(segments); start += size {
@@ -142,16 +142,6 @@ func (t ChatTranslator) Translate(ctx context.Context, segments []core.Segment, 
 		texts := make([]string, len(batch))
 		for i, s := range batch {
 			texts[i] = s.Text
-		}
-		// A batch an earlier run kept is not reported: it takes no time, and the card's time left is told from the batches sent.
-		if lines, ok := kept.batch(start, len(batch)); ok {
-			earlier = append(earlier, texts...)
-			failedRun = 0
-			for i, s := range batch {
-				s.Text = lines[i]
-				out = append(out, s)
-			}
-			continue
 		}
 		reportProgress(ctx, progress)
 		var contextSoFar []string
@@ -182,7 +172,6 @@ func (t ChatTranslator) Translate(ctx context.Context, segments []core.Segment, 
 			lines = make([]string, len(batch))
 		} else {
 			failedRun = 0
-			kept.keep(start, lines)
 		}
 		for i, s := range batch {
 			s.Text = lines[i]
@@ -650,4 +639,17 @@ func stripCodeFence(s string) string {
 		s = s[i+1:]
 	}
 	return strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(s), "```"))
+}
+
+type earlierKey struct{}
+
+// WithEarlier returns ctx carrying lines, the original lines said before the ones a translation is given, which a translator that reads the lines before (ChatTranslator with context on) sends with them, as a film translated a part at a time does.
+func WithEarlier(ctx context.Context, lines []string) context.Context {
+	return context.WithValue(ctx, earlierKey{}, lines)
+}
+
+// earlierOf is the lines WithEarlier put in ctx, none when it put none.
+func earlierOf(ctx context.Context) []string {
+	lines, _ := ctx.Value(earlierKey{}).([]string)
+	return lines
 }

@@ -9,7 +9,7 @@ import (
 	"kando/packages/core"
 )
 
-// AutoCaptioner is a Pipeline that can fetch the captions a link's site made itself, as Tools does with yt-dlp. Run asks it, for a job whose SubtitleSource is core.SubtitlesAuto, once the speech is transcribed, for the captions in the language heard, and keeps them beside the video as the film's reference layer (ReferencePath), which the player can show over its own lines; they never become its original lines.
+// AutoCaptioner is a Pipeline that can fetch the captions a link's site made itself, as Tools does with yt-dlp. Make asks it, for a job whose SubtitleSource is core.SubtitlesAuto, once the language the speech is heard in is known, for the captions in that language (making.fetchReference), and keeps them beside the video as the film's reference layer (ReferencePath), which the player can show over its own lines; they never become its original lines.
 type AutoCaptioner interface {
 	// AutoCaptions returns the captions the site made itself for source's video in language, as whisper's code (en, ja, zh): YouTube's automatic captions, bilibili's AI subtitles; none when it has none. The uploader's own subtitles are never returned.
 	AutoCaptions(ctx context.Context, source, language string) ([]core.Segment, error)

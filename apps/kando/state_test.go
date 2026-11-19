@@ -110,15 +110,15 @@ func TestResumeAtRemembersWhereTheVideoStopped(t *testing.T) {
 func TestSourcesFilterTheLibrary(t *testing.T) {
 	a, tt, _ := newTestApp(t, &fakePipeline{})
 	a.library.Jobs = []core.Job{
-		{ID: "yt", Source: "https://youtu.be/TRWgBxVAb1M", Stage: core.StageComplete, VideoPath: "/videos/yt-clip/video.mp4"},
-		{ID: "bili", Source: "https://www.bilibili.com/video/BV1GJ411x7h7", Stage: core.StageComplete, VideoPath: "/videos/bili-clip/video.mp4"},
-		{ID: "web", Source: "https://vimeo.com/76979871", Stage: core.StageComplete, VideoPath: "/videos/web-clip/video.mp4"},
-		{ID: "file", Source: "file:///videos/file-clip/video.mp4", Stage: core.StageComplete, VideoPath: "/videos/file-clip/video.mp4"},
+		{ID: "yt", Source: "https://youtu.be/TRWgBxVAb1M", Stage: core.StageComplete, VideoPath: testVideos + "/yt-clip/video.mp4"},
+		{ID: "bili", Source: "https://www.bilibili.com/video/BV1GJ411x7h7", Stage: core.StageComplete, VideoPath: testVideos + "/bili-clip/video.mp4"},
+		{ID: "web", Source: "https://vimeo.com/76979871", Stage: core.StageComplete, VideoPath: testVideos + "/web-clip/video.mp4"},
+		{ID: "file", Source: "file:///videos/file-clip/video.mp4", Stage: core.StageComplete, VideoPath: testVideos + "/file-clip/video.mp4"},
 		// A job still in 处理中 is not counted, as the grid does not show it.
 		{ID: "queued", Source: "https://youtu.be/k9Yt2LmQ0pX", Stage: core.StageQueued},
 	}
 	a.edit(func(s *session) {
-		s.Videos = []media.Video{{Name: "loose-clip.mp4", Path: "/videos/loose/loose-clip.mp4"}}
+		s.Videos = []media.Video{{Name: "loose-clip.mp4", Path: testVideos + "/loose/loose-clip.mp4"}}
 	})
 	want := map[string]int{sidebar.SourceAll: 5, sidebar.SourceYouTube: 1, sidebar.SourceBilibili: 1, sidebar.SourceWeb: 1, sidebar.SourceLocal: 2}
 	for source, n := range want {

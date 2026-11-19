@@ -280,7 +280,7 @@ func TestAPlaylistsFilmsAreASeries(t *testing.T) {
 		{URL: "https://www.youtube.com/watch?v=ddddddddddd"}, {URL: "https://www.youtube.com/watch?v=eeeeeeeeeee"},
 	}}})
 	a, tt, updates := newTestApp(t, p)
-	a.library.Jobs = []core.Job{{ID: "have", Source: "https://youtu.be/bbbbbbbbbbb", Stage: core.StageComplete, VideoPath: "/videos/Episode 2/video.mp4", LibraryDir: "/videos"}}
+	a.library.Jobs = []core.Job{{ID: "have", Source: "https://youtu.be/bbbbbbbbbbb", Stage: core.StageComplete, VideoPath: testVideos + "/Episode 2/video.mp4", LibraryDir: testVideos}}
 	refresh(tt, a)
 	startJob(t, tt, testPlaylist)
 	<-p.calls

@@ -113,7 +113,7 @@ func TestRemoteStatusSaysWhatTheAppIs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Version != appVersion || got.LibraryDir != "/videos" || !got.Ready || got.Readiness != remoteMessages().ReadinessReady() || got.Language != "简体中文" || got.Running != "" || got.Queued != 0 {
+	if got.Version != appVersion || got.LibraryDir != testVideos || !got.Ready || got.Readiness != remoteMessages().ReadinessReady() || got.Language != "简体中文" || got.Running != "" || got.Queued != 0 {
 		t.Fatalf("status %+v", got)
 	}
 
@@ -753,7 +753,8 @@ func TestRemoteRetriesAJobWithoutMovingTheWindow(t *testing.T) {
 
 // TestRemoteRetrySaysWhatIsMissing checks that jobs.retry answers not_ready with the message bar's words when the job cannot start now, and leaves the job as it was.
 func TestRemoteRetrySaysWhatIsMissing(t *testing.T) {
-	failed := core.Job{ID: "bad", Source: "https://example.com/bad", Stage: core.StageFailed, Err: errors.New("boom"), LibraryDir: "/videos"}
+	testVideosFor(t)
+	failed := core.Job{ID: "bad", Source: "https://example.com/bad", Stage: core.StageFailed, Err: errors.New("boom"), LibraryDir: testVideos}
 
 	a, _, updates := newTestApp(t, media.Tools{})
 	remoteServe(t, a)
@@ -935,24 +936,6 @@ func TestRemoteSocketRefusesASecondApp(t *testing.T) {
 	b, _, _ := newTestApp(t, &fakePipeline{})
 	if err := b.remoteListen(); !errors.Is(err, remote.ErrInUse) {
 		t.Fatalf("second listen: %v", err)
-	}
-}
-
-func TestRemoteCuesKeepTheTranslationsOfLinesShownAtTheSameTime(t *testing.T) {
-	seg := func(start, end int, text string) core.Segment {
-		return core.Segment{Start: time.Duration(start) * time.Millisecond, End: time.Duration(end) * time.Millisecond, Text: text}
-	}
-	original := []core.Segment{seg(0, 1000, "Left"), seg(0, 1000, "Right"), seg(2000, 3000, "Done")}
-	bilingual := []core.Segment{seg(0, 1000, "左\nLeft"), seg(0, 1000, "右\nRight"), seg(2000, 3000, "完\nDone")}
-	want := []remote.Cue{{StartMS: 0, EndMS: 1000, Text: "Left", Translation: "左"}, {StartMS: 0, EndMS: 1000, Text: "Right", Translation: "右"}, {StartMS: 2000, EndMS: 3000, Text: "Done", Translation: "完"}}
-	if got := remoteCues(original, bilingual); !slices.Equal(got, want) {
-		t.Fatalf("aligned files: cues %+v", got)
-	}
-
-	// The bilingual file lacks the last line, so the files are not aligned and each cue takes the first unused one shown at its time.
-	want[2].Translation = ""
-	if got := remoteCues(original, bilingual[:2]); !slices.Equal(got, want) {
-		t.Fatalf("files of different lengths: cues %+v", got)
 	}
 }
 
@@ -1138,7 +1121,7 @@ func TestRemoteFollowsAFolderVideosJobToItsEnd(t *testing.T) {
 		}
 	})
 	t.Run("fails", func(t *testing.T) {
-		p := noSpeechPipeline{&retranslatePipeline{}}
+		p := noSpeechPipeline(&retranslatePipeline{})
 		a, tt, updates, item := folderLibrary(t, p, false)
 		remoteServe(t, a)
 		added, err := remoteCall[remote.AddResult](t, updates, remote.MethodAdd, remote.AddParams{Sources: []string{core.FileURL(item.VideoPath)}})
@@ -1223,7 +1206,7 @@ func TestRemoteListsAFolder(t *testing.T) {
 		remoteWriteFile(t, filepath.Join(course, name), "v")
 	}
 	remoteWriteFile(t, filepath.Join(from, "Empty", "readme.txt"), "x")
-	a.library.Jobs = []core.Job{{ID: "had", Source: core.FileURL(filepath.Join(course, "Lesson 2.mp4")), Stage: core.StageComplete, LibraryDir: "/videos"}}
+	a.library.Jobs = []core.Job{{ID: "had", Source: core.FileURL(filepath.Join(course, "Lesson 2.mp4")), Stage: core.StageComplete, LibraryDir: testVideos}}
 
 	lists, err := remoteCall[[]remote.List](t, updates, remote.MethodLists, remote.ListsParams{Sources: []string{"Course", core.FileURL(filepath.Join(from, "Empty"))}, Dir: from})
 	if err != nil {

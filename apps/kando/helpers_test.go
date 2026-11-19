@@ -50,6 +50,24 @@ import (
 //   - tt.Image() and the PNG screenshots: none headless; on a platform (nsgo test -target) tt.Capture() and tt.CapturePNG(), which skip a headless test, so call them only when nsgotest.Target() is set (shootPNG)
 
 // TestMain reads the interface in the language Kando shows by default, whatever the languages of the machine running the tests; the screenshots read it in KANDO_SCREENSHOTS_LANG when that names one of locales.Interface (screenshot_helpers_test.go). desktop.Headless keeps every reveal and trash off the system's tools, whichever area calls them and whether or not its test replaced its hook: a reveal opens the item's folder through the scope, which nsgotest records rather than opens, and a trash fails as unsupported, so a test never opens the file manager of the machine running it nor moves its files to the Trash. A reveal no test watches shows nothing at all.
+// testVideos is the library the test opens (newTestApp): a folder named videos of the test's own (testVideosFor). Films are written beside their videos (media.Make), so it is a folder on disk.
+var testVideos string
+
+// testVideosOf is the test testVideos was made for.
+var testVideosOf *testing.T
+
+// testVideosFor makes testVideos t's own folder, once: newTestApp calls it, and so does a test that names the library before it starts its app.
+func testVideosFor(t *testing.T) {
+	t.Helper()
+	if testVideosOf == t {
+		return
+	}
+	testVideosOf, testVideos = t, filepath.Join(t.TempDir(), "videos")
+	if err := os.Mkdir(testVideos, 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestMain(m *testing.M) {
 	testlocale.Pin(locales.Default)
 	desktop.Headless()
@@ -96,8 +114,10 @@ func testEnvironment() ns.Environment {
 	return testlocale.Environment(ns.Environment{OS: testOS, Idiom: ns.IdiomDesktop, AppleKeyboard: testOS == ns.OSMacOS, PixelRatio: 2})
 }
 
-// fakePipeline finishes every stage at once unless block is set, in which case Download waits for cancellation.
+// fakePipeline finishes every stage at once unless block is set, in which case Download waits for cancellation. A link downloads into the test's folder as talk.mp4 (testFolder), a film whose one line, "hello", is said in its first second (hearsHello).
 type fakePipeline struct {
+	testFolder
+	hearsHello
 	block    bool
 	language string
 }
@@ -109,11 +129,7 @@ func (f *fakePipeline) Download(ctx context.Context, _ string) (string, error) {
 		<-ctx.Done()
 		return "", ctx.Err()
 	}
-	return "/videos/talk.mp4", nil
-}
-
-func (f *fakePipeline) Transcribe(context.Context, string) ([]core.Segment, error) {
-	return []core.Segment{{End: time.Second, Text: "hello"}}, nil
+	return f.video("talk.mp4")
 }
 
 func (f *fakePipeline) Translate(_ context.Context, segments []core.Segment, language string) ([]core.Segment, error) {
@@ -121,13 +137,51 @@ func (f *fakePipeline) Translate(_ context.Context, segments []core.Segment, lan
 	return segments, nil
 }
 
-func (f *fakePipeline) Export(context.Context, string, []core.Segment, []core.Segment) (string, error) {
-	return "/videos/talk.bilingual.srt", nil
+// testFolder is where a test's fake pipeline downloads its videos: a folder of the test's own, which newTestApp gives it (useFolder), or else one of the fake's own.
+type testFolder struct{ dir string }
+
+func (f *testFolder) useFolder(dir string) {
+	if f.dir == "" {
+		f.dir = dir
+	}
+}
+
+// video writes a video named name into the folder and returns its path, as a download does.
+func (f *testFolder) video(name string) (string, error) {
+	if f.dir == "" {
+		dir, err := os.MkdirTemp("", "kando-test-*")
+		if err != nil {
+			return "", err
+		}
+		f.dir = dir
+	}
+	path := filepath.Join(f.dir, name)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return "", err
+	}
+	return path, os.WriteFile(path, []byte("v"), 0o644)
+}
+
+// hearsHello is the speech recognition of a test's fake pipeline (media.Hearer): a film of 30 seconds whose one line, "hello", is said in its first second.
+type hearsHello struct{}
+
+func (hearsHello) Length(context.Context, string) time.Duration { return 30 * time.Second }
+
+func (hearsHello) Hear(_ context.Context, _ string, from, _ time.Duration, heard func(core.Segment)) (string, error) {
+	if from == 0 {
+		heard(core.Segment{End: time.Second, Text: "hello"})
+	}
+	return "", nil
 }
 
 // newTestApp starts the app's main window headless, 1100 by 720 as main opens it, on testOS in testlocale's language, with the library at /videos. Background updates are queued, so the test applies them on its own goroutine with settle, waitUntil or waitUpdate, as the engine would; each applies them and refreshes.
 func newTestApp(t *testing.T, p media.Pipeline, opts ...nsgotest.Option) (*app, *nsgotest.App, chan func()) {
 	t.Helper()
+	// The library is testVideos, a folder of the test's own, where a fake pipeline downloads (useFolder), as a film's document is written beside its video.
+	testVideosFor(t)
+	if f, ok := p.(interface{ useFolder(string) }); ok {
+		f.useFolder(testVideos)
+	}
 	updates := make(chan func(), 16)
 	a := newApp(p, func(fn func()) { updates <- fn })
 	a.prefs.listModels = offlineModels
@@ -135,8 +189,20 @@ func newTestApp(t *testing.T, p media.Pipeline, opts ...nsgotest.Option) (*app, 
 	a.prefs.interfaceLanguage = testlocale.Current()
 	a.prefs.overMain = true
 	a.tools.candidates = noCandidates
-	a.edit(func(s *session) { s.LibraryDir = "/videos" })
+	a.edit(func(s *session) { s.LibraryDir = testVideos })
 	opts = append([]nsgotest.Option{nsgotest.Size(1100, 720), nsgotest.Environment(testEnvironment())}, opts...)
+	// A job still running when the test ends is stopped as quitting stops it, and the test waits for it to return, so it writes nothing more into the test's folders once they go.
+	t.Cleanup(func() {
+		if a.queue.cancel == nil || a.queue.done == nil {
+			return
+		}
+		a.queue.cancel(errQuitting)
+		select {
+		case <-a.queue.done:
+		case <-time.After(5 * time.Second):
+			t.Error("the job running when the test ended did not stop")
+		}
+	})
 	return a, nsgotest.Start(t, a.testView, opts...), updates
 }
 

@@ -37,7 +37,7 @@ type Tools struct {
 	EveryAPI string
 	// WhisperModel is the path of a ggml model file for whisper.cpp.
 	WhisperModel string
-	// SpeechLanguage is the language spoken in the videos, as whisper.cpp's -l names it (one of SpeechLanguages); empty lets whisper detect it. A job that names the language of its own video (core.Job.SpeechLanguage) is heard in that one instead (Run).
+	// SpeechLanguage is the language spoken in the videos, as whisper.cpp's -l names it (one of SpeechLanguages); empty lets whisper detect it. A job that names the language of its own video (core.Job.SpeechLanguage) is heard in that one instead (Make).
 	SpeechLanguage string
 	// WhisperThreads is how many threads whisper.cpp recognizes speech with (-t), 0 for as many as suit this computer (WhisperThreadsAuto). WhisperHints are words the videos say that whisper should spell as written, such as names and terms (--prompt), "" for none.
 	WhisperThreads int
@@ -244,7 +244,7 @@ func (t Tools) Relook() Tools {
 	return t.UseEveryAPICLI()
 }
 
-// Check reports which of the download and speech tools a job needs are missing. The translator is not one of them: a job without it still makes the film's subtitles, the original lines alone, and Run checks it before translating (CheckTranslate).
+// Check reports which of the download and speech tools a job needs are missing. The translator is not one of them: a job without it still makes the film's subtitles, the original lines alone, and Make checks it before translating (CheckTranslate).
 func (t Tools) Check() error {
 	var errs []error
 	for _, tool := range []struct{ name, path string }{{"yt-dlp", t.YTDLP}, {"ffmpeg", t.FFmpeg}, {"whisper-cli", t.Whisper}} {
@@ -260,7 +260,7 @@ func (t Tools) Check() error {
 	return errors.Join(errs...)
 }
 
-// hearing is how Transcribe hears the speech of a video under ctx: with the whisper model WhisperModel, in the language a film the user said is spoken in a language of its own is heard in (withSpeechLanguage), else in the one the settings name, "" for whichever whisper detects (hearer).
+// hearing is how Hear hears the speech of a video under ctx: with the whisper model WhisperModel, in the language a film the user said is spoken in a language of its own is heard in (withSpeechLanguage), else in the one the settings name, "" for whichever whisper detects (hearer).
 func (t Tools) hearing(ctx context.Context) (model, language string) {
 	language = speechLanguageOf(ctx)
 	if language == "" {
@@ -452,51 +452,6 @@ func localVideoPath(source string) (string, bool) {
 	return core.FilePath(parsed)
 }
 
-func (t Tools) Transcribe(ctx context.Context, videoPath string) ([]core.Segment, error) {
-	if strings.TrimSpace(videoPath) == "" {
-		return nil, errors.New("video path is empty")
-	}
-	dir, err := os.MkdirTemp("", "kando-*")
-	if err != nil {
-		return nil, err
-	}
-	defer os.RemoveAll(dir)
-
-	// whisper.cpp expects 16 kHz mono 16-bit PCM.
-	audio := filepath.Join(dir, "audio.wav")
-	if _, err := runStage(ctx, t.FFmpeg, "-nostdin", "-loglevel", "error", "-y", "-i", videoPath, "-vn", "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", audio); err != nil {
-		if NoAudioStream(err.Error()) {
-			return nil, ErrNoAudio
-		}
-		return nil, err
-	}
-	transcript := filepath.Join(dir, "transcript")
-	// -pp prints how far it has gone on stderr, which -np leaves alone.
-	follow := func(line string) {
-		if f, ok := whisperFraction(line); ok {
-			reportProgress(ctx, core.Fraction(f))
-		}
-	}
-	_, language := t.hearing(ctx)
-	if language == "" {
-		language = "auto"
-	}
-	if _, _, err := runFollowing(ctx, true, follow, t.Whisper, t.WhisperArgs(language, transcript, audio)...); err != nil {
-		return nil, err
-	}
-	data, err := os.ReadFile(transcript + ".json")
-	if err != nil {
-		return nil, err
-	}
-	segments, spoken, err := parseWhisperJSON(data)
-	if err != nil {
-		return nil, err
-	}
-	// The language whisper heard reaches the job through the context's Trace, as the Pipeline's Transcribe returns the lines alone.
-	reportSpoken(ctx, spoken)
-	return segments, nil
-}
-
 // NoAudioStream reports whether ffmpeg's error says the input had no sound to extract: with -vn and nothing but a picture left, it has no stream to write ("Output file does not contain any stream", "Output file #0 does not contain any stream" before ffmpeg 7).
 func NoAudioStream(ffmpegError string) bool {
 	return strings.Contains(ffmpegError, "does not contain any stream")
@@ -553,10 +508,6 @@ func (t Tools) Translate(ctx context.Context, segments []core.Segment, language 
 // Proofread corrects what whisper misheard through the translator (ChatTranslator.Proofread).
 func (t Tools) Proofread(ctx context.Context, segments []core.Segment, title string) ([]core.Segment, error) {
 	return t.withOffline().Proofread(ctx, segments, title)
-}
-
-func (t Tools) Export(ctx context.Context, videoPath string, original, translated []core.Segment) (string, error) {
-	return exportSubtitles(ctx, videoPath, original, translated)
 }
 
 // everyAPICredentialVersion is the output version of `everyapi auth credential` this package understands; the CLI bumps it only for incompatible changes.

@@ -235,7 +235,7 @@ func TestClearCacheKeepsTheCopyBeingMade(t *testing.T) {
 func TestClearCacheFindsThePostersAgain(t *testing.T) {
 	a, tt, updates := newTestApp(t, media.Tools{})
 	a.lib.posterDir = filepath.Join(t.TempDir(), "posters")
-	video, address := "/videos/talk.mp4", "https://i.ytimg.com/vi/abc/hq.jpg"
+	video, address := testVideos+"/talk.mp4", "https://i.ytimg.com/vi/abc/hq.jpg"
 	for _, path := range []string{posterDest(a.lib.posterDir, video), siteThumbnailPath(a.lib.posterDir, address)} {
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			t.Fatal(err)

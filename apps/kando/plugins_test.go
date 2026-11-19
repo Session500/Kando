@@ -1454,7 +1454,7 @@ func TestPluginMarksSurviveNewLines(t *testing.T) {
 
 	onEngine(a, func() {
 		machine := slices.Clone(a.player.subs.machine)
-		machine[0].Text = "你好。\nBye."
+		machine[0].Text = "你好。\nBye now."
 		a.player.subs.machine = machine
 		a.playerCorrectSubs()
 		a.pluginsMarksFollow()
@@ -1750,5 +1750,37 @@ func TestPluginSitePageButtons(t *testing.T) {
 	refresh(tt, a)
 	if strings.Contains(tt.FindMounted(browsePage).Web.InjectedJavaScriptBeforeContent, "example") {
 		t.Fatal("the script knows the sites of a pack turned off")
+	}
+}
+
+// TestPluginMarksKeepTheLinesAsAFilmGrows checks the marks of a film made while it plays, whose subtitles are written again every few seconds with more lines each time (media.Make): the lines that were there keep their marks at once while those of the new lines are computed, which marks only the new originals and takes the others' as they were.
+func TestPluginMarksKeepTheLinesAsAFilmGrows(t *testing.T) {
+	a, tt, updates, item := playerFilm(t, 12, nil)
+	a.library.Jobs[0].SpokenLanguage = "en"
+	pluginsDictInstalled(t, a, tt, updates, pluginWordlist("example.cefr", "en"), map[string][]byte{"words.tsv": []byte("hello\tb1\nbye\tc1\n")})
+	playerOpenFilm(t, a, tt, updates, item)
+	playerLoadFilm(tt, a, 12*time.Second)
+	apply(tt, a, func() { a.SetMarkWordlist("example.cefr") })
+	waitUntil(t, tt, a, updates, func() bool { return a.plugins.marks.lines != nil })
+	before := a.plugins.marks.lines
+	hello := []subtitle.Mark{{Start: 0, End: 5, Tone: subtitle.ToneAccent}}
+	bye := []subtitle.Mark{{Start: 0, End: 3, Tone: subtitle.ToneWarn}}
+
+	grown := talkSubtitles + "3\n00:00:07,000 --> 00:00:08,000\nHello and bye.\n\n"
+	if err := os.WriteFile(a.player.subs.path, []byte(grown), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	apply(tt, a, a.reloadOpenSubtitles)
+	waitUntil(t, tt, a, updates, func() bool { return a.player.subs.ready && len(a.playerCues()) == 3 })
+	onEngine(a, func() {
+		a.pluginsMarksFollow()
+		if a.plugins.marking == (pluginsMarkKey{}) || !slices.Equal(a.CueMarks(0), hello) || !slices.Equal(a.CueMarks(1), bye) || a.CueMarks(2) != nil {
+			t.Errorf("while the new line is marked: marking %+v, cues %+v %+v %+v", a.plugins.marking, a.CueMarks(0), a.CueMarks(1), a.CueMarks(2))
+		}
+	})
+	both := []subtitle.Mark{{Start: 0, End: 5, Tone: subtitle.ToneAccent}, {Start: 10, End: 13, Tone: subtitle.ToneWarn}}
+	waitUntil(t, tt, a, updates, func() bool { return slices.Equal(a.CueMarks(2), both) })
+	if after := a.plugins.marks.lines; &after[0][0] != &before[0][0] || &after[1][0] != &before[1][0] {
+		t.Fatal("the lines that were there were marked again")
 	}
 }

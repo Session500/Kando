@@ -179,7 +179,7 @@ func (a *app) Open(item films.Film) {
 		a.player.playFrom, _ = films.ResumeFrom(a, item)
 	}
 	a.openKey = item.Key
-	a.loadSubtitles(item.Key, item.SubtitlePath)
+	a.loadSubtitles(item.Key, item.VideoPath, item.SubtitlePath)
 	a.startPlayback(item.VideoPath)
 }
 

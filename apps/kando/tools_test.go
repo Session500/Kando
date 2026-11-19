@@ -133,9 +133,9 @@ func TestToolRemedyDownloadsKandosOwnAndRetries(t *testing.T) {
 	// The queue is paused, so the jobs run again wait in it rather than running.
 	a.queue.paused = true
 	a.library.Jobs = []core.Job{
-		{ID: "stopped", Source: "https://example.com/a", Stage: core.StageFailed, LibraryDir: "/videos", Err: errors.New("transcribe: ffmpeg: signal: abort trap: dyld[1]: Library not loaded")},
-		{ID: "also", Source: "https://example.com/b", Stage: core.StageFailed, LibraryDir: "/videos", Err: errors.New("download: ffmpeg: exit status 134")},
-		{ID: "translation", Source: "https://example.com/c", Stage: core.StageFailed, LibraryDir: "/videos", Err: errors.New("translate: the AI service is busy")},
+		{ID: "stopped", Source: "https://example.com/a", Stage: core.StageFailed, LibraryDir: testVideos, Err: errors.New("transcribe: ffmpeg: signal: abort trap: dyld[1]: Library not loaded")},
+		{ID: "also", Source: "https://example.com/b", Stage: core.StageFailed, LibraryDir: testVideos, Err: errors.New("download: ffmpeg: exit status 134")},
+		{ID: "translation", Source: "https://example.com/c", Stage: core.StageFailed, LibraryDir: testVideos, Err: errors.New("translate: the AI service is busy")},
 	}
 	checkTools(t, a, func(done func() bool) { waitUntil(t, tt, a, updates, done) })
 	a.kitsCancel()

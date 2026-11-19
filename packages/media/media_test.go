@@ -3,7 +3,6 @@ package media
 import (
 	"context"
 	"errors"
-	"net/http"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -12,9 +11,12 @@ import (
 	"time"
 
 	"kando/packages/core"
+	"kando/packages/track"
 )
 
+// fakePipeline downloads a link into a folder of the test, as video.mp4, hears transcribe at the start of the film, and translates each line as it is.
 type fakePipeline struct {
+	dir          string
 	checkErr     error
 	transcribe   []core.Segment
 	translateErr error
@@ -23,12 +25,26 @@ type fakePipeline struct {
 
 func (f *fakePipeline) Check() error { return f.checkErr }
 
-func (f *fakePipeline) Download(context.Context, string) (string, error) {
-	return "/videos/talk.mp4", nil
+func (f *fakePipeline) Download(_ context.Context, source string) (string, error) {
+	if path, ok := localVideoPath(source); ok {
+		return path, nil
+	}
+	if f.dir == "" {
+		return "", errors.New("the test gave the fake no folder to download into")
+	}
+	path := filepath.Join(f.dir, "video.mp4")
+	return path, os.WriteFile(path, []byte("v"), 0o644)
 }
 
-func (f *fakePipeline) Transcribe(context.Context, string) ([]core.Segment, error) {
-	return f.transcribe, nil
+func (f *fakePipeline) Length(context.Context, string) time.Duration { return 30 * time.Second }
+
+func (f *fakePipeline) Hear(_ context.Context, _ string, from, to time.Duration, heard func(core.Segment)) (string, error) {
+	for _, s := range f.transcribe {
+		if mid := (s.Start + s.End) / 2; mid >= from && mid < to {
+			heard(s)
+		}
+	}
+	return "en", nil
 }
 
 func (f *fakePipeline) Translate(_ context.Context, segments []core.Segment, language string) ([]core.Segment, error) {
@@ -36,26 +52,28 @@ func (f *fakePipeline) Translate(_ context.Context, segments []core.Segment, lan
 	return segments, f.translateErr
 }
 
-func (f *fakePipeline) Export(context.Context, string, []core.Segment, []core.Segment) (string, error) {
-	return "/videos/talk.bilingual.srt", nil
-}
-
-func runStages(p Pipeline) ([]core.Stage, core.Job) {
+// runStages makes a link's film with p as the queue does, returning each stage it entered and the job it ended with.
+func runStages(t *testing.T, p Pipeline) ([]core.Stage, core.Job) {
+	t.Helper()
+	if f, ok := p.(interface{ setDir(string) }); ok {
+		f.setDir(t.TempDir())
+	}
 	job, _ := core.NewJob("https://example.com/video")
 	var stages []core.Stage
-	final := Run(context.Background(), p, job, "简体中文", func(j core.Job) { stages = append(stages, j.Stage) })
+	final := Make(context.Background(), p, job, "简体中文", "mac", nil, func(j core.Job) { stages = enteredStage(stages, j) })
 	return stages, final
 }
 
-func TestRunReportsEveryStage(t *testing.T) {
-	p := &fakePipeline{transcribe: []core.Segment{{End: time.Second, Text: "hello"}}}
-	stages, job := runStages(p)
+func (f *fakePipeline) setDir(dir string) { f.dir = dir }
 
-	want := []core.Stage{core.StageDownloading, core.StageTranscribing, core.StageTranslating, core.StageExporting, core.StageComplete}
+func TestMakeReportsEveryStage(t *testing.T) {
+	p := &fakePipeline{transcribe: []core.Segment{{End: time.Second, Text: "hello"}}}
+	stages, job := runStages(t, p)
+	want := []core.Stage{core.StageDownloading, core.StageTranscribing, core.StageTranslating, core.StageComplete}
 	if !reflect.DeepEqual(stages, want) {
 		t.Fatalf("stages = %v, want %v", stages, want)
 	}
-	if job.VideoPath != "/videos/talk.mp4" || job.SubtitlePath != "/videos/talk.bilingual.srt" || job.Err != nil {
+	if filepath.Base(job.VideoPath) != "video.mp4" || filepath.Base(job.SubtitlePath) != "video.bilingual.srt" || job.Err != nil {
 		t.Fatalf("unexpected job: %#v", job)
 	}
 	if p.language != "简体中文" {
@@ -63,8 +81,8 @@ func TestRunReportsEveryStage(t *testing.T) {
 	}
 }
 
-func TestRunStopsAtFailedCheck(t *testing.T) {
-	stages, job := runStages(&fakePipeline{checkErr: errors.New("ffmpeg is not installed")})
+func TestMakeStopsAtFailedCheck(t *testing.T) {
+	stages, job := runStages(t, &fakePipeline{checkErr: errors.New("ffmpeg is not installed")})
 	if !reflect.DeepEqual(stages, []core.Stage{core.StageFailed}) {
 		t.Fatalf("stages = %v", stages)
 	}
@@ -73,43 +91,44 @@ func TestRunStopsAtFailedCheck(t *testing.T) {
 	}
 }
 
-func TestRunFailsWithoutSpeech(t *testing.T) {
-	_, job := runStages(&fakePipeline{})
-	if job.Stage != core.StageFailed || !errors.Is(job.Err, ErrNoSpeech) {
+func TestMakeFailsWithoutSpeech(t *testing.T) {
+	_, job := runStages(t, &fakePipeline{})
+	if job.Stage != core.StageFailed || !errors.Is(job.Err, ErrNoSpeech) || !job.CompletedAt.IsZero() {
 		t.Fatalf("unexpected job: %#v", job)
 	}
 }
 
-func TestRunKeepsVideoPathWhenLaterStageFails(t *testing.T) {
-	p := &fakePipeline{transcribe: []core.Segment{{Text: "hello"}}, translateErr: context.Canceled}
-	_, job := runStages(p)
-	if job.Stage != core.StageFailed || !errors.Is(job.Err, context.Canceled) || job.VideoPath != "/videos/talk.mp4" {
-		t.Fatalf("unexpected job: %#v", job)
-	}
-}
-
-func TestRunSkipsDownloadingForALocalVideo(t *testing.T) {
+func TestMakeSkipsDownloadingForALocalVideo(t *testing.T) {
 	p := &fakePipeline{transcribe: []core.Segment{{End: time.Second, Text: "hello"}}}
-	job, _ := core.NewJob("file:///Users/test/interview.mp4")
+	video := filepath.Join(t.TempDir(), "interview.mp4")
+	if err := os.WriteFile(video, []byte("v"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	job, _ := core.NewJob(core.FileURL(video))
 	var stages []core.Stage
 	before := time.Now()
-	final := Run(context.Background(), p, job, "简体中文", func(j core.Job) { stages = append(stages, j.Stage) })
-	want := []core.Stage{core.StageTranscribing, core.StageTranslating, core.StageExporting, core.StageComplete}
-	if !reflect.DeepEqual(stages, want) {
-		t.Fatalf("stages = %v, want %v", stages, want)
-	}
-	if final.VideoPath != "/videos/talk.mp4" {
-		t.Fatalf("video = %q; Download should still give the path", final.VideoPath)
+	final := Make(context.Background(), p, job, "简体中文", "mac", nil, func(j core.Job) { stages = enteredStage(stages, j) })
+	want := []core.Stage{core.StageTranscribing, core.StageTranslating, core.StageComplete}
+	if !reflect.DeepEqual(stages, want) || final.VideoPath != video {
+		t.Fatalf("stages = %v, want %v; video %q", stages, want, final.VideoPath)
 	}
 	if final.CompletedAt.Before(before) || final.CompletedAt.After(time.Now()) {
 		t.Fatalf("completed at %v", final.CompletedAt)
 	}
 }
 
-func TestRunLeavesCompletedAtZeroOnFailure(t *testing.T) {
-	_, job := runStages(&fakePipeline{})
-	if job.Stage != core.StageFailed || !job.CompletedAt.IsZero() {
-		t.Fatalf("unexpected job: %#v", job)
+// A film whose length cannot be told, as a file that is not a video, fails, and so does one whose document a newer Kando wrote, which is not written to.
+func TestMakeFailsWhatItCannotMake(t *testing.T) {
+	job, video := makeJob(t)
+	job.SpeechLanguage = "ja"
+	if done, _ := makeFilmOf(t, &makeFilm{}, job, 0); done.Stage != core.StageFailed || !errors.Is(done.Err, ErrNoLength) {
+		t.Fatalf("no length: %+v", done)
+	}
+	if err := os.WriteFile(track.LogPath(video, "pc"), []byte(`{"k":"head","n":1,"t":1,"v":99}`+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if done, _ := makeFilmOf(t, &makeFilm{length: 30 * time.Second}, job, 0); done.Stage != core.StageFailed || !strings.Contains(done.Err.Error(), "newer Kando") {
+		t.Fatalf("newer: %+v", done)
 	}
 }
 
@@ -118,20 +137,21 @@ type localSteps struct{ Tools }
 
 func (localSteps) Check() error { return nil }
 
-func (localSteps) Transcribe(context.Context, string) ([]core.Segment, error) {
-	return []core.Segment{{End: time.Second, Text: "hello"}}, nil
+func (localSteps) Length(context.Context, string) time.Duration { return 30 * time.Second }
+
+func (localSteps) Hear(_ context.Context, _ string, from, _ time.Duration, heard func(core.Segment)) (string, error) {
+	if from == 0 {
+		heard(core.Segment{End: time.Second, Text: "hello"})
+	}
+	return "en", nil
 }
 
 func (localSteps) Translate(_ context.Context, segments []core.Segment, _ string) ([]core.Segment, error) {
 	return segments, nil
 }
 
-func (localSteps) Export(context.Context, string, []core.Segment, []core.Segment) (string, error) {
-	return "/videos/interview.bilingual.srt", nil
-}
-
-// TestRunReadsALocalVideoInPlace checks that Tools does not download a file:// source: the job never shows downloading and its video is the file itself, and a missing file still fails the job.
-func TestRunReadsALocalVideoInPlace(t *testing.T) {
+// TestMakeReadsALocalVideoInPlace checks that Tools does not download a file:// source: the job never shows downloading and its video is the file itself, and a missing file still fails the job.
+func TestMakeReadsALocalVideoInPlace(t *testing.T) {
 	video := filepath.Join(t.TempDir(), "interview.mp4")
 	if err := os.WriteFile(video, []byte("v"), 0o644); err != nil {
 		t.Fatal(err)
@@ -141,8 +161,8 @@ func TestRunReadsALocalVideoInPlace(t *testing.T) {
 		t.Fatal(err)
 	}
 	var stages []core.Stage
-	final := Run(context.Background(), localSteps{}, job, "简体中文", func(j core.Job) { stages = append(stages, j.Stage) })
-	want := []core.Stage{core.StageTranscribing, core.StageTranslating, core.StageExporting, core.StageComplete}
+	final := Make(context.Background(), localSteps{}, job, "简体中文", "mac", nil, func(j core.Job) { stages = enteredStage(stages, j) })
+	want := []core.Stage{core.StageTranscribing, core.StageTranslating, core.StageComplete}
 	if !reflect.DeepEqual(stages, want) || final.VideoPath != video {
 		t.Fatalf("stages %v video %q", stages, final.VideoPath)
 	}
@@ -151,12 +171,12 @@ func TestRunReadsALocalVideoInPlace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if failed := Run(context.Background(), localSteps{}, gone, "简体中文", func(core.Job) {}); failed.Stage != core.StageFailed || !errors.Is(failed.Err, os.ErrNotExist) {
+	if failed := Make(context.Background(), localSteps{}, gone, "简体中文", "mac", nil, func(core.Job) {}); failed.Stage != core.StageFailed || !errors.Is(failed.Err, os.ErrNotExist) {
 		t.Fatalf("missing file %+v", failed)
 	}
 }
 
-// tracingPipeline reports through the context's Trace as Tools does: the video's name and how far the download has gone, then how far the transcription has gone.
+// tracingPipeline reports through the context's Trace as Tools does: the video's name and how far the download has gone.
 type tracingPipeline struct {
 	fakePipeline
 	downloadErr error
@@ -168,36 +188,27 @@ func (p *tracingPipeline) Download(ctx context.Context, _ string) (string, error
 	if p.downloadErr != nil {
 		return "", p.downloadErr
 	}
-	return "/videos/talk.mp4", nil
+	return p.fakePipeline.Download(ctx, "")
 }
 
-func (p *tracingPipeline) Transcribe(ctx context.Context, _ string) ([]core.Segment, error) {
-	reportProgress(ctx, core.Fraction(0.7))
-	reportSpoken(ctx, "ja")
-	return []core.Segment{{End: time.Second, Text: "hello"}}, nil
-}
-
-func TestRunReportsWhatTheStagesTrace(t *testing.T) {
+func TestMakeReportsWhatTheStagesTrace(t *testing.T) {
 	job, _ := core.NewJob("https://www.youtube.com/watch?v=jNQXAC9IVRw")
 	var seen []core.Job
-	final := Run(context.Background(), &tracingPipeline{}, job, "简体中文", func(j core.Job) { seen = append(seen, j) })
-	if final.Stage != core.StageComplete || final.Title != "Me at the zoo" || final.Thumbnail == "" || final.SpokenLanguage != "ja" {
+	p := &tracingPipeline{fakePipeline: fakePipeline{dir: t.TempDir(), transcribe: []core.Segment{{End: time.Second, Text: "hello"}}}}
+	final := Make(context.Background(), p, job, "简体中文", "mac", nil, func(j core.Job) { seen = append(seen, j) })
+	if final.Stage != core.StageComplete || final.Title != "Me at the zoo" || final.Thumbnail == "" || final.SpokenLanguage != "en" {
 		t.Fatalf("final = %+v", final)
 	}
-	var downloading, transcribing bool
+	downloading := false
 	for _, j := range seen {
 		switch {
-		case j.Stage == core.StageTranslating && j.SpokenLanguage != "ja":
+		case j.Stage == core.StageTranslating && j.SpokenLanguage != "en":
 			t.Fatalf("the translation started without the language heard: %+v", j)
 		case j.Stage == core.StageDownloading && j.Progress.Known && j.Progress.Fraction == 0.4:
 			downloading = j.Title == "Me at the zoo"
-		case j.Stage == core.StageTranscribing && j.Progress.Known && j.Progress.Fraction == 0.7:
-			transcribing = true
-		case j.Stage == core.StageTranslating && j.Progress.Known && j.Progress.Fraction != 0:
-			t.Fatalf("the translation started with the transcription's progress: %+v", j.Progress)
 		}
 	}
-	if !downloading || !transcribing {
+	if !downloading {
 		t.Fatalf("reports %+v", seen)
 	}
 	// A stage is timed from its first report that says how far it has gone, which its later reports keep, so how long it has left can be told from how fast it goes.
@@ -215,32 +226,32 @@ func TestRunReportsWhatTheStagesTrace(t *testing.T) {
 	}
 }
 
-func TestRunKeepsTheTitleOfAFailedDownload(t *testing.T) {
+func TestMakeKeepsTheTitleOfAFailedDownload(t *testing.T) {
 	job, _ := core.NewJob("https://www.youtube.com/watch?v=jNQXAC9IVRw")
-	final := Run(context.Background(), &tracingPipeline{downloadErr: errors.New("yt-dlp: exit status 1: ERROR: [youtube] jNQXAC9IVRw: Private video")}, job, "简体中文", func(core.Job) {})
+	final := Make(context.Background(), &tracingPipeline{downloadErr: errors.New("yt-dlp: exit status 1: ERROR: [youtube] jNQXAC9IVRw: Private video")}, job, "简体中文", "mac", nil, func(core.Job) {})
 	if final.Stage != core.StageFailed || final.Title != "Me at the zoo" || final.Progress != (core.Progress{}) {
 		t.Fatalf("final = %+v", final)
 	}
 }
 
-func TestRunSaysWhyTheDownloadFailed(t *testing.T) {
+func TestMakeSaysWhyTheDownloadFailed(t *testing.T) {
 	age, err := os.ReadFile(filepath.Join("testdata", "ytdlp", "errors", "age-youtube.stderr"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	job, _ := core.NewJob("https://www.youtube.com/watch?v=Tq92D6wQ1mg")
-	failed := Run(context.Background(), &tracingPipeline{downloadErr: errors.New("yt-dlp: exit status 1: " + string(age))}, job, "简体中文", func(core.Job) {})
+	failed := Make(context.Background(), &tracingPipeline{downloadErr: errors.New("yt-dlp: exit status 1: " + string(age))}, job, "简体中文", "mac", nil, func(core.Job) {})
 	if failed.FailKind != core.FailAge {
 		t.Fatalf("kind %q", failed.FailKind)
 	}
 	// The same answer with a browser's login borrowed means that login has run out.
 	job.Cookies = "chrome"
-	expired := Run(context.Background(), &tracingPipeline{downloadErr: errors.New("yt-dlp: exit status 1: " + string(age))}, job, "简体中文", func(core.Job) {})
+	expired := Make(context.Background(), &tracingPipeline{downloadErr: errors.New("yt-dlp: exit status 1: " + string(age))}, job, "简体中文", "mac", nil, func(core.Job) {})
 	if expired.FailKind != core.FailLoginExpired {
 		t.Fatalf("kind with cookies %q", expired.FailKind)
 	}
 	// A later stage's failure is not a download's.
-	later := Run(context.Background(), &fakePipeline{transcribe: []core.Segment{{Text: "a"}}, translateErr: errors.New("ERROR: Private video")}, job, "简体中文", func(core.Job) {})
+	later := Make(context.Background(), &fakePipeline{dir: t.TempDir(), transcribe: []core.Segment{{End: time.Second, Text: "a"}}, translateErr: errors.New("ERROR: Private video")}, job, "简体中文", "mac", nil, func(core.Job) {})
 	if later.FailKind != "" {
 		t.Fatalf("translate failure kind %q", later.FailKind)
 	}
@@ -249,6 +260,8 @@ func TestRunSaysWhyTheDownloadFailed(t *testing.T) {
 // partialPipeline translates every line but the first, which its translator could not.
 type partialPipeline struct{ fakePipeline }
 
+func (p *partialPipeline) setDir(dir string) { p.dir = dir }
+
 func (p *partialPipeline) Translate(_ context.Context, segments []core.Segment, _ string) ([]core.Segment, error) {
 	out := append([]core.Segment(nil), segments...)
 	out[0].Text = ""
@@ -256,289 +269,38 @@ func (p *partialPipeline) Translate(_ context.Context, segments []core.Segment, 
 }
 
 // A film whose translation left some lines untranslated is done, not lost: its job completes and says how many lines are missing.
-func TestRunCompletesAFilmWithUntranslatedLines(t *testing.T) {
-	p := &partialPipeline{fakePipeline{transcribe: []core.Segment{{Text: "a"}, {Text: "b"}}}}
-	stages, job := runStages(p)
+func TestMakeCompletesAFilmWithUntranslatedLines(t *testing.T) {
+	p := &partialPipeline{fakePipeline{transcribe: []core.Segment{{End: time.Second, Text: "a"}, {Start: time.Second, End: 2 * time.Second, Text: "b"}}}}
+	stages, job := runStages(t, p)
 	if job.Stage != core.StageComplete || job.Err != nil || job.Untranslated != 1 || job.SubtitlePath == "" {
 		t.Fatalf("job %+v, stages %v", job, stages)
 	}
-	// Running it again starts the count over.
-	again := Run(context.Background(), &fakePipeline{transcribe: []core.Segment{{Text: "a"}}}, job, "简体中文", func(core.Job) {})
-	if again.Untranslated != 0 {
-		t.Fatalf("again %+v", again)
-	}
 }
 
-// resumeTools is Tools with the downloads of splitYTDLP, an ffmpeg that writes an empty audio file, a whisper-cli that hears two lines and counts its runs in the returned file, and the translator at chat.
-func resumeTools(t *testing.T, chat string) (tools Tools, ytdlpRuns, whisperRuns string) {
-	t.Helper()
-	ytdlp, ytdlpRuns := splitYTDLP(t)
-	dir := t.TempDir()
-	whisperRuns = filepath.Join(dir, "whisper-runs")
-	ffmpeg := writeFakeTool(t, dir, "ffmpeg", fakeTool{Act: "extract-audio"})
-	whisper := writeFakeTool(t, dir, "whisper-cli", fakeTool{Runs: whisperRuns, Act: "transcribe", Transcript: `{"transcription":[{"offsets":{"from":0,"to":1500},"text":" Hello there."},{"offsets":{"from":1500,"to":3250},"text":" Nice to meet you."}]}`})
-	model := filepath.Join(dir, "ggml-small.bin")
-	if err := os.WriteFile(model, nil, 0o644); err != nil {
-		t.Fatal(err)
+// A film made without an AI service set up is a film too: the translator is not asked, and the job says why it translated nothing. A job making a done film again needs the service, so it fails rather than replace the film's translation.
+func TestMakeWithoutATranslatorKeepsTheOriginalLines(t *testing.T) {
+	p := &noTranslator{fakePipeline{transcribe: []core.Segment{{End: time.Second, Text: "a"}, {Start: time.Second, End: 2 * time.Second, Text: "b"}}}}
+	_, done := runStages(t, p)
+	if done.Stage != core.StageComplete || done.Untranslated != 2 || !strings.Contains(done.TranslationErr, "KANDO_LLM_MODEL") || p.language != "" {
+		t.Fatalf("job %+v, translated into %q", done, p.language)
 	}
-	tools = Tools{
-		OutputDir: t.TempDir(), DownloadTemp: t.TempDir(),
-		YTDLP: ytdlp, FFmpeg: ffmpeg, Whisper: whisper, WhisperModel: model,
-		Translator: ChatTranslator{BaseURL: chat, Model: "m"},
-	}
-	return tools, ytdlpRuns, whisperRuns
-}
-
-func runCount(t *testing.T, path string) int {
-	t.Helper()
-	data, err := os.ReadFile(path)
-	if os.IsNotExist(err) {
-		return 0
-	}
-	if err != nil {
-		t.Fatal(err)
-	}
-	return strings.Count(string(data), "run")
-}
-
-// runRecording runs job as the queue does, with the error of an earlier run forgotten, and returns each stage it entered.
-func runRecording(p Pipeline, job core.Job) ([]core.Stage, core.Job) {
-	job.Stage, job.Err = core.StageQueued, nil
-	var stages []core.Stage
-	final := Run(context.Background(), p, job, "简体中文", func(j core.Job) {
-		if len(stages) == 0 || stages[len(stages)-1] != j.Stage {
-			stages = append(stages, j.Stage)
-		}
-	})
-	return stages, final
-}
-
-var heard = []core.Segment{
-	{End: 1500 * time.Millisecond, Text: "Hello there."},
-	{Start: 1500 * time.Millisecond, End: 3250 * time.Millisecond, Text: "Nice to meet you."},
-}
-
-// stopsTranslating is Tools whose translation is stopped as it starts, as quitting Kando or 取消 stops a job.
-type stopsTranslating struct {
-	Tools
-	cancel context.CancelFunc
-}
-
-func (s stopsTranslating) Translate(ctx context.Context, _ []core.Segment, _ string) ([]core.Segment, error) {
-	s.cancel()
-	return nil, ctx.Err()
-}
-
-// stoppedInTranslation runs job with tools until it starts translating and stops it there, returning the job as it stood: downloaded and transcribed, not translated.
-func stoppedInTranslation(tools Tools, job core.Job) core.Job {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	job.Stage, job.Err = core.StageQueued, nil
-	return Run(ctx, stopsTranslating{Tools: tools, cancel: cancel}, job, "简体中文", func(core.Job) {})
-}
-
-// A translation that fails as a whole, as with a key the API rejects (once for the proofreading, once for the translation), still makes the film: its subtitles are the original lines, every one untranslated, and the job keeps why. The transcript is beside the video, the bilingual file holds the original lines alone, and translating the missing lines later goes straight to translating them: the video is not downloaded again and whisper-cli does not run again.
-func TestRunCompletesWithTheOriginalLinesWhenTheTranslationFails(t *testing.T) {
-	srv, _ := flakyChat(t, http.StatusUnauthorized, http.StatusUnauthorized)
-	tools, ytdlpRuns, whisperRuns := resumeTools(t, srv.URL)
-	job, _ := core.NewJob("https://www.youtube.com/watch?v=jNQXAC9IVRw")
-
-	_, first := runRecording(tools, job)
-	if first.Stage != core.StageComplete || first.Err != nil || first.Untranslated != len(heard) || !strings.Contains(first.TranslationErr, "401") || !first.Transcribed {
-		t.Fatalf("first run %+v", first)
-	}
-	transcript := strings.TrimSuffix(first.VideoPath, ".mp4") + ".srt"
-	srt, err := os.ReadFile(transcript)
-	if err != nil {
-		t.Fatalf("no transcript: %v", err)
-	}
-	if saved, err := ParseSRT(srt); err != nil || !reflect.DeepEqual(saved, heard) {
-		t.Fatalf("saved transcript %+v, %v", saved, err)
-	}
-	if first.SubtitlePath != strings.TrimSuffix(first.VideoPath, ".mp4")+".bilingual.srt" {
-		t.Fatalf("subtitles at %q", first.SubtitlePath)
-	}
-	if bilingual, err := os.ReadFile(first.SubtitlePath); err != nil || string(bilingual) != string(srt) {
-		t.Fatalf("bilingual %q, %v; want the original lines alone", bilingual, err)
-	}
-
-	first.Redo = core.RedoMissing
-	stages, done := runRecording(tools, first)
-	want := []core.Stage{core.StageTranslating, core.StageExporting, core.StageComplete}
-	if !reflect.DeepEqual(stages, want) {
-		t.Fatalf("stages %v, want %v", stages, want)
-	}
-	if done.Err != nil || done.Untranslated != 0 || done.TranslationErr != "" || done.Redo != "" {
-		t.Fatalf("translated %+v", done)
-	}
-	if got := runCount(t, ytdlpRuns); got != 1 {
-		t.Fatalf("yt-dlp ran %d times", got)
-	}
-	if got := runCount(t, whisperRuns); got != 1 {
-		t.Fatalf("whisper-cli ran %d times", got)
-	}
-	bilingual, err := os.ReadFile(done.SubtitlePath)
-	if err != nil || !strings.Contains(string(bilingual), "Nice to meet you.\nNice to meet you.") {
-		t.Fatalf("bilingual %q, %v", bilingual, err)
-	}
-}
-
-// A film made without an AI service set up is a film too: the translator is not asked, and the job says why it translated nothing. A job processing a done film again needs the service, so it fails rather than replace the film's translation.
-func TestRunWithoutATranslatorKeepsTheOriginalLines(t *testing.T) {
-	srv, calls := flakyChat(t)
-	tools, _, _ := resumeTools(t, srv.URL)
-	tools.Translator.Model = ""
-	job, _ := core.NewJob("https://www.youtube.com/watch?v=jNQXAC9IVRw")
-	_, done := runRecording(tools, job)
-	if done.Stage != core.StageComplete || done.Untranslated != len(heard) || !strings.Contains(done.TranslationErr, "KANDO_LLM_MODEL") || *calls != 0 {
-		t.Fatalf("job %+v, %d requests", done, *calls)
-	}
-
-	for _, redo := range []core.Redo{core.RedoAll, core.RedoMissing} {
+	for _, redo := range []core.Redo{core.RedoAll, core.RedoMissing, core.RedoTranslation} {
 		again := done
-		again.Redo = redo
-		if _, failed := runRecording(tools, again); failed.Stage != core.StageFailed || !strings.HasPrefix(failed.Err.Error(), "check: ") || failed.TranslationErr != done.TranslationErr {
+		again.Redo, again.Stage = redo, core.StageQueued
+		if failed := Make(context.Background(), p, again, "简体中文", "mac", nil, func(core.Job) {}); failed.Stage != core.StageFailed || !strings.HasPrefix(failed.Err.Error(), "check: ") || failed.TranslationErr != done.TranslationErr {
 			t.Fatalf("%s without a translator: %+v", redo, failed)
 		}
 	}
 }
 
-// A film being made shows its transcript from the moment it is translated, so it can be watched with its original lines; its bilingual subtitles take the transcript's place once exported. A film processed again keeps its own subtitles until then.
-func TestRunShowsTheTranscriptWhileTranslating(t *testing.T) {
-	srv, _ := flakyChat(t)
-	tools, _, _ := resumeTools(t, srv.URL)
-	job, _ := core.NewJob("https://www.youtube.com/watch?v=jNQXAC9IVRw")
-	var translating core.Job
-	done := Run(context.Background(), tools, job, "简体中文", func(j core.Job) {
-		if j.Stage == core.StageTranslating && translating.Stage == "" {
-			translating = j
-		}
-	})
-	transcript := strings.TrimSuffix(done.VideoPath, ".mp4") + ".srt"
-	if translating.SubtitlePath != transcript {
-		t.Fatalf("translating with subtitles %q, want the transcript %q", translating.SubtitlePath, transcript)
-	}
-	if done.SubtitlePath != strings.TrimSuffix(done.VideoPath, ".mp4")+".bilingual.srt" {
-		t.Fatalf("done with subtitles %q", done.SubtitlePath)
-	}
+// noTranslator is a pipeline whose translator is not set up (TranslateChecker).
+type noTranslator struct{ fakePipeline }
 
-	again := done
-	again.Redo, again.RedoLanguage, again.Transcribed = core.RedoAll, "简体中文", false
-	again.Stage = core.StageQueued
-	Run(context.Background(), tools, again, "简体中文", func(j core.Job) {
-		if j.Stage != core.StageComplete && j.SubtitlePath != done.SubtitlePath {
-			t.Fatalf("processing again showed %q while %s", j.SubtitlePath, j.Stage)
-		}
-	})
-}
+func (p *noTranslator) setDir(dir string) { p.dir = dir }
 
-// A done film processed again, its Transcribed cleared, keeps the video it downloaded but is transcribed anew.
-func TestRunTranscribesAgainWhenTheJobHasNoTranscript(t *testing.T) {
-	srv, _ := flakyChat(t)
-	tools, ytdlpRuns, whisperRuns := resumeTools(t, srv.URL)
-	job, _ := core.NewJob("https://www.youtube.com/watch?v=jNQXAC9IVRw")
-	_, done := runRecording(tools, job)
-	if done.Stage != core.StageComplete || !done.Transcribed {
-		t.Fatalf("first run %+v", done)
-	}
+func (p *noTranslator) CheckTranslate() error { return errors.New("KANDO_LLM_MODEL is not set") }
 
-	done.Transcribed = false
-	stages, again := runRecording(tools, done)
-	want := []core.Stage{core.StageTranscribing, core.StageTranslating, core.StageExporting, core.StageComplete}
-	if !reflect.DeepEqual(stages, want) || again.Stage != core.StageComplete || !again.Transcribed {
-		t.Fatalf("stages %v, job %+v", stages, again)
-	}
-	if got := runCount(t, ytdlpRuns); got != 1 {
-		t.Fatalf("yt-dlp ran %d times", got)
-	}
-	if got := runCount(t, whisperRuns); got != 2 {
-		t.Fatalf("whisper-cli ran %d times", got)
-	}
-}
-
-// A job that says it was transcribed but whose transcript is gone is transcribed again, and one whose video is gone is downloaded again.
-func TestRunRedoesWhatIsMissing(t *testing.T) {
-	srv, _ := flakyChat(t)
-	tools, ytdlpRuns, whisperRuns := resumeTools(t, srv.URL)
-	job, _ := core.NewJob("https://www.youtube.com/watch?v=jNQXAC9IVRw")
-	_, done := runRecording(tools, job)
-	if done.Stage != core.StageComplete {
-		t.Fatalf("first run %+v", done)
-	}
-
-	if err := os.Remove(strings.TrimSuffix(done.VideoPath, ".mp4") + ".srt"); err != nil {
-		t.Fatal(err)
-	}
-	stages, again := runRecording(tools, done)
-	if want := []core.Stage{core.StageTranscribing, core.StageTranslating, core.StageExporting, core.StageComplete}; !reflect.DeepEqual(stages, want) || !again.Transcribed {
-		t.Fatalf("without the transcript: stages %v, job %+v", stages, again)
-	}
-	if runCount(t, ytdlpRuns) != 1 || runCount(t, whisperRuns) != 2 {
-		t.Fatalf("yt-dlp ran %d times, whisper-cli %d", runCount(t, ytdlpRuns), runCount(t, whisperRuns))
-	}
-
-	if err := os.RemoveAll(filepath.Dir(again.VideoPath)); err != nil {
-		t.Fatal(err)
-	}
-	stages, third := runRecording(tools, again)
-	if want := []core.Stage{core.StageDownloading, core.StageTranscribing, core.StageTranslating, core.StageExporting, core.StageComplete}; !reflect.DeepEqual(stages, want) || third.Stage != core.StageComplete {
-		t.Fatalf("without the video: stages %v, job %+v", stages, third)
-	}
-	if runCount(t, ytdlpRuns) != 2 || runCount(t, whisperRuns) != 3 {
-		t.Fatalf("yt-dlp ran %d times, whisper-cli %d", runCount(t, ytdlpRuns), runCount(t, whisperRuns))
-	}
-}
-
-// A video with a partial download beside it never merged, so the retry downloads it again rather than transcribing a silent track.
-func TestRunDownloadsAgainAVideoThatNeverMerged(t *testing.T) {
-	srv, _ := flakyChat(t)
-	tools, ytdlpRuns, whisperRuns := resumeTools(t, srv.URL)
-	job, _ := core.NewJob("https://www.youtube.com/watch?v=jNQXAC9IVRw")
-	failed := stoppedInTranslation(tools, job)
-	if failed.Stage != core.StageFailed || failed.VideoPath == "" || !failed.Transcribed {
-		t.Fatalf("first run %+v", failed)
-	}
-	if err := os.WriteFile(filepath.Join(filepath.Dir(failed.VideoPath), "video.f251.webm"), []byte("track 251"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	stages, done := runRecording(tools, failed)
-	if want := []core.Stage{core.StageDownloading, core.StageTranscribing, core.StageTranslating, core.StageExporting, core.StageComplete}; !reflect.DeepEqual(stages, want) || done.Stage != core.StageComplete {
-		t.Fatalf("stages %v, job %+v", stages, done)
-	}
-	if got := runCount(t, ytdlpRuns); got != 3 {
-		t.Fatalf("yt-dlp ran %d times, want the first download and two for the unmerged one", got)
-	}
-	// The transcript beside the video was made from the file the new download replaced.
-	if got := runCount(t, whisperRuns); got != 2 {
-		t.Fatalf("whisper-cli ran %d times, want the re-downloaded video transcribed again", got)
-	}
-}
-
-// A local video's job checks its file through Download every time, and reads the transcript saved beside it instead of transcribing it again.
-func TestRunResumesALocalVideo(t *testing.T) {
-	srv, _ := flakyChat(t)
-	tools, _, whisperRuns := resumeTools(t, srv.URL)
-	video := filepath.Join(t.TempDir(), "interview.mp4")
-	if err := os.WriteFile(video, []byte("v"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	job, _ := core.NewJob(core.FileURL(video))
-	failed := stoppedInTranslation(tools, job)
-	if failed.Stage != core.StageFailed || !failed.Transcribed || failed.VideoPath != video {
-		t.Fatalf("first run %+v", failed)
-	}
-	stages, done := runRecording(tools, failed)
-	if want := []core.Stage{core.StageTranslating, core.StageExporting, core.StageComplete}; !reflect.DeepEqual(stages, want) || done.Stage != core.StageComplete {
-		t.Fatalf("stages %v, job %+v", stages, done)
-	}
-	if got := runCount(t, whisperRuns); got != 1 {
-		t.Fatalf("whisper-cli ran %d times", got)
-	}
-
-	if err := os.Remove(video); err != nil {
-		t.Fatal(err)
-	}
-	if _, gone := runRecording(tools, done); gone.Stage != core.StageFailed || !errors.Is(gone.Err, os.ErrNotExist) {
-		t.Fatalf("missing file %+v", gone)
-	}
+var heard = []core.Segment{
+	{End: 1500 * time.Millisecond, Text: "Hello there."},
+	{Start: 1500 * time.Millisecond, End: 3250 * time.Millisecond, Text: "Nice to meet you."},
 }

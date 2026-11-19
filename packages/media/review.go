@@ -12,19 +12,20 @@ import (
 	"time"
 
 	"kando/packages/core"
+	"kando/packages/track"
 )
 
-// The final proofread (终校, core.Proof): once a film is translated, a pipeline that is a Reviewer reads the whole translation through again, with the original lines and the film's glossary, and suggests changes to lines that write a name, a form of address or a term otherwise than the rest of the film, read unnaturally, or say something the original does not. Run asks for it when the job's context says so (WithReview): the changes of the kinds the user lets apply by themselves (core.ProofAuto) go into the subtitles it exports, and every change is kept beside the video (ProofsPath) with what it was, so the user can accept the others, turn any down or roll the whole pass back (DecideProofs).
+// The final proofread (终校, core.Proof): once a film is translated, a pipeline that is a Reviewer reads the whole translation through again, with the original lines and the film's glossary, and suggests changes to lines that write a name, a form of address or a term otherwise than the rest of the film, read unnaturally, or say something the original does not. Make asks for it, a block of the film at a time, when the job's context says so (WithReview): the changes of the kinds the user lets apply by themselves (core.ProofAuto) go into the film's lines at once, and every change is kept beside the video (ProofsPath) with what it was, so the user can accept the others, turn any down or roll the whole pass back (DecideProofs).
 
 // Reviewer is a Pipeline that can proofread a film's translation as a whole, as Tools does through its translator.
 type Reviewer interface {
-	// Review reads translated, the translation of original line for line into language, and returns the changes it suggests, each keyed by the span of its line, title naming the video for context. The changes have no status; Run gives them one. A batch it could not read keeps its lines as they are.
+	// Review reads translated, the translation of original line for line into language, and returns the changes it suggests, each keyed by the span of its line, title naming the video for context. The changes have no status; Make gives them one (making.final). A batch it could not read keeps its lines as they are.
 	Review(ctx context.Context, original, translated []core.Segment, title, language string) ([]core.Proof, error)
 }
 
 type reviewKey struct{}
 
-// WithReview returns ctx asking Run to proofread the translation it makes as a whole, the changes of the kinds auto names applying by themselves.
+// WithReview returns ctx asking Make to proofread the translation it makes as a whole, a block at a time, the changes of the kinds auto names applying by themselves.
 func WithReview(ctx context.Context, auto core.ProofAuto) context.Context {
 	return context.WithValue(ctx, reviewKey{}, core.CleanProofAuto(auto))
 }
@@ -56,7 +57,7 @@ type reviewChange struct {
 	Why         string `json:"why"`
 }
 
-// Review proofreads translated, the translation of original into language, in batches of reviewBatch lines, through the same endpoint and model translations use. Lines left untranslated are not sent. A change is kept only when its line is the one its number names, as it was sent, and it is of a kind the final proofread knows (core.Proof.Valid); a locked term's translation is kept as the glossary gives it, so a change that would write it otherwise is dropped. A batch whose reply cannot be used after it was sent again suggests nothing, and the rest of the film is still read; a key, model or address the API rejects, or an account out of credit, fails the pass, which Run then skips.
+// Review proofreads translated, the translation of original into language, in batches of reviewBatch lines, through the same endpoint and model translations use. Lines left untranslated are not sent. A change is kept only when its line is the one its number names, as it was sent, and it is of a kind the final proofread knows (core.Proof.Valid); a locked term's translation is kept as the glossary gives it, so a change that would write it otherwise is dropped. A batch whose reply cannot be used after it was sent again suggests nothing, and the rest of the film is still read; a key, model or address the API rejects, or an account out of credit, fails the pass, which Make tries again, then leaves the block a draft.
 func (t ChatTranslator) Review(ctx context.Context, original, translated []core.Segment, title, language string) ([]core.Proof, error) {
 	if len(original) != len(translated) {
 		return nil, fmt.Errorf("%d translated lines for %d original lines", len(translated), len(original))
@@ -202,36 +203,6 @@ func (t Tools) Review(ctx context.Context, original, translated []core.Segment, 
 	return t.withOffline().Review(ctx, original, translated, title, language)
 }
 
-// reviews reports whether p can proofread a translation as a whole.
-func reviews(p Pipeline) bool { _, ok := p.(Reviewer); return ok }
-
-// review runs the final proofread of a job's translation when its context asks for it (WithReview) and its pipeline can (Reviewer): the changes that apply by themselves are written into translated, which the subtitles are exported from, and every change comes back with its status, for Run to keep beside the video once they are. A pass that fails leaves the translation as it was and keeps nothing; ok is false then, and when no pass ran.
-func review(ctx context.Context, p Pipeline, original, translated []core.Segment, title, language string) (proofs []core.Proof, ok bool) {
-	auto, asked := reviewOf(ctx)
-	r, can := p.(Reviewer)
-	if !asked || !can {
-		return nil, false
-	}
-	found, err := r.Review(ctx, original, translated, title, language)
-	if err != nil {
-		return nil, false
-	}
-	for _, f := range found {
-		f.Status = core.ProofPending
-		if auto.Applies(f.Kind) {
-			for i := range translated {
-				if translated[i].Start == f.Span.Start && translated[i].End == f.Span.End && strings.TrimSpace(translated[i].Text) == f.Old {
-					translated[i].Text = f.New
-					f.Status = core.ProofApplied
-					break
-				}
-			}
-		}
-		proofs = append(proofs, f)
-	}
-	return proofs, true
-}
-
 // The changes of the final proofread are kept in a hidden file beside the video, "<video>.proofs.json" with a dot before it (ProofsPath). The job that makes or translates the film again writes it, or removes it when it proofread nothing; accepting or turning a change down rewrites it with the subtitles (DecideProofs). It moves and goes to the Trash with the video (Companions).
 
 // proofsVersion is the version of the proofs file this Kando writes. A file of a later version is read for the fields this one knows and is not written over (ErrProofsNewer).
@@ -315,8 +286,11 @@ func SaveProofs(path string, proofs []core.Proof) error {
 	return writeFileAtomic(path, data)
 }
 
-// DecideProofs keeps after, the changes of the film whose bilingual subtitles are at subtitles as the user decided them, in place of before, as the proofs file holds them, and rewrites the lines whose change became live or stopped being (core.SwapProofs) in the subtitles. The proofs file is written first and put back as it was when the subtitles cannot be, so the two never disagree on a line.
-func DecideProofs(subtitles string, before, after []core.Proof) error {
+// DecideProofs keeps after, the changes of the film whose video is at video and whose bilingual subtitles are at subtitles as the user decided them, in place of before, as the proofs file holds them, and makes the subtitles match: a change that became live (core.Proof.Live) puts its New in place of its Old as its line's translation, and one that no longer is puts Old back. A film made into its subtitle document (track) keeps each decision there, as the user's, as device's, and its subtitles are written out from it again, so a making still running writes them out too; any other film has its subtitles rewritten in place (core.SwapProofs).
+func DecideProofs(video, subtitles, device string, before, after []core.Proof) error {
+	if video != "" && len(track.Logs(video)) > 0 {
+		return decideTrackProofs(video, subtitles, device, before, after)
+	}
 	data, err := os.ReadFile(subtitles)
 	if err != nil {
 		return err
@@ -337,4 +311,63 @@ func DecideProofs(subtitles string, before, after []core.Proof) error {
 		return err
 	}
 	return nil
+}
+
+// decideTrackProofs is DecideProofs of a film made into its subtitle document.
+func decideTrackProofs(video, subtitles, device string, before, after []core.Proof) error {
+	doc, err := track.Read(video)
+	if err != nil {
+		return err
+	}
+	if doc.Newer {
+		return ErrProofsNewer
+	}
+	// The subtitles may have been written since by something other than the document, as an older Kando: what they hold is kept in the document first, so the decision is laid over it, not over what the document held before.
+	files, err := trackFiles(doc, subtitles, TranscriptOf(video))
+	if err != nil {
+		return err
+	}
+	if len(files) > 0 {
+		written, err := track.Append(video, device, files...)
+		if err != nil {
+			return err
+		}
+		doc.Events = append(doc.Events, written...)
+	}
+	var events []track.Event
+	lines := doc.View()
+	for i := range after {
+		if i < len(before) && before[i].Live() == after[i].Live() {
+			continue
+		}
+		text := after[i].New
+		if !after[i].Live() {
+			text = after[i].Old
+		}
+		for _, l := range lines {
+			if l.Start == after[i].Span.Start && l.End == after[i].Span.End {
+				events = append(events, track.Event{Kind: track.KindRev, Line: l.ID, Side: track.Translation, Layer: track.LayerUser, Text: text, Source: "review"})
+				break
+			}
+		}
+	}
+	path := ProofsPath(subtitles)
+	if err := SaveProofs(path, after); err != nil {
+		return err
+	}
+	if len(events) == 0 {
+		return nil
+	}
+	written, err := track.Append(video, device, events...)
+	if err != nil {
+		_ = SaveProofs(path, before)
+		return err
+	}
+	doc.Events = append(doc.Events, written...)
+	projected, err := projectTrack(doc.View(), TranscriptOf(video), subtitles)
+	if err != nil {
+		return err
+	}
+	_, err = track.Append(video, device, projected...)
+	return err
 }

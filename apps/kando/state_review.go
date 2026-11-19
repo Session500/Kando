@@ -112,7 +112,7 @@ func (a *app) reviewDecide(after []core.Proof) {
 	if a.ProofsBusy() {
 		return
 	}
-	if err := media.DecideProofs(a.review.path, a.review.proofs, after); err != nil {
+	if err := media.DecideProofs(a.player.subs.video, a.review.path, a.savedDevice(), a.review.proofs, after); err != nil {
 		if errors.Is(err, media.ErrProofsNewer) {
 			a.flash(a.messages().ReviewNewer())
 		} else {
@@ -123,7 +123,7 @@ func (a *app) reviewDecide(after []core.Proof) {
 	// A read of the proofs file started before this decision would bring back what the file held then: it is dropped (gen). The subtitles are read again even when their size and time look unchanged, as a change that swaps a line for one of the same length within the time a file system such as exFAT tells apart leaves both as they were.
 	a.review.proofs = after
 	a.review.gen++
-	a.player.subs.seen = false
+	a.player.subs.seen, a.player.subs.immediate = false, true
 	a.reloadOpenSubtitles()
 	delete(a.lib.quotes, a.review.path)
 	a.libraryHeroQuote()

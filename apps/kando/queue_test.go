@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -26,15 +27,20 @@ import (
 	"kando/apps/kando/sidebar"
 	"kando/packages/core"
 	"kando/packages/media"
+	"kando/packages/track"
 
 	ns "github.com/nsgo-dev/nsgo/core"
 	"github.com/nsgo-dev/nsgo/nsgotest"
 )
 
-// gatePipeline holds every job in Download until the test lets it through, so a test sees which job runs and in what order. started receives each source as its Download begins.
+// gatePipeline holds every job in Download until the test lets it through, so a test sees which job runs and in what order. started receives each source as its Download begins. A link downloads its sound first and its video beside its making (media.Make): only the first is held, and the one right after it goes through (passed).
 type gatePipeline struct {
+	testFolder
+	hearsHello
 	started chan string
 	release chan struct{}
+	mu      sync.Mutex
+	passed  map[string]bool
 }
 
 func newGatePipeline() *gatePipeline {
@@ -44,25 +50,37 @@ func newGatePipeline() *gatePipeline {
 func (g *gatePipeline) Check() error { return nil }
 
 func (g *gatePipeline) Download(ctx context.Context, source string) (string, error) {
+	if g.next(source) {
+		return g.video(filepath.Base(source) + ".mp4")
+	}
 	g.started <- source
 	select {
 	case <-g.release:
-		return "/videos/" + filepath.Base(source) + ".mp4", nil
+		g.mu.Lock()
+		g.passed[source] = true
+		g.mu.Unlock()
+		return g.video(filepath.Base(source) + ".mp4")
 	case <-ctx.Done():
 		return "", ctx.Err()
 	}
 }
 
-func (g *gatePipeline) Transcribe(context.Context, string) ([]core.Segment, error) {
-	return []core.Segment{{End: time.Second, Text: "hello"}}, nil
+// next reports whether a download of source is the one right after its held download went through, the video of a link made from its sound, which is not held.
+func (g *gatePipeline) next(source string) bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.passed == nil {
+		g.passed = map[string]bool{}
+	}
+	if g.passed[source] {
+		delete(g.passed, source)
+		return true
+	}
+	return false
 }
 
 func (g *gatePipeline) Translate(_ context.Context, segments []core.Segment, _ string) ([]core.Segment, error) {
 	return segments, nil
-}
-
-func (g *gatePipeline) Export(_ context.Context, video string, _, _ []core.Segment) (string, error) {
-	return strings.TrimSuffix(video, ".mp4") + ".bilingual.srt", nil
 }
 
 // nextStarted applies background updates until the next job reaches Download and returns its source.
@@ -121,7 +139,7 @@ func TestEnqueueRunsTheJob(t *testing.T) {
 	if err := a.Enqueue("https://example.com/v"); err != nil {
 		t.Fatal(err)
 	}
-	if len(a.library.Jobs) != 1 || a.library.Jobs[0].Source != "https://example.com/v" || a.library.Jobs[0].Language != "简体中文" || a.library.Jobs[0].LibraryDir != "/videos" {
+	if len(a.library.Jobs) != 1 || a.library.Jobs[0].Source != "https://example.com/v" || a.library.Jobs[0].Language != "简体中文" || a.library.Jobs[0].LibraryDir != testVideos {
 		t.Fatalf("jobs %+v", a.library.Jobs)
 	}
 	settle(t, a, tt, updates)
@@ -156,7 +174,7 @@ func TestQueueRunsJobsOneAtATimeInOrder(t *testing.T) {
 	if got := nextStarted(t, g, updates); got != "https://example.com/b" {
 		t.Fatalf("second started %s", got)
 	}
-	if job := stageOf(t, a, ids["https://example.com/a"]); job.Stage != core.StageComplete || job.SubtitlePath != "/videos/a.bilingual.srt" {
+	if job := stageOf(t, a, ids["https://example.com/a"]); job.Stage != core.StageComplete || job.SubtitlePath != filepath.Join(testVideos, "a.bilingual.srt") {
 		t.Fatalf("a after its turn %+v", job)
 	}
 	if job := stageOf(t, a, ids["https://example.com/c"]); job.Stage != core.StageQueued {
@@ -175,7 +193,7 @@ func TestQueueRunsJobsOneAtATimeInOrder(t *testing.T) {
 	var finished time.Time
 	for _, name := range []string{"a", "b", "c"} {
 		job := stageOf(t, a, ids["https://example.com/"+name])
-		if job.Stage != core.StageComplete || job.SubtitlePath != "/videos/"+name+".bilingual.srt" || job.CompletedAt.IsZero() {
+		if job.Stage != core.StageComplete || job.SubtitlePath != filepath.Join(testVideos, name+".bilingual.srt") || job.CompletedAt.IsZero() {
 			t.Fatalf("%s ended %+v", name, job)
 		}
 		// Two jobs can finish at the same time.Now() on Windows, whose clock is coarser than the time between them.
@@ -360,7 +378,7 @@ func TestRemovingTheRunningJobStartsTheNext(t *testing.T) {
 func TestRetryWaitsBehindTheQueue(t *testing.T) {
 	g := newGatePipeline()
 	a, tt, updates := newTestApp(t, g)
-	a.library.Jobs = []core.Job{{ID: "old", Source: "https://example.com/old", Language: "简体中文", Stage: core.StageFailed, Err: errors.New("boom"), LibraryDir: "/videos"}}
+	a.library.Jobs = []core.Job{{ID: "old", Source: "https://example.com/old", Language: "简体中文", Stage: core.StageFailed, Err: errors.New("boom"), LibraryDir: testVideos}}
 	if err := a.Enqueue("https://example.com/a", "https://example.com/b"); err != nil {
 		t.Fatal(err)
 	}
@@ -387,8 +405,8 @@ func TestRetryGoesToTheLibrary(t *testing.T) {
 	g := newGatePipeline()
 	a, tt, updates := newTestApp(t, g)
 	a.library.Jobs = []core.Job{
-		{ID: "old", Source: "https://example.com/old", Stage: core.StageFailed, Err: errors.New("boom"), LibraryDir: "/videos"},
-		{ID: "bare", Source: "https://example.com/bare", Stage: core.StageFailed, Err: errors.New("boom"), LibraryDir: "/videos"},
+		{ID: "old", Source: "https://example.com/old", Stage: core.StageFailed, Err: errors.New("boom"), LibraryDir: testVideos},
+		{ID: "bare", Source: "https://example.com/bare", Stage: core.StageFailed, Err: errors.New("boom"), LibraryDir: testVideos},
 	}
 	a.page = pageYouTube
 	a.Retry("old")
@@ -418,7 +436,7 @@ func TestRetrySaysWhatHoldsItBack(t *testing.T) {
 	g := newGatePipeline()
 	a, tt, updates := newTestApp(t, g)
 	a.library.Jobs = []core.Job{
-		{ID: "bare", Source: "https://example.com/bare", Stage: core.StageFailed, Err: errors.New("boom"), LibraryDir: "/videos"},
+		{ID: "bare", Source: "https://example.com/bare", Stage: core.StageFailed, Err: errors.New("boom"), LibraryDir: testVideos},
 	}
 	if err := a.Enqueue("https://example.com/a", "https://example.com/b"); err != nil {
 		t.Fatal(err)
@@ -588,11 +606,11 @@ func TestForgettingTheRunningJobsLibraryLetsItFinish(t *testing.T) {
 func TestJobsOfAForgottenLibraryWait(t *testing.T) {
 	g := newGatePipeline()
 	a, tt, updates := newTestApp(t, g)
-	a.edit(func(s *session) { s.Libraries = []string{"/videos", "/other.kando"} })
+	a.edit(func(s *session) { s.Libraries = []string{testVideos, "/other.kando"} })
 	a.library.Jobs = []core.Job{
 		{ID: "gone", Source: "https://example.com/gone", Language: "简体中文", Stage: core.StageQueued, LibraryDir: "/gone.kando"},
 		{ID: "other", Source: "https://example.com/other", Language: "简体中文", Stage: core.StageQueued, LibraryDir: "/other.kando"},
-		{ID: "open", Source: "https://example.com/open", Language: "简体中文", Stage: core.StageQueued, LibraryDir: "/videos"},
+		{ID: "open", Source: "https://example.com/open", Language: "简体中文", Stage: core.StageQueued, LibraryDir: testVideos},
 	}
 	queued := func() []string {
 		var keys []string
@@ -629,31 +647,33 @@ func TestJobsOfAForgottenLibraryWait(t *testing.T) {
 
 // TestAJobSavesIntoItsOwnLibrary checks the pipeline a job runs with: it saves into the job's library, not the one open, and borrows the login the job names, while the app's pipeline stays as it was. A job saved before jobs named their library saves into the open one.
 func TestAJobSavesIntoItsOwnLibrary(t *testing.T) {
-	a, _, _ := newTestApp(t, media.Tools{OutputDir: "/videos"})
+	testVideosFor(t)
+	a, _, _ := newTestApp(t, media.Tools{OutputDir: testVideos})
 	got, ok := a.queuePipeline(core.Job{LibraryDir: "/other.kando", Cookies: "chrome"}).(media.Tools)
 	if !ok || got.OutputDir != "/other.kando" || got.Cookies != "chrome" {
 		t.Fatalf("pipeline %+v", got)
 	}
-	if tools := a.pipeline.(media.Tools); tools.OutputDir != "/videos" || tools.Cookies != "" {
+	if tools := a.pipeline.(media.Tools); tools.OutputDir != testVideos || tools.Cookies != "" {
 		t.Fatalf("the app's pipeline changed: %+v", tools)
 	}
-	if got := a.queuePipeline(core.Job{}).(media.Tools); got.OutputDir != "/videos" {
+	if got := a.queuePipeline(core.Job{}).(media.Tools); got.OutputDir != testVideos {
 		t.Fatalf("pipeline of an old job %+v", got)
 	}
 }
 
 // TestRestartResumesInterruptedJobs saves a shelf the way a quit in the middle of a job leaves it and opens it again: the interrupted job and those queued behind it run again, oldest first, and finished jobs stay finished.
 func TestRestartResumesInterruptedJobs(t *testing.T) {
+	testVideosFor(t)
 	path := filepath.Join(t.TempDir(), "library.json")
 	before, err := shelf.Load(path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	before.Jobs = []core.Job{
-		{ID: "c", Source: "https://example.com/c", Language: "简体中文", Stage: core.StageQueued, LibraryDir: "/videos"},
-		{ID: "b", Source: "https://example.com/b", Language: "简体中文", Stage: core.StageQueued, LibraryDir: "/videos"},
-		{ID: "a", Source: "https://example.com/a", Language: "简体中文", Stage: core.StageTranscribing, LibraryDir: "/videos", VideoPath: "/videos/a.mp4"},
-		{ID: "done", Source: "https://example.com/done", Language: "简体中文", Stage: core.StageComplete, LibraryDir: "/videos", VideoPath: "/videos/done.mp4"},
+		{ID: "c", Source: "https://example.com/c", Language: "简体中文", Stage: core.StageQueued, LibraryDir: testVideos},
+		{ID: "b", Source: "https://example.com/b", Language: "简体中文", Stage: core.StageQueued, LibraryDir: testVideos},
+		{ID: "a", Source: "https://example.com/a", Language: "简体中文", Stage: core.StageTranscribing, LibraryDir: testVideos, VideoPath: testVideos + "/a.mp4"},
+		{ID: "done", Source: "https://example.com/done", Language: "简体中文", Stage: core.StageComplete, LibraryDir: testVideos, VideoPath: testVideos + "/done.mp4"},
 	}
 	if err := before.Save(); err != nil {
 		t.Fatal(err)
@@ -697,7 +717,7 @@ func TestRestartResumesInterruptedJobs(t *testing.T) {
 func TestRestartFillsMissingTranslationLanguage(t *testing.T) {
 	p := &fakePipeline{}
 	a, tt, updates := newTestApp(t, p)
-	a.library.Jobs = []core.Job{{ID: "old", Source: "https://example.com/old", Stage: core.StageQueued, LibraryDir: "/videos"}}
+	a.library.Jobs = []core.Job{{ID: "old", Source: "https://example.com/old", Stage: core.StageQueued, LibraryDir: testVideos}}
 
 	a.pump()
 	settle(t, a, tt, updates)
@@ -831,7 +851,7 @@ func TestRetryKeepsTheSameCard(t *testing.T) {
 	a, tt, updates := newTestApp(t, &fakePipeline{})
 	a.library.Jobs = []core.Job{{
 		ID: "same", Source: "https://www.youtube.com/watch?v=TRWgBxVAb1M", Language: "简体中文",
-		Stage: core.StageFailed, VideoPath: "/videos/Colibri [TRWgBxVAb1M].mp4",
+		Stage: core.StageFailed, VideoPath: testVideos + "/Colibri [TRWgBxVAb1M].mp4",
 		Err: errors.New("translate: translation API returned 401"),
 	}}
 	refresh(tt, a)
@@ -893,7 +913,7 @@ func TestSwitchLibraryRemembersTheDirectoryAndKeepsTheJob(t *testing.T) {
 	settle(t, a, tt, updates)
 }
 
-// TestFilmPageCancelsTheFilmItShows opens a film still waiting in the queue and presses its 取消: that film leaves the queue as 已取消, and the job running meanwhile goes on.
+// TestFilmPageCancelsTheFilmItShows opens a film still waiting in the queue, which the job running gives way to (queuePrefer), and presses its 取消: that film leaves the queue as 已取消, and the job that gave way to it goes on.
 func TestFilmPageCancelsTheFilmItShows(t *testing.T) {
 	g := newGatePipeline()
 	a, tt, updates := newTestApp(t, g)
@@ -904,11 +924,16 @@ func TestFilmPageCancelsTheFilmItShows(t *testing.T) {
 	ids := jobIDs(a)
 	a.openKey = ids["https://example.com/b"]
 	refresh(tt, a)
+	if got := nextStarted(t, g, updates); got != "https://example.com/b" {
+		t.Fatalf("the film opened did not go first: %s started", got)
+	}
 	tt.Press("取消")
+	if got := nextStarted(t, g, updates); got != "https://example.com/a" {
+		t.Fatalf("after b's 取消, %s started", got)
+	}
 	if job := stageOf(t, a, ids["https://example.com/b"]); job.Stage != core.StageFailed || !errors.Is(job.Err, context.Canceled) {
 		t.Fatalf("b after its 取消 %+v", job)
 	}
-	noneStarted(t, g, updates)
 	if a.queue.active != ids["https://example.com/a"] {
 		t.Fatalf("the film page's 取消 stopped the running job; active %q", a.queue.active)
 	}
@@ -927,7 +952,10 @@ func TestFilmPageCancelsTheFilmItShows(t *testing.T) {
 }
 
 // ytdlpPipeline downloads with the real media.Tools.Download, run on a yt-dlp script that prints what the real yt-dlp prints for Download's arguments, and stubs the stages after it.
-type ytdlpPipeline struct{ tools media.Tools }
+type ytdlpPipeline struct {
+	hearsHello
+	tools media.Tools
+}
 
 func (p ytdlpPipeline) Check() error { return nil }
 
@@ -935,28 +963,23 @@ func (p ytdlpPipeline) Download(ctx context.Context, source string) (string, err
 	return p.tools.Download(ctx, source)
 }
 
-func (ytdlpPipeline) Transcribe(context.Context, string) ([]core.Segment, error) {
-	return []core.Segment{{End: time.Second, Text: "hello"}}, nil
-}
-
 func (ytdlpPipeline) Translate(_ context.Context, segments []core.Segment, _ string) ([]core.Segment, error) {
 	return segments, nil
 }
 
-func (ytdlpPipeline) Export(_ context.Context, video string, _, _ []core.Segment) (string, error) {
-	return strings.TrimSuffix(video, ".mp4") + ".bilingual.srt", nil
-}
-
-// gatedYTDLP writes a yt-dlp that names the video, says a quarter of the download is done (half of the first of two formats) and waits until gate exists before it finishes.
+// gatedYTDLP writes a yt-dlp that names the video, says a quarter of the download is done (half of the first of two formats) and waits until gate exists before it finishes, the video then in the test's library (testVideos).
 func gatedYTDLP(t *testing.T, thumbnail, gate string) string {
 	t.Helper()
+	testVideosFor(t)
+	video := filepath.Join(testVideos, "zoo.mp4")
 	return writeFakeScript(t, t.TempDir(), "yt-dlp", `echo 'kando-info {"id": "jNQXAC9IVRw", "title": "Me at the zoo", "thumbnail": "`+thumbnail+`", "duration": 19}'
 echo 'kando-formats ["395", "251"]'
 echo 'kando-progress downloading 111890 223780 NA 1048576 3 NA NA 395'
 i=0
 while [ ! -e '`+gate+`' ] && [ $i -lt 200 ]; do sleep 0.05; i=$((i+1)); done
 echo 'kando-progress finished 252182 252182 NA NA NA NA NA 251'
-echo '/videos/zoo.mp4'`)
+echo v > '`+video+`'
+echo '`+video+`'`)
 }
 
 func TestTheCardFollowsTheDownload(t *testing.T) {
@@ -964,7 +987,7 @@ func TestTheCardFollowsTheDownload(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write(png) }))
 	t.Cleanup(srv.Close)
 	gate := filepath.Join(t.TempDir(), "gate")
-	a, tt, updates := newTestApp(t, ytdlpPipeline{tools: media.Tools{YTDLP: gatedYTDLP(t, srv.URL+"/hq.jpg", gate), OutputDir: "/videos"}})
+	a, tt, updates := newTestApp(t, ytdlpPipeline{tools: media.Tools{YTDLP: gatedYTDLP(t, srv.URL+"/hq.jpg", gate), OutputDir: testVideos}})
 	path := filepath.Join(t.TempDir(), "library.json")
 	a.openLibrary(path)
 	a.lib.posterDir = t.TempDir()
@@ -1131,7 +1154,7 @@ func toolsForRemedies(t *testing.T, ytdlp string) media.Tools {
 	if err := os.WriteFile(model, []byte("m"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	return media.Tools{OutputDir: "/videos", YTDLP: ytdlp, FFmpeg: "/bin/false", Whisper: "/bin/false", WhisperModel: model, Translator: media.ChatTranslator{BaseURL: "http://127.0.0.1:9/v1", Model: "m"}}
+	return media.Tools{OutputDir: testVideos, YTDLP: ytdlp, FFmpeg: "/bin/false", Whisper: "/bin/false", WhisperModel: model, Translator: media.ChatTranslator{BaseURL: "http://127.0.0.1:9/v1", Model: "m"}}
 }
 
 func TestUpdateAndRetryUpdatesYTDLPAndRunsTheFailedDownloadsAgain(t *testing.T) {
@@ -1633,6 +1656,8 @@ func TestAFailedCardSaysWhyInChinese(t *testing.T) {
 		{"transcribe: whisper-cli: signal: killed: whisper_init: out of memory", "生成字幕失败：whisper_init: out of memory", ""},
 		{"export: open /v/a.srt: permission denied", "导出字幕失败：open /v/a.srt: permission denied", ""},
 		{"translate: " + media.ErrNoTranscript.Error(), "这部影片的原文字幕不见了，没法单独重新翻译。请重新处理整部影片。", ""},
+		{"transcribe: " + track.ErrNewer.Error(), "这部影片的字幕是新版看懂生成的。请更新看懂后再处理。", ""},
+		{"transcribe: " + media.ErrNoLength.Error(), "看懂读不出这段视频有多长，没法生成字幕。文件可能已损坏，或不是视频。", ""},
 		{"translate: " + media.ErrSubtitlesChanged.Error(), "这部影片的字幕在看懂生成后被改过，找不到哪些句子没译。重新翻译可以重译每一句。", ""},
 		{"boom", "处理失败：boom", ""},
 	} {
@@ -1795,7 +1820,7 @@ func TestAddingAVideoInTheLibraryOffersToOpenIt(t *testing.T) {
 	a, tt, _ := newTestApp(t, &fakePipeline{})
 	a.library.Jobs = []core.Job{{
 		ID: "done", Source: "https://www.youtube.com/watch?v=TRWgBxVAb1M", Title: "Colibri", Language: "简体中文", Stage: core.StageComplete,
-		VideoPath: "/videos/Colibri [TRWgBxVAb1M]/video.mp4", SubtitlePath: "/videos/Colibri [TRWgBxVAb1M]/video.bilingual.srt", LibraryDir: "/videos", CompletedAt: time.Now(),
+		VideoPath: testVideos + "/Colibri [TRWgBxVAb1M]/video.mp4", SubtitlePath: testVideos + "/Colibri [TRWgBxVAb1M]/video.bilingual.srt", LibraryDir: testVideos, CompletedAt: time.Now(),
 	}}
 	startJob(t, tt, "https://youtu.be/TRWgBxVAb1M")
 	refresh(tt, a)
@@ -1832,8 +1857,8 @@ func TestAddingAVideoInTheLibraryOffersToOpenIt(t *testing.T) {
 func TestAddingAFailedVideoAgainRetriesIt(t *testing.T) {
 	a, tt, updates := newTestApp(t, &fakePipeline{})
 	a.library.Jobs = []core.Job{
-		{ID: "failed", Source: "https://www.youtube.com/watch?v=TRWgBxVAb1M", Language: "简体中文", Stage: core.StageFailed, Err: errors.New("download: boom"), LibraryDir: "/videos"},
-		{ID: "cancelled", Source: "file:///Users/me/Movies/clip.mp4", Language: "简体中文", Stage: core.StageFailed, Err: context.Canceled, LibraryDir: "/videos"},
+		{ID: "failed", Source: "https://www.youtube.com/watch?v=TRWgBxVAb1M", Language: "简体中文", Stage: core.StageFailed, Err: errors.New("download: boom"), LibraryDir: testVideos},
+		{ID: "cancelled", Source: "file:///Users/me/Movies/clip.mp4", Language: "简体中文", Stage: core.StageFailed, Err: context.Canceled, LibraryDir: testVideos},
 		{ID: "elsewhere", Source: "https://vimeo.com/76979871", Language: "简体中文", Stage: core.StageFailed, Err: errors.New("download: boom"), LibraryDir: "/other"},
 	}
 	startJob(t, tt, "https://youtu.be/TRWgBxVAb1M")
@@ -2106,10 +2131,11 @@ func TestSessionEndDoesNotAsk(t *testing.T) {
 	}
 }
 
-// resumePipeline downloads into its own folder and fails the first export as a full disk does, counting each stage it runs. A translation that fails no longer fails the job (TestAFailedTranslationStillMakesTheFilm), so the export is the stage after the transcript that can.
+// resumePipeline downloads into its own folder, counting each step it runs; its first translation waits until the job is stopped, telling translating when it starts.
 type resumePipeline struct {
-	dir                                         string
-	downloads, transcribes, translates, exports atomic.Int32
+	dir                                string
+	downloads, transcribes, translates atomic.Int32
+	translating                        chan struct{}
 }
 
 func (p *resumePipeline) Check() error { return nil }
@@ -2123,21 +2149,23 @@ func (p *resumePipeline) Download(context.Context, string) (string, error) {
 	return video, os.WriteFile(video, []byte("video"), 0o644)
 }
 
-func (p *resumePipeline) Transcribe(context.Context, string) ([]core.Segment, error) {
+func (p *resumePipeline) Length(context.Context, string) time.Duration { return 30 * time.Second }
+
+func (p *resumePipeline) Hear(_ context.Context, _ string, from, _ time.Duration, heard func(core.Segment)) (string, error) {
 	p.transcribes.Add(1)
-	return []core.Segment{{End: time.Second, Text: "hello"}}, nil
-}
-
-func (p *resumePipeline) Translate(_ context.Context, segments []core.Segment, _ string) ([]core.Segment, error) {
-	p.translates.Add(1)
-	return segments, nil
-}
-
-func (p *resumePipeline) Export(_ context.Context, video string, _, _ []core.Segment) (string, error) {
-	if p.exports.Add(1) == 1 {
-		return "", errors.New("no space left on device")
+	if from == 0 {
+		heard(core.Segment{End: time.Second, Text: "hello"})
 	}
-	return strings.TrimSuffix(video, ".mp4") + ".bilingual.srt", nil
+	return "en", nil
+}
+
+func (p *resumePipeline) Translate(ctx context.Context, segments []core.Segment, _ string) ([]core.Segment, error) {
+	if p.translates.Add(1) == 1 {
+		close(p.translating)
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
+	return segments, nil
 }
 
 // settleStages applies background updates until no job runs and returns each stage job id showed on the shelf, starting with the one it is in now.
@@ -2160,36 +2188,48 @@ func settleStages(t *testing.T, a *app, tt *nsgotest.App, updates chan func(), i
 	return stages
 }
 
-// A job that failed after its transcript was saved is retried from its translation: the video it downloaded and the speech it transcribed are used again. Processing the done film again transcribes it anew but does not download it again.
+// A job stopped once it heard its film is retried from its translation: the video it downloaded and the speech it heard are used again. Processing the done film again hears it anew but does not download it again.
 func TestRetryResumesAfterTheStagesItFinished(t *testing.T) {
-	p := &resumePipeline{dir: t.TempDir()}
+	p := &resumePipeline{dir: t.TempDir(), translating: make(chan struct{})}
 	a, tt, updates := newTestApp(t, p)
 	if err := a.Enqueue("https://www.youtube.com/watch?v=TRWgBxVAb1M"); err != nil {
 		t.Fatal(err)
 	}
 	id := a.library.Jobs[0].ID
+	for waiting := true; waiting; {
+		select {
+		case <-p.translating:
+			waiting = false
+		case fn := <-updates:
+			apply(tt, a, fn)
+		case <-time.After(5 * time.Second):
+			t.Fatal("the job never translated")
+		}
+	}
+	a.Cancel(id)
 	settleStages(t, a, tt, updates, id)
 	failed := stageOf(t, a, id)
-	if failed.Stage != core.StageFailed || !failed.Transcribed || failed.VideoPath == "" {
+	if failed.Stage != core.StageFailed || failed.VideoPath == "" {
 		t.Fatalf("first run %+v", failed)
 	}
 
 	a.Retry(id)
 	stages := settleStages(t, a, tt, updates, id)
-	if want := []core.Stage{core.StageQueued, core.StageTranslating, core.StageExporting, core.StageComplete}; !slices.Equal(stages, want) {
+	if want := []core.Stage{core.StageQueued, core.StageTranslating, core.StageComplete}; !slices.Equal(stages, want) {
 		t.Fatalf("retry stages %v, want %v", stages, want)
 	}
-	if p.downloads.Load() != 1 || p.transcribes.Load() != 1 {
+	// A link downloads its sound, then its video beside its making (media.Make): twice, the first run only.
+	if p.downloads.Load() != 2 || p.transcribes.Load() != 1 {
 		t.Fatalf("downloaded %d times, transcribed %d times", p.downloads.Load(), p.transcribes.Load())
 	}
 
 	done := stageOf(t, a, id)
 	a.Reprocess(films.Film{Key: id, JobID: id, VideoPath: done.VideoPath, SubtitlePath: done.SubtitlePath})
 	stages = settleStages(t, a, tt, updates, id)
-	if want := []core.Stage{core.StageQueued, core.StageTranscribing, core.StageTranslating, core.StageExporting, core.StageComplete}; !slices.Equal(stages, want) {
+	if want := []core.Stage{core.StageQueued, core.StageTranscribing, core.StageTranslating, core.StageComplete}; !slices.Equal(stages, want) {
 		t.Fatalf("reprocess stages %v, want %v", stages, want)
 	}
-	if p.downloads.Load() != 1 || p.transcribes.Load() != 2 {
+	if p.downloads.Load() != 2 || p.transcribes.Load() != 2 {
 		t.Fatalf("downloaded %d times, transcribed %d times", p.downloads.Load(), p.transcribes.Load())
 	}
 }
@@ -2235,8 +2275,8 @@ func (f *fakeDesktop) bar() queueBar {
 // failTranscribe fails every job as it transcribes, as whisper-cli does with audio it cannot read.
 type failTranscribe struct{ fakePipeline }
 
-func (failTranscribe) Transcribe(context.Context, string) ([]core.Segment, error) {
-	return nil, errors.New("whisper-cli: exit status 3: failed to read audio")
+func (failTranscribe) Hear(context.Context, string, time.Duration, time.Duration, func(core.Segment)) (string, error) {
+	return "", errors.New("whisper-cli: exit status 3: failed to read audio")
 }
 
 // TestAJobThatEndsInTheBackgroundNotifiesOnce checks that a job done while another app is in front posts one notification, named after the video, which says its subtitles are ready, and that the job being shown again does not post another.
@@ -2478,15 +2518,17 @@ func TestTheNotificationSwitchIsSaved(t *testing.T) {
 	}
 }
 
-// retranslatePipeline is the pipeline of a done film as the actions that translate it again see it: it counts the downloads and transcriptions, remembers each line Translate is sent and the language, translates a line as the language and the line, and writes the film's bilingual subtitles as Tools does, each translation above its line. With hold, Translate waits until the job is stopped.
+// retranslatePipeline is the pipeline of a done film as the actions that translate it again see it: it counts the downloads and transcriptions, remembers each line Translate is sent and the language, translates a line as the language and the line, and hears one line, "Hello.". With hold, Translate waits until the job is stopped.
 type retranslatePipeline struct {
+	testFolder
 	downloads, transcriptions int
 	sent                      []string
 	language                  string
 	translateErr              error
 	hold                      bool
-	// video is the film's video, which Download gives for a link.
-	video string
+	// video is the film's video, which Download gives for a link; silent hears no speech in it.
+	video  string
+	silent bool
 }
 
 func (p *retranslatePipeline) Check() error { return nil }
@@ -2498,12 +2540,20 @@ func (p *retranslatePipeline) Download(_ context.Context, source string) (string
 			return path, nil
 		}
 	}
+	if p.video == "" {
+		return p.testFolder.video("talk.mp4")
+	}
 	return p.video, nil
 }
 
-func (p *retranslatePipeline) Transcribe(context.Context, string) ([]core.Segment, error) {
+func (p *retranslatePipeline) Length(context.Context, string) time.Duration { return 30 * time.Second }
+
+func (p *retranslatePipeline) Hear(_ context.Context, _ string, from, _ time.Duration, heard func(core.Segment)) (string, error) {
 	p.transcriptions++
-	return []core.Segment{{End: time.Second, Text: "Hello."}}, nil
+	if from == 0 && !p.silent {
+		heard(core.Segment{End: time.Second, Text: "Hello."})
+	}
+	return "", nil
 }
 
 func (p *retranslatePipeline) Translate(ctx context.Context, segments []core.Segment, language string) ([]core.Segment, error) {
@@ -2522,23 +2572,6 @@ func (p *retranslatePipeline) Translate(ctx context.Context, segments []core.Seg
 		out[i].Text = language + ":" + s.Text
 	}
 	return out, nil
-}
-
-func (p *retranslatePipeline) Export(_ context.Context, video string, original, translated []core.Segment) (string, error) {
-	stamp := func(d time.Duration) string {
-		ms := d.Milliseconds()
-		return fmt.Sprintf("%02d:%02d:%02d,%03d", ms/3600000, ms/60000%60, ms/1000%60, ms%1000)
-	}
-	var b strings.Builder
-	for i, s := range original {
-		text := s.Text
-		if i < len(translated) && translated[i].Text != "" {
-			text = translated[i].Text + "\n" + s.Text
-		}
-		fmt.Fprintf(&b, "%d\n%s --> %s\n%s\n\n", i+1, stamp(s.Start), stamp(s.End), text)
-	}
-	path := strings.TrimSuffix(video, ".mp4") + ".bilingual.srt"
-	return path, os.WriteFile(path, []byte(b.String()), 0o644)
 }
 
 // retranslateLibrary is a library holding one done film, Talk, whose job translated it into 简体中文 and exported its three lines, the second of which it left untranslated; the settings now name 日本語 as the target language.
@@ -2974,7 +3007,7 @@ func TestRetryAllAndRemoveFailed(t *testing.T) {
 	g := newGatePipeline()
 	a, tt, _ := newTestApp(t, g)
 	failed := func(id string, kind core.FailKind) core.Job {
-		return core.Job{ID: id, Source: "https://example.com/" + id, Language: "简体中文", Stage: core.StageFailed, Err: errors.New("download: boom"), FailKind: kind, LibraryDir: "/videos"}
+		return core.Job{ID: id, Source: "https://example.com/" + id, Language: "简体中文", Stage: core.StageFailed, Err: errors.New("download: boom"), FailKind: kind, LibraryDir: testVideos}
 	}
 	stopped := failed("stopped", "")
 	stopped.Err = context.Canceled
@@ -3012,7 +3045,7 @@ func TestRetryAllAndRemoveFailedKeepToTheSourceShown(t *testing.T) {
 	g := newGatePipeline()
 	a, tt, _ := newTestApp(t, g)
 	failed := func(id, source string) core.Job {
-		return core.Job{ID: id, Source: source, Language: "简体中文", Stage: core.StageFailed, Err: errors.New("download: boom"), LibraryDir: "/videos"}
+		return core.Job{ID: id, Source: source, Language: "简体中文", Stage: core.StageFailed, Err: errors.New("download: boom"), LibraryDir: testVideos}
 	}
 	a.library.Jobs = []core.Job{
 		failed("yt1", "https://youtu.be/TRWgBxVAb1M"), failed("yt2", "https://youtu.be/dQw4w9WgXcQ"),
@@ -3060,7 +3093,7 @@ func TestWithdrawRemovesOnlyAFreshWaitingJob(t *testing.T) {
 	}
 	<-g.started
 	ids := jobIDs(a)
-	again := core.Job{ID: "again", Source: "https://example.com/again", Language: "简体中文", Stage: core.StageComplete, VideoPath: "/videos/again.mp4", SubtitlePath: "/videos/again.bilingual.srt", CompletedAt: time.Now(), LibraryDir: "/videos"}
+	again := core.Job{ID: "again", Source: "https://example.com/again", Language: "简体中文", Stage: core.StageComplete, VideoPath: testVideos + "/again.mp4", SubtitlePath: testVideos + "/again.bilingual.srt", CompletedAt: time.Now(), LibraryDir: testVideos}
 	a.library.Upsert(again)
 	a.Retry("again")
 	a.Withdraw(ids["https://example.com/fresh"])
@@ -3097,12 +3130,10 @@ func TestWaitingCardsCountTheJobsAhead(t *testing.T) {
 	}
 }
 
-// noSpeechPipeline is retranslatePipeline but for its transcription, which hears no speech, so a job that transcribes fails (media.ErrNoSpeech).
-type noSpeechPipeline struct{ *retranslatePipeline }
-
-func (p noSpeechPipeline) Transcribe(context.Context, string) ([]core.Segment, error) {
-	p.transcriptions++
-	return nil, nil
+// noSpeechPipeline is retranslatePipeline but for its speech recognition, which hears no speech, so a job that hears the film fails (media.ErrNoSpeech).
+func noSpeechPipeline(p *retranslatePipeline) *retranslatePipeline {
+	p.silent = true
+	return p
 }
 
 // folderLibrary is a library holding one video found in its folder that no job holds, Lecture, with bilingual subtitles beside it when subtitled; the settings name 日本語 as the target language. It returns the film the library shows for it.
@@ -3172,7 +3203,7 @@ func TestMakeSubtitlesOfAFolderVideo(t *testing.T) {
 // 生成字幕 that fails puts the video back as it was, without a failed card, and the message bar says why; one stopped while it runs says nothing. A film open on it stays open, back on the video.
 func TestAFailedMakeSubtitlesKeepsTheFolderVideo(t *testing.T) {
 	t.Run("fails", func(t *testing.T) {
-		p := noSpeechPipeline{&retranslatePipeline{}}
+		p := noSpeechPipeline(&retranslatePipeline{})
 		a, tt, updates, item := folderLibrary(t, p, false)
 		a.Reprocess(item)
 		if job := a.library.Jobs[0]; !job.FromFolder || !a.running() {
@@ -3503,5 +3534,219 @@ func TestAFailedDownloadSaysWhenMacOSKeepsTheBrowserFolder(t *testing.T) {
 				t.Fatalf("the card does not say %q; texts %q", r.Why, tt.Texts())
 			}
 		})
+	}
+}
+
+// makerPipeline makes a film a part at a time (media.Maker): its speech recognition hears a line every ten seconds, "line N", and stops at a minute in until released is closed, the first cell heard by then; its translation puts "译:" before each line.
+type makerPipeline struct {
+	length   time.Duration
+	released chan struct{}
+}
+
+func (p *makerPipeline) Check() error { return nil }
+
+func (p *makerPipeline) Download(_ context.Context, source string) (string, error) {
+	parsed, err := url.Parse(source)
+	if err != nil {
+		return "", err
+	}
+	if path, ok := core.FilePath(parsed); ok {
+		return path, nil
+	}
+	return "", errors.New("not a link")
+}
+
+func (p *makerPipeline) Translate(_ context.Context, segments []core.Segment, _ string) ([]core.Segment, error) {
+	out := make([]core.Segment, len(segments))
+	for i, s := range segments {
+		s.Text = "译:" + s.Text
+		out[i] = s
+	}
+	return out, nil
+}
+
+func (p *makerPipeline) Length(context.Context, string) time.Duration { return p.length }
+
+func (p *makerPipeline) Hear(ctx context.Context, _ string, from, to time.Duration, heard func(core.Segment)) (string, error) {
+	for at := time.Duration(0); at < p.length; at += 10 * time.Second {
+		if at < from || at >= to {
+			continue
+		}
+		if at >= 60*time.Second {
+			select {
+			case <-p.released:
+			case <-ctx.Done():
+				return "", ctx.Err()
+			}
+		}
+		heard(core.Segment{Start: at, End: at + 2*time.Second, Text: "line " + at.String()})
+	}
+	return "ja", nil
+}
+
+// TestAFilmIsWatchedWhileItIsMade adds a video whose lines are made a part at a time: the film shows the lines made so far, translated, while the rest are still being heard, and every line once it is done.
+func TestAFilmIsWatchedWhileItIsMade(t *testing.T) {
+	p := &makerPipeline{length: 90 * time.Second, released: make(chan struct{})}
+	a, tt, updates := newTestApp(t, p)
+	video := filepath.Join(t.TempDir(), "talk", "talk.mp4")
+	writeFakeClip(t, video, 90, "202020", "101010")
+	if err := a.Enqueue(core.FileURL(video)); err != nil {
+		t.Fatal(err)
+	}
+	refresh(tt, a)
+	id := a.library.Jobs[0].ID
+	queueUntilState(t, updates, func() bool { return stageOf(t, a, id).SubtitlePath != "" })
+	job := stageOf(t, a, id)
+	if job.Stage.Done() || !strings.HasSuffix(job.SubtitlePath, "talk.bilingual.srt") {
+		t.Fatalf("job %s shows %q, want its bilingual subtitles while it is made", job.Stage, job.SubtitlePath)
+	}
+	item, ok := films.Find(a.films(), id)
+	if !ok {
+		t.Fatalf("no film for %s in %+v", video, a.films())
+	}
+	playerOpenFilm(t, a, tt, updates, item)
+	if got := len(a.player.subs.machine); got == 0 || got >= 9 || a.player.subs.machine[0].Text != "译:line 0s\nline 0s" {
+		t.Fatalf("while the film is made it shows %+v", a.player.subs.machine)
+	}
+	// Its lines are drafts while it is made, none proofread as a whole yet: the line under the title says so, and each row of the subtitle list has its dot.
+	msgs := testlocale.Messages()
+	wantText(t, tt, msgs.FilmStatusDraft(0))
+	if !tt.Exists("id:film-cue-draft") {
+		t.Fatal("no row of the subtitle list is marked a draft")
+	}
+	close(p.released)
+	settle(t, a, tt, updates)
+	if job := stageOf(t, a, id); job.Stage != core.StageComplete || job.Untranslated != 0 {
+		t.Fatalf("job %s, %d untranslated: %v", job.Stage, job.Untranslated, job.Err)
+	}
+	waitUntil(t, tt, a, updates, func() bool { return a.player.subs.ready && len(a.player.subs.machine) == 9 })
+	if last := a.player.subs.machine[8].Text; last != "译:line 1m20s\nline 1m20s" {
+		t.Fatalf("last line %q", last)
+	}
+	// Done without a final proofread, which this pipeline cannot make, the film is one done, as before.
+	refresh(tt, a)
+	wantText(t, tt, msgs.FilmStatusTranslated(100))
+	if tt.Exists("id:film-cue-draft") {
+		t.Fatal("a row is still marked a draft once the film is done")
+	}
+}
+
+// TestAFilmMadeAgainShowsItsLinesDone processes a done film again entirely: while the redo runs, the film shows the lines it had, done, none marked a draft, and the job is done again once the redo is.
+func TestAFilmMadeAgainShowsItsLinesDone(t *testing.T) {
+	p := &makerPipeline{length: 90 * time.Second, released: make(chan struct{})}
+	close(p.released)
+	a, tt, updates := newTestApp(t, p)
+	a.prefs.review = true
+	video := filepath.Join(t.TempDir(), "talk", "talk.mp4")
+	writeFakeClip(t, video, 90, "202020", "101010")
+	if err := a.Enqueue(core.FileURL(video)); err != nil {
+		t.Fatal(err)
+	}
+	refresh(tt, a)
+	id := a.library.Jobs[0].ID
+	settle(t, a, tt, updates)
+	if job := stageOf(t, a, id); job.Stage != core.StageComplete {
+		t.Fatalf("job %s: %v", job.Stage, job.Err)
+	}
+	p.released = make(chan struct{})
+	a.Retry(id)
+	refresh(tt, a)
+	queueUntilState(t, updates, func() bool { return stageOf(t, a, id).Stage == core.StageTranscribing })
+	item, ok := films.Find(a.films(), id)
+	if !ok {
+		t.Fatalf("no film for %s", id)
+	}
+	playerOpenFilm(t, a, tt, updates, item)
+	if got := len(a.player.subs.machine); got != 9 {
+		t.Fatalf("while it is made again the film shows %d lines, want the 9 it had", got)
+	}
+	if tt.Exists("id:film-cue-draft") || len(a.Subs().Drafts) != 0 {
+		t.Fatal("a film made again marks the lines it had drafts")
+	}
+	close(p.released)
+	settle(t, a, tt, updates)
+	if job := stageOf(t, a, id); job.Stage != core.StageComplete || job.Redo != "" {
+		t.Fatalf("job %s redo %q: %v", job.Stage, job.Redo, job.Err)
+	}
+}
+
+// preferPipeline makes films a part at a time as makerPipeline does, its speech recognition stopping a minute into "first" until released is closed, and records which film each run heard.
+type preferPipeline struct {
+	makerPipeline
+	mu    sync.Mutex
+	heard []string
+}
+
+func (p *preferPipeline) Hear(ctx context.Context, video string, from, to time.Duration, heard func(core.Segment)) (string, error) {
+	name := strings.TrimSuffix(filepath.Base(video), filepath.Ext(video))
+	p.mu.Lock()
+	p.heard = append(p.heard, name)
+	p.mu.Unlock()
+	if name != "first" {
+		inner := makerPipeline{length: p.length, released: closedGate}
+		return inner.Hear(ctx, video, from, to, heard)
+	}
+	return p.makerPipeline.Hear(ctx, video, from, to, heard)
+}
+
+func (p *preferPipeline) runs() []string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return slices.Clone(p.heard)
+}
+
+var closedGate = func() chan struct{} { c := make(chan struct{}); close(c); return c }()
+
+// TestTheFilmOpenedIsMadeFirst opens a film waiting behind one being made: the one being made gives way, the opened one is made, and the other goes on where it was.
+func TestTheFilmOpenedIsMadeFirst(t *testing.T) {
+	p := &preferPipeline{makerPipeline: makerPipeline{length: 90 * time.Second, released: make(chan struct{})}}
+	a, tt, updates := newTestApp(t, p)
+	dir := t.TempDir()
+	first, second := filepath.Join(dir, "first", "first.mp4"), filepath.Join(dir, "second", "second.mp4")
+	writeFakeClip(t, first, 90, "202020", "101010")
+	writeFakeClip(t, second, 90, "202020", "101010")
+	if err := a.Enqueue(core.FileURL(first)); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.Enqueue(core.FileURL(second)); err != nil {
+		t.Fatal(err)
+	}
+	refresh(tt, a)
+	var firstID, secondID string
+	for _, j := range a.library.Jobs {
+		if strings.HasSuffix(j.Source, "first.mp4") {
+			firstID = j.ID
+		} else {
+			secondID = j.ID
+		}
+	}
+	// The first is heard to its first minute, where it waits; the second waits behind it.
+	queueUntilState(t, updates, func() bool { return stageOf(t, a, firstID).SubtitlePath != "" })
+	if a.queue.active != firstID || stageOf(t, a, secondID).Stage != core.StageQueued {
+		t.Fatalf("running %q, second %s", a.queue.active, stageOf(t, a, secondID).Stage)
+	}
+	item, ok := films.Find(a.films(), secondID)
+	if !ok {
+		t.Fatal("no film for the second job")
+	}
+	apply(tt, a, func() { a.Open(item) })
+	queueUntilState(t, updates, func() bool { return stageOf(t, a, secondID).Stage == core.StageComplete })
+	if job := stageOf(t, a, firstID); job.Stage.Done() {
+		t.Fatalf("the first ended %s while the second was made", job.Stage)
+	}
+	close(p.released)
+	settle(t, a, tt, updates)
+	if job := stageOf(t, a, firstID); job.Stage != core.StageComplete {
+		t.Fatalf("the first ended %s: %v", job.Stage, job.Err)
+	}
+	// The first gave way, the second was made, then the first went on: it heard again only what it had not.
+	runs := p.runs()
+	at := slices.Index(runs, "second")
+	if at < 0 || !slices.Contains(runs[:at], "first") || !slices.Contains(runs[at:], "first") {
+		t.Fatalf("runs %v, want the first, then the second, then the first again", runs)
+	}
+	doc, err := track.Read(first)
+	if err != nil || len(doc.View()) != 9 {
+		t.Fatalf("the first film shows %d lines (%v), want each once", len(doc.View()), err)
 	}
 }

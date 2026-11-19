@@ -75,7 +75,7 @@ func TestChaptersFileKeepsWhatAPlayerCanCutAt(t *testing.T) {
 	}
 }
 
-// chapterPipeline is a link's pipeline whose download finds chapters: Download writes the video into dir and reports chapters, Transcribe hears two lines, and Translate prefixes each text with the language and remembers it, or fails with translateErr.
+// chapterPipeline is a link's pipeline whose download finds chapters: Download writes the video into dir and reports chapters, Hear hears two lines, and Translate prefixes each text with the language and remembers it, or fails with translateErr.
 type chapterPipeline struct {
 	dir          string
 	chapters     []core.Chapter
@@ -97,8 +97,16 @@ func (p *chapterPipeline) Download(ctx context.Context, _ string) (string, error
 	return video, os.WriteFile(video, []byte("v"), 0o644)
 }
 
-func (p *chapterPipeline) Transcribe(context.Context, string) ([]core.Segment, error) {
-	return []core.Segment{{Start: 0, End: time.Second, Text: "Rivers start small."}, {Start: 30 * time.Second, End: 31 * time.Second, Text: "They carve valleys."}}, nil
+func (p *chapterPipeline) Length(context.Context, string) time.Duration { return 60 * time.Second }
+
+// Hear hears two lines, one in each of the film's two cells.
+func (p *chapterPipeline) Hear(_ context.Context, _ string, from, to time.Duration, heard func(core.Segment)) (string, error) {
+	for _, s := range []core.Segment{{Start: 0, End: time.Second, Text: "Rivers start small."}, {Start: 30 * time.Second, End: 31 * time.Second, Text: "They carve valleys."}} {
+		if s.Start >= from && s.Start < to {
+			heard(s)
+		}
+	}
+	return "en", nil
 }
 
 func (p *chapterPipeline) Translate(_ context.Context, segments []core.Segment, language string) ([]core.Segment, error) {
@@ -117,13 +125,9 @@ func (p *chapterPipeline) Translate(_ context.Context, segments []core.Segment, 
 	return out, nil
 }
 
-func (p *chapterPipeline) Export(ctx context.Context, video string, original, translated []core.Segment) (string, error) {
-	return exportSubtitles(ctx, video, original, translated)
-}
-
 func runChapters(t *testing.T, p Pipeline, job core.Job, language string) core.Job {
 	t.Helper()
-	done := Run(context.Background(), p, job, language, func(core.Job) {})
+	done := Make(context.Background(), p, job, language, "mac", nil, func(core.Job) {})
 	if done.Stage != core.StageComplete {
 		t.Fatalf("job %s: %v", done.Stage, done.Err)
 	}
@@ -131,7 +135,7 @@ func runChapters(t *testing.T, p Pipeline, job core.Job, language string) core.J
 }
 
 // A link's job keeps the chapters its download found beside the video and translates their titles after the lines, apart from them; translating the film into another language translates them again, a film heard in its target language keeps none, and a translation that fails as a whole leaves them as the site wrote them.
-func TestRunKeepsAndTranslatesTheChapters(t *testing.T) {
+func TestMakeKeepsAndTranslatesTheChapters(t *testing.T) {
 	p := &chapterPipeline{dir: t.TempDir(), chapters: []core.Chapter{chapter(0, "Intro", ""), chapter(24, "Where Rivers Begin", "")}}
 	job, _ := core.NewJob("https://www.youtube.com/watch?v=a1B2c3D4e5F")
 	job = runChapters(t, p, job, "简体中文")
@@ -216,12 +220,12 @@ func TestDownloadKeepsTheJobsChapterUse(t *testing.T) {
 }
 
 // A job stopped while it translates the chapters' titles stops, as one stopped while it translates its lines does; one whose pipeline completes although it was stopped completes.
-func TestRunStoppedWhileTranslatingTheChapters(t *testing.T) {
+func TestMakeStoppedWhileTranslatingTheChapters(t *testing.T) {
 	ctx, stop := context.WithCancel(context.Background())
 	defer stop()
 	p := &chapterPipeline{dir: t.TempDir(), chapters: []core.Chapter{chapter(0, "Intro", ""), chapter(24, "Where Rivers Begin", "")}, stopAt: "Intro", stop: stop}
 	job, _ := core.NewJob("https://www.youtube.com/watch?v=a1B2c3D4e5F")
-	job = Run(ctx, p, job, "简体中文", func(core.Job) {})
+	job = Make(ctx, p, job, "简体中文", "mac", nil, func(core.Job) {})
 	if job.Stage != core.StageFailed || !errors.Is(job.Err, context.Canceled) {
 		t.Fatalf("job %s: %v", job.Stage, job.Err)
 	}

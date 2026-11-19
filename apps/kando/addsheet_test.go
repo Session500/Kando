@@ -181,14 +181,15 @@ func TestAddSheetFromTheBrowserExtension(t *testing.T) {
 
 // A film that was watched already keeps its own resume position when a job for it completes again.
 func TestAddSheetKeepsAPositionTheFilmHas(t *testing.T) {
+	testVideosFor(t)
 	a := newApp(media.Tools{}, func(fn func()) { fn() })
-	a.player.positions = map[string]time.Duration{"/videos/talk.mp4": 5 * time.Second}
-	a.library.Upsert(core.Job{ID: "j", Source: "https://youtu.be/jNQXAC9IVRw", Stage: core.StageComplete, VideoPath: "/videos/talk.mp4", ResumeAt: 84 * time.Second})
+	a.player.positions = map[string]time.Duration{testVideos + "/talk.mp4": 5 * time.Second}
+	a.library.Upsert(core.Job{ID: "j", Source: "https://youtu.be/jNQXAC9IVRw", Stage: core.StageComplete, VideoPath: testVideos + "/talk.mp4", ResumeAt: 84 * time.Second})
 	if a.addSheetResume() {
 		t.Fatal("kept a position over the film's own")
 	}
-	if job, _ := a.library.Find("j"); job.ResumeAt != 0 || a.ResumeAt("/videos/talk.mp4") != 5*time.Second {
-		t.Fatalf("job %+v, resumes at %v", job, a.ResumeAt("/videos/talk.mp4"))
+	if job, _ := a.library.Find("j"); job.ResumeAt != 0 || a.ResumeAt(testVideos+"/talk.mp4") != 5*time.Second {
+		t.Fatalf("job %+v, resumes at %v", job, a.ResumeAt(testVideos+"/talk.mp4"))
 	}
 }
 

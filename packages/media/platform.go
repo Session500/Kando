@@ -15,7 +15,7 @@ import (
 	"kando/packages/core"
 )
 
-// PlatformSubtitler is a Pipeline that can fetch the subtitles a link's site carries, as Tools does with yt-dlp. Run asks it, for a job whose SubtitleSource is core.SubtitlesPlatform, once the speech is transcribed, for the subtitles in the language heard, and takes them as the film's original lines where they match the speech (matchPlatform).
+// PlatformSubtitler is a Pipeline that can fetch the subtitles a link's site carries, as Tools does with yt-dlp. Make asks it, for a job whose SubtitleSource is core.SubtitlesPlatform, once the language the speech is heard in is known, for the subtitles in that language, and takes them as the film's original lines where they match the speech (making.siteHeard).
 type PlatformSubtitler interface {
 	// PlatformSubtitles returns the subtitles the uploader put on source's page in language, as whisper's code (en, ja, zh), none when it has none. Subtitles the site made itself, as YouTube's automatic captions and bilibili's AI subtitles, are not the uploader's and are never returned.
 	PlatformSubtitles(ctx context.Context, source, language string) ([]core.Segment, error)
@@ -23,22 +23,6 @@ type PlatformSubtitler interface {
 
 // platformFetchTimeout is how long fetching a link's subtitles may take: they are a few kilobytes, and a site that does not answer only means the film is heard alone.
 const platformFetchTimeout = 2 * time.Minute
-
-// platformLines are the original lines of job's film when it takes its site's subtitles (core.SubtitlesPlatform) and they match heard, the speech the job transcribed in language (matchPlatform): the subtitles, with the lines heard where they do not match it, and how many subtitle lines those replaced. ok is false for a job that does not take them, a local video, a pipeline that cannot fetch them, a site that has none in language or whose fetch failed, and subtitles that do not match the speech; the film is then heard alone.
-func platformLines(ctx context.Context, p Pipeline, job core.Job, language string, heard []core.Segment) (lines []core.Segment, local int, ok bool) {
-	fetcher, can := p.(PlatformSubtitler)
-	if !can || job.SubtitleSource != core.SubtitlesPlatform || strings.TrimSpace(language) == "" {
-		return nil, 0, false
-	}
-	if _, isLocal := localVideoPath(job.Source); isLocal {
-		return nil, 0, false
-	}
-	subtitles, err := fetcher.PlatformSubtitles(ctx, job.Source, language)
-	if err != nil || len(subtitles) == 0 {
-		return nil, 0, false
-	}
-	return matchPlatform(subtitles, heard)
-}
 
 // platformSlack is how far before its start and after its end a line of the site's subtitles looks for the speech that says it, as subtitles are timed by hand and the speech recognition's own times are rough.
 const platformSlack = 500 * time.Millisecond
@@ -53,9 +37,18 @@ const platformSaid = 0.75
 //
 // Every stretch of the film comes from one side, so no speech is lost and none is said twice. A line heard is left out when the subtitle lines kept around it hold its words (platformSaid); any other is kept, at its own times, and replaces every subtitle line it overlaps, as a line heard often spans two of them, so the lines heard under those are kept too. A line heard where the subtitles have none is kept the same way. A subtitle line that does not match and that no line heard replaces, as one the speech recognition did not hear at all, stays as the uploader wrote it. local counts the subtitle lines with words that lines heard replaced.
 func matchPlatform(subtitles, heard []core.Segment) (lines []core.Segment, local int, ok bool) {
-	matched := make([]bool, len(subtitles))
-	words := make([]bool, len(subtitles))
-	checked, hits := 0, 0
+	matched, words, checked, hits := platformCheck(subtitles, heard)
+	if checked == 0 || hits*2 < checked {
+		return nil, 0, false
+	}
+	lines, _, local = platformMerge(subtitles, heard, matched, words)
+	return lines, local, true
+}
+
+// platformCheck checks each of subtitles against heard, the lines heard around it (matchPlatform): matched says which match, words which hold words to check, and checked and hits count those with words and those of them that match.
+func platformCheck(subtitles, heard []core.Segment) (matched, words []bool, checked, hits int) {
+	matched = make([]bool, len(subtitles))
+	words = make([]bool, len(subtitles))
 	for i, s := range subtitles {
 		pairs := textPairs(withoutSounds(s.Text))
 		if len(pairs) == 0 {
@@ -76,10 +69,11 @@ func matchPlatform(subtitles, heard []core.Segment) (lines []core.Segment, local
 			hits++
 		}
 	}
-	if checked == 0 || hits*2 < checked {
-		return nil, 0, false
-	}
+	return matched, words, checked, hits
+}
 
+// platformMerge is the film's original lines from subtitles, checked against heard (platformCheck), and the lines heard (matchPlatform), in the order of their times: site says, line for line, which are the uploader's, and local counts the subtitle lines with words that lines heard replaced.
+func platformMerge(subtitles, heard []core.Segment, matched, words []bool) (lines []core.Segment, site []bool, local int) {
 	// around[j] are the subtitle lines near heard line j, whose words it may be, under[j] those it overlaps, and nearBy[i] the lines heard near subtitle line i, which have to be looked at again once it is replaced.
 	around := make([][]int, len(heard))
 	under := make([][]int, len(heard))
@@ -134,21 +128,29 @@ func matchPlatform(subtitles, heard []core.Segment) (lines []core.Segment, local
 			}
 		}
 	}
+	type line struct {
+		core.Segment
+		site bool
+	}
+	var out []line
 	for i, s := range subtitles {
 		switch {
 		case !replaced[i]:
-			lines = append(lines, s)
+			out = append(out, line{s, true})
 		case words[i]:
 			local++
 		}
 	}
 	for j, h := range heard {
 		if kept[j] {
-			lines = append(lines, h)
+			out = append(out, line{h, false})
 		}
 	}
-	slices.SortStableFunc(lines, func(a, b core.Segment) int { return cmp.Compare(a.Start, b.Start) })
-	return lines, local, true
+	slices.SortStableFunc(out, func(a, b line) int { return cmp.Compare(a.Start, b.Start) })
+	for _, l := range out {
+		lines, site = append(lines, l.Segment), append(site, l.site)
+	}
+	return lines, site, local
 }
 
 // near is whether heard is on around subtitle's time, within platformSlack of it.
