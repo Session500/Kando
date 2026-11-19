@@ -3,7 +3,10 @@
 // The desktop answers over HTTPS with a self-signed certificate, which the phone pins by its SHA-256 fingerprint (Fingerprint) rather than trusting any authority. A phone pairs once with the one-time code the desktop shows (PathPair), and sends the device token it gets back as a bearer token from then on.
 package sync
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 // Version is the protocol's version, the first part of every path.
 const Version = "v1"
@@ -27,11 +30,22 @@ const (
 // FilmsPath is PathFilms for library lib.
 func FilmsPath(lib string) string { return "/v1/libraries/" + lib + "/films" }
 
-// QueryWith and WithSubtitlesOnly ask PathFilms for the films that keep no video too (Film.SubtitlesOnly), as "?with=subtitles_only". A phone from before them knew a film by its video alone, so a desktop lists them only to a phone that asks.
+// QueryWith asks PathFilms for kinds of film a phone from before them did not know, so a desktop lists them only to a phone that asks, as "?with=subtitles_only,sound": WithSubtitlesOnly for the films that keep no video (Film.SubtitlesOnly), which a phone knew a film by; WithSound for the films of sound alone (Film.Sound), whose file a phone from before them would keep as an MP4 it cannot play (Extension).
 const (
 	QueryWith         = "with"
 	WithSubtitlesOnly = "subtitles_only"
+	WithSound         = "sound"
 )
+
+// AsksWith reports whether query, a request's QueryWith, asks for kind among the kinds it names.
+func AsksWith(query, kind string) bool {
+	for _, k := range strings.Split(query, ",") {
+		if strings.TrimSpace(k) == kind {
+			return true
+		}
+	}
+	return false
+}
 
 // SubtitlesPath is PathSubtitles for film id.
 func SubtitlesPath(id string) string { return "/v1/films/" + id + "/subtitles" }
@@ -93,6 +107,8 @@ type Film struct {
 	VideoSize int64 `json:"video_size"`
 	// SubtitlesOnly is a film the desktop keeps no video of, only its subtitles (仅字幕): PathVideo answers it not_found, and its lines are studied without the picture until the desktop downloads the video (OpFilmVideo).
 	SubtitlesOnly bool `json:"subtitles_only,omitempty"`
+	// Sound is a film of sound alone, as a podcast's mp3, listed only to a phone that asks for them (WithSound): PathVideo answers its file, of an audio media type (MediaType), which the player plays without a picture, and VideoSize is its size.
+	Sound bool `json:"sound,omitempty"`
 	// Updated is when the film's video or subtitles last changed on the desktop, so a phone knows to fetch them again.
 	Updated time.Time `json:"updated"`
 }

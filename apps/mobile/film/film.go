@@ -108,7 +108,7 @@ func Page(cx *core.Scope, s *session.Session, desktop, library string, f sync.Fi
 		switch {
 		case !ok:
 			return notStored
-		case rf.Video == "":
+		case rf.Media() == "":
 			return linesStored
 		}
 		return videoStored

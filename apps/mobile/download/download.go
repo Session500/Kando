@@ -5,11 +5,9 @@ import (
 	"context"
 	"errors"
 	"io"
-	"mime"
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"kando/apps/mobile/store"
 	"kando/packages/sync"
@@ -117,7 +115,7 @@ func poster(ctx context.Context, c Source, id, dir string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	name := "poster" + extension(kind, ".jpg")
+	name := "poster" + sync.Extension(kind, ".jpg")
 	return name, os.WriteFile(filepath.Join(dir, name), data, 0o600)
 }
 
@@ -187,30 +185,7 @@ func video(ctx context.Context, c Source, id, dir, etag string, saveETag func(st
 	if part.Total >= 0 && done != part.Total {
 		return "", io.ErrUnexpectedEOF
 	}
-	name := "video" + extension(part.ContentType, ".mp4")
+	// The player tells the file's container by its extension, which its type gives (sync.Extension); a desktop from before the types were named served every video as MP4.
+	name := "video" + sync.Extension(part.ContentType, ".mp4")
 	return name, os.Rename(partPath, filepath.Join(dir, name))
-}
-
-// fileTypes are the extensions of the types of the videos and posters a desktop serves: the phone's player tells a video's container by its file's extension, and mime's own table lacks some of them on some systems.
-var fileTypes = map[string]string{
-	"video/mp4":        ".mp4",
-	"video/x-m4v":      ".m4v",
-	"video/quicktime":  ".mov",
-	"video/webm":       ".webm",
-	"video/x-matroska": ".mkv",
-	"image/jpeg":       ".jpg",
-	"image/png":        ".png",
-	"image/webp":       ".webp",
-}
-
-// extension is the file extension of content type kind, else fallback.
-func extension(kind, fallback string) string {
-	t, _, err := mime.ParseMediaType(kind)
-	if err != nil {
-		return fallback
-	}
-	if ext, ok := fileTypes[strings.ToLower(t)]; ok {
-		return ext
-	}
-	return fallback
 }
