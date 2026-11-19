@@ -1143,10 +1143,11 @@ func remoteSource(given, dir string) (source string, reason func(locales.Message
 	if info.IsDir() {
 		return "", remoteReason("a folder: list its videos with lists.expand, then add them")
 	}
-	if !media.IsVideoFile(path) {
+	film, ok := media.FilmOf(path)
+	if !ok {
 		return "", locales.Messages.PrecheckNoVideo
 	}
-	return core.FileURL(path), nil
+	return core.FileURL(film), nil
 }
 
 // remoteReason is a reason of remoteSource that the app has no words of its own for, as the system's error for a file that cannot be read, which it says as it is.
@@ -1175,17 +1176,17 @@ func remoteLocalPath(s, dir string) (path string, local bool) {
 	if filepath.IsAbs(s) {
 		return filepath.Clean(s), true
 	}
-	// A name that is a file in dir is that file, and a video's bare file name, as lecture.mov, is a file too, though notes.txt and lecture.mov read as hosts to ParseLink, which takes an address typed without https://.
+	// A name that is a file in dir is that file, and a media file's bare name, as lecture.mov or episode.mp3, is a file too, though notes.txt and lecture.mov read as hosts to ParseLink, which takes an address typed without https://.
 	if dir != "" && !strings.Contains(s, "://") {
 		if info, err := os.Stat(filepath.Join(dir, s)); err == nil && !info.IsDir() {
 			return filepath.Join(dir, s), true
 		}
 	}
-	bareVideo := media.IsVideoFile(s) && !strings.ContainsAny(s, `/\`)
+	bareVideo := media.IsMediaFile(s) && !strings.ContainsAny(s, `/\`)
 	if _, ok := core.ParseLink(s); !bareVideo && ok || strings.Contains(s, "://") {
 		return "", false
 	}
-	relative := strings.HasPrefix(s, "."+string(filepath.Separator)) || strings.HasPrefix(s, ".."+string(filepath.Separator)) || media.IsVideoFile(s)
+	relative := strings.HasPrefix(s, "."+string(filepath.Separator)) || strings.HasPrefix(s, ".."+string(filepath.Separator)) || media.IsMediaFile(s)
 	if dir == "" {
 		return "", relative
 	}

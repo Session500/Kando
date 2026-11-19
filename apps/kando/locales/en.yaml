@@ -1739,8 +1739,8 @@ filmLocalFile:
   message: "Local file"
   description: "The Info tab's source of a film opened from a file on this computer."
 filmLocalVideo:
-  message: "Local Video"
-  description: "Chip in the Info tab of a local video no job has processed."
+  message: "Local File"
+  description: "Chip in the Info tab of a local video or audio file no job has processed."
 filmLoopGapOff:
   message: "Pause Between Repeats: Off"
   description: "Message on the picture after Pause Between Repeats was turned off."
@@ -1826,8 +1826,8 @@ filmOpening:
   message: "Opening"
   description: "Name of the disabled play button while the video opens."
 filmOpeningVideo:
-  message: "Opening video…"
-  description: "Shown in the middle of the picture while the video opens."
+  message: "Opening…"
+  description: "Shown in the middle of the picture while the video or audio file opens."
 filmOrderOriginalFirst:
   message: "Original on Top"
   description: "Bilingual order: the original over the translation."
@@ -2141,10 +2141,10 @@ filmsDropHint:
   message: "Local files skip the download and go straight to subtitles"
   description: "Line under the drop title: what happens to a dropped local video."
 filmsDropTitle:
-  message: "Drop to Add Local Videos"
-  description: "Shown over the library while video files are dragged over the window."
+  message: "Drop to Add Videos or Audio"
+  description: "Shown over the library while video or audio files are dragged over the window."
 filmsEmptyDescription:
-  message: "Paste a link from YouTube, Bilibili or another site above, or drag a video file into the window. Kando downloads the video, recognizes the speech and makes bilingual subtitles."
+  message: "Paste a link from YouTube, Bilibili or another site above, or drag a video or audio file into the window. Kando downloads the video, recognizes the speech and makes bilingual subtitles."
   description: "How to add a first film, on the page of an empty library. The link field is above it."
 filmsEmptyTitle:
   message: "Start with a Video"
@@ -2241,11 +2241,11 @@ filmsListYesterday:
   placeholders:
     when: { type: "DateTime" }
 filmsLocalVideo:
-  message: "Local Video"
-  description: "Toolbar button that opens a file dialog to add video files."
+  message: "Local Files"
+  description: "Toolbar button that opens a file dialog to add video and audio files."
 filmsLocalVideoTooltip:
-  message: "Add Local Videos ({shortcut})"
-  description: "Tooltip of the toolbar button that adds video files, with its shortcut as the system writes it."
+  message: "Add Local Videos or Audio ({shortcut})"
+  description: "Tooltip of the toolbar button that adds video and audio files, with its shortcut as the system writes it."
   placeholders:
     shortcut: { type: "String", example: "⌘O" }
 filmsMakeSubtitles:
@@ -2320,8 +2320,8 @@ filmsPathNotSet:
   message: "Not Set"
   description: "Shown in place of a folder path that has not been chosen."
 filmsPickVideosEllipsis:
-  message: "Choose Local Videos…"
-  description: "Button on the empty library's page that opens a file dialog to choose videos."
+  message: "Choose Local Files…"
+  description: "Button on the empty library's page that opens a file dialog to choose videos and audio files."
 filmsPlay:
   message: "Play"
   description: "Menu item and button that play a film."
@@ -2904,14 +2904,14 @@ libraryNameTaken:
   message: "A library with this name already exists. Choose another name."
   description: "Error in the new-library sheet: a library of that name is already in the chosen folder."
 libraryOpenVideosMenu:
-  message: "Open Local Video…"
-  description: "File menu item that opens a file dialog to add local videos."
+  message: "Open Local File…"
+  description: "File menu item that opens a file dialog to add local videos and audio files."
 libraryPickVideosButton:
   message: "Open"
   description: "Confirming button of the file dialog that chooses videos."
 libraryPickVideosTitle:
-  message: "Choose Videos"
-  description: "Title of the file dialog that chooses videos to add."
+  message: "Choose Videos or Audio"
+  description: "Title of the file dialog that chooses videos or audio files to add."
 libraryPlaceButton:
   message: "Choose"
   description: "Confirming button of the folder dialog that chooses where a new library goes."
@@ -2989,8 +2989,8 @@ libraryShelfSaveFailed:
   placeholders:
     error: { type: "String", example: "permission denied" }
 librarySkippedNotVideos:
-  message: "{added} {count, plural, one {Skipped # file that isn't a video.} other {Skipped # files that aren't videos.}}"
-  description: "Message bar after files or folders were dropped or opened and some of the files in them were not videos, which were left out. added is the message bar's sentence about the videos added, such as “Added 3 videos. Processing started.”; count is how many files were left out. A folder adds the videos directly in it and in its subfolders."
+  message: "{added} {count, plural, one {Skipped # file that isn't a video or audio file.} other {Skipped # files that aren't video or audio files.}}"
+  description: "Message bar after files or folders were dropped or opened and some of the files in them were neither videos nor audio files, which were left out. added is the message bar's sentence about the videos added, such as “Added 3 videos. Processing started.”; count is how many files were left out. A folder adds the videos directly in it and in its subfolders."
   placeholders:
     added: { type: "String", example: "Added 3 videos. Processing started." }
     count: { type: "int", example: "2" }
@@ -3032,8 +3032,8 @@ librarySortSaveFailed:
   placeholders:
     error: { type: "String", example: "permission denied" }
 libraryVideoFilter:
-  message: "Videos"
-  description: "Name of the file type filter of the file dialog that chooses videos."
+  message: "Videos and Audio"
+  description: "Name of the file type filter of the file dialog that chooses videos and audio files."
 libraryViewSaveFailed:
   message: "Couldn't save the view: {error}"
   description: "Message bar when the choice of icons or a list for the finished films could not be written to the settings file."
@@ -3397,7 +3397,7 @@ onboardingLinkDescription:
   message: "Any video from YouTube, Bilibili or another site yt-dlp can download from will do."
   description: "Line under the third step's title."
 onboardingLinkHintEmpty:
-  message: "Press Enter to start. No link? Skip for now and drag a local video into the window later."
+  message: "Press Enter to start. No link? Skip for now and drag a local video or audio file into the window later."
   description: "Line under the third step's link field while it is empty."
 onboardingLinkLabel:
   message: "Link to the first video"
@@ -3607,7 +3607,7 @@ onboardingWelcome:
   message: "Welcome to Kando"
   description: "Title of the first-run guide's first step, and the accessible name of the guide's sheet."
 onboardingWelcomeDescription:
-  message: "Paste a YouTube or Bilibili link, or drag in a local video, and learn as you watch. First, choose your languages."
+  message: "Paste a YouTube or Bilibili link, or drag in a local video or audio file, and learn as you watch. First, choose your languages."
   description: "Line under the first step's title."
 paletteAnswerNote:
   message: "Based only on what has played (up to {at}) · Answered by {model}"
@@ -4138,8 +4138,8 @@ precheckNoTranscript:
   message: "This film's original subtitles are gone, so its translation can't be redone on its own. Process the entire film again instead."
   description: "Why translating a finished film again failed, the reason in queueRedoFailed: the transcript beside its video was deleted, so only Process Again (which downloads and transcribes the film again) can make new subtitles."
 precheckNoVideo:
-  message: "Only video files can be added (mp4, mov, mkv, webm and others)."
-  description: "Message bar when none of the files dropped or picked is a video."
+  message: "Only video and audio files can be added (mp4, mov, mkv, mp3, m4a and others)."
+  description: "Message bar when none of the files dropped or picked is a video or an audio file."
 precheckNotLink:
   message: "This doesn't look like a video link. Kando supports YouTube, Bilibili and the thousands of websites yt-dlp can read."
   description: "Message bar when what was pasted is not a link."
@@ -4249,8 +4249,8 @@ queueKeepAwake:
   message: "Processing a video"
   description: "Why Kando keeps the computer from sleeping while a job downloads, transcribes or translates a video; the system lists it with what keeps the computer awake (on macOS, pmset -g assertions)."
 queueLocalChosen:
-  message: "Local video selected"
-  description: "Status once a local video was put in the link field."
+  message: "Local file selected"
+  description: "Status once a local video or audio file was put in the link field."
 queueMakeSubtitlesFailed:
   message: "Couldn't make subtitles for “{name}”. {reason}"
   description: "Message bar when Make Subtitles on a video found in the library folder failed: the video stays as it was, without subtitles. reason is a full sentence saying why, such as that the speech model is missing."
@@ -4267,8 +4267,8 @@ queueNoLibrary:
   message: "Create or open a library first"
   description: "Why a link cannot be added: no library is open."
 queueNoVideoToImport:
-  message: "No video to import"
-  description: "Status when the file chosen to import is not a video."
+  message: "Not a video or audio file"
+  description: "Status when the file chosen to import is neither a video nor an audio file."
 queueNotifyDone:
   message: "The bilingual subtitles are ready."
   description: "Body of the notification posted while Kando is in the background, when a video's job is done. The notification's title is the video's title."

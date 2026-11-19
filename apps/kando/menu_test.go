@@ -227,7 +227,7 @@ func TestMenuWaitsBehindAFilePanel(t *testing.T) {
 	release := a.holdModal()
 	refresh(tt, a)
 	bar := a.menuBar(a.cx)
-	for _, it := range []struct{ menu, label string }{{"文件", "打开资料库…"}, {"文件", "新建资料库…"}, {"文件", "打开本地视频…"}, {"文件", testlocale.Messages().MenuRevealLibrary(platformName())}, {"看懂", "设置…"}, {"窗口", testlocale.Messages().MenuWindowLibrary()}, {"帮助", "快捷键速查"}} {
+	for _, it := range []struct{ menu, label string }{{"文件", "打开资料库…"}, {"文件", "新建资料库…"}, {"文件", "打开本地文件…"}, {"文件", testlocale.Messages().MenuRevealLibrary(platformName())}, {"看懂", "设置…"}, {"窗口", testlocale.Messages().MenuWindowLibrary()}, {"帮助", "快捷键速查"}} {
 		if !findMenuItem(t, bar, it.menu, it.label).Disabled {
 			t.Fatalf("%s › %s enabled behind a file panel", it.menu, it.label)
 		}

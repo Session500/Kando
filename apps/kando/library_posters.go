@@ -74,7 +74,8 @@ func (a *app) ensurePoster(item films.Film) {
 	go func() {
 		var length time.Duration
 		if cover.ffmpeg != "" {
-			length = media.VideoDuration(cover.ffmpeg, video)
+			header := media.ReadHeader(cover.ffmpeg, video)
+			length, cover.sound = header.Length, header.Read && !header.Picture
 		}
 		// The cover is kept as the JPEG findCover returns, which the cards show as it is, once it reads as a picture.
 		data, err := findCover(context.Background(), cover)
@@ -112,11 +113,12 @@ func (a *app) libraryLearnDuration(path string, length time.Duration) {
 	a.lib.durations[path] = length
 }
 
-// coverSources is where a film's cover can come from: the address of the picture its site gives it and where that picture is kept once fetched ("" for a local video), the ffmpeg that reads the video file, and dest, the cover.jpg the cover is kept in.
+// coverSources is where a film's cover can come from: the address of the picture its site gives it and where that picture is kept once fetched ("" for a local video), the ffmpeg that reads the video file, and dest, the cover.jpg the cover is kept in. sound is true for a film of sound alone, whose cover the player shows in place of a picture (media.WideCover).
 type coverSources struct {
 	site, siteCache string
 	ffmpeg, video   string
 	dest            string
+	sound           bool
 }
 
 // fetchSiteThumbnail downloads a site's picture of a video, and embeddedCover reads the cover art a video file carries. Tests replace them.
@@ -125,7 +127,7 @@ var (
 	embeddedCover      = media.EmbeddedCover
 )
 
-// findCover returns a film's cover as JPEG and keeps it in dest, off the UI thread. The cover is the video's own: the picture its site gives it, else the cover art its file carries; dest is rewritten whenever it holds something else, so a frame an earlier Kando grabbed gives way to the video's own cover. Only a video with neither keeps the cover dest already has, unless that is a black frame, or has a frame grabbed from it.
+// findCover returns a film's cover as JPEG and keeps it in dest, off the UI thread. The cover is the video's own: the picture its site gives it, else the cover art its file carries, made 16:9 for a film of sound alone, whose art is mostly square (media.WideCover); dest is rewritten whenever it holds something else, so a frame an earlier Kando grabbed gives way to the video's own cover. Only a video with neither keeps the cover dest already has, unless that is a black frame, or has a frame grabbed from it, for sound alone a picture of its sound (media.GrabPoster).
 func findCover(ctx context.Context, from coverSources) ([]byte, error) {
 	var own []byte
 	if from.site != "" {
@@ -133,6 +135,11 @@ func findCover(ctx context.Context, from coverSources) ([]byte, error) {
 	}
 	if own == nil && from.ffmpeg != "" {
 		own, _ = embeddedCover(ctx, from.ffmpeg, from.video)
+	}
+	if own != nil && from.sound {
+		if wide, err := media.WideCover(ctx, from.ffmpeg, own); err == nil {
+			own = wide
+		}
 	}
 	if own != nil {
 		if cover, err := coverJPEG(own); err == nil {

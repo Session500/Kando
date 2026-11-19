@@ -51,3 +51,23 @@ func TestDroppedVideosOfAFolderWithoutVideos(t *testing.T) {
 		t.Fatalf("videos %q skipped %d", videos, skipped)
 	}
 }
+
+// Sounds are dropped as videos are, in their names' order; a sound beside a video of its name is the video's, which is added once in its place, whichever of the two is dropped; a clip of Kando's own export is neither added nor counted.
+func TestDroppedVideosTakeSound(t *testing.T) {
+	root := t.TempDir()
+	cd := filepath.Join(root, "N3 Listening")
+	for _, name := range []string{"N3 Listening/Track 10.mp3", "N3 Listening/Track 2.m4a", "N3 Listening/booklet.pdf", "lesson.mp4", "lesson.mp3", "kando-0123456789abcdef.m4a"} {
+		path := filepath.Join(root, name)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	videos, skipped := DroppedVideos([]string{cd, filepath.Join(root, "lesson.mp3"), filepath.Join(root, "lesson.mp4"), filepath.Join(root, "kando-0123456789abcdef.m4a")}, "en")
+	want := []string{filepath.Join(cd, "Track 2.m4a"), filepath.Join(cd, "Track 10.mp3"), filepath.Join(root, "lesson.mp4")}
+	if !slices.Equal(videos, want) || skipped != 1 {
+		t.Fatalf("videos %q skipped %d, want %q and the booklet", videos, skipped, want)
+	}
+}

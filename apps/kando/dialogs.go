@@ -2,21 +2,20 @@ package main
 
 import (
 	ns "github.com/nsgo-dev/nsgo/core"
+
+	"kando/packages/media"
 )
 
 // The system file dialogs. NSGo shows them and calls back on the engine's goroutine with what the user picked; each holds the window's modal flag (holdModal) until it answers. Without the app's scope, as in a test that starts no app, no dialog shows.
 
-// libraryVideoExtensions are the extensions, without the dot, of the videos 本地视频 lets the user pick: those media.IsVideoFile takes. The file_types of nsgo.yaml, which make Kando one of the apps that open these files, list the same ones (library_test.go checks).
-var libraryVideoExtensions = []string{"mp4", "m4v", "mov", "mkv", "webm", "avi", "flv"}
-
-// pickVideos asks for local videos and adds those picked to the queue (dropFiles).
+// pickVideos asks for local videos and sounds, the files the library takes (media.MediaExtensions), and adds those picked to the queue (dropFiles). The file_types of nsgo.yaml, which make Kando one of the apps that open these files, list the same ones (library_test.go checks).
 func (a *app) pickVideos() {
 	if a.cx == nil {
 		return
 	}
-	types := make([]string, len(libraryVideoExtensions))
-	for i, ext := range libraryVideoExtensions {
-		types[i] = "." + ext
+	var types []string
+	for _, ext := range media.MediaExtensions() {
+		types = append(types, "."+ext)
 	}
 	release := a.holdModal()
 	m := a.messages()

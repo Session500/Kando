@@ -21,6 +21,14 @@ file_types:
   - { name: WebM Video, extensions: [webm], id: org.webmproject.webm, role: viewer, conforms: [public.movie] }
   - { name: AVI Video, extensions: [avi], id: public.avi, role: viewer, conforms: [public.movie] }
   - { name: Flash Video, extensions: [flv], id: com.adobe.flash.video, role: viewer, conforms: [public.movie] }
+  - { name: M4A Audio, extensions: [m4a], id: com.apple.m4a-audio, role: viewer, conforms: [public.audio] }
+  - { name: Audiobook, extensions: [m4b], id: com.apple.protected-mpeg-4-audio-b, role: viewer, conforms: [public.audio], mime: [audio/mp4] }
+  - { name: MP3 Audio, extensions: [mp3], id: public.mp3, role: viewer, conforms: [public.audio] }
+  - { name: AAC Audio, extensions: [aac], id: public.aac-audio, role: viewer, conforms: [public.audio] }
+  - { name: FLAC Audio, extensions: [flac], id: org.xiph.flac, role: viewer, conforms: [public.audio] }
+  - { name: WAVE Audio, extensions: [wav], id: com.microsoft.waveform-audio, role: viewer, conforms: [public.audio] }
+  - { name: Ogg Audio, extensions: [ogg, opus], id: org.xiph.ogg-audio, role: viewer, conforms: [public.audio] }
+  - { name: Windows Media Audio, extensions: [wma], id: com.microsoft.windows-media-wma, role: viewer, conforms: [public.audio], mime: [audio/x-ms-wma] }
 # The NSIS installer adds Kando to these types' Open With, and the Linux desktop entry lists their MIME types.
 
 # Kando's own links: the bookmarklet of Settings › 通用 › 浏览器扩展 opens kando://add?url=… on a video's page (browserext.ReadLink). Only the macOS package registers them with the system.

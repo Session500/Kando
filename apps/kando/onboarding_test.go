@@ -769,7 +769,7 @@ func TestOnboardingInEnglish(t *testing.T) {
 		wantText(t, tt, want)
 	}
 	tt.Press("Continue")
-	for _, want := range []string{"Paste Your First Link", "Just Look Around", "Done", "Press Enter to start. No link? Skip for now and drag a local video into the window later."} {
+	for _, want := range []string{"Paste Your First Link", "Just Look Around", "Done", "Press Enter to start. No link? Skip for now and drag a local video or audio file into the window later."} {
 		wantText(t, tt, want)
 	}
 	*a.OnboardingLink() = "https://www.youtube.com/watch?v=k9Yt2LmQ0pX&list=PL123"

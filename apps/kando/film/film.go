@@ -60,6 +60,8 @@ type App interface {
 	FillsWindow() bool
 	// Play is the picture open now, nil until the system's player has loaded it and while there is none. PlayPath is the video opening or open, "" without one; PlayErr is why it would not play, an error ID ErrText names, or "".
 	Play() Player
+	// PlaySound reports whether what the system's player has loaded is sound alone, as a podcast's mp3: the stage shows the film's poster in place of a picture (soundCover).
+	PlaySound() bool
 	PlayPath() string
 	PlayErr() string
 	// OpeningText is what the stage says while the video opens, in the language the interface shows under cx: how far the copy the system's player can open has got, for a video it cannot play as it is, "" while it is not known, when the stage says the video opens.

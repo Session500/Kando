@@ -151,6 +151,8 @@ func (a *app) Play() film.Player {
 	return a.player.play
 }
 
+func (a *app) PlaySound() bool { return a.playerLoaded() && a.player.play.sound }
+
 // playerLoaded reports whether a video is open and the system's player has loaded it, so it plays, holds and seeks.
 func (a *app) playerLoaded() bool { return a.player.play != nil && a.player.play.loaded }
 
