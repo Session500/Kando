@@ -9,6 +9,7 @@ import (
 	"kando/apps/kando/locales"
 	"kando/packages/core"
 	"kando/packages/media"
+	"kando/packages/track"
 )
 
 // The open film's subtitle file, read off the engine's goroutine.
@@ -51,8 +52,8 @@ func playerErrTextIn(m locales.Messages, id string) string {
 
 // subtitleView is the subtitle file open on the film page. err is one of the player's error IDs, or "".
 type subtitleView struct {
-	key  string
-	path string
+	key, video string
+	path       string
 	// machine is the file's cues as the pipeline wrote them, and edits the user's corrections of them, kept in the film's corrections file (media.CorrectionsPath); editsErr is set when that file could not be read, which is then not written over. cues are the lines as they show, the corrections laid over the machine's and those marked as no speech left out (core.CorrectSegments), and from the corrected line each of them comes from, index for index.
 	machine  []core.Segment
 	edits    []core.Correction
@@ -66,12 +67,12 @@ type subtitleView struct {
 	seen     bool
 }
 
-// loadSubtitles reads path off the engine's goroutine, with the user's corrections of the film (media.LoadCorrections), and the frames of the 片段 its lines cut the film into once read (loadClipFrames). An empty path means this film has no subtitle yet.
-func (a *app) loadSubtitles(key, path string) {
+// loadSubtitles reads the lines of the film whose video is at video off the engine's goroutine: its subtitle document, with path, the subtitle file it shows, taken in where it changed (media.ReadTrack), and the user's corrections of the film (media.LoadCorrections), and the frames of the 片段 its lines cut the film into once read (loadClipFrames). An empty path means this film has no subtitle yet; a file that is gone or cannot be read says so, as the film's lines come from that file until its subtitles are made into the document itself.
+func (a *app) loadSubtitles(key, video, path string) {
 	if a.player.subs.key == key && a.player.subs.path == path {
 		return
 	}
-	a.player.subs = subtitleView{key: key, path: path}
+	a.player.subs = subtitleView{key: key, video: video, path: path}
 	if path == "" {
 		a.player.subs.ready = true
 		return
@@ -83,20 +84,20 @@ func (a *app) loadSubtitles(key, path string) {
 		return
 	}
 	go func() {
-		data, err := os.ReadFile(path)
 		info, statErr := os.Stat(path)
 		edits, editsErr := media.LoadCorrections(media.CorrectionsPath(path))
 		var cues []core.Segment
 		msg := ""
-		if err != nil {
-			if errors.Is(err, os.ErrNotExist) {
+		if statErr != nil {
+			if errors.Is(statErr, os.ErrNotExist) {
 				msg = playerErrSubsMissing
 			} else {
 				msg = playerErrSubsUnreadable
 			}
-		} else if cues, err = media.ParseSRT(data); err != nil {
+		} else if doc, err := media.ReadTrack(video, path, subtitlesTranscript(video)); err != nil {
 			msg = playerErrSubsUnreadable
-			cues = nil
+		} else {
+			cues = track.Bilingual(doc.View())
 		}
 		update(func() {
 			if a.player.subs.key != key || a.player.subs.path != path {
@@ -117,6 +118,14 @@ func (a *app) loadSubtitles(key, path string) {
 	}()
 }
 
+// subtitlesTranscript is the .srt of the speech alone beside the video at video (media.TranscriptOf), by which a film's bilingual subtitles are split into each line's original and translation; "" for a film without a video.
+func subtitlesTranscript(video string) string {
+	if video == "" {
+		return ""
+	}
+	return media.TranscriptOf(video)
+}
+
 // reloadOpenSubtitles reads the open subtitle again when the file on disk was rewritten or removed.
 func (a *app) reloadOpenSubtitles() {
 	if a.player.subs.key == "" || a.player.subs.path == "" {
@@ -130,9 +139,9 @@ func (a *app) reloadOpenSubtitles() {
 	} else if a.player.subs.seen && a.player.subs.size == info.Size() && a.player.subs.mod.Equal(info.ModTime()) {
 		return
 	}
-	key, path := a.player.subs.key, a.player.subs.path
+	key, video, path := a.player.subs.key, a.player.subs.video, a.player.subs.path
 	a.player.subs.path = ""
-	a.loadSubtitles(key, path)
+	a.loadSubtitles(key, video, path)
 }
 
 // playerCorrectSubs lays the user's corrections of the open film over the lines the machine wrote, as the picture, the subtitle list and the keys take them (subtitleView.cues).

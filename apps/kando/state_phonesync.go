@@ -452,9 +452,9 @@ func (s phoneSource) items(ctx context.Context, lib phonesync.Library) ([]films.
 	return out, shelf, nil
 }
 
-// Cues are f's subtitles as the control socket reads them (remoteFilmCues): each line of the speech from the original .srt, with its translation from the bilingual one. A film without subtitles is not found.
+// Cues are f's subtitles as the control socket reads them (remoteFilmCues): its lines as its subtitle document holds them, each original split from its translation by the original .srt. A film without subtitles is not found.
 func (s phoneSource) Cues(_ context.Context, f phonesync.Film) ([]psync.Cue, error) {
-	rf := remote.Film{Title: f.Title, Subtitles: f.Subtitles}
+	rf := remote.Film{Title: f.Title, VideoPath: f.Video, Subtitles: f.Subtitles}
 	if fileExists(f.Transcript) {
 		rf.OriginalSubtitles = f.Transcript
 	}

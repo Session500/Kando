@@ -938,24 +938,6 @@ func TestRemoteSocketRefusesASecondApp(t *testing.T) {
 	}
 }
 
-func TestRemoteCuesKeepTheTranslationsOfLinesShownAtTheSameTime(t *testing.T) {
-	seg := func(start, end int, text string) core.Segment {
-		return core.Segment{Start: time.Duration(start) * time.Millisecond, End: time.Duration(end) * time.Millisecond, Text: text}
-	}
-	original := []core.Segment{seg(0, 1000, "Left"), seg(0, 1000, "Right"), seg(2000, 3000, "Done")}
-	bilingual := []core.Segment{seg(0, 1000, "左\nLeft"), seg(0, 1000, "右\nRight"), seg(2000, 3000, "完\nDone")}
-	want := []remote.Cue{{StartMS: 0, EndMS: 1000, Text: "Left", Translation: "左"}, {StartMS: 0, EndMS: 1000, Text: "Right", Translation: "右"}, {StartMS: 2000, EndMS: 3000, Text: "Done", Translation: "完"}}
-	if got := remoteCues(original, bilingual); !slices.Equal(got, want) {
-		t.Fatalf("aligned files: cues %+v", got)
-	}
-
-	// The bilingual file lacks the last line, so the files are not aligned and each cue takes the first unused one shown at its time.
-	want[2].Translation = ""
-	if got := remoteCues(original, bilingual[:2]); !slices.Equal(got, want) {
-		t.Fatalf("files of different lengths: cues %+v", got)
-	}
-}
-
 // kando add of a video of the library's folder that no job holds and that has subtitles beside it skips it as the film it is, naming that film, so nothing writes its subtitles again.
 func TestRemoteAddSkipsAFolderFilm(t *testing.T) {
 	p := &retranslatePipeline{}

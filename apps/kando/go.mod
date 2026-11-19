@@ -27,6 +27,7 @@ require (
 	kando/packages/media v0.0.0
 	kando/packages/study v0.0.0
 	kando/packages/sync v0.0.0
+	kando/packages/track v0.0.0
 	rsc.io/qr v0.2.0
 )
 
@@ -35,6 +36,7 @@ replace (
 	kando/packages/media => ../../packages/media
 	kando/packages/study => ../../packages/study
 	kando/packages/sync => ../../packages/sync
+	kando/packages/track => ../../packages/track
 )
 
 require (

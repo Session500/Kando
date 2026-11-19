@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"kando/packages/track"
 )
 
 // FilmMove moves one film's files from a library folder into a folder of its own in another library folder, as Move to Library does. Within one volume the files are renamed (Rename); across volumes they are copied (Copy) and removed from where they were once the copy is whole (RemoveSources), so a copy that fails or is stopped leaves them as they were.
@@ -40,7 +42,7 @@ func freeName(dir, name string) string {
 	}
 }
 
-// Companions are the files beside the video at video that are its, those that exist: the subtitles Kando reads and writes by its name (<video>.srt, <video>.kando.srt and <video>.bilingual.srt) and the hidden files a job keeps beside it while it works, the translation done so far (translationCheckpointPath) and the speech a redo keeps aside (pendingTranscriptPath, pendingHeardPath) and the transcript a translating redo proofread (proofreadTranscriptPath), the user's corrections of its lines (CorrectionsPath), the chapters its site marks (ChaptersPath), the captions its site made itself (ReferencePath), its own glossary (TermsPath), the final proofread's changes (ProofsPath) and the terms suggested for its glossary (SuggestionsPath).
+// Companions are the files beside the video at video that are its, those that exist: the subtitles Kando reads and writes by its name (<video>.srt, <video>.kando.srt and <video>.bilingual.srt) and the hidden files a job keeps beside it while it works, the translation done so far (translationCheckpointPath) and the speech a redo keeps aside (pendingTranscriptPath, pendingHeardPath) and the transcript a translating redo proofread (proofreadTranscriptPath), the user's corrections of its lines (CorrectionsPath), the chapters its site marks (ChaptersPath), the captions its site made itself (ReferencePath), its own glossary (TermsPath), the final proofread's changes (ProofsPath), the terms suggested for its glossary (SuggestionsPath) and every device's log of its subtitles (track.Logs).
 func Companions(video string) []string {
 	base := strings.TrimSuffix(video, filepath.Ext(video))
 	var out []string
@@ -49,7 +51,7 @@ func Companions(video string) []string {
 			out = append(out, path)
 		}
 	}
-	return out
+	return append(out, track.Logs(video)...)
 }
 
 // Path is where the file at path is once the move is done, and whether the move moves it: a file under the folder that moves, or one of the files that move.

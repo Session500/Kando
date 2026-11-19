@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"kando/apps/kando/film"
 	"kando/apps/kando/films"
 	"kando/apps/kando/lines"
 	"kando/apps/kando/locales"
@@ -310,27 +309,31 @@ func remoteKeeps(until string, f remote.Film, c remote.Cue) bool {
 	return f.WatchedMS > 0 && lines.Seen(time.Duration(c.StartMS)*time.Millisecond, time.Duration(f.WatchedMS)*time.Millisecond)
 }
 
-// remoteFilmCues reads the film's subtitles, cue by cue, off the UI thread: each line of the speech from the original .srt, with its translation from the bilingual one, and the user's corrections laid over them (remoteCorrect). A film without subtitles, or whose subtitles are gone from disk, is not_found.
+// remoteFilmCues reads the film's subtitles, cue by cue, off the UI thread: its lines as its subtitle document holds them, with its subtitle files taken in where they changed (media.ReadTrack), each line's original split from its translation by the original .srt, and the user's corrections laid over them (remoteCorrect). A film without subtitles, or whose subtitles are gone from disk, is not_found.
 func remoteFilmCues(f remote.Film) ([]remote.Cue, error) {
 	if f.Subtitles == "" && f.OriginalSubtitles == "" {
 		return nil, remote.Errorf(remote.CodeNotFound, "%q has no subtitles yet", f.Title)
 	}
-	original, err := remoteReadSRT(f.OriginalSubtitles)
-	if err != nil {
-		return nil, err
-	}
-	bilingual, err := remoteReadSRT(f.Subtitles)
-	if err != nil {
-		return nil, err
-	}
-	if original == nil && bilingual == nil {
+	if !fileExists(f.Subtitles) && !fileExists(f.OriginalSubtitles) {
 		return nil, remote.Errorf(remote.CodeNotFound, "the subtitles of %q are no longer on disk", f.Title)
+	}
+	subtitles := f.Subtitles
+	if !fileExists(subtitles) {
+		subtitles = ""
+	}
+	doc, err := media.ReadTrack(f.VideoPath, subtitles, f.OriginalSubtitles)
+	if err != nil {
+		return nil, remote.Errorf(remote.CodeFailed, "read the subtitles of %q: %v", f.Title, err)
+	}
+	cues := []remote.Cue{}
+	for _, l := range doc.View() {
+		cues = append(cues, remote.Cue{StartMS: l.Start.Milliseconds(), EndMS: l.End.Milliseconds(), Text: l.Original.Text, Translation: l.Translation.Text})
 	}
 	path := f.Subtitles
 	if path == "" {
 		path = f.OriginalSubtitles
 	}
-	return remoteCorrect(remoteCues(original, bilingual), media.CorrectionsPath(path)), nil
+	return remoteCorrect(cues, media.CorrectionsPath(path)), nil
 }
 
 // remoteCorrect lays the user's corrections of the film, kept in the corrections file at path (media.CorrectionsPath), over cues, as the player shows them: the lines marked as no speech left out. A corrections file that cannot be read leaves the cues as they are.
@@ -1192,71 +1195,4 @@ func remoteLocalPath(s, dir string) (path string, local bool) {
 		}
 	}
 	return path, true
-}
-
-// remoteReadSRT is the cues of the .srt at path: none for an empty path or a file that is not there, and a failed error for one that cannot be read.
-func remoteReadSRT(path string) ([]core.Segment, error) {
-	if path == "" {
-		return nil, nil
-	}
-	data, err := os.ReadFile(path)
-	if errors.Is(err, os.ErrNotExist) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, remote.Errorf(remote.CodeFailed, "read %s: %v", path, err)
-	}
-	cues, err := media.ParseSRT(data)
-	if err != nil {
-		return nil, remote.Errorf(remote.CodeFailed, "read %s: %v", path, err)
-	}
-	if cues == nil {
-		cues = []core.Segment{}
-	}
-	return cues, nil
-}
-
-// remoteCues pairs the original subtitles with the bilingual ones the pipeline exports beside them, whose cues are the translation over the original line (media's exportSubtitles), or the original alone where the translation left a line out. When both files have as many cues, shown at the same times in the same order, as the pipeline writes them, each original cue takes the bilingual cue at its index; otherwise, as after a file was edited by hand, each takes the first bilingual cue shown at the same time that no earlier cue took, so two lines shown at the same time keep their own translations. Without the original file, each bilingual cue is split as the film page splits it (film.SplitCue).
-func remoteCues(original, bilingual []core.Segment) []remote.Cue {
-	out := []remote.Cue{}
-	if original == nil {
-		for _, s := range bilingual {
-			translation, text := film.SplitCue(s.Text)
-			out = append(out, remote.Cue{StartMS: s.Start.Milliseconds(), EndMS: s.End.Milliseconds(), Text: text, Translation: translation})
-		}
-		return out
-	}
-	aligned := len(original) == len(bilingual)
-	for i := 0; aligned && i < len(original); i++ {
-		aligned = original[i].Start == bilingual[i].Start && original[i].End == bilingual[i].End
-	}
-	type span struct{ start, end time.Duration }
-	var waiting map[span][]string
-	if !aligned {
-		waiting = make(map[span][]string, len(bilingual))
-		for _, s := range bilingual {
-			key := span{s.Start, s.End}
-			waiting[key] = append(waiting[key], s.Text)
-		}
-	}
-	for i, s := range original {
-		c := remote.Cue{StartMS: s.Start.Milliseconds(), EndMS: s.End.Milliseconds(), Text: s.Text}
-		var text string
-		var ok bool
-		if aligned {
-			text, ok = bilingual[i].Text, true
-		} else if queue := waiting[span{s.Start, s.End}]; len(queue) > 0 {
-			text, ok = queue[0], true
-			waiting[span{s.Start, s.End}] = queue[1:]
-		}
-		if ok && text != s.Text {
-			if translation, cut := strings.CutSuffix(text, "\n"+s.Text); cut {
-				c.Translation = strings.TrimSpace(translation)
-			} else {
-				c.Translation, _ = film.SplitCue(text)
-			}
-		}
-		out = append(out, c)
-	}
-	return out
 }

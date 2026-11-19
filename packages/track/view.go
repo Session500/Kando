@@ -117,6 +117,33 @@ func (d Doc) Shown() string {
 	return latest.Gen
 }
 
+// Plus is d with events added as device's, stamped after every record d holds, without writing them: the document as it would read had Append written them, as a read takes in what a subtitle file adds without writing it (media.ReadTrack).
+func (d Doc) Plus(device string, events ...Event) Doc {
+	at := int64(0)
+	for _, e := range d.Events {
+		at = max(at, e.At)
+	}
+	out := Doc{Events: slices.Clone(d.Events), Newer: d.Newer}
+	for _, e := range events {
+		at++
+		e.At, e.Device = at, device
+		out.Events = append(out.Events, e)
+	}
+	return out
+}
+
+// File is the latest record of the subtitle file named name that the document took in or wrote out (KindFile), on any device; false when it has none.
+func (d Doc) File(name string) (Event, bool) {
+	var last Event
+	found := false
+	for _, e := range d.Events {
+		if e.Kind == KindFile && e.Source == name && (!found || e.after(last)) {
+			last, found = e, true
+		}
+	}
+	return last, found
+}
+
 // Done reports whether gen holds every line of the film.
 func (d Doc) Done(gen string) bool {
 	return slices.ContainsFunc(d.Events, func(e Event) bool { return e.Kind == KindDone && e.Gen == gen })

@@ -488,7 +488,7 @@ func (a *app) startFilm(item films.Film) {
 	if a.openKey != "" && (a.openKey == item.Key || a.openKey == id) {
 		a.openKey = id
 		job, _ := a.library.Find(id)
-		a.loadSubtitles(id, job.SubtitlePath)
+		a.loadSubtitles(id, job.VideoPath, job.SubtitlePath)
 	}
 }
 
@@ -672,7 +672,7 @@ func (a *app) queueFolderEnded(job core.Job) {
 	a.queue.folderEnded[job.ID] = job
 	if following {
 		if item, ok := films.Find(a.films(), job.VideoPath); ok {
-			a.loadSubtitles(item.Key, item.SubtitlePath)
+			a.loadSubtitles(item.Key, item.VideoPath, item.SubtitlePath)
 		} else {
 			a.closeFilm()
 		}
@@ -1065,7 +1065,7 @@ func (a *app) show(job core.Job) {
 		if rewritten && a.player.subs.key == job.ID {
 			a.player.subs.path = ""
 		}
-		a.loadSubtitles(job.ID, job.SubtitlePath)
+		a.loadSubtitles(job.ID, job.VideoPath, job.SubtitlePath)
 		// The job translated the chapters' titles before it completed (media.Run), so the open film's 片段 and info tab read them again.
 		if rewritten && a.player.film.infoFor != "" {
 			a.readFilmInfo(a.player.film.infoFor)

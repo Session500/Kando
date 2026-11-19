@@ -20,6 +20,7 @@ import (
 	"kando/apps/kando/shelf"
 	"kando/packages/core"
 	"kando/packages/media"
+	"kando/packages/track"
 
 	ns "github.com/nsgo-dev/nsgo/core"
 	"github.com/nsgo-dev/nsgo/nsgotest"
@@ -112,6 +113,33 @@ func TestOpenFilmShowsBilingualLines(t *testing.T) {
 	tt.Press("id:film-back")
 	if a.openKey != "" || a.player.play != nil || tt.Exists("id:film") {
 		t.Fatalf("back left open %q play %v", a.openKey, a.player.play != nil)
+	}
+}
+
+// TestOpenFilmReadsItsLinesThroughItsDocument checks that the open film's lines are read through its subtitle document (media.ReadTrack): a subtitle file rewritten by something else, as an older Kando or an editor, shows its new lines once read again, and reading writes nothing beside the video.
+func TestOpenFilmReadsItsLinesThroughItsDocument(t *testing.T) {
+	a, tt, updates, item := playerFilm(t, 12, nil)
+	playerOpenFilm(t, a, tt, updates, item)
+	data, err := os.ReadFile(item.SubtitlePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	edited := strings.Replace(string(data), "Bye.", "See you.", 1)
+	if edited == string(data) {
+		t.Fatalf("the film's subtitles hold no %q: %q", "Bye.", data)
+	}
+	if err := os.WriteFile(item.SubtitlePath, []byte(edited), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	later := time.Now().Add(time.Minute)
+	if err := os.Chtimes(item.SubtitlePath, later, later); err != nil {
+		t.Fatal(err)
+	}
+	apply(tt, a, a.reloadOpenSubtitles)
+	waitUntil(t, tt, a, updates, func() bool { return a.player.subs.ready })
+	wantText(t, tt, "See you.")
+	if logs := track.Logs(item.VideoPath); logs != nil {
+		t.Fatalf("reading the film wrote %v", logs)
 	}
 }
 

@@ -24,6 +24,8 @@ const (
 	KindRev Kind = "rev"
 	// KindGone takes Line out of its generation, as a line found to be no speech.
 	KindGone Kind = "gone"
+	// KindFile records the subtitle file the document last took in or wrote out: its name (Source) and the hash of what it held (Key). A file that holds anything else was written by something other than the document, as an older Kando or the user's editor, and is taken in again (media.ReadTrack).
+	KindFile Kind = "file"
 )
 
 // Side is which text of a line a revision is of.
