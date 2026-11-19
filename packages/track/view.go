@@ -92,26 +92,14 @@ func wins(e, was Event) bool {
 	return e.after(was)
 }
 
-// Shown is the generation the film shows: the latest one that holds every line of the film (KindDone), so a redo shows the film as it was until it is done; or, while none is done, the latest one begun, which a film made for the first time shows as its lines come. "" for a document without one.
+// Shown is the generation the film shows: the one done last (KindDone), so a redo shows the film as it was until it is done, and one begun earlier that is done after another, as a redo stopped and run again later, shows once it is; or, while none is done, the latest one begun, which a film made for the first time shows as its lines come. "" for a document without one.
 func (d Doc) Shown() string {
-	starts := map[string]Event{}
-	done := map[string]bool{}
-	for _, e := range d.Events {
-		switch e.Kind {
-		case KindGen:
-			if was, ok := starts[e.Gen]; !ok || was.after(e) {
-				starts[e.Gen] = e
-			}
-		case KindDone:
-			done[e.Gen] = true
-		}
-	}
 	var latest, latestDone Event
-	for _, e := range starts {
-		if latest.Gen == "" || e.after(latest) {
+	for _, e := range d.Events {
+		switch {
+		case e.Kind == KindGen && (latest.Gen == "" || e.after(latest)):
 			latest = e
-		}
-		if done[e.Gen] && (latestDone.Gen == "" || e.after(latestDone)) {
+		case e.Kind == KindDone && (latestDone.Gen == "" || e.after(latestDone)):
 			latestDone = e
 		}
 	}

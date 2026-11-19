@@ -158,6 +158,23 @@ func TestARedoShowsOnceItIsDone(t *testing.T) {
 	}
 }
 
+// A redo begun before another and done after it, as one stopped and run again once the other was done, is what the film shows.
+func TestTheGenerationDoneLastShows(t *testing.T) {
+	clock(t)
+	path := video(t)
+	mustAppend(t, path, "mac", Generation(Made{Source: "import", Original: LayerFinal}, []core.Segment{seg(1, 2, "old")}, nil)...)
+	early, late := NewID(), NewID()
+	line := func(gen, id, text string) []Event {
+		return []Event{{Kind: KindLine, Gen: gen, Line: id, Start: 1000, End: 2000}, {Kind: KindRev, Line: id, Side: Original, Layer: LayerHeard, Text: text}}
+	}
+	mustAppend(t, path, "mac", append([]Event{{Kind: KindGen, Gen: early, Source: "make"}}, line(early, "e1", "early")...)...)
+	mustAppend(t, path, "mac", append(append([]Event{{Kind: KindGen, Gen: late, Source: "make"}}, line(late, "l1", "late")...), Event{Kind: KindDone, Gen: late})...)
+	mustAppend(t, path, "mac", Event{Kind: KindDone, Gen: early})
+	if got := mustRead(t, path).View(); len(got) != 1 || got[0].Original.Text != "early" {
+		t.Fatalf("the film shows %+v, want the generation done last", got)
+	}
+}
+
 func TestAFirstMakingShowsAsItsLinesCome(t *testing.T) {
 	clock(t)
 	path := video(t)
