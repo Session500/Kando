@@ -264,3 +264,30 @@ func TestLogsAreTheVideosOwn(t *testing.T) {
 		t.Fatalf("Logs = %v", got)
 	}
 }
+
+// A redo begun on a film whose first making was never done, which fails or is stopped, leaves the film showing the first making's lines, not the part the redo made.
+func TestARedoNotDoneDoesNotTakeTheFirstMakingsPlace(t *testing.T) {
+	clock(t)
+	path := video(t)
+	first, redo := NewID(), NewID()
+	line := func(gen, id, text string) []Event {
+		return []Event{{Kind: KindLine, Gen: gen, Line: id, Start: 1000, End: 2000}, {Kind: KindRev, Line: id, Side: Original, Layer: LayerHeard, Text: text}}
+	}
+	mustAppend(t, path, "mac", append([]Event{{Kind: KindGen, Gen: first, Source: "make"}}, line(first, "f1", "first")...)...)
+	mustAppend(t, path, "mac", append([]Event{{Kind: KindGen, Gen: redo, Source: "make"}}, line(redo, "r1", "redo")...)...)
+	if got := mustRead(t, path).View(); len(got) != 1 || got[0].Original.Text != "first" {
+		t.Fatalf("the film shows %+v, want the first making's lines", got)
+	}
+}
+
+// A device's log is idle once it has had no record for Lease; a device with no log is idle.
+func TestADeviceIsIdleOnceItsLogHasNoRecordForTheLease(t *testing.T) {
+	clock(t)
+	path := video(t)
+	mustAppend(t, path, "studio", Event{Kind: KindGen, Gen: NewID(), Source: "make"})
+	doc := mustRead(t, path)
+	last := time.Date(2026, 11, 19, 9, 0, 0, 0, time.UTC).Add(2 * time.Millisecond)
+	if doc.Idle("studio", last.Add(Lease-time.Millisecond)) || !doc.Idle("studio", last.Add(Lease)) || !doc.Idle("mac", last) {
+		t.Fatal("idle is not told by the last record and the lease")
+	}
+}

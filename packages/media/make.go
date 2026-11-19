@@ -78,6 +78,9 @@ var runCellsMax = 10
 // minRun is how long a run of the speech recognition goes before a jump may stop it, so jumping back and forth does not stop every run before it hears anything; tests shorten it.
 var minRun = 10 * time.Second
 
+// errGivenUp is why a film made again failed that gave up a part of it, tried as many times as a part is (track.Attempts).
+var errGivenUp = errors.New("a part of the film failed every time it was tried")
+
 // ErrNoLength is why a film failed whose length cannot be told, as a file that is not a video, so its parts cannot be told either.
 var ErrNoLength = errors.New("the video's length cannot be told")
 
@@ -587,6 +590,17 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 	if err := m.ctx.Err(); err != nil {
 		return m.fail("transcribe", err)
 	}
+	// A redo that gave up hearing or drafting a part of the film would replace the film with one that lacks it: it fails, leaving the film as it was.
+	if m.redo {
+		for _, u := range last.GivenUp {
+			switch u.Work {
+			case track.WorkHear:
+				return m.fail("transcribe", errGivenUp)
+			case track.WorkDraft:
+				return m.fail("translate", errGivenUp)
+			}
+		}
+	}
 	lines := m.doc.Lines(gen)
 	if len(lines) == 0 {
 		return m.fail("transcribe", ErrNoSpeech)
@@ -601,7 +615,14 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 			return m.fail("translate", err)
 		}
 	}
-	// A link made from its sound waits for its video, then keeps it in the sound's place.
+	// A link made from its sound waits for its video, then keeps it in the sound's place: a video already there is taken at once, without saying the job downloads again.
+	if m.coming != nil {
+		select {
+		case d := <-m.coming:
+			m.videoCame(d)
+		default:
+		}
+	}
 	if m.coming != nil {
 		job.Stage, job.Progress = core.StageDownloading, core.Progress{}
 		m.report(*job)
@@ -678,11 +699,15 @@ func (m *making) fail(step string, err error) core.Job {
 	return *m.job
 }
 
-// generation is the generation the making makes, which names the speech model it is heard by (Key): the one an earlier run began and did not finish, or a new one. A redo goes on with one only when it was heard by the same model, as a redo is the film heard anew by the model set now; a first making goes on with whatever its earlier run heard.
+// generation is the generation the making makes, which names the speech model it is heard by (Key): the one an earlier run began and did not finish, or a new one. A redo goes on with one only when it was heard by the same model, as a redo is the film heard anew by the model set now; a first making goes on with whatever its earlier run heard, but never with the copy a film translated again made of its lines (copyGeneration), whose cells were not heard at all. Neither goes on with one another device began while that device may still be making it (mayResume).
 func (m *making) generation(model string) (string, error) {
 	var open track.Event
 	for _, e := range m.doc.Events {
-		if e.Kind == track.KindGen && e.Source == makeSource && !m.doc.Done(e.Gen) && (!m.redo || e.Key == model) {
+		if e.Kind != track.KindGen || e.Source != makeSource || m.doc.Done(e.Gen) || strings.HasPrefix(e.Key, copyHearing+" ") || !m.mayResume(e) {
+			continue
+		}
+		// A redo that gave up a part of the film failed for it (run), and is begun again rather than gone on with, which would fail at once.
+		if !m.redo || e.Key == model && !m.doc.GivenUp(e.Gen, track.WorkHear, track.WorkDraft) {
 			open = e
 		}
 	}
@@ -982,7 +1007,12 @@ func translateAgain(ctx context.Context, p Pipeline, job *core.Job, language, de
 		watch = From(job.ResumeAt)
 	}
 	m := &making{ctx: ctx, p: p, job: job, video: job.VideoPath, hearFrom: job.VideoPath, redo: true, copied: true, siteState: siteNone, reference: referenceKept, device: device, doc: doc, report: report}
-	return m.run(lines[len(lines)-1].End, language, watch)
+	// The film is as long as its lines reach: the line that ends last, which need not be the one that starts last.
+	var length time.Duration
+	for _, l := range lines {
+		length = max(length, l.End)
+	}
+	return m.run(length, language, watch)
 }
 
 // fillMissing translates the lines of job's film that the film shows without a translation (core.RedoMissing) into language, a batch at a time, with the lines said before each as context, and keeps the rest as they are. It writes each batch into the lines the film shows and out beside the video as it is translated, as filling in what is missing cannot make the film worse: one that fails or is stopped keeps the lines it filled, and job.Untranslated says how many are left. It neither downloads nor hears the film. A film whose subtitles were edited outside Kando so they no longer match its transcript line for line fails with ErrSubtitlesChanged, sending nothing, as which lines are missing cannot be told; one whose bilingual subtitles are gone has every line its document does not translate translated.
@@ -1045,7 +1075,7 @@ func fillMissing(ctx context.Context, p Pipeline, job *core.Job, language, devic
 	}
 	bilingual := strings.TrimSuffix(video, filepath.Ext(video)) + ".bilingual.srt"
 	project := func() error {
-		files, err := projectTrack(doc.Lines(gen), transcript, bilingual)
+		files, err := projectTrack(doc, doc.Lines(gen), transcript, bilingual)
 		if err != nil {
 			return err
 		}
@@ -1125,7 +1155,7 @@ func (m *making) copyGeneration(length time.Duration) (string, error) {
 	from := m.doc.Shown()
 	key := copyHearing + " " + from
 	for _, e := range m.doc.Events {
-		if e.Kind == track.KindGen && e.Source == makeSource && e.Key == key && !m.doc.Done(e.Gen) {
+		if e.Kind == track.KindGen && e.Source == makeSource && e.Key == key && !m.doc.Done(e.Gen) && m.mayResume(e) {
 			return e.Gen, nil
 		}
 	}
@@ -1142,6 +1172,11 @@ func (m *making) copyGeneration(length time.Duration) (string, error) {
 		events = append(events, track.Unit{Work: track.WorkHear, Gen: gen, Cell: c, Key: copyHearing}.Made())
 	}
 	return gen, m.append(events...)
+}
+
+// mayResume reports whether the making may go on with gen, a generation begun and not done: one this device began, or one another device began whose log has had no record for track.Lease, so two computers sharing a library do not make one generation at once, each writing its own lines into it.
+func (m *making) mayResume(gen track.Event) bool {
+	return gen.Device == m.device || m.doc.Idle(gen.Device, track.Now())
 }
 
 // heardIn is how generation gen's cells were heard, as their records name it (track.Making.Hearing): the language, or "auto" for a film whose language the speech recognition did not say; "" when no cell is heard yet.
@@ -1174,13 +1209,14 @@ func (m *making) hear(ctx context.Context, cells []int, heardCh chan<- heardCell
 	from := time.Duration(first) * track.Cell
 	to := time.Duration(last+1) * track.Cell
 	buffers := map[int][]core.Segment{}
-	// before and after are the lines heard in the sound before and after the run's cells.
-	var before, after []core.Segment
+	// before and after are the lines heard in the sound before and after the run's cells; late are lines heard in a cell already handed on, which go with the next cell handed on.
+	var before, after, late []core.Segment
 	next := first
 	heard := false
 	send := func(upTo int) {
 		for ; next <= last && next < upTo; next++ {
-			c := heardCell{cell: next, lines: buffers[next]}
+			c := heardCell{cell: next, lines: buffers[next], edges: late}
+			late = nil
 			if next == first {
 				c.edges = append(c.edges, before...)
 			}
@@ -1207,6 +1243,11 @@ func (m *making) hear(ctx context.Context, cells []int, heardCh chan<- heardCell
 			return
 		}
 		cell := int(mid / track.Cell)
+		if cell < next {
+			// A line heard after a line of a later cell, as the speech recognition may place one a little out of order, belongs to a cell handed on already: it goes with the next one as an edge, kept where that cell has no line of its own over it (commitHeard).
+			late = append(late, s)
+			return
+		}
 		buffers[cell] = append(buffers[cell], s)
 		// Lines come in the order they are said: a line in this cell means every cell before it is heard whole.
 		send(cell)
@@ -1688,7 +1729,7 @@ func (m *making) videoCame(d downloaded) {
 	m.report(*m.job)
 }
 
-// project writes the lines of gen out beside the video, as they are now, at most every projectEvery (projectTrack): a redo, whose lines show once it is done, writes nothing until then (finish). It reads the film's logs again first (reread). The film shows its bilingual subtitles from the first lines written out.
+// project writes the lines of gen out beside the video, as they are now, at most every projectEvery (projectTrack): a redo, whose lines show once it is done, writes nothing until then (finish). It reads the film's logs again first (reread), and takes in what was edited in the film's subtitles outside Kando (takeEdits). The film shows its bilingual subtitles from the first lines written out.
 func (m *making) project(gen string) {
 	if time.Since(m.projected) < projectEvery {
 		return
@@ -1697,8 +1738,10 @@ func (m *making) project(gen string) {
 		return
 	}
 	m.reread()
-	events, err := projectTrack(m.doc.Lines(gen), m.transcript, m.bilingual)
-	if err != nil || len(events) == 0 {
+	m.takeEdits(gen)
+	lines := m.doc.Lines(gen)
+	events, err := projectTrack(m.doc, lines, m.transcript, m.bilingual)
+	if err != nil || len(lines) == 0 {
 		return
 	}
 	m.projected = time.Now()
@@ -1726,33 +1769,80 @@ func (m *making) reread() {
 	}
 }
 
+// takeEdits takes into gen, as the final layer, the texts the film's subtitles hold that the document did not write out, as edited in another editor while the film is made, which writing its lines out again would otherwise put back. A film made again writes nothing out until it is done, and took its files in as it began (Make). Only texts are taken in, on the lines of gen shown at the times the file shows them: a file whose lines show at other times, as one with lines added, taken out or moved, is written over as before, as which of the lines still to come it stands for cannot be told.
+func (m *making) takeEdits(gen string) {
+	if m.redo {
+		return
+	}
+	shown := m.bilingual
+	if !fileExists(shown) {
+		shown = m.transcript
+	}
+	paired, file, err := trackFileLines(m.doc, shown, m.transcript)
+	if err != nil || file.Kind == "" {
+		return
+	}
+	at := map[core.Span][]track.Line{}
+	for _, l := range m.doc.Lines(gen) {
+		span := core.Span{Start: l.Start, End: l.End}
+		at[span] = append(at[span], l)
+	}
+	matched := make([]track.Line, len(paired))
+	for i, p := range paired {
+		span := core.Span{Start: p.Start, End: p.End}
+		if len(at[span]) == 0 {
+			return
+		}
+		matched[i], at[span] = at[span][0], at[span][1:]
+	}
+	_ = m.append(append(trackTakeIn(matched, paired), file)...)
+}
+
 // finish writes the lines of gen out beside the video whole, then records that gen holds every line of the film, which makes it the one the film shows: a film whose subtitles cannot be written stays as it was, a redo the film it redoes.
 func (m *making) finish(gen string) error {
 	m.reread()
-	files, err := projectTrack(m.doc.Lines(gen), m.transcript, m.bilingual)
+	m.takeEdits(gen)
+	if m.writeErr != nil {
+		return m.writeErr
+	}
+	files, err := projectTrack(m.doc, m.doc.Lines(gen), m.transcript, m.bilingual)
 	if err != nil {
 		return err
 	}
 	return m.append(append([]track.Event{{Kind: track.KindDone, Gen: gen}}, files...)...)
 }
 
-// projectTrack writes lines out to transcript, the film's .srt of the speech alone, and bilingual, its bilingual subtitles, each written whole or not at all, and returns the records of what it wrote for the caller to keep in the film's log, so a read does not take the files back in as written by something else (ReadTrack). No lines write nothing.
-func projectTrack(lines []track.Line, transcript, bilingual string) ([]track.Event, error) {
+// projectTrack writes lines out to transcript, the film's .srt of the speech alone, and bilingual, its bilingual subtitles, each written whole or not at all, and returns the records of what it wrote for the caller to keep in the film's log, so a read does not take the files back in as written by something else (ReadTrack). No lines write nothing, and neither do lines doc last wrote out as they read, to files that still hold them: a film made a part at a time is written out every few seconds, and its log and every reader of its files would otherwise take each write in again.
+func projectTrack(doc track.Doc, lines []track.Line, transcript, bilingual string) ([]track.Event, error) {
 	if len(lines) == 0 {
 		return nil, nil
 	}
 	speech := []byte(formatSRT(track.Originals(lines)))
 	both := []byte(formatSRT(track.Bilingual(lines)))
+	files := []track.Event{
+		{Kind: track.KindFile, Source: filepath.Base(transcript), Key: trackFileHash(speech, nil)},
+		{Kind: track.KindFile, Source: filepath.Base(bilingual), Key: trackFileHash(both, speech)},
+	}
+	if projected(doc, transcript, speech, files[0]) && projected(doc, bilingual, both, files[1]) {
+		return nil, nil
+	}
 	if err := writeFileAtomic(transcript, speech); err != nil {
 		return nil, err
 	}
 	if err := writeFileAtomic(bilingual, both); err != nil {
 		return nil, err
 	}
-	return []track.Event{
-		{Kind: track.KindFile, Source: filepath.Base(transcript), Key: trackFileHash(speech, nil)},
-		{Kind: track.KindFile, Source: filepath.Base(bilingual), Key: trackFileHash(both, speech)},
-	}, nil
+	return files, nil
+}
+
+// projected reports whether the file at path holds data and doc's last record of it is file, the record of data: it was written out as it would be now, and is still as written.
+func projected(doc track.Doc, path string, data []byte, file track.Event) bool {
+	last, ok := doc.File(file.Source)
+	if !ok || last.Key != file.Key {
+		return false
+	}
+	held, err := os.ReadFile(path)
+	return err == nil && bytes.Equal(held, data)
 }
 
 // runOf is the cells the next run of the speech recognition hears: from the first cell needed, those after it that are needed too, as many as a run hears, or the first alone when the language is not known yet, so it is found before the rest are heard.

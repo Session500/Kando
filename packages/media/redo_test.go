@@ -514,3 +514,89 @@ func TestMakeTranslatesAFilmWhoseVideoIsElsewhere(t *testing.T) {
 		}
 	}
 }
+
+// A redo that gives up hearing a part of the film fails rather than replace the film with one that lacks that part, and the next redo begins again rather than going on with the one that gave up.
+func TestMakeRedoThatGivesUpAPartKeepsTheFilm(t *testing.T) {
+	job, video := makeJob(t)
+	job.SpeechLanguage = "ja"
+	f := &makeFilm{length: 60 * time.Second, language: "ja"}
+	film, _ := makeFilmOf(t, f, job, 0)
+	if film.Stage != core.StageComplete {
+		t.Fatalf("film ended %s: %v", film.Stage, film.Err)
+	}
+	// The speech recognition fails every run before it hears the second cell's last line, so that cell is given up.
+	f.say = func(at time.Duration) string { return "anew " + at.String() }
+	f.hearErr, f.failAfter = errors.New("whisper-cli: segfault"), 4
+	failed, _ := makeFilmOf(t, f, redoOf(film), 0)
+	if failed.Stage != core.StageFailed || !errors.Is(failed.Err, errGivenUp) || failed.Redo != core.RedoAll {
+		t.Fatalf("failed %+v", failed)
+	}
+	doc, _ := track.Read(video)
+	if lines := doc.View(); len(lines) != 6 || lines[0].Original.Text != "line 0s" || lines[5].Original.Text != "line 50s" {
+		t.Fatalf("the film shows %+v, want it as it was", lines)
+	}
+	f.hearErr = nil
+	done, _ := makeFilmOf(t, f, failed, 0)
+	if done.Stage != core.StageComplete {
+		t.Fatalf("done %+v", done)
+	}
+	doc, _ = track.Read(video)
+	if lines := doc.View(); len(lines) != 6 || lines[0].Original.Text != "anew 0s" || lines[5].Original.Text != "anew 50s" {
+		t.Fatalf("the film shows %+v, want it heard anew", lines)
+	}
+}
+
+// A film made again from the start, not as a redo, after a translation again of it was stopped begins a generation of its own: it does not go on with the copy the translation made of the film's lines, which were never heard.
+func TestMakeDoesNotGoOnWithAStoppedTranslationAgain(t *testing.T) {
+	job, video := makeJob(t)
+	job.SpeechLanguage = "ja"
+	f := &makeFilm{length: 30 * time.Second, language: "ja"}
+	film, _ := makeFilmOf(t, f, job, 0)
+	if film.Stage != core.StageComplete {
+		t.Fatalf("film %+v", film)
+	}
+	f.translate = func(string) (string, error) { return "", ErrOffline }
+	again := film
+	again.Redo, again.RedoLanguage, again.Stage = core.RedoTranslation, "日本語", core.StageQueued
+	if failed, _ := makeFilmOf(t, f, again, 0); failed.Stage != core.StageFailed {
+		t.Fatalf("failed %+v", failed)
+	}
+	f.translate = nil
+	plain := film
+	plain.Stage = core.StageQueued
+	if done, _ := makeFilmOf(t, f, plain, 0); done.Stage != core.StageComplete {
+		t.Fatalf("done %+v", done)
+	}
+	doc, _ := track.Read(video)
+	for _, e := range doc.Events {
+		if e.Kind == track.KindGen && e.Gen == doc.Shown() && strings.HasPrefix(e.Key, copyHearing+" ") {
+			t.Fatalf("the film was made into the copy %q", e.Key)
+		}
+	}
+}
+
+// A film translated again is as long as its lines reach: a long line that starts before the last one and ends after it is translated too.
+func TestMakeTranslatesAgainALineThatEndsLast(t *testing.T) {
+	video := filepath.Join(t.TempDir(), "video.mp4")
+	if err := os.WriteFile(video, []byte("v"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	lines := []core.Segment{
+		{Start: 20 * time.Second, End: 100 * time.Second, Text: "A long line."},
+		{Start: 30 * time.Second, End: 32 * time.Second, Text: "Short."},
+	}
+	if _, err := track.Append(video, "mac", track.Generation(track.Made{Source: "import", Original: track.LayerFinal, Translation: track.LayerFinal}, lines, nil)...); err != nil {
+		t.Fatal(err)
+	}
+	job := core.Job{ID: "long", Source: core.FileURL(video), Language: "简体中文", Stage: core.StageQueued, VideoPath: video, Redo: core.RedoTranslation, RedoLanguage: "日本語"}
+	final, _ := remake(&redoPipeline{t: t}, job, "日本語")
+	if final.Stage != core.StageComplete || final.Untranslated != 0 {
+		t.Fatalf("final %+v", final)
+	}
+	doc, _ := track.Read(video)
+	for _, l := range doc.View() {
+		if l.Translation.Text != "日本語:"+l.Original.Text {
+			t.Fatalf("lines %+v", doc.View())
+		}
+	}
+}

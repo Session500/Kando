@@ -92,13 +92,13 @@ func wins(e, was Event) bool {
 	return e.after(was)
 }
 
-// Shown is the generation the film shows: the one done last (KindDone), so a redo shows the film as it was until it is done, and one begun earlier that is done after another, as a redo stopped and run again later, shows once it is; or, while none is done, the latest one begun, which a film made for the first time shows as its lines come. "" for a document without one.
+// Shown is the generation the film shows: the one done last (KindDone), so a redo shows the film as it was until it is done, and one begun earlier that is done after another, as a redo stopped and run again later, shows once it is; or, while none is done, the first one begun, which a film made for the first time shows as its lines come, and which a redo begun before that first making was done does not take the place of, so a redo that fails or is stopped never leaves the film showing the part it made. "" for a document without one.
 func (d Doc) Shown() string {
-	var latest, latestDone Event
+	var first, latestDone Event
 	for _, e := range d.Events {
 		switch {
-		case e.Kind == KindGen && (latest.Gen == "" || e.after(latest)):
-			latest = e
+		case e.Kind == KindGen && (first.Gen == "" || first.after(e)):
+			first = e
 		case e.Kind == KindDone && (latestDone.Gen == "" || e.after(latestDone)):
 			latestDone = e
 		}
@@ -106,7 +106,7 @@ func (d Doc) Shown() string {
 	if latestDone.Gen != "" {
 		return latestDone.Gen
 	}
-	return latest.Gen
+	return first.Gen
 }
 
 // Plus is d with events added as device's, stamped after every record d holds, without writing them: the document as it would read had Append written them, as a read takes in what a subtitle file adds without writing it (media.ReadTrack).
@@ -139,4 +139,18 @@ func (d Doc) File(name string) (Event, bool) {
 // Done reports whether gen holds every line of the film.
 func (d Doc) Done(gen string) bool {
 	return slices.ContainsFunc(d.Events, func(e Event) bool { return e.Kind == KindDone && e.Gen == gen })
+}
+
+// Lease is how long a device's log must go without a record before another device goes on with a generation it began and did not finish: until then it may still be making it.
+const Lease = 10 * time.Minute
+
+// Idle reports whether device's log has had no record for Lease as of now, or has none.
+func (d Doc) Idle(device string, now time.Time) bool {
+	last := int64(0)
+	for _, e := range d.Events {
+		if e.Device == device {
+			last = max(last, e.At)
+		}
+	}
+	return now.UnixMilli()-last >= Lease.Milliseconds()
 }
