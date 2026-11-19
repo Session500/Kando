@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -831,5 +832,22 @@ func TestADecisionKeepsSubtitlesRewrittenOutsideTheDocument(t *testing.T) {
 	data, _ = os.ReadFile(done.SubtitlePath)
 	if strings.Contains(string(data), "译:line 30s") || !strings.Contains(string(data), "redo:line 30s") {
 		t.Fatalf("subtitles once decided %q, want the redo kept", data)
+	}
+}
+
+// A making stopped while a draft is being translated returns only once the translation has: nothing of a stopped job still asks a service or writes beside the video after Make returns.
+func TestMakeReturnsOnceItsWorkHasStopped(t *testing.T) {
+	job, _ := makeJob(t)
+	job.SpeechLanguage = "ja"
+	ctx, stop := context.WithCancel(context.Background())
+	var returned atomic.Bool
+	f := &makeFilm{length: 30 * time.Second, translate: func(string) (string, error) {
+		stop()
+		time.Sleep(50 * time.Millisecond)
+		returned.Store(true)
+		return "", context.Canceled
+	}}
+	if done := makeFilmWith(t, ctx, f, job, 0); done.Stage != core.StageFailed || !returned.Load() {
+		t.Fatalf("stopped %+v; the translation had returned: %v", done.Stage, returned.Load())
 	}
 }

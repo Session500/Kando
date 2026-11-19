@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"kando/packages/core"
@@ -183,9 +184,15 @@ func Make(ctx context.Context, p Pipeline, job core.Job, language, device string
 			break
 		}
 		coming = make(chan downloaded, 1)
-		var videoCtx context.Context
-		videoCtx, stopVideo = context.WithCancel(WithTrace(ctx, &Trace{}))
+		videoCtx, cancelVideo := context.WithCancel(WithTrace(ctx, &Trace{}))
+		videoDone := make(chan struct{})
+		// Stopping the video's download waits for it to end, so nothing of the job still runs once Make returns.
+		stopVideo = func() {
+			cancelVideo()
+			<-videoDone
+		}
 		go func() {
+			defer close(videoDone)
 			path, err := p.Download(videoCtx, job.Source)
 			coming <- downloaded{path: path, err: err}
 		}()
@@ -269,10 +276,12 @@ type downloaded struct {
 
 // making is a film being made by Make.
 type making struct {
-	ctx   context.Context
-	p     Pipeline
-	job   *core.Job
-	video string
+	ctx context.Context
+	// workers is the work run beside the making, a run of the speech recognition, a draft, a fetch, which it waits for before it returns (spawn).
+	workers sync.WaitGroup
+	p       Pipeline
+	job     *core.Job
+	video   string
 	// hearFrom is the file the speech is heard from: the video, or the sound of a link whose video is still coming, or that keeps none (soundOnly).
 	hearFrom  string
 	soundOnly bool
@@ -329,10 +338,13 @@ type drafted struct {
 
 func (m *making) run(length time.Duration, language string, watch Watcher) core.Job {
 	job := m.job
-	// Whatever is still running when the making ends, a run of the speech recognition or a draft, stops with it.
+	// Whatever is still running when the making ends, a run of the speech recognition, a draft or a fetch, stops with it, and the making returns once it has: nothing of a job stopped or failed still asks a service or writes beside the video after it.
 	var stop context.CancelFunc
 	m.ctx, stop = context.WithCancel(m.ctx)
-	defer stop()
+	defer func() {
+		stop()
+		m.workers.Wait()
+	}()
 	model := ""
 	if h, ok := m.p.(hearer); ok {
 		model, _ = h.hearing(m.ctx)
@@ -428,6 +440,10 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 		}
 	}()
 	for {
+		// A making stopped starts nothing more, though what it waited for came at once with the stop and was taken first.
+		if err := m.ctx.Err(); err != nil {
+			return m.fail("transcribe", err)
+		}
 		plan.Playhead = watch.Playhead()
 		if m.reference == referenceUnasked && hearing != "" && hearing != "auto" {
 			m.fetchReference(hearing)
@@ -455,7 +471,8 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 			var runCtx context.Context
 			runCtx, hearStop = context.WithCancel(m.ctx)
 			hearStarted = time.Now()
-			go m.hear(runCtx, hearCells, heardCh, doneCh)
+			cells := hearCells
+			m.spawn(func() { m.hear(runCtx, cells, heardCh, doneCh) })
 		}
 		// The translation's one line of work: lines to draft again for a new term first, then drafts, then, while no draft is ready, the final proofread. While the site's subtitles are fetched, or in hand and not yet found to match the speech or not, nothing is drafted, as the lines they replace would be drafted for nothing; the fetch gives up after platformFetchTimeout.
 		if !drafting && plan.Language != "" && !siteWaits {
@@ -464,16 +481,19 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 				drafting = true
 				in := m.redrafts[0]
 				m.redrafts = m.redrafts[1:]
-				go m.draft(m.ctx, in, plan.Language, draftCh)
+				ctx, language := m.ctx, plan.Language
+				m.spawn(func() { m.draft(ctx, in, language, draftCh) })
 			case len(p.Draft) > 0:
 				if group, ready := m.draftGroup(gen, p, plan.Playhead); ready {
 					drafting = true
-					go m.draft(m.ctx, m.draftOf(gen, group), plan.Language, draftCh)
+					ctx, in, language := m.ctx, m.draftOf(gen, group), plan.Language
+					m.spawn(func() { m.draft(ctx, in, language, draftCh) })
 				}
 			}
 			if !drafting && len(p.Final) > 0 {
 				drafting = true
-				go m.final(m.ctx, m.finalOf(gen, p.Final[0]), plan.Language, auto, draftCh)
+				ctx, in, language := m.ctx, m.finalOf(gen, p.Final[0]), plan.Language
+				m.spawn(func() { m.final(ctx, in, language, auto, draftCh) })
 			}
 		}
 		if hearStop == nil && !drafting && m.siteState != siteFetching && m.reference != referenceFetching {
@@ -691,10 +711,10 @@ func (m *making) fetchReference(language string) {
 	m.referenceCh = done
 	ctx, p, job := m.ctx, m.p, *m.job
 	job.VideoPath = m.video
-	go func() {
+	m.spawn(func() {
 		_ = keepReference(ctx, p, job, language)
 		close(done)
-	}()
+	})
 }
 
 // heardOnly are the lines of lines that are not the uploader's (site), copied, and where each is among lines.
@@ -744,13 +764,14 @@ func (m *making) fetchSite(language string) {
 	m.siteState = siteFetching
 	m.siteCh = make(chan []core.Segment, 1)
 	fetcher, source, ctx := m.p.(PlatformSubtitler), m.job.Source, m.ctx
-	go func() {
+	siteCh := m.siteCh
+	m.spawn(func() {
 		subtitles, err := fetcher.PlatformSubtitles(ctx, source, language)
 		if err != nil {
 			subtitles = nil
 		}
-		m.siteCh <- subtitles
-	}()
+		siteCh <- subtitles
+	})
 }
 
 // siteCame takes in the site's subtitles once fetched: none, and the film is heard alone; else the cells heard so far decide whether it takes them, if they can yet.
@@ -1687,6 +1708,15 @@ func (m *making) project(gen string) {
 		m.job.SubtitlePath = m.bilingual
 		m.report(*m.job)
 	}
+}
+
+// spawn runs work beside the making, which waits for it before it returns (workers).
+func (m *making) spawn(work func()) {
+	m.workers.Add(1)
+	go func() {
+		defer m.workers.Done()
+		work()
+	}()
 }
 
 // reread reads the film's logs again, so what was written beside the making, as the user's decision on a change of the final proofread (DecideProofs), is written out too and not lost.
