@@ -349,6 +349,31 @@ func TestMakeFailsWhenItCannotWriteTheSubtitles(t *testing.T) {
 	}
 }
 
+// A film whose language the speech recognition does not tell, stopped once heard, is translated when run again: its cells, heard in no known language, are not heard again, and its lines are drafted.
+func TestMakeGoesOnWithAFilmOfNoLanguageTold(t *testing.T) {
+	for _, redo := range []core.Redo{"", core.RedoAll} {
+		job, video := makeJob(t)
+		ctx, stop := context.WithCancel(context.Background())
+		f := &makeFilm{length: 30 * time.Second, translate: func(string) (string, error) { stop(); return "", context.Canceled }}
+		if redo != "" {
+			film, _ := makeFilmOf(t, &makeFilm{length: 30 * time.Second}, job, 0)
+			job = film
+			job.Redo, job.Stage = redo, core.StageQueued
+		}
+		if stopped := makeFilmWith(t, ctx, f, job, 0); stopped.Stage != core.StageFailed {
+			t.Fatalf("%q: stopped %+v", redo, stopped)
+		}
+		runs := len(f.runs)
+		f.translate = func(s string) (string, error) { return "又:" + s, nil }
+		if done := makeFilmWith(t, context.Background(), f, job, 0); done.Stage != core.StageComplete || done.Untranslated != 0 || len(f.runs) != runs {
+			t.Fatalf("%q: done %+v after %d more runs", redo, done, len(f.runs)-runs)
+		}
+		if doc, _ := track.Read(video); doc.View()[0].Translation.Text != "又:line 0s" {
+			t.Fatalf("%q: lines %+v", redo, doc.View())
+		}
+	}
+}
+
 func TestMakeWithoutATranslationLeavesTheFilmUntranslated(t *testing.T) {
 	job, _ := makeJob(t)
 	job.SpeechLanguage = "ja"
@@ -392,15 +417,6 @@ func TestMakeGivesUpACellThatKeepsFailing(t *testing.T) {
 	doc, _ := track.Read(video)
 	if p := doc.Plan(track.Making{Gen: doc.Shown(), Length: f.length, Hearing: "ja", Language: "简体中文"}); len(p.GivenUp) != 1 {
 		t.Fatalf("plan %+v, want the cell given up", p)
-	}
-}
-
-func TestMakeRunsAFilmItCannotMakeAPartAtATimeAsBefore(t *testing.T) {
-	f := &fakePipeline{transcribe: []core.Segment{{Start: 0, End: time.Second, Text: "hello"}}}
-	job, _ := core.NewJob("https://example.com/video")
-	done := Make(context.Background(), f, job, "简体中文", "mac", nil, func(core.Job) {})
-	if done.Stage != core.StageComplete || done.SubtitlePath != "/videos/talk.bilingual.srt" {
-		t.Fatalf("job = %s %q, want it run as Run runs it", done.Stage, done.SubtitlePath)
 	}
 }
 

@@ -50,7 +50,7 @@ type Progress struct {
 	Batch, Batches, BatchSize int
 	// Lines is how many of the Of lines being translated, or proofread (Proofreading), are done; both are 0 outside the translation stage.
 	Lines, Of int
-	// Started is when the stage first said how far it had gone, at From, which media.Run keeps through the stage's later reports, so the time it has left can be told from how fast it has gone since; zero until it has said.
+	// Started is when the stage first said how far it had gone, at From, which media.Make keeps through the stage's later reports, so the time it has left can be told from how fast it has gone since; zero until it has said.
 	Started time.Time
 	From    float64
 	// RetryIn is how long the translation waits before trying a rate-limited or failed request again, as the API's Retry-After asked or the backoff chose; Attempt is the retry about to be made, of Attempts. RetryIn is 0 while no retry is waiting.
@@ -114,7 +114,7 @@ type Job struct {
 	SubtitlesOnly bool
 	// SubtitleSource is where the job takes the original lines of a link's film from, as the user chose it: the subtitles the uploader put on the site, checked against the speech (SubtitlesPlatform), the speech recognition alone (SubtitlesLocal), or the speech recognition with the site's own captions kept as a reference layer (SubtitlesAuto). Empty until the queue gives the job the one Settings › 通用 › 在线视频 names, as it first runs; a local video is always heard.
 	SubtitleSource SubtitleSource
-	// PlatformSubtitles is true once the film's original lines are the subtitles its site carries, which matched the speech the job heard (media.Run); LocalLines then counts the lines of those subtitles that lines the speech recognition heard replaced, where the speech did not match them. A job transcribing the video again finds them anew; one processing a done film again entirely (RedoAll) keeps the film's until it completes.
+	// PlatformSubtitles is true once the film's original lines are the subtitles its site carries, which matched the speech the job heard (media.Make); LocalLines then counts the lines of those subtitles that lines the speech recognition heard replaced, where the speech did not match them. A job transcribing the video again finds them anew; one processing a done film again entirely (RedoAll) keeps the film's until it completes.
 	PlatformSubtitles bool
 	LocalLines        int
 	// FromFolder is true for a job made to process a video found in the library's folder that no job held. Until the job completes, that video is still the film the folder shows, with the subtitles found beside it, so a job that fails or is stopped is taken off the shelf, leaving the film as it was, rather than kept as a failed card. It is cleared once the job completes.

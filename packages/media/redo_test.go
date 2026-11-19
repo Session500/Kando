@@ -73,7 +73,7 @@ func (p *redoPipeline) Translate(_ context.Context, segments []core.Segment, lan
 }
 
 func (p *redoPipeline) Export(ctx context.Context, video string, original, translated []core.Segment) (string, error) {
-	return exportSubtitles(ctx, video, original, translated)
+	return exportSubtitles(video, original, translated)
 }
 
 // doneFilm writes a done film's video and the subtitles its job exported, with the translations given line for line ("" for a line left untranslated), and returns its job.
@@ -94,7 +94,7 @@ func doneFilm(t *testing.T, translations ...string) core.Job {
 		original[i], translated[i] = span, span
 		original[i].Text, translated[i].Text = originals[i], text
 	}
-	subtitles, err := exportSubtitles(context.Background(), video, original, translated)
+	subtitles, err := exportSubtitles(video, original, translated)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -221,126 +221,6 @@ func TestMakeTranslatingAgainWithoutATranscript(t *testing.T) {
 		if final.Stage != core.StageFailed || !errors.Is(final.Err, ErrNoTranscript) || final.Redo != redo {
 			t.Fatalf("%s: final %+v", redo, final)
 		}
-	}
-}
-
-// reprocessPipeline is a done film's pipeline as a job processing it again entirely sees it: every tool is there, and whisper hears the film's speech anew, as other lines than its transcript holds, counting how often it ran.
-type reprocessPipeline struct {
-	redoPipeline
-	transcriptions int
-}
-
-func (p *reprocessPipeline) Check() error { return nil }
-
-func (p *reprocessPipeline) Transcribe(context.Context, string) ([]core.Segment, error) {
-	p.transcriptions++
-	return []core.Segment{{End: time.Second, Text: "Hi."}, {Start: time.Second, End: 2 * time.Second, Text: "Bye now."}}, nil
-}
-
-// Processing a done film again entirely leaves its subtitles, the transcript and the bilingual file, as they were until it exports, so one that fails partway still describes the film, with the part it was redoing: the speech it heard is kept aside, and the run that follows translates it without transcribing again, then replaces the film's subtitles and drops what it kept aside.
-func TestRunProcessingAgainKeepsTheFilmUntilItExports(t *testing.T) {
-	job := doneFilm(t, "你好。", "", "再见。")
-	job.Redo, job.RedoLanguage = core.RedoAll, "日本語"
-	job.CompletedAt = time.Date(2026, 11, 1, 9, 0, 0, 0, time.UTC)
-	transcript := strings.TrimSuffix(job.VideoPath, ".mp4") + ".srt"
-	read := func(path string) string {
-		t.Helper()
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return string(data)
-	}
-	srt, bilingual := read(transcript), read(job.SubtitlePath)
-
-	p := &reprocessPipeline{redoPipeline: redoPipeline{t: t, translateErr: errors.New("translation API returned 503")}}
-	failed := Run(context.Background(), p, job, "日本語", func(core.Job) {})
-	if failed.Stage != core.StageFailed || failed.Redo != core.RedoAll || failed.RedoLanguage != "日本語" || !failed.Transcribed {
-		t.Fatalf("failed %+v", failed)
-	}
-	if failed.Language != "简体中文" || failed.Untranslated != 1 || !failed.CompletedAt.Equal(job.CompletedAt) || failed.SubtitlePath != job.SubtitlePath {
-		t.Fatalf("the failed job no longer describes the film's subtitles: %+v", failed)
-	}
-	if read(transcript) != srt || read(job.SubtitlePath) != bilingual {
-		t.Fatal("a failed run changed the film's subtitles")
-	}
-
-	p.translateErr = nil
-	failed.Stage, failed.Err = core.StageQueued, nil
-	var stages []core.Stage
-	done := Run(context.Background(), p, failed, "日本語", func(j core.Job) { stages = enteredStage(stages, j) })
-	if want := []core.Stage{core.StageTranslating, core.StageExporting, core.StageComplete}; !reflect.DeepEqual(stages, want) || p.transcriptions != 1 {
-		t.Fatalf("stages %v, want %v; transcribed %d times", stages, want, p.transcriptions)
-	}
-	if done.Redo != "" || done.RedoLanguage != "" || done.Language != "日本語" || done.Untranslated != 0 || !done.CompletedAt.After(job.CompletedAt) {
-		t.Fatalf("done %+v", done)
-	}
-	if want := []string{"日本語:Hi.\nHi.", "日本語:Bye now.\nBye now."}; !reflect.DeepEqual(bilingualTexts(t, done), want) {
-		t.Fatalf("bilingual %q", bilingualTexts(t, done))
-	}
-	if saved, err := loadTranscript(transcript); err != nil || len(saved) != 2 || saved[0].Text != "Hi." {
-		t.Fatalf("transcript %+v, %v", saved, err)
-	}
-	if _, err := os.Stat(pendingTranscriptPath(job.VideoPath)); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("the speech kept aside is still there: %v", err)
-	}
-}
-
-// hearingPipeline is reprocessPipeline heard as Tools hears a video: by model, in language, and its transcription says it heard spoken.
-type hearingPipeline struct {
-	*reprocessPipeline
-	model, language, spoken string
-}
-
-func (p hearingPipeline) hearing(context.Context) (string, string) { return p.model, p.language }
-
-func (p hearingPipeline) Transcribe(ctx context.Context, video string) ([]core.Segment, error) {
-	reportSpoken(ctx, p.spoken)
-	return p.reprocessPipeline.Transcribe(ctx, video)
-}
-
-// A Process Again that fails after its transcription keeps the film's spoken language, as it keeps its subtitles, and the speech it heard aside. Run again the way the app retries it, from a done film, it reads that speech back rather than transcribing the whole film again, and once it exports the film is heard in the language its transcription heard. Run again with another speech model or in another language, it transcribes again.
-func TestRunRetryingAFailedProcessAgainReadsBackItsSpeech(t *testing.T) {
-	job := doneFilm(t, "你好。", "", "再见。")
-	job.Redo, job.RedoLanguage, job.SpokenLanguage = core.RedoAll, "日本語", "en"
-	p := hearingPipeline{reprocessPipeline: &reprocessPipeline{redoPipeline: redoPipeline{t: t, translateErr: errors.New("translation API returned 503")}}, model: "ggml-small.bin", language: "ko", spoken: "ko"}
-	failed := Run(context.Background(), p, job, "日本語", func(core.Job) {})
-	if failed.Stage != core.StageFailed || failed.SpokenLanguage != "en" || p.transcriptions != 1 {
-		t.Fatalf("failed %+v, %d transcriptions", failed, p.transcriptions)
-	}
-
-	// The app puts a failed redo back as the done film it was and queues it again as Process Again does, with Transcribed false.
-	again := func(j core.Job) core.Job {
-		j.Stage, j.Err, j.Transcribed = core.StageQueued, nil, false
-		return j
-	}
-	p.translateErr = nil
-	p.spoken = ""
-	done := Run(context.Background(), p, again(failed), "日本語", func(core.Job) {})
-	if done.Stage != core.StageComplete || p.transcriptions != 1 || done.SpokenLanguage != "ko" {
-		t.Fatalf("done %+v, %d transcriptions", done, p.transcriptions)
-	}
-	for _, path := range []string{pendingTranscriptPath(job.VideoPath), pendingHeardPath(job.VideoPath)} {
-		if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
-			t.Fatalf("%s is still there: %v", path, err)
-		}
-	}
-
-	for name, change := range map[string]func(*hearingPipeline){
-		"another model":    func(p *hearingPipeline) { p.model = "ggml-large.bin" },
-		"another language": func(p *hearingPipeline) { p.language = "en" },
-	} {
-		t.Run(name, func(t *testing.T) {
-			job := doneFilm(t, "你好。", "", "再见。")
-			job.Redo, job.RedoLanguage = core.RedoAll, "日本語"
-			p := hearingPipeline{reprocessPipeline: &reprocessPipeline{redoPipeline: redoPipeline{t: t, translateErr: errors.New("translation API returned 503")}}, model: "ggml-small.bin", language: "ko"}
-			failed := Run(context.Background(), p, job, "日本語", func(core.Job) {})
-			p.translateErr = nil
-			change(&p)
-			if done := Run(context.Background(), p, again(failed), "日本語", func(core.Job) {}); done.Stage != core.StageComplete || p.transcriptions != 2 {
-				t.Fatalf("done %+v, %d transcriptions", done, p.transcriptions)
-			}
-		})
 	}
 }
 

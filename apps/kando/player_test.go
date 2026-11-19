@@ -452,8 +452,9 @@ func TestOpenFilmStartsLocalVideo(t *testing.T) {
 	if a.queue.job == nil || a.queue.job.Stage != core.StageComplete || a.openKey != a.queue.job.ID {
 		t.Fatalf("open %q job %#v", a.openKey, a.queue.job)
 	}
+	// Its subtitles, written beside it as they were made, show.
 	waitUntil(t, tt, a, updates, func() bool { return a.player.subs.ready })
-	wantText(t, tt, testlocale.Messages().PlayerSubsMissing())
+	wantText(t, tt, "hello")
 }
 
 // TestOpenFilmClearsTheTitleBar checks that an open film hides the sidebar and fills the window up to its top edge, its header bar putting the back button after the traffic lights.
@@ -2630,7 +2631,7 @@ func TestFilmKeepsTheSpokenLanguageNamed(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "library.json")
 	a.openLibrary(path)
 	a.library.Upsert(core.Job{ID: "talk", Source: "https://youtu.be/TRWgBxVAb1M", Stage: core.StageComplete, Language: "简体中文", SpokenLanguage: "ja",
-		VideoPath: "/videos/talk.mp4", SubtitlePath: "/videos/talk.bilingual.srt", CompletedAt: time.Now()})
+		VideoPath: testVideos + "/talk.mp4", SubtitlePath: testVideos + "/talk.bilingual.srt", CompletedAt: time.Now()})
 	a.openKey = "talk"
 	refresh(tt, a)
 	a.SetFilmSpeechLanguage("xx")

@@ -230,7 +230,7 @@ func (a *app) toolsAfterFailure() {
 	}
 }
 
-// failedStage is the stage of media.Run a failed job's error names first, "" for an error that names none.
+// failedStage is the step of media.Make a failed job's error names first, "" for an error that names none.
 func failedStage(job core.Job) string {
 	if job.Err == nil {
 		return ""

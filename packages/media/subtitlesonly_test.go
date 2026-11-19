@@ -65,7 +65,7 @@ func (p *soundPipeline) Translate(_ context.Context, segments []core.Segment, _ 
 }
 
 func (p *soundPipeline) Export(ctx context.Context, video string, original, translated []core.Segment) (string, error) {
-	return exportSubtitles(ctx, video, original, translated)
+	return exportSubtitles(video, original, translated)
 }
 
 // soundMake makes job with p, as the queue does.

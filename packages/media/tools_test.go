@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"kando/packages/core"
 )
@@ -238,20 +239,20 @@ func TestToolsFromEnvReportsSignedOutCLI(t *testing.T) {
 	}
 }
 
-func TestToolsTranscribeRejectsEmptyVideoPath(t *testing.T) {
-	_, err := Tools{FFmpeg: "binary-that-does-not-exist", Whisper: "binary-that-does-not-exist"}.Transcribe(context.Background(), " ")
+func TestToolsHearRejectsEmptyVideoPath(t *testing.T) {
+	_, err := Tools{FFmpeg: "binary-that-does-not-exist", Whisper: "binary-that-does-not-exist"}.Hear(context.Background(), " ", 0, 0, func(core.Segment) {})
 	if err == nil || !strings.Contains(err.Error(), "video path is empty") {
 		t.Fatalf("err = %v", err)
 	}
 }
 
-// transcribeTools writes an ffmpeg that does nothing and a whisper-cli that saves its arguments to a file, one a line, and writes a transcript of one line where -of asks, as the real one does with -oj.
+// transcribeTools writes an ffmpeg that does nothing and a whisper-cli that saves its arguments to a file, one a line, prints the one line it hears, and writes a transcript of it where -of asks, as the real one does with -np and -oj.
 func transcribeTools(t *testing.T) (tools Tools, args string) {
 	t.Helper()
 	dir := t.TempDir()
 	args = filepath.Join(dir, "args")
 	ffmpeg := writeFakeTool(t, dir, "ffmpeg", fakeTool{})
-	whisper := writeFakeTool(t, dir, "whisper-cli", fakeTool{Args: args, Act: "transcribe", Transcript: `{"result":{"language":"en"},"transcription":[{"offsets":{"from":0,"to":1500},"text":" Hello"}]}`})
+	whisper := writeFakeTool(t, dir, "whisper-cli", fakeTool{Args: args, Act: "transcribe", Stdout: "[00:00:00.000 --> 00:00:01.500]   Hello\n", Transcript: `{"result":{"language":"en"},"transcription":[{"offsets":{"from":0,"to":1500},"text":" Hello"}]}`})
 	return Tools{FFmpeg: ffmpeg, Whisper: whisper, WhisperModel: filepath.Join(dir, "ggml-base.bin")}, args
 }
 
@@ -272,20 +273,19 @@ func whisperLanguage(t *testing.T, args string) string {
 	return ""
 }
 
-func TestTranscribeNamesTheSpokenLanguage(t *testing.T) {
+func TestHearNamesTheSpokenLanguage(t *testing.T) {
 	tools, args := transcribeTools(t)
 	video := filepath.Join(t.TempDir(), "talk.mp4")
 	for _, tc := range []struct{ language, want string }{{"", "auto"}, {"ja", "ja"}, {" zh ", "zh"}} {
 		tools.SpeechLanguage = tc.language
-		heard := ""
-		ctx := WithTrace(context.Background(), &Trace{Spoken: func(language string) { heard = language }})
-		segments, err := tools.Transcribe(ctx, video)
+		var segments []core.Segment
+		heard, err := tools.Hear(context.Background(), video, 0, 0, func(s core.Segment) { segments = append(segments, s) })
 		if err != nil {
 			t.Fatal(err)
 		}
-		// The language whisper's output says it heard reaches the context's Trace.
+		// The language whisper's output says it heard is the one Hear returns.
 		if heard != "en" {
-			t.Fatalf("language %q: Trace heard %q, want en", tc.language, heard)
+			t.Fatalf("language %q: heard %q, want en", tc.language, heard)
 		}
 		if len(segments) != 1 || segments[0].Text != "Hello" {
 			t.Fatalf("segments %+v", segments)
@@ -296,24 +296,24 @@ func TestTranscribeNamesTheSpokenLanguage(t *testing.T) {
 	}
 }
 
-// whisperPipeline is a pipeline whose transcription is Tools', so a test reads the -l whisper was given.
+// whisperPipeline is a pipeline whose speech recognition is Tools', so a test reads the -l whisper was given.
 type whisperPipeline struct {
 	fakePipeline
 	tools Tools
 }
 
-func (p *whisperPipeline) Transcribe(ctx context.Context, video string) ([]core.Segment, error) {
-	return p.tools.Transcribe(ctx, video)
+func (p *whisperPipeline) Hear(ctx context.Context, video string, from, to time.Duration, heard func(core.Segment)) (string, error) {
+	return p.tools.Hear(ctx, video, from, to, heard)
 }
 
-// TestRunHearsTheLanguageTheJobNames checks that a job whose film the user said is spoken in a language of its own is transcribed in that language rather than the one the settings name for every video, that a job naming none is transcribed in the settings', and that the job keeps what it named.
-func TestRunHearsTheLanguageTheJobNames(t *testing.T) {
+// TestMakeHearsTheLanguageTheJobNames checks that a job whose film the user said is spoken in a language of its own is heard in that language rather than the one the settings name for every video, that a job naming none is transcribed in the settings', and that the job keeps what it named.
+func TestMakeHearsTheLanguageTheJobNames(t *testing.T) {
 	tools, args := transcribeTools(t)
 	tools.SpeechLanguage = "ja"
 	for _, tc := range []struct{ job, want string }{{"", "ja"}, {"en", "en"}, {" ko ", "ko"}} {
 		job, _ := core.NewJob("https://example.com/video")
 		job.SpeechLanguage = tc.job
-		final := Run(context.Background(), &whisperPipeline{tools: tools}, job, "简体中文", func(core.Job) {})
+		final := Make(context.Background(), &whisperPipeline{fakePipeline: fakePipeline{dir: t.TempDir()}, tools: tools}, job, "简体中文", "mac", nil, func(core.Job) {})
 		if final.Stage != core.StageComplete || final.SpeechLanguage != tc.job {
 			t.Fatalf("job naming %q: %+v", tc.job, final)
 		}
@@ -323,12 +323,12 @@ func TestRunHearsTheLanguageTheJobNames(t *testing.T) {
 	}
 }
 
-// A video with no sound track makes ffmpeg write no stream; Transcribe returns ErrNoAudio rather than ffmpeg's words.
-func TestTranscribeSaysTheVideoHasNoSound(t *testing.T) {
+// A video with no sound track makes ffmpeg write no stream; Hear returns ErrNoAudio rather than ffmpeg's words.
+func TestHearSaysTheVideoHasNoSound(t *testing.T) {
 	dir := t.TempDir()
 	ffmpeg := writeFakeTool(t, dir, "ffmpeg", fakeTool{Stderr: "[out#0/wav @ 0x1] Output file does not contain any stream\nError opening output files: Invalid argument\n", Exit: 234})
 	tools := Tools{FFmpeg: ffmpeg, Whisper: filepath.Join(dir, "whisper-cli"), WhisperModel: filepath.Join(dir, "model.bin")}
-	_, err := tools.Transcribe(context.Background(), filepath.Join(dir, "silent.mp4"))
+	_, err := tools.Hear(context.Background(), filepath.Join(dir, "silent.mp4"), 0, 0, func(core.Segment) {})
 	if !errors.Is(err, ErrNoAudio) {
 		t.Fatalf("err %v, want ErrNoAudio", err)
 	}

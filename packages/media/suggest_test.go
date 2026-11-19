@@ -87,8 +87,8 @@ func TestSuggestTermsKeepsWhatTheFilmHolds(t *testing.T) {
 	}
 }
 
-// Translating a film with suggestions asked for keeps them beside the video, leaving out the ones dismissed; a request that fails keeps what the film had, and a job that does not ask leaves them as they are.
-func TestRunKeepsTheSuggestedTerms(t *testing.T) {
+// Translating a film again with suggestions asked for keeps them beside the video, leaving out the ones dismissed; a request that fails keeps what the film had, and a job that does not ask leaves them as they are.
+func TestMakeKeepsTheSuggestedTerms(t *testing.T) {
 	job := doneFilm(t, "你好。", "", "再见。")
 	job.Redo = core.RedoTranslation
 	path := SuggestionsPath(job.VideoPath)
@@ -97,7 +97,7 @@ func TestRunKeepsTheSuggestedTerms(t *testing.T) {
 	}
 	terms := []core.Term{{Source: "Hello", Target: "ハロー", Scope: core.ScopeFilm, Origin: core.OriginAuto}, {Source: "goodbye", Target: "さよなら", Scope: core.ScopeFilm, Origin: core.OriginAuto}}
 	p := &suggestingRedo{redoPipeline: &redoPipeline{t: t}, terms: terms}
-	done := Run(WithTermSuggestions(context.Background()), p, job, "日本語", func(core.Job) {})
+	done := Make(WithTermSuggestions(context.Background()), p, job, "日本語", "mac", nil, func(core.Job) {})
 	if done.Stage != core.StageComplete || p.asked != 1 {
 		t.Fatalf("done %+v, asked %d times", done, p.asked)
 	}
@@ -108,7 +108,7 @@ func TestRunKeepsTheSuggestedTerms(t *testing.T) {
 
 	job.Redo = core.RedoTranslation
 	failing := &suggestingRedo{redoPipeline: &redoPipeline{t: t}, err: errors.New("boom")}
-	if done := Run(WithTermSuggestions(context.Background()), failing, job, "日本語", func(core.Job) {}); done.Stage != core.StageComplete || failing.asked != 1 {
+	if done := Make(WithTermSuggestions(context.Background()), failing, job, "日本語", "mac", nil, func(core.Job) {}); done.Stage != core.StageComplete || failing.asked != 1 {
 		t.Fatalf("a failed request failed the job: %+v", done)
 	}
 	if got, _ := LoadSuggestions(path); !slices.Equal(got.Terms, terms[:1]) {
@@ -116,7 +116,7 @@ func TestRunKeepsTheSuggestedTerms(t *testing.T) {
 	}
 	job.Redo = core.RedoTranslation
 	quiet := &suggestingRedo{redoPipeline: &redoPipeline{t: t}}
-	if Run(context.Background(), quiet, job, "日本語", func(core.Job) {}); quiet.asked != 0 {
+	if Make(context.Background(), quiet, job, "日本語", "mac", nil, func(core.Job) {}); quiet.asked != 0 {
 		t.Fatal("a job that did not ask for suggestions asked for them")
 	}
 }

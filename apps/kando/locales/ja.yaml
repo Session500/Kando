@@ -1142,6 +1142,8 @@ precheckNoLibrary: "先にライブラリを作成するか開いてください
 precheckNoSpeech: "動画から話し声を認識できませんでした"
 precheckNoSpeechModel: "先に「音声認識」でモデルを選択してください"
 precheckNoTools: "動画を処理するプログラムがまだインストールされていません"
+precheckNewerKando: "この動画の字幕は新しいバージョンの Kando で作成されています。Kando を更新してから処理してください。"
+precheckNoLength: "この動画の長さを読み取れないため、字幕を作成できません。ファイルが壊れているか、動画ではない可能性があります。"
 precheckNoTranscript: "この動画の元の字幕が見つからないため、翻訳だけをやり直すことはできません。動画全体を再処理してください。"
 precheckNoVideo: "追加できるのは動画ファイル（mp4、mov、mkv、webm など）だけです。"
 precheckNotLink: "動画のリンクではないようです。YouTube、bilibili のほか、yt-dlp が解析できる数千のサイトに対応しています。"

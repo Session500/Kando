@@ -4103,6 +4103,12 @@ precheckNoSpeechModel:
 precheckNoTools:
   message: "The programs that process videos aren't installed yet"
   description: "Card of a failed job when a program it needs (yt-dlp, ffmpeg, whisper-cli) is not installed."
+precheckNewerKando:
+  message: "A newer version of Kando last made this film's subtitles. Update Kando to process it."
+  description: "Why making a film's subtitles failed: its subtitle document was written by a newer Kando, which this one does not write over, so the newer subtitles are not lost."
+precheckNoLength:
+  message: "Kando can't tell how long this video is, so it can't make its subtitles. The file may be damaged or not a video."
+  description: "Why making a film's subtitles failed: ffmpeg could not read the video's length, so its parts cannot be made one by one."
 precheckNoTranscript:
   message: "This film's original subtitles are gone, so its translation can't be redone on its own. Process the entire film again instead."
   description: "Why translating a finished film again failed, the reason in queueRedoFailed: the transcript beside its video was deleted, so only Process Again (which downloads and transcribes the film again) can make new subtitles."

@@ -38,13 +38,18 @@ func (p *reviewingRedo) Review(_ context.Context, original, translated []core.Se
 	}, nil
 }
 
+// remakeWith makes job with p under ctx as the queue does, into language.
+func remakeWith(ctx context.Context, p Pipeline, job core.Job, language string) core.Job {
+	return Make(ctx, p, job, language, "mac", nil, func(core.Job) {})
+}
+
 // Translating a film again with the final proofread asked for writes the consistency change into its subtitles at once and keeps the fluency change waiting, both kept beside the video; translating again without it drops what the earlier pass found.
-func TestRunKeepsTheFinalProofreadsChanges(t *testing.T) {
+func TestMakeKeepsTheFinalProofreadsChanges(t *testing.T) {
 	job := doneFilm(t, "你好。", "", "再见。")
 	job.Redo = core.RedoTranslation
 	p := &reviewingRedo{redoPipeline: &redoPipeline{t: t}}
 	ctx := WithReview(context.Background(), core.ProofAutoConsistency)
-	done := Run(ctx, p, job, "日本語", func(core.Job) {})
+	done := remakeWith(ctx, p, job, "日本語")
 	if done.Stage != core.StageComplete || p.reviews != 1 {
 		t.Fatalf("done %+v, reviewed %d times", done, p.reviews)
 	}
@@ -79,7 +84,7 @@ func TestRunKeepsTheFinalProofreadsChanges(t *testing.T) {
 	}
 
 	done.Redo, done.Stage = core.RedoTranslation, core.StageQueued
-	again := Run(context.Background(), p, done, "日本語", func(core.Job) {})
+	again := remakeWith(context.Background(), p, done, "日本語")
 	if again.Stage != core.StageComplete || p.reviews != 1 {
 		t.Fatalf("again %+v, reviewed %d times", again, p.reviews)
 	}
@@ -89,11 +94,11 @@ func TestRunKeepsTheFinalProofreadsChanges(t *testing.T) {
 }
 
 // A final proofread that fails leaves the translation as it was and keeps no changes; translating the missing lines alone does not proofread the film again.
-func TestRunExportsTheTranslationWhenTheFinalProofreadFails(t *testing.T) {
+func TestMakeKeepsTheTranslationWhenTheFinalProofreadFails(t *testing.T) {
 	job := doneFilm(t, "你好。", "", "再见。")
 	job.Redo = core.RedoTranslation
 	p := &reviewingRedo{redoPipeline: &redoPipeline{t: t}, err: errors.New("translation API returned 503")}
-	done := Run(WithReview(context.Background(), core.ProofAutoAll), p, job, "日本語", func(core.Job) {})
+	done := remakeWith(WithReview(context.Background(), core.ProofAutoAll), p, job, "日本語")
 	if done.Stage != core.StageComplete || bilingualTexts(t, done)[0] != "日本語:Hello there.\nHello there." {
 		t.Fatalf("done %+v, %q", done, bilingualTexts(t, done))
 	}
@@ -101,8 +106,9 @@ func TestRunExportsTheTranslationWhenTheFinalProofreadFails(t *testing.T) {
 		t.Fatalf("a failed pass kept changes: %v", err)
 	}
 	p.err = nil
+	reviews := p.reviews
 	done.Redo, done.Stage = core.RedoMissing, core.StageQueued
-	if again := Run(WithReview(context.Background(), core.ProofAutoAll), p, done, "日本語", func(core.Job) {}); again.Stage != core.StageComplete || p.reviews != 1 {
+	if again := remakeWith(WithReview(context.Background(), core.ProofAutoAll), p, done, "日本語"); again.Stage != core.StageComplete || p.reviews != reviews {
 		t.Fatalf("again %+v, reviewed %d times", again, p.reviews)
 	}
 }

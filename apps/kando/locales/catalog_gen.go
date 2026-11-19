@@ -2578,6 +2578,8 @@ const (
 	textPrecheckNoSpeech
 	textPrecheckNoSpeechModel
 	textPrecheckNoTools
+	textPrecheckNewerKando
+	textPrecheckNoLength
 	textPrecheckNoTranscript
 	textPrecheckNoVideo
 	textPrecheckNotLink
@@ -4211,6 +4213,8 @@ var keyOfText = [numTexts]string{
 	"precheckNoSpeech",
 	"precheckNoSpeechModel",
 	"precheckNoTools",
+	"precheckNewerKando",
+	"precheckNoLength",
 	"precheckNoTranscript",
 	"precheckNoVideo",
 	"precheckNotLink",
@@ -5842,6 +5846,8 @@ var textsEn = i18n.NewTexts(""+
 	"No speech was recognized in the video"+
 	"Choose a model in “Speech Recognition” first"+
 	"The programs that process videos aren't installed yet"+
+	"A newer version of Kando last made this film's subtitles. Update Kando to process it."+
+	"Kando can't tell how long this video is, so it can't make its subtitles. The file may be damaged or not a video."+
 	"This film's original subtitles are gone, so its translation can't be redone on its own. Process the entire film again instead."+
 	"Only video files can be added (mp4, mov, mkv, webm and others)."+
 	"This doesn't look like a video link. Kando supports YouTube, Bilibili and the thousands of websites yt-dlp can read."+
@@ -7470,6 +7476,8 @@ var textsEn = i18n.NewTexts(""+
 		37,
 		48,
 		53,
+		85,
+		112,
 		126,
 		63,
 		116,
@@ -9101,6 +9109,8 @@ var textsJa = i18n.NewTexts(""+
 	"動画から話し声を認識できませんでした"+
 	"先に「音声認識」でモデルを選択してください"+
 	"動画を処理するプログラムがまだインストールされていません"+
+	"この動画の字幕は新しいバージョンの Kando で作成されています。Kando を更新してから処理してください。"+
+	"この動画の長さを読み取れないため、字幕を作成できません。ファイルが壊れているか、動画ではない可能性があります。"+
 	"この動画の元の字幕が見つからないため、翻訳だけをやり直すことはできません。動画全体を再処理してください。"+
 	"追加できるのは動画ファイル（mp4、mov、mkv、webm など）だけです。"+
 	"動画のリンクではないようです。YouTube、bilibili のほか、yt-dlp が解析できる数千のサイトに対応しています。"+
@@ -10729,6 +10739,8 @@ var textsJa = i18n.NewTexts(""+
 		54,
 		63,
 		84,
+		142,
+		165,
 		156,
 		89,
 		146,
@@ -12360,6 +12372,8 @@ var textsKo = i18n.NewTexts(""+
 	"동영상에서 말소리를 인식하지 못했습니다"+
 	"먼저 ‘음성 인식’에서 모델을 선택하십시오"+
 	"동영상을 처리하는 프로그램이 아직 설치되지 않았습니다"+
+	"이 영상의 자막은 새 버전의 Kando로 만들어졌습니다. Kando를 업데이트한 뒤 처리하십시오."+
+	"이 영상의 길이를 알 수 없어 자막을 만들 수 없습니다. 파일이 손상되었거나 영상이 아닐 수 있습니다."+
 	"이 영상의 원문 자막이 없어 번역만 따로 다시 할 수 없습니다. 영상 전체를 다시 처리하십시오."+
 	"동영상 파일(mp4, mov, mkv, webm 등)만 추가할 수 있습니다."+
 	"동영상 링크가 아닌 것 같습니다. YouTube, Bilibili를 비롯해 yt-dlp가 분석할 수 있는 수천 개의 웹사이트를 지원합니다."+
@@ -13988,6 +14002,8 @@ var textsKo = i18n.NewTexts(""+
 		57,
 		61,
 		77,
+		118,
+		137,
 		127,
 		72,
 		153,
@@ -15619,6 +15635,8 @@ var textsZhHans = i18n.NewTexts(""+
 	"视频里没有识别出说话的声音"+
 	"先在「语音识别」里选一个模型"+
 	"本机还没装好处理视频的程序"+
+	"这部影片的字幕是新版看懂生成的。请更新看懂后再处理。"+
+	"看懂读不出这段视频有多长，没法生成字幕。文件可能已损坏，或不是视频。"+
 	"这部影片的原文字幕不见了，没法单独重新翻译。请重新处理整部影片。"+
 	"只能添加视频文件（mp4、mov、mkv、webm 等）。"+
 	"这不像一个视频链接。支持 YouTube、哔哩哔哩，以及 yt-dlp 能解析的上千个网站。"+
@@ -17247,6 +17265,8 @@ var textsZhHans = i18n.NewTexts(""+
 		39,
 		42,
 		39,
+		78,
+		102,
 		96,
 		59,
 		106,
@@ -18878,6 +18898,8 @@ var textsZhHant = i18n.NewTexts(""+
 	"影片中沒有辨識出說話的聲音"+
 	"先在「語音辨識」中選一個模型"+
 	"本機尚未安裝好處理影片的程式"+
+	"這部影片的字幕是新版看懂產生的。請更新看懂後再處理。"+
+	"看懂讀不出這段影片有多長，無法產生字幕。檔案可能已損壞，或不是影片。"+
 	"這部影片的原文字幕不見了，無法單獨重新翻譯。請重新處理整部影片。"+
 	"只能加入影片檔（mp4、mov、mkv、webm 等）。"+
 	"這不像一個影片連結。支援 YouTube、嗶哩嗶哩，以及 yt-dlp 能解析的上千個網站。"+
@@ -20506,6 +20528,8 @@ var textsZhHant = i18n.NewTexts(""+
 		39,
 		42,
 		42,
+		78,
+		102,
 		96,
 		56,
 		106,
@@ -41413,6 +41437,24 @@ func PrecheckNoTools(cx *core.Scope) string { return For(cx).PrecheckNoTools() }
 
 // PrecheckNoTools is the package's PrecheckNoTools in the language of msgs.
 func (msgs Messages) PrecheckNoTools() string { return msgs.text(textPrecheckNoTools) }
+
+// PrecheckNewerKando says "A newer version of Kando last made this film's subtitles. Update Kando to process it."
+// in the language the app shows under cx.
+//
+// Why making a film's subtitles failed: its subtitle document was written by a newer Kando, which this one does not write over, so the newer subtitles are not lost.
+func PrecheckNewerKando(cx *core.Scope) string { return For(cx).PrecheckNewerKando() }
+
+// PrecheckNewerKando is the package's PrecheckNewerKando in the language of msgs.
+func (msgs Messages) PrecheckNewerKando() string { return msgs.text(textPrecheckNewerKando) }
+
+// PrecheckNoLength says "Kando can't tell how long this video is, so it can't make its subtitles. The file may be damaged or not a video."
+// in the language the app shows under cx.
+//
+// Why making a film's subtitles failed: ffmpeg could not read the video's length, so its parts cannot be made one by one.
+func PrecheckNoLength(cx *core.Scope) string { return For(cx).PrecheckNoLength() }
+
+// PrecheckNoLength is the package's PrecheckNoLength in the language of msgs.
+func (msgs Messages) PrecheckNoLength() string { return msgs.text(textPrecheckNoLength) }
 
 // PrecheckNoTranscript says "This film's original subtitles are gone, so its translation can't be redone on its own. Process the entire film again instead."
 // in the language the app shows under cx.

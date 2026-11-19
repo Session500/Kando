@@ -13,6 +13,7 @@ import (
 	"kando/apps/kando/sidebar"
 	"kando/packages/core"
 	"kando/packages/media"
+	"kando/packages/track"
 )
 
 // precheck says why sources cannot be processed yet, in the prototype's words (locales.Precheck…) in the interface's language, as the message bar and the guide's link field keep them, and the settings section that fixes it ("" when none does), in the prototype's order: an empty field, something that is not a link, a channel, a list or a page that names no single video, then what precheckReady finds missing to start; a missing AI service is not one of them (untranslatable). It reads only what the app already holds, so a click can afford it; what it cannot tell without running a program, as an EveryAPI login that has expired, still fails the job, whose card says so.
@@ -190,12 +191,16 @@ func failureHint(m locales.Messages, item films.Film) (reason, section string) {
 		return m.PrecheckNoTranscript(), ""
 	case strings.Contains(detail, media.ErrSubtitlesChanged.Error()):
 		return m.PrecheckSubtitlesChanged(), ""
+	case strings.Contains(detail, track.ErrNewer.Error()):
+		return m.PrecheckNewerKando(), ""
+	case strings.Contains(detail, media.ErrNoLength.Error()):
+		return m.PrecheckNoLength(), ""
 	case strings.Contains(detail, media.ErrOffline.Error()) && strings.HasPrefix(detail, "download: "):
 		return m.PrivacyNoDownload(), sectionid.Privacy
 	case strings.Contains(detail, media.ErrOffline.Error()):
 		return m.PrivacyNoCloudAI(), settings.SectionAI
 	}
-	// media.Run names the stage that failed before its error.
+	// media.Make names the step that failed before its error.
 	stage, rest, ok := strings.Cut(detail, ": ")
 	if !ok {
 		stage, rest = "", detail
@@ -230,7 +235,7 @@ func failedPrefix(m locales.Messages) string {
 	return prefix
 }
 
-// stageFailed says that the stage media.Run says failed did, with what its tool said, for an error no reason is known for, in the language of m; known is false for a stage it does not know.
+// stageFailed says that the step media.Make says failed did, with what its tool said, for an error no reason is known for, in the language of m; known is false for a stage it does not know.
 func stageFailed(m locales.Messages, stage, detail string) (msg string, known bool) {
 	switch stage {
 	case "check":

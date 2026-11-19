@@ -18,13 +18,6 @@ import (
 	"kando/packages/track"
 )
 
-// Maker is a pipeline that makes a film's subtitles a part at a time (Make): it hears part of the video at a time (Hearer) and tells how long the video is.
-type Maker interface {
-	Pipeline
-	Hearer
-	Length(ctx context.Context, videoPath string) time.Duration
-}
-
 // Length is how long the video at videoPath is, as ffmpeg reads it, with or without a picture, as the sound a link is made from first has none; 0 when it cannot tell. A file whose header does not say, as a webm a browser recorded, is decoded once through its sound, which takes seconds for a film, and is as long as the last time the decoding reached.
 func (t Tools) Length(ctx context.Context, videoPath string) time.Duration {
 	if d := parseDuration(ffmpegStderr(ctx, t.FFmpeg, "-hide_banner", "-nostdin", "-i", videoPath)); d > 0 {
@@ -84,17 +77,22 @@ var runCellsMax = 10
 // minRun is how long a run of the speech recognition goes before a jump may stop it, so jumping back and forth does not stop every run before it hears anything; tests shorten it.
 var minRun = 10 * time.Second
 
-// Make makes the subtitles of a film for the first time a part at a time, as its job asks (core.Job.Redo empty), into the film's subtitle document (track), device's log, and writes them out beside the video as they come (the transcript and "<video>.bilingual.srt"), so the film can be watched while it is made. The film's cells are heard and drafted nearest the playhead watch says first (track.Doc.Plan): the speech recognition hears a run of cells at a time, and the translation drafts each cell once heard, the two at once. A job run again, after it was stopped, failed or the app quit, goes on with what its document lacks.
+// ErrNoLength is why a film failed whose length cannot be told, as a file that is not a video, so its parts cannot be told either.
+var ErrNoLength = errors.New("the video's length cannot be told")
+
+// Make makes the subtitles of a film a part at a time, as its job asks, into the film's subtitle document (track), device's log, and writes them out beside the video as they come (the transcript and "<video>.bilingual.srt"), so the film can be watched while it is made. The film's cells are heard and drafted nearest the playhead watch says first (track.Doc.Plan): the speech recognition hears a run of cells at a time, and the translation drafts each cell once heard, the two at once. A job run again, after it was stopped, failed or the app quit, goes on with what its document lacks.
 //
 // A link that keeps no video (core.QualitySubtitles) is made from its sound alone, which goes once its subtitles are written (core.Job.SubtitlesOnly); a job downloading the video of such a film (core.RedoVideo) does only that (downloadVideo).
 //
-// A job that cannot be made a part at a time is run as Run runs it: a pipeline that is not a Maker, a video whose length cannot be told, or one whose document a newer Kando wrote.
+// A film made again entirely (core.RedoAll) is made in a generation of its own, which the film shows once it is done; one translated again (core.RedoTranslation) copies the lines the film shows into one (translateAgain); one whose missing lines are translated is filled in where it is (fillMissing). A link that takes its site's subtitles (core.SubtitlesPlatform) takes them where they match the speech (making.siteHeard). A film whose document a newer Kando wrote is not written to, and fails with track.ErrNewer.
 func Make(ctx context.Context, p Pipeline, job core.Job, language, device string, watch Watcher, report func(core.Job)) core.Job {
-	if job.Redo != core.RedoVideo && (!MakesAPartAtATime(p, job) || device == "") {
-		return Run(ctx, p, job, language, report)
-	}
 	if watch == nil {
 		watch = From(job.ResumeAt)
+	}
+	if device == "" && job.Redo != core.RedoVideo {
+		job.Err, job.Stage = fmt.Errorf("check: %w", track.ErrDevice), core.StageFailed
+		report(job)
+		return job
 	}
 	enter := func(stage core.Stage) {
 		job.Stage = stage
@@ -195,16 +193,25 @@ func Make(ctx context.Context, p Pipeline, job core.Job, language, device string
 	if len(chapters) > 0 {
 		keepChapters(video, chapters, job.ChapterUse)
 	}
-	maker := p.(Maker)
-	length := maker.Length(ctx, hearFrom)
+	length := p.Length(ctx, hearFrom)
 	doc, err := track.Read(video)
-	if length <= 0 || err != nil || doc.Newer {
-		stopVideo()
+	switch {
+	case err == nil && doc.Newer:
+		err = track.ErrNewer
+	case err == nil && length <= 0:
+		err = ErrNoLength
+	}
+	if err != nil {
+		// The video is downloaded all the same, as a job that fails after its download keeps it, so one run again does not download it again; a job stopped stops it at once.
 		if coming != nil {
-			<-coming
-			_ = os.Remove(soundPath(video))
+			if d := <-coming; d.err == nil {
+				job.VideoPath = d.path
+			}
 		}
-		return Run(ctx, p, job, language, report)
+		if hearFrom != video {
+			_ = os.Remove(hearFrom)
+		}
+		return fail("transcribe", err)
 	}
 	// A redo keeps showing the film as its files hold it until it is done: what they hold that the document does not is taken in first, as the film it redoes.
 	if job.Redo != "" {
@@ -213,7 +220,7 @@ func Make(ctx context.Context, p Pipeline, job core.Job, language, device string
 			doc.Events = append(doc.Events, written...)
 		}
 	}
-	m := &making{ctx: ctx, p: maker, job: &job, video: video, hearFrom: hearFrom, soundOnly: soundOnly, redo: job.Redo != "", device: device, doc: doc, report: report, coming: coming}
+	m := &making{ctx: ctx, p: p, job: &job, video: video, hearFrom: hearFrom, soundOnly: soundOnly, redo: job.Redo != "", device: device, doc: doc, report: report, coming: coming}
 	if _, fetches := p.(PlatformSubtitler); !fetches || local || job.SubtitleSource != core.SubtitlesPlatform {
 		m.siteState = siteNone
 	}
@@ -224,10 +231,9 @@ func Make(ctx context.Context, p Pipeline, job core.Job, language, device string
 // soundPath is where the sound of the link whose video is to be at video is kept while it is made from it: a hidden file beside it, as ".video.sound", which moves with the video (Companions) and goes once the video is there.
 func soundPath(video string) string { return hiddenBeside(video, ".sound") }
 
-// MakesAPartAtATime reports whether Make makes job with p a part at a time, so stopping it loses no more than the work it was doing: any job with a pipeline that can (Maker) but one downloading the video of a film that keeps none (core.RedoVideo), which stopping sets back to the start of its download.
-func MakesAPartAtATime(p Pipeline, job core.Job) bool {
-	_, can := p.(Maker)
-	return can && job.Redo != core.RedoVideo
+// MakesAPartAtATime reports whether Make makes job a part at a time, so stopping it loses no more than the work it was doing: any job but one downloading the video of a film that keeps none (core.RedoVideo), which stopping sets back to the start of its download.
+func MakesAPartAtATime(job core.Job) bool {
+	return job.Redo != core.RedoVideo
 }
 
 // downloadVideo downloads the video of a film that keeps none (core.RedoVideo) at job.Quality, puts it under the name its subtitles go by (placeVideo) and completes, neither hearing nor translating the film; one that fails leaves the film as it was.
@@ -260,7 +266,7 @@ type downloaded struct {
 // making is a film being made by Make.
 type making struct {
 	ctx   context.Context
-	p     Maker
+	p     Pipeline
 	job   *core.Job
 	video string
 	// hearFrom is the file the speech is heard from: the video, or the sound of a link whose video is still coming, or that keeps none (soundOnly).
@@ -274,9 +280,9 @@ type making struct {
 	siteState siteState
 	// copied is a film translated again (core.RedoTranslation), whose generation holds the lines the film shows as they read, heard already (copyGeneration): they are translated again, and not proofread again.
 	copied bool
-	device   string
-	doc      track.Doc
-	report   func(core.Job)
+	device string
+	doc    track.Doc
+	report func(core.Job)
 	// transcript and bilingual are the files the film's lines are written out to (project), and projected when they last were.
 	transcript, bilingual string
 	projected             time.Time
@@ -363,9 +369,9 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 	case m.redo:
 		hearing = m.heardIn(gen)
 	default:
-		hearing = job.SpokenLanguage
+		hearing = cmpOr(job.SpokenLanguage, m.heardIn(gen))
 	}
-	if hearing != "" && !m.copied {
+	if hearing != "" && hearing != "auto" && !m.copied {
 		m.ctx = withSpeechLanguage(m.ctx, hearing)
 		setSpoken(cmpOr(spoken, hearing))
 	}
@@ -522,7 +528,7 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 				// A line made again for a term keeps its draft when that fails; the final proofread makes it with the term.
 			case m.ctx.Err() != nil:
 			case d.in.final && (errors.Is(d.err, ErrOffline) || draftFailures+1 >= maxFailedBatches):
-				// The service is gone, or fails block after block: the film stays a draft where it is not proofread yet, as it is when the final proofread fails in Run.
+				// The service is gone, or fails block after block: the film stays a draft where it is not proofread yet, as one done with blocks the final proofread did not get to.
 				finals = false
 				relanguage()
 			case (errors.Is(d.err, ErrOffline) || draftFailures+1 >= maxFailedBatches) && m.redo:
@@ -548,6 +554,16 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 	lines := m.doc.Lines(gen)
 	if len(lines) == 0 {
 		return m.fail("transcribe", ErrNoSpeech)
+	}
+	same := core.SameLanguage(cmpOr(spoken, job.SpokenLanguage), language, track.Originals(lines))
+	// Terms are suggested for the film's glossary once it is translated, when the job asks for them (WithTermSuggestions), and kept before its subtitles are written whole, whose change has the window read them again (state_glossary_suggest.go), so it reads these with them. A film not translated, or whose missing lines alone are translated (fillMissing), keeps the suggestions it had, and so does one whose request failed; a making stopped while it asks stops.
+	if notTranslated == "" && !same {
+		if terms, ok := suggest(m.ctx, m.p, track.Originals(lines), track.Translations(lines), filmTitle(*job), language); ok {
+			_ = KeepSuggestions(m.video, terms)
+		}
+		if err := m.ctx.Err(); err != nil {
+			return m.fail("translate", err)
+		}
 	}
 	// A link made from its sound waits for its video, then keeps it in the sound's place.
 	if m.coming != nil {
@@ -580,7 +596,6 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 	if spoken != "" {
 		job.SpokenLanguage = spoken
 	}
-	same := core.SameLanguage(job.SpokenLanguage, language, track.Originals(lines))
 	untranslated := 0
 	if !same {
 		for _, l := range lines {
@@ -613,6 +628,13 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 }
 
 func (m *making) fail(step string, err error) core.Job {
+	// A link made from its sound keeps its video once it comes, as a job that fails after its download does, so one run again does not download it again; a job stopped stops the download at once.
+	if m.coming != nil {
+		m.videoCame(<-m.coming)
+		if m.videoErr == nil && m.hearFrom != m.job.VideoPath {
+			_ = os.Remove(m.hearFrom)
+		}
+	}
 	m.job.Err = fmt.Errorf("%s: %w", step, err)
 	m.job.Stage = core.StageFailed
 	m.job.Progress = core.Progress{}
@@ -867,9 +889,8 @@ func translateAgain(ctx context.Context, p Pipeline, job *core.Job, language, de
 			return failed("check", err)
 		}
 	}
-	maker, ok := p.(Maker)
-	if !ok || device == "" {
-		return failed("check", errors.New("subtitles: the pipeline cannot make a film a part at a time"))
+	if device == "" {
+		return failed("check", track.ErrDevice)
 	}
 	doc, err := track.Read(job.VideoPath)
 	if err == nil && doc.Newer {
@@ -899,7 +920,7 @@ func translateAgain(ctx context.Context, p Pipeline, job *core.Job, language, de
 	if watch == nil {
 		watch = From(job.ResumeAt)
 	}
-	m := &making{ctx: ctx, p: maker, job: job, video: job.VideoPath, hearFrom: job.VideoPath, redo: true, copied: true, siteState: siteNone, device: device, doc: doc, report: report}
+	m := &making{ctx: ctx, p: p, job: job, video: job.VideoPath, hearFrom: job.VideoPath, redo: true, copied: true, siteState: siteNone, device: device, doc: doc, report: report}
 	return m.run(lines[len(lines)-1].End, language, watch)
 }
 
@@ -1062,15 +1083,15 @@ func (m *making) copyGeneration(length time.Duration) (string, error) {
 	return gen, m.append(events...)
 }
 
-// heardIn is the language generation gen's cells were heard in, as their records name it, "" when none was heard in a known one.
+// heardIn is how generation gen's cells were heard, as their records name it (track.Making.Hearing): the language, or "auto" for a film whose language the speech recognition did not say; "" when no cell is heard yet.
 func (m *making) heardIn(gen string) string {
-	language := ""
+	hearing := ""
 	for _, e := range m.doc.Events {
-		if e.Kind == track.KindUnit && e.Gen == gen && track.Work(e.Source) == track.WorkHear && e.Key != "auto" {
-			language = e.Key
+		if e.Kind == track.KindUnit && e.Gen == gen && track.Work(e.Source) == track.WorkHear {
+			hearing = e.Key
 		}
 	}
-	return language
+	return hearing
 }
 
 // makeSource is the Source of what Make writes.
@@ -1278,7 +1299,7 @@ func (m *making) terms(gen string) []Fix {
 	return out
 }
 
-// draft makes a draft of in's lines in language: the film's terms put in them, then, for lines not drafted before, what the speech recognition misheard corrected by the proofreading (a proofreading that fails leaves them as they are, as Run does), then each translated with the lines said before as context.
+// draft makes a draft of in's lines in language: the film's terms put in them, then, for lines not drafted before, what the speech recognition misheard corrected by the proofreading (a proofreading that fails leaves them as they are), then each translated with the lines said before as context.
 func (m *making) draft(ctx context.Context, in draftInput, language string, out chan<- drafted) {
 	lines := slices.Clone(in.lines)
 	// The uploader's lines (in.site) are taken as they are written: only the lines heard take the terms and are proofread.

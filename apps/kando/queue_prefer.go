@@ -8,7 +8,7 @@ import (
 	"kando/packages/media"
 )
 
-// The film opened goes first: a film made while it plays is made nearest where it is watched (queueWatch), and so, across films, the one opened is made before the others waiting. Opening a film whose subtitles are not made yet puts its job at the head of the queue; a job running that stopping loses no more than the work it is doing, as Make makes it (media.MakesAPartAtATime), gives way to it, going back to the queue right after it, as a paused job does (queuePausedJob), and goes on where it was once the opened film is made. A job that stopping would set back, as a redo, runs on, and the opened film runs next.
+// The film opened goes first: a film made while it plays is made nearest where it is watched (queueWatch), and so, across films, the one opened is made before the others waiting. Opening a film whose subtitles are not made yet puts its job at the head of the queue; a job running that stopping loses no more than the work it is doing, as Make makes it (media.MakesAPartAtATime), gives way to it, going back to the queue right after it, as a paused job does (queuePausedJob), and goes on where it was once the opened film is made. A job that stopping would set back, as the download of a film's video (core.RedoVideo), runs on, and the opened film runs next.
 
 // errYielding is the cause the running job is stopped with to give way to the film opened. It is a pause (errPausing), so the job reports nothing more and goes back to the queue once its pipeline has returned.
 var errYielding = fmt.Errorf("%w for the film opened", errPausing)
@@ -25,7 +25,7 @@ func (a *app) queuePreferOpen() bool {
 	}
 	a.queue.preferred = id
 	a.queue.order = slices.Insert(slices.DeleteFunc(a.queue.order, func(queued string) bool { return queued == id }), 0, id)
-	if running, ok := a.library.Find(a.queue.active); ok && media.MakesAPartAtATime(a.queuePipeline(running), running) {
+	if running, ok := a.library.Find(a.queue.active); ok && media.MakesAPartAtATime(running) {
 		a.queue.stopActive(errYielding)
 	}
 	a.pump()

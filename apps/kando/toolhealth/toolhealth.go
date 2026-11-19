@@ -49,7 +49,7 @@ func Pick(candidates []string, own, choice string, health map[string]media.Healt
 	return "", other
 }
 
-// StageTools are the programs a stage of media.Run runs, by the name its error starts with ("download: …"): the download runs yt-dlp, which merges with ffmpeg; the transcription has ffmpeg take the sound out for whisper-cli; the export cuts with ffmpeg; and the check before a job asks for all three.
+// StageTools are the programs a step of media.Make runs, by the name its error starts with ("download: …"): the download runs yt-dlp, which merges with ffmpeg; the transcription has ffmpeg take the sound out for whisper-cli; the export cuts with ffmpeg; and the check before a job asks for all three.
 func StageTools(stage string) []string {
 	switch stage {
 	case "check":

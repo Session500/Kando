@@ -83,7 +83,7 @@ func TestSubscribeFromTheDialog(t *testing.T) {
 	msgs := testlocale.Messages()
 	wantText(t, tt, msgs.SubscribeEmpty())
 	sub := subscribeTo(t, tt, a, p, updates)
-	if sub.Name != "Earth Science" || sub.Library != "/videos" || !slices.Equal(sub.Seen, []string{testSubOld.URL}) {
+	if sub.Name != "Earth Science" || sub.Library != testVideos || !slices.Equal(sub.Seen, []string{testSubOld.URL}) {
 		t.Fatalf("subscription %+v", sub)
 	}
 	if a.page != pageSubscription || a.subs.shown != sub.ID || a.modalOpen() || tt.Exists("id:subscribe-ask") {
@@ -188,7 +188,7 @@ func TestSubscribeCheckQueuesNewVideos(t *testing.T) {
 	if got := playlistJobSources(a); !slices.Equal(got, []string{testSubLong.URL}) {
 		t.Fatalf("jobs %q", got)
 	}
-	if job := a.library.Jobs[0]; job.LibraryDir != "/videos" {
+	if job := a.library.Jobs[0]; job.LibraryDir != testVideos {
 		t.Fatalf("job %+v", job)
 	}
 	wantText(t, tt, msgs.SubscribeNoteQueued(1)+" "+msgs.SubscribeNoteSkipped(1))
@@ -376,10 +376,10 @@ func TestSubscribeChecksWhenDue(t *testing.T) {
 	})
 	a, tt, updates := newTestApp(t, p)
 	now := time.Now()
-	open := subscribe.New(testSubChannel, "/videos", media.Listing{Title: "Earth Science"}, now.Add(-time.Minute))
-	hourly := subscribe.New(testPlaylist, "/videos", media.Listing{Title: "French in Action"}, now.Add(-2*time.Hour))
+	open := subscribe.New(testSubChannel, testVideos, media.Listing{Title: "Earth Science"}, now.Add(-time.Minute))
+	hourly := subscribe.New(testPlaylist, testVideos, media.Listing{Title: "French in Action"}, now.Add(-2*time.Hour))
 	hourly.Cadence = subscribe.CadenceHourly
-	paused := subscribe.New("https://www.youtube.com/@paused", "/videos", media.Listing{Title: "Paused"}, now)
+	paused := subscribe.New("https://www.youtube.com/@paused", testVideos, media.Listing{Title: "Paused"}, now)
 	paused.Paused = true
 	a.subs.store.Subs = []subscribe.Sub{open, hourly, paused}
 	refresh(tt, a)
@@ -412,7 +412,7 @@ func TestSubscribeChecksWhenDue(t *testing.T) {
 func TestSubscribeQueuesInItsOwnLibrary(t *testing.T) {
 	p := newListingPipeline(map[string]media.Listing{testSubChannel: {Title: "Earth Science", Videos: []media.ListedVideo{testSubLong}}})
 	a, tt, updates := newTestApp(t, p)
-	a.edit(func(s *session) { s.Libraries = []string{"/videos", "/other.kando"} })
+	a.edit(func(s *session) { s.Libraries = []string{testVideos, "/other.kando"} })
 	other := subscribe.New(testSubChannel, "/other.kando", media.Listing{Title: "Earth Science"}, time.Now().Add(-time.Minute))
 	a.subs.store.Subs = []subscribe.Sub{other}
 	refresh(tt, a)
@@ -441,13 +441,14 @@ func TestSubscribePageFollowsTheLibrary(t *testing.T) {
 
 // The subscriptions are kept in subscriptions.json beside settings.json and read back at startup; they follow a library whose folder was renamed. A file that cannot be read is not written over.
 func TestSubscriptionsAreKept(t *testing.T) {
+	testVideosFor(t)
 	dir := t.TempDir()
 	a := newApp(&fakePipeline{}, func(fn func()) { fn() })
 	a.settingsPath = filepath.Join(dir, "settings.json")
 	a.subscribeLoad()
-	a.subs.store.Subs = []subscribe.Sub{subscribe.New(testSubChannel, "/videos", media.Listing{Title: "Earth Science"}, time.Now())}
+	a.subs.store.Subs = []subscribe.Sub{subscribe.New(testSubChannel, testVideos, media.Listing{Title: "Earth Science"}, time.Now())}
 	a.subscribeSave()
-	a.subscribeLibraryMoved(func(path string) (string, bool) { return replacePathPrefix("/videos", "/films.kando", path) })
+	a.subscribeLibraryMoved(func(path string) (string, bool) { return replacePathPrefix(testVideos, "/films.kando", path) })
 	b := newApp(&fakePipeline{}, func(fn func()) { fn() })
 	b.settingsPath = a.settingsPath
 	b.subscribeLoad()
@@ -474,8 +475,8 @@ func TestSubscriptionsAreKept(t *testing.T) {
 func TestSubscribeChecksOnceItsLibraryIsUnlocked(t *testing.T) {
 	p := newListingPipeline(map[string]media.Listing{testSubChannel: {Title: "Earth Science", Videos: []media.ListedVideo{testSubLong}}})
 	a, tt, updates := newTestApp(t, p)
-	a.library.SetLock("/videos", shelf.Lock{Algorithm: "test", Iterations: 1, Salt: []byte("salt"), Key: []byte("key")})
-	a.subs.store.Subs = []subscribe.Sub{subscribe.New(testSubChannel, "/videos", media.Listing{Title: "Earth Science"}, time.Now().Add(-time.Minute))}
+	a.library.SetLock(testVideos, shelf.Lock{Algorithm: "test", Iterations: 1, Salt: []byte("salt"), Key: []byte("key")})
+	a.subs.store.Subs = []subscribe.Sub{subscribe.New(testSubChannel, testVideos, media.Listing{Title: "Earth Science"}, time.Now().Add(-time.Minute))}
 	refresh(tt, a)
 	if !a.lockShut() {
 		t.Fatal("the library is not locked")
@@ -487,7 +488,7 @@ func TestSubscribeChecksOnceItsLibraryIsUnlocked(t *testing.T) {
 		t.Fatal("a locked library's subscription was checked")
 	}
 	// The unlock dialog keeps the unlocked library cleaned, a native path on every OS.
-	a.lock.unlocked = filepath.Clean("/videos")
+	a.lock.unlocked = filepath.Clean(testVideos)
 	refresh(tt, a)
 	if got := nextCall(t, p); got.source != testSubChannel {
 		t.Fatalf("listed %+v", got)
@@ -506,7 +507,7 @@ func TestSubscribeChecksOnceItsLibraryIsUnlocked(t *testing.T) {
 func TestSubscribeLeavesAForgottenLibraryAlone(t *testing.T) {
 	p := newListingPipeline(map[string]media.Listing{testSubChannel: {Title: "Earth Science", Videos: []media.ListedVideo{testSubLong}}})
 	a, tt, updates := newTestApp(t, p)
-	a.edit(func(s *session) { s.Libraries = []string{"/videos", "/other.kando"} })
+	a.edit(func(s *session) { s.Libraries = []string{testVideos, "/other.kando"} })
 	a.subs.store.Subs = []subscribe.Sub{subscribe.New(testSubChannel, "/other.kando", media.Listing{Title: "Earth Science"}, time.Now().Add(-time.Minute))}
 	a.forgetLibrary("/other.kando")
 	refresh(tt, a)
@@ -514,7 +515,7 @@ func TestSubscribeLeavesAForgottenLibraryAlone(t *testing.T) {
 	if a.subs.checking != "" || len(p.calls) != 0 {
 		t.Fatal("a forgotten library's subscription was checked")
 	}
-	a.edit(func(s *session) { s.Libraries = []string{"/videos", "/other.kando"} })
+	a.edit(func(s *session) { s.Libraries = []string{testVideos, "/other.kando"} })
 	a.subscribeDue()
 	if got := nextCall(t, p); got.source != testSubChannel {
 		t.Fatalf("listed %+v", got)
@@ -555,8 +556,8 @@ func TestSubscribeCheckNowGoesFirst(t *testing.T) {
 	p := newListingPipeline(map[string]media.Listing{})
 	a, tt, updates := newTestApp(t, p)
 	shown := subscribeTo(t, tt, a, p, updates).ID
-	first := subscribe.New(testPlaylist, "/videos", media.Listing{Title: "French in Action"}, time.Now())
-	second := subscribe.New("https://www.youtube.com/@second", "/videos", media.Listing{Title: "Second"}, time.Now())
+	first := subscribe.New(testPlaylist, testVideos, media.Listing{Title: "French in Action"}, time.Now())
+	second := subscribe.New("https://www.youtube.com/@second", testVideos, media.Listing{Title: "Second"}, time.Now())
 	a.subs.store.Subs = append(a.subs.store.Subs, first, second)
 	p.hold = true
 	a.subs.due = []string{first.ID, second.ID}
@@ -638,13 +639,14 @@ func TestSubscribeFailureFollowsTheLanguage(t *testing.T) {
 
 // New videos of a subscription are held, with why, when a tool a job needs is missing, whichever library is open: a locked one, or none, which is not a reason of the subscription's own library.
 func TestSubscribeEnqueueAsksForTheTools(t *testing.T) {
+	testVideosFor(t)
 	a := newApp(media.Tools{YTDLP: "yt-dlp", FFmpeg: "ffmpeg"}, func(fn func()) { fn() })
 	a.prefs.language = "简体中文"
-	a.library.SetLock("/videos", shelf.Lock{Algorithm: "test", Iterations: 1, Salt: []byte("salt"), Key: []byte("key")})
+	a.library.SetLock(testVideos, shelf.Lock{Algorithm: "test", Iterations: 1, Salt: []byte("salt"), Key: []byte("key")})
 	m := testlocale.Messages()
 	want := m.PrecheckToolsMissing("whisper-cli")
-	for _, open := range []string{"/videos", ""} {
-		a.edit(func(s *session) { s.Libraries, s.LibraryDir = []string{"/videos", "/other.kando"}, open })
+	for _, open := range []string{testVideos, ""} {
+		a.edit(func(s *session) { s.Libraries, s.LibraryDir = []string{testVideos, "/other.kando"}, open })
 		sub := subscribe.New(testSubChannel, "/other.kando", media.Listing{Title: "Earth Science"}, time.Now())
 		failed, why := a.subscribeEnqueue(&sub, []subscribe.Video{{URL: testSubLong.URL}})
 		said := ""
@@ -738,7 +740,7 @@ func TestSubscribeDialogAfterTheSocket(t *testing.T) {
 	nextCall(t, p)
 	// What remoteSubscribe's last step does, landing before the dialog's read.
 	onEngine(a, func() {
-		sub := subscribe.New(testSubChannel, "/videos", media.Listing{Title: "Earth Science", Videos: []media.ListedVideo{testSubOld}}, time.Now())
+		sub := subscribe.New(testSubChannel, testVideos, media.Listing{Title: "Earth Science", Videos: []media.ListedVideo{testSubOld}}, time.Now())
 		a.subs.store.Subs = append(a.subs.store.Subs, sub)
 		a.Changed()
 	})
@@ -757,8 +759,8 @@ func TestSubscribeDialogAfterTheSocket(t *testing.T) {
 func TestRemoteSubscriptionsLockedWhileListing(t *testing.T) {
 	p := newListingPipeline(map[string]media.Listing{testSubChannel: {Title: "Earth Science", Videos: []media.ListedVideo{testSubOld}}})
 	a, _, updates := newTestApp(t, p)
-	a.library.SetLock("/videos", shelf.Lock{Algorithm: "test", Iterations: 1, Salt: []byte("salt"), Key: []byte("key")})
-	a.lock.unlocked = filepath.Clean("/videos")
+	a.library.SetLock(testVideos, shelf.Lock{Algorithm: "test", Iterations: 1, Salt: []byte("salt"), Key: []byte("key")})
+	a.lock.unlocked = filepath.Clean(testVideos)
 	remoteServe(t, a)
 	lockWhileListing := func() { p.listed = func() { a.update(func() { a.lock.unlocked = "" }) } }
 
@@ -770,7 +772,7 @@ func TestRemoteSubscriptionsLockedWhileListing(t *testing.T) {
 		t.Fatalf("a locked library was subscribed: %+v", a.subs.store.Subs)
 	}
 
-	a.lock.unlocked = filepath.Clean("/videos")
+	a.lock.unlocked = filepath.Clean(testVideos)
 	p.listed = nil
 	got, err := remoteCall[remote.Subscribed](t, updates, remote.MethodSubscribe, remote.SubscribeParams{Source: testSubChannel})
 	if err != nil {

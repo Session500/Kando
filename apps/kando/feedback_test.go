@@ -505,7 +505,7 @@ func TestFeedbackDialogInEnglish(t *testing.T) {
 // 报告… on a failed card opens the report of a bug with that job's stage and error attached, though no film is open, and its whole error, which the card cuts short, shows over its reason. The next report from the Help menu attaches no job.
 func TestReportingAFailedJobAttachesIt(t *testing.T) {
 	a, tt, _ := newTestApp(t, &fakePipeline{})
-	a.library.Jobs = []core.Job{{ID: "bad", Source: "https://example.com/bad", Language: "简体中文", Stage: core.StageFailed, LibraryDir: "/videos",
+	a.library.Jobs = []core.Job{{ID: "bad", Source: "https://example.com/bad", Language: "简体中文", Stage: core.StageFailed, LibraryDir: testVideos,
 		Err: errors.New("transcribe: whisper-cli: exit status 3: failed to load model\nsecond line of the error")}}
 	refresh(tt, a)
 	if got := a.FailureDetail(films.Film{JobID: "bad"}); got != a.library.Jobs[0].Err.Error() {

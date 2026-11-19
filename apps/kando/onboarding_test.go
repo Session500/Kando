@@ -343,7 +343,7 @@ func TestHelpMenuReopensOnboarding(t *testing.T) {
 	if a.modalOpen() {
 		t.Fatal("the guide still holds the menu bar's commands once closed")
 	}
-	if a.snap().LibraryDir != "/videos" {
+	if a.snap().LibraryDir != testVideos {
 		t.Fatalf("library %q", a.snap().LibraryDir)
 	}
 }

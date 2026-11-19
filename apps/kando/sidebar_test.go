@@ -142,12 +142,12 @@ func applyUntil(t *testing.T, tt *nsgotest.App, a *app, updates chan func(), don
 func TestSidebarListsTheSourcesWithCounts(t *testing.T) {
 	a, tt, _ := newTestApp(t, &fakePipeline{})
 	a.library.Jobs = []core.Job{
-		{ID: "yt", Source: "https://youtu.be/TRWgBxVAb1M", Stage: core.StageComplete, VideoPath: "/videos/yt-clip/video.mp4"},
-		{ID: "bili", Source: "https://www.bilibili.com/video/BV1GJ411x7h7", Stage: core.StageComplete, VideoPath: "/videos/bili-clip/video.mp4"},
-		{ID: "file", Source: "file:///videos/file-clip/video.mp4", Stage: core.StageComplete, VideoPath: "/videos/file-clip/video.mp4"},
+		{ID: "yt", Source: "https://youtu.be/TRWgBxVAb1M", Stage: core.StageComplete, VideoPath: testVideos + "/yt-clip/video.mp4"},
+		{ID: "bili", Source: "https://www.bilibili.com/video/BV1GJ411x7h7", Stage: core.StageComplete, VideoPath: testVideos + "/bili-clip/video.mp4"},
+		{ID: "file", Source: "file:///videos/file-clip/video.mp4", Stage: core.StageComplete, VideoPath: testVideos + "/file-clip/video.mp4"},
 	}
 	a.edit(func(s *session) {
-		s.Videos = []media.Video{{Name: "loose-clip.mp4", Path: "/videos/loose/loose-clip.mp4"}}
+		s.Videos = []media.Video{{Name: "loose-clip.mp4", Path: testVideos + "/loose/loose-clip.mp4"}}
 	})
 	refresh(tt, a)
 	want := []struct{ label, source, count string }{{"全部影片", sidebar.SourceAll, "4"}, {"YouTube", sidebar.SourceYouTube, "1"}, {"哔哩哔哩", sidebar.SourceBilibili, "1"}, {"本地文件", sidebar.SourceLocal, "2"}}
@@ -172,7 +172,7 @@ func TestSidebarListsTheSourcesWithCounts(t *testing.T) {
 		t.Fatalf("其他网站 shows %q while chosen", got)
 	}
 	a.side.filter = sidebar.SourceAll
-	a.library.Jobs = append(a.library.Jobs, core.Job{ID: "web", Source: "https://vimeo.com/76979871", Stage: core.StageComplete, VideoPath: "/videos/web-clip/video.mp4"})
+	a.library.Jobs = append(a.library.Jobs, core.Job{ID: "web", Source: "https://vimeo.com/76979871", Stage: core.StageComplete, VideoPath: testVideos + "/web-clip/video.mp4"})
 	refresh(tt, a)
 	if got := sidebarCount(t, tt, sidebar.SourceWeb); got != "1" {
 		t.Fatalf("其他网站 shows %q", got)
@@ -209,10 +209,10 @@ func TestSidebarListsTheSourcesWithCounts(t *testing.T) {
 func TestSidebarFiltersByTheSpokenLanguage(t *testing.T) {
 	a, tt, _ := newTestApp(t, &fakePipeline{})
 	a.library.Jobs = []core.Job{
-		{ID: "yt-ja", Source: "https://youtu.be/TRWgBxVAb1M", Stage: core.StageComplete, VideoPath: "/videos/yt-ja/video.mp4", SpokenLanguage: "ja"},
-		{ID: "yt-en", Source: "https://youtu.be/jNQXAC9IVRw", Stage: core.StageComplete, VideoPath: "/videos/yt-en/video.mp4", SpokenLanguage: "en"},
-		{ID: "file-ja", Source: "file:///videos/file-ja/video.mp4", Stage: core.StageComplete, VideoPath: "/videos/file-ja/video.mp4", SpokenLanguage: "ja"},
-		{ID: "old", Source: "file:///videos/old/video.mp4", Stage: core.StageComplete, VideoPath: "/videos/old/video.mp4"},
+		{ID: "yt-ja", Source: "https://youtu.be/TRWgBxVAb1M", Stage: core.StageComplete, VideoPath: testVideos + "/yt-ja/video.mp4", SpokenLanguage: "ja"},
+		{ID: "yt-en", Source: "https://youtu.be/jNQXAC9IVRw", Stage: core.StageComplete, VideoPath: testVideos + "/yt-en/video.mp4", SpokenLanguage: "en"},
+		{ID: "file-ja", Source: "file:///videos/file-ja/video.mp4", Stage: core.StageComplete, VideoPath: testVideos + "/file-ja/video.mp4", SpokenLanguage: "ja"},
+		{ID: "old", Source: "file:///videos/old/video.mp4", Stage: core.StageComplete, VideoPath: testVideos + "/old/video.mp4"},
 		{ID: "running", Source: "https://youtu.be/running", Stage: core.StageTranscribing, SpokenLanguage: "ko"},
 	}
 	refresh(tt, a)
@@ -282,7 +282,7 @@ func TestSidebarFiltersByHowFarFilmsWereWatched(t *testing.T) {
 	a, tt, _ := newTestApp(t, &fakePipeline{})
 	videos := map[string]string{}
 	for _, id := range []string{"yt-done", "yt-new", "file-half", "file-new"} {
-		videos[id] = "/videos/" + id + "/video.mp4"
+		videos[id] = testVideos + "/" + id + "/video.mp4"
 	}
 	a.library.Jobs = []core.Job{
 		{ID: "yt-done", Title: "Harbor Tour", Source: "https://youtu.be/TRWgBxVAb1M", Stage: core.StageComplete, VideoPath: videos["yt-done"]},
@@ -368,8 +368,8 @@ func TestSidebarFiltersByHowFarFilmsWereWatched(t *testing.T) {
 func TestSidebarCountFollowsTheSelection(t *testing.T) {
 	a, tt, _ := newTestApp(t, &fakePipeline{})
 	a.library.Jobs = []core.Job{
-		{ID: "yt", Source: "https://youtu.be/TRWgBxVAb1M", Stage: core.StageComplete, VideoPath: "/videos/yt-clip/video.mp4"},
-		{ID: "file", Source: "file:///videos/file-clip/video.mp4", Stage: core.StageComplete, VideoPath: "/videos/file-clip/video.mp4"},
+		{ID: "yt", Source: "https://youtu.be/TRWgBxVAb1M", Stage: core.StageComplete, VideoPath: testVideos + "/yt-clip/video.mp4"},
+		{ID: "file", Source: "file:///videos/file-clip/video.mp4", Stage: core.StageComplete, VideoPath: testVideos + "/file-clip/video.mp4"},
 	}
 	refresh(tt, a)
 	if got := sidebarCount(t, tt, sidebar.SourceAll); got != "2" {
@@ -953,9 +953,9 @@ func TestSidebarSearchReturnPlaysTheOnlyFilm(t *testing.T) {
 func TestSidebarCountsTheJobs(t *testing.T) {
 	a, tt, _ := newTestApp(t, &fakePipeline{})
 	a.library.Jobs = []core.Job{
-		{ID: "wait", Source: "https://example.com/a", Stage: core.StageQueued, LibraryDir: "/videos"},
-		{ID: "bad", Source: "https://example.com/b", Stage: core.StageFailed, Err: errors.New("download: boom"), LibraryDir: "/videos"},
-		{ID: "stop", Source: "https://example.com/c", Stage: core.StageFailed, Err: context.Canceled, LibraryDir: "/videos"},
+		{ID: "wait", Source: "https://example.com/a", Stage: core.StageQueued, LibraryDir: testVideos},
+		{ID: "bad", Source: "https://example.com/b", Stage: core.StageFailed, Err: errors.New("download: boom"), LibraryDir: testVideos},
+		{ID: "stop", Source: "https://example.com/c", Stage: core.StageFailed, Err: context.Canceled, LibraryDir: testVideos},
 	}
 	a.page = sidebar.PageBrowse
 	refresh(tt, a)
@@ -972,8 +972,8 @@ func TestSidebarCountsTheJobs(t *testing.T) {
 func TestSidebarSearchReturnKeepsToTheLanguageChosen(t *testing.T) {
 	a, tt, _ := newTestApp(t, &fakePipeline{})
 	a.library.Jobs = []core.Job{
-		{ID: "ja", Title: "Rivers in Japanese", Source: "https://youtu.be/TRWgBxVAb1M", Stage: core.StageComplete, VideoPath: "/videos/ja/video.mp4", SpokenLanguage: "ja"},
-		{ID: "en", Title: "Rivers in English", Source: "https://youtu.be/jNQXAC9IVRw", Stage: core.StageComplete, VideoPath: "/videos/en/video.mp4", SpokenLanguage: "en"},
+		{ID: "ja", Title: "Rivers in Japanese", Source: "https://youtu.be/TRWgBxVAb1M", Stage: core.StageComplete, VideoPath: testVideos + "/ja/video.mp4", SpokenLanguage: "ja"},
+		{ID: "en", Title: "Rivers in English", Source: "https://youtu.be/jNQXAC9IVRw", Stage: core.StageComplete, VideoPath: testVideos + "/en/video.mp4", SpokenLanguage: "en"},
 	}
 	refresh(tt, a)
 	tt.Press("id:spoken-ja")
@@ -993,9 +993,9 @@ func TestSidebarSearchReturnKeepsToTheLanguageChosen(t *testing.T) {
 func TestSidebarDropsALanguageNoLongerListed(t *testing.T) {
 	a, tt, _ := newTestApp(t, &fakePipeline{})
 	a.library.Jobs = []core.Job{
-		{ID: "ja", Source: "https://youtu.be/TRWgBxVAb1M", Stage: core.StageComplete, VideoPath: "/videos/ja/video.mp4", SpokenLanguage: "ja"},
-		{ID: "en", Source: "https://youtu.be/jNQXAC9IVRw", Stage: core.StageComplete, VideoPath: "/videos/en/video.mp4", SpokenLanguage: "en"},
-		{ID: "ko", Source: "https://youtu.be/9bZkp7q19f0", Stage: core.StageComplete, VideoPath: "/videos/ko/video.mp4", SpokenLanguage: "ko"},
+		{ID: "ja", Source: "https://youtu.be/TRWgBxVAb1M", Stage: core.StageComplete, VideoPath: testVideos + "/ja/video.mp4", SpokenLanguage: "ja"},
+		{ID: "en", Source: "https://youtu.be/jNQXAC9IVRw", Stage: core.StageComplete, VideoPath: testVideos + "/en/video.mp4", SpokenLanguage: "en"},
+		{ID: "ko", Source: "https://youtu.be/9bZkp7q19f0", Stage: core.StageComplete, VideoPath: testVideos + "/ko/video.mp4", SpokenLanguage: "ko"},
 	}
 	refresh(tt, a)
 	tt.Press("id:spoken-en")
@@ -1006,7 +1006,7 @@ func TestSidebarDropsALanguageNoLongerListed(t *testing.T) {
 	}
 	a.library.Jobs = slices.DeleteFunc(a.library.Jobs, func(job core.Job) bool { return job.ID == "en" })
 	refresh(tt, a)
-	a.library.Jobs = append(a.library.Jobs, core.Job{ID: "en2", Source: "https://youtu.be/kJQP7kiw5Fk", Stage: core.StageComplete, VideoPath: "/videos/en2/video.mp4", SpokenLanguage: "en"})
+	a.library.Jobs = append(a.library.Jobs, core.Job{ID: "en2", Source: "https://youtu.be/kJQP7kiw5Fk", Stage: core.StageComplete, VideoPath: testVideos + "/en2/video.mp4", SpokenLanguage: "en"})
 	refresh(tt, a)
 	if a.SpokenFilter() != sidebar.SpokenAll || !tt.Exists("id:film-ja") {
 		t.Fatalf("a film heard in English brought back the filter %q: %q", a.SpokenFilter(), tt.Texts())

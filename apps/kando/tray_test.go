@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"kando/apps/kando/locales/testlocale"
 	"kando/apps/kando/settings"
@@ -292,29 +293,34 @@ func TestBackgroundSettings(t *testing.T) {
 	}
 }
 
-// stubbornPipeline is gatePipeline whose Download does not hear the job stop, as an export, a slow translate batch or a process tree torn down on Windows may not for a while, so a test can act while a stopped job's pipeline has not returned yet. Transcribe stops when the job was stopped, unless finish is set, when the job runs to the end.
+// stubbornPipeline is gatePipeline whose Download does not hear the job stop, as an export, a slow translate batch or a process tree torn down on Windows may not for a while, so a test can act while a stopped job's pipeline has not returned yet. Hear stops when the job was stopped.
 type stubbornPipeline struct {
 	*gatePipeline
-	finish bool
 }
 
 func (s *stubbornPipeline) Download(_ context.Context, source string) (string, error) {
+	if s.next(source) {
+		return s.video(filepath.Base(source) + ".mp4")
+	}
 	s.started <- source
 	<-s.release
-	return "/videos/" + filepath.Base(source) + ".mp4", nil
+	s.mu.Lock()
+	s.passed[source] = true
+	s.mu.Unlock()
+	return s.video(filepath.Base(source) + ".mp4")
 }
 
-func (s *stubbornPipeline) Transcribe(ctx context.Context, video string) ([]core.Segment, error) {
-	if err := ctx.Err(); err != nil && !s.finish {
-		return nil, err
+func (s *stubbornPipeline) Hear(ctx context.Context, video string, from, to time.Duration, heard func(core.Segment)) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
 	}
-	return s.gatePipeline.Transcribe(ctx, video)
+	return s.gatePipeline.Hear(ctx, video, from, to, heard)
 }
 
-// TestPausedJobReturningLate checks what becomes of the job the pause stopped, by what happened before its pipeline returned: one the user cancelled meanwhile ends cancelled and does not start again on resume, one that completed is done, and one that got further than its last report goes back to the queue with what it reached, so its video is not downloaded again.
+// TestPausedJobReturningLate checks what becomes of the job the pause stopped, by what happened before its pipeline returned: one the user cancelled meanwhile ends cancelled and does not start again on resume, and one that got further than its last report goes back to the queue with what it reached, so its video is not downloaded again.
 func TestPausedJobReturningLate(t *testing.T) {
-	start := func(t *testing.T, finish bool) (*app, *nsgotest.App, chan func(), *stubbornPipeline, string) {
-		s := &stubbornPipeline{gatePipeline: newGatePipeline(), finish: finish}
+	start := func(t *testing.T) (*app, *nsgotest.App, chan func(), *stubbornPipeline, string) {
+		s := &stubbornPipeline{gatePipeline: newGatePipeline()}
 		a, tt, updates := newTestApp(t, s)
 		t.Cleanup(a.stop)
 		if err := a.Enqueue("https://example.com/a"); err != nil {
@@ -328,7 +334,7 @@ func TestPausedJobReturningLate(t *testing.T) {
 		return a, tt, updates, s, jobIDs(a)["https://example.com/a"]
 	}
 	t.Run("cancelled", func(t *testing.T) {
-		a, tt, updates, s, id := start(t, false)
+		a, tt, updates, s, id := start(t)
 		a.Withdraw(id)
 		s.release <- struct{}{}
 		waitUntil(t, tt, a, updates, func() bool { return !a.running() })
@@ -338,16 +344,8 @@ func TestPausedJobReturningLate(t *testing.T) {
 		a.queueSetPaused(false)
 		noneStarted(t, s.gatePipeline, updates)
 	})
-	t.Run("completed", func(t *testing.T) {
-		a, tt, updates, s, id := start(t, true)
-		s.release <- struct{}{}
-		waitUntil(t, tt, a, updates, func() bool { return !a.running() })
-		if job := stageOf(t, a, id); job.Stage != core.StageComplete || slices.Contains(a.queue.order, id) {
-			t.Fatalf("completed during the pause: %+v, queue %v", job, a.queue.order)
-		}
-	})
 	t.Run("further", func(t *testing.T) {
-		a, tt, updates, s, id := start(t, false)
+		a, tt, updates, s, id := start(t)
 		s.release <- struct{}{}
 		waitUntil(t, tt, a, updates, func() bool { return !a.running() })
 		job := stageOf(t, a, id)

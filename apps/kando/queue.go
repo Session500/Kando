@@ -559,7 +559,7 @@ func (a *app) remove(id string) {
 	a.queueTellSystem()
 }
 
-// retry queues a failed, cancelled or finished job again under the same ID and goes to the library, where the card already on screen follows it. It resumes after the stages it finished (media.Run): the video it downloaded and the speech it transcribed are used again. A done film is processed again entirely but for its download, as Process Entire Film Again says (core.RedoAll): its speech is transcribed anew, and translated into the language it was translated into (queueReprocessLanguage), and it stays the done film it was until the new subtitles are written, so a run that fails or is stopped puts it back as it was (queueRedoEnded). A job still running or waiting is left alone; one without a language when the settings name none says so on the line under the link field.
+// retry queues a failed, cancelled or finished job again under the same ID and goes to the library, where the card already on screen follows it. It goes on with what the film's document lacks (media.Make): the video it downloaded and the speech it heard are used again. A done film is processed again entirely but for its download, as Process Entire Film Again says (core.RedoAll): its speech is transcribed anew, and translated into the language it was translated into (queueReprocessLanguage), and it stays the done film it was until the new subtitles are written, so a run that fails or is stopped puts it back as it was (queueRedoEnded). A job still running or waiting is left alone; one without a language when the settings name none says so on the line under the link field.
 func (a *app) retry(job core.Job) {
 	a.queueAgain(a.queueRetryable(job))
 }
@@ -599,7 +599,7 @@ func (a *app) queueRetranslatable(job core.Job, redo core.Redo, into string) (co
 	return job, nil
 }
 
-// queueRedoEnded is job, which was processing or translating a done film again (core.Job.Redo) and has failed or been stopped, put back as the done film it was: its subtitles are still the ones it had, which the job still describes, and so is the language heard in it (media.Run). The message bar says why the job failed, and the film page too while the film is open (jobQueue.redoEnded); a job the user cancelled, or one stopped by a switch of library, says nothing.
+// queueRedoEnded is job, which was processing or translating a done film again (core.Job.Redo) and has failed or been stopped, put back as the done film it was: its subtitles are still the ones it had, which the job still describes, and so is the language heard in it (media.Make). The message bar says why the job failed, and the film page too while the film is open (jobQueue.redoEnded); a job the user cancelled, or one stopped by a switch of library, says nothing.
 func (a *app) queueRedoEnded(job core.Job) core.Job {
 	if a.queue.redoEnded == nil {
 		a.queue.redoEnded = map[string]core.Job{}
@@ -1081,7 +1081,7 @@ func (a *app) show(job core.Job) {
 			a.player.subs.path = ""
 		}
 		a.loadSubtitles(job.ID, job.VideoPath, job.SubtitlePath)
-		// The job translated the chapters' titles before it completed (media.Run), so the open film's 片段 and info tab read them again.
+		// The job translated the chapters' titles before it completed (media.Make), so the open film's 片段 and info tab read them again.
 		if rewritten && a.player.film.infoFor != "" {
 			a.readFilmInfo(a.player.film.infoFor)
 		}

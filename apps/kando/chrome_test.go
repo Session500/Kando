@@ -242,7 +242,7 @@ func TestPaletteRunsTheMenuOnlyCommands(t *testing.T) {
 	useNoMenuBar(t)
 	a, tt, _ := newTestApp(t, &fakePipeline{})
 	other := filepath.Join(t.TempDir(), "乙.kando")
-	a.edit(func(s *session) { s.Libraries = []string{"/videos", other} })
+	a.edit(func(s *session) { s.Libraries = []string{testVideos, other} })
 	refresh(tt, a)
 	run := func(label string) {
 		t.Helper()

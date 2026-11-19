@@ -24,22 +24,6 @@ type PlatformSubtitler interface {
 // platformFetchTimeout is how long fetching a link's subtitles may take: they are a few kilobytes, and a site that does not answer only means the film is heard alone.
 const platformFetchTimeout = 2 * time.Minute
 
-// platformLines are the original lines of job's film when it takes its site's subtitles (core.SubtitlesPlatform) and they match heard, the speech the job transcribed in language (matchPlatform): the subtitles, with the lines heard where they do not match it, and how many subtitle lines those replaced. ok is false for a job that does not take them, a local video, a pipeline that cannot fetch them, a site that has none in language or whose fetch failed, and subtitles that do not match the speech; the film is then heard alone.
-func platformLines(ctx context.Context, p Pipeline, job core.Job, language string, heard []core.Segment) (lines []core.Segment, local int, ok bool) {
-	fetcher, can := p.(PlatformSubtitler)
-	if !can || job.SubtitleSource != core.SubtitlesPlatform || strings.TrimSpace(language) == "" {
-		return nil, 0, false
-	}
-	if _, isLocal := localVideoPath(job.Source); isLocal {
-		return nil, 0, false
-	}
-	subtitles, err := fetcher.PlatformSubtitles(ctx, job.Source, language)
-	if err != nil || len(subtitles) == 0 {
-		return nil, 0, false
-	}
-	return matchPlatform(subtitles, heard)
-}
-
 // platformSlack is how far before its start and after its end a line of the site's subtitles looks for the speech that says it, as subtitles are timed by hand and the speech recognition's own times are rough.
 const platformSlack = 500 * time.Millisecond
 
