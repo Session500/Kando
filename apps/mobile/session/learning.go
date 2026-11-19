@@ -239,6 +239,8 @@ type learnResult struct {
 	settings *sync.Settings
 	// targetPut is set when the phone's language was put to the computer, readOnly when the computer takes no change of the phone's, and watched when it syncs the time watched.
 	targetPut, readOnly, watched bool
+	// relayed is a computer followed through its storage, away from its network, whose libraries and settings sync there (relay_study.go): what it serves is as its state.json last said.
+	relayed bool
 	// puts is the computer's settingsPuts when the sync asked it.
 	puts int
 }
@@ -264,6 +266,10 @@ func (s *Session) SyncLearning() {
 	results := make([]learnResult, len(desktops))
 	var wg gosync.WaitGroup
 	for i, d := range desktops {
+		if s.relayed(d.ID) {
+			results[i] = s.learnRelayed(d.ID)
+			continue
+		}
 		c := s.Client(d.ID)
 		putTarget := slices.Contains(prefs.TargetPending, d.ID)
 		puts := s.learn.settingsPuts[d.ID]
@@ -317,6 +323,21 @@ func learnAsk(ctx context.Context, c *sync.Client, desktop string, putTarget boo
 	return out
 }
 
+// learnRelayed is what a sync knows of computer desktop, followed through its storage, from the state.json it last wrote there: whether it serves the learning state and the time watched, and whether it made the phone read-only; out of reach while that is stale, though what the sync leaves in the storage waits there for it.
+func (s *Session) learnRelayed(desktop string) learnResult {
+	out := learnResult{desktop: desktop, relayed: true}
+	rs := s.remote.relayStudies[desktop]
+	if rs == nil || s.remote.queues.GetUntracked()[desktop].Reach != Online {
+		out.err = errAway
+		return out
+	}
+	h := rs.hello
+	out.readOnly = h.ReadOnly
+	out.state = slices.Contains(h.State, sync.KindLine) || slices.Contains(h.State, sync.KindWord)
+	out.watched = slices.Contains(h.State, sync.KindWatched) && !h.ReadOnly
+	return out
+}
+
 // learnAsked takes what the computers answered in, on the engine's goroutine, and syncs each library they list. A library a computer no longer lists, as one locked or removed, goes with what the phone kept of it, unless the phone has changes of it the computer has not taken yet: those stay until it lists the library again, as once it is unlocked, so a review made meanwhile is not lost. One removed for good keeps them until the computer is unpaired.
 func (s *Session) learnAsked(results []learnResult) {
 	reached, problem := false, NoProblem
@@ -328,6 +349,11 @@ func (s *Session) learnAsked(results []learnResult) {
 		if _, ok := s.Desktop(r.desktop); !ok {
 			// Unpaired while the sync ran.
 			continue
+		}
+		if r.relayed {
+			// Through the storage, the libraries and the settings sync on their own, each as the computer answers it there; the user asked, so what failed there before goes again too.
+			s.relayLearn(r.desktop, true)
+			s.relaySettings(r.desktop, true)
 		}
 		if r.err != nil {
 			p := ProblemOf(r.err)
@@ -356,7 +382,7 @@ func (s *Session) learnAsked(results []learnResult) {
 				s.setDesktopSettings(r.desktop, DesktopSettings{Settings: *r.settings, ReadOnly: r.readOnly})
 			}
 		}
-		if !r.state {
+		if !r.state || r.relayed {
 			continue
 		}
 		for k, l := range s.studies.GetUntracked() {

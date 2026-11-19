@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 
+	"kando/apps/mobile/jobs"
 	"kando/apps/mobile/locales"
 	"kando/apps/mobile/session"
 	"kando/packages/sync"
@@ -70,6 +71,9 @@ func queueToasts(cx *core.Scope, s *session.Session, toaster *ui.Toaster, openFi
 				title = locales.JobsReadOnly(cx, name(desktop))
 			case errors.As(err, &e):
 				title = locales.JobsActionFailed(cx, name(desktop))
+			case s.Queue(desktop).Relayed && s.Queue(desktop).Storage != sync.RelayNoFailure:
+				// Away from the computer's network, the storage it goes through failed the phone; a computer that answered there refused the action itself, as above.
+				title = jobs.StorageFailure(cx, s.Queue(desktop).Storage, name(desktop))
 			}
 			t := ui.ToastContent{Type: ui.ToastError, Title: title}
 			// A computer not ready for it says why in its own words, as that the library is locked or it has no downloader; the protocol carries them in English.
