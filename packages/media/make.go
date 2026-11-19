@@ -88,7 +88,7 @@ var minRun = 10 * time.Second
 //
 // A link that keeps no video (core.QualitySubtitles) is made from its sound alone, which goes once its subtitles are written (core.Job.SubtitlesOnly); a job downloading the video of such a film (core.RedoVideo) does only that (downloadVideo).
 //
-// A job that cannot be made a part at a time is run as Run runs it: a redo, a link whose lines come from its site's subtitles, a pipeline that is not a Maker, a video whose length cannot be told, or one whose document a newer Kando wrote.
+// A job that cannot be made a part at a time is run as Run runs it: a pipeline that is not a Maker, a video whose length cannot be told, or one whose document a newer Kando wrote.
 func Make(ctx context.Context, p Pipeline, job core.Job, language, device string, watch Watcher, report func(core.Job)) core.Job {
 	if job.Redo != core.RedoVideo && (!MakesAPartAtATime(p, job) || device == "") {
 		return Run(ctx, p, job, language, report)
@@ -214,6 +214,9 @@ func Make(ctx context.Context, p Pipeline, job core.Job, language, device string
 		}
 	}
 	m := &making{ctx: ctx, p: maker, job: &job, video: video, hearFrom: hearFrom, soundOnly: soundOnly, redo: job.Redo != "", device: device, doc: doc, report: report, coming: coming}
+	if _, fetches := p.(PlatformSubtitler); !fetches || local || job.SubtitleSource != core.SubtitlesPlatform {
+		m.siteState = siteNone
+	}
 	defer stopVideo()
 	return m.run(length, language, watch)
 }
@@ -221,10 +224,10 @@ func Make(ctx context.Context, p Pipeline, job core.Job, language, device string
 // soundPath is where the sound of the link whose video is to be at video is kept while it is made from it: a hidden file beside it, as ".video.sound", which moves with the video (Companions) and goes once the video is there.
 func soundPath(video string) string { return hiddenBeside(video, ".sound") }
 
-// MakesAPartAtATime reports whether Make makes job with p a part at a time, so stopping it loses no more than the work it was doing: a film made for the first time with a pipeline that can (Maker), not a redo, nor a link whose lines come from its site's subtitles, which Run makes whole.
+// MakesAPartAtATime reports whether Make makes job with p a part at a time, so stopping it loses no more than the work it was doing: any job with a pipeline that can (Maker) but one downloading the video of a film that keeps none (core.RedoVideo), which stopping sets back to the start of its download.
 func MakesAPartAtATime(p Pipeline, job core.Job) bool {
 	_, can := p.(Maker)
-	return can && (job.Redo == "" || job.Redo == core.RedoAll || job.Redo == core.RedoTranslation || job.Redo == core.RedoMissing) && job.SubtitleSource != core.SubtitlesPlatform
+	return can && job.Redo != core.RedoVideo
 }
 
 // downloadVideo downloads the video of a film that keeps none (core.RedoVideo) at job.Quality, puts it under the name its subtitles go by (placeVideo) and completes, neither hearing nor translating the film; one that fails leaves the film as it was.
@@ -265,6 +268,10 @@ type making struct {
 	soundOnly bool
 	// redo is a film made again (core.RedoAll, core.RedoTranslation) into a generation of its own, which the film shows only once it is done: until then nothing of it is written out, and the job keeps describing the film as it was.
 	redo bool
+	// siteCh brings the subtitles the link's site carries (core.SubtitlesPlatform), fetched beside the making once the language is known (fetchSite); site holds them, and siteState says what is known of them.
+	siteCh    chan []core.Segment
+	site      []core.Segment
+	siteState siteState
 	// copied is a film translated again (core.RedoTranslation), whose generation holds the lines the film shows as they read, heard already (copyGeneration): they are translated again, and not proofread again.
 	copied bool
 	device   string
@@ -409,10 +416,18 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 	}()
 	for {
 		plan.Playhead = watch.Playhead()
+		switch {
+		case m.siteState == siteUnasked && hearing != "" && hearing != "auto":
+			m.fetchSite(hearing)
+		case m.siteState == siteUndecided:
+			// A run that ended, as one that failed, may have left nothing more to hear.
+			m.siteHeard(gen, plan)
+		}
 		p := m.doc.Plan(plan)
 		last = p
 		m.progress(p)
-		if p.Done() && hearStop == nil && !drafting && (len(m.redrafts) == 0 || plan.Language == "") {
+		siteWaits := m.siteState == siteFetching || m.siteState == siteUndecided
+		if p.Done() && hearStop == nil && !drafting && !siteWaits && (len(m.redrafts) == 0 || plan.Language == "") {
 			break
 		}
 		// A run hearing far from where the film is now watched gives way, once it has gone long enough to have heard something; what it heard is kept.
@@ -426,8 +441,8 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 			hearStarted = time.Now()
 			go m.hear(runCtx, hearCells, heardCh, doneCh)
 		}
-		// The translation's one line of work: lines to draft again for a new term first, then drafts, then, while no draft is ready, the final proofread.
-		if !drafting && plan.Language != "" {
+		// The translation's one line of work: lines to draft again for a new term first, then drafts, then, while no draft is ready, the final proofread. While the site's subtitles are fetched, or in hand and not yet found to match the speech or not, nothing is drafted, as the lines they replace would be drafted for nothing; the fetch gives up after platformFetchTimeout.
+		if !drafting && plan.Language != "" && !siteWaits {
 			switch {
 			case len(m.redrafts) > 0:
 				drafting = true
@@ -445,7 +460,7 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 				go m.final(m.ctx, m.finalOf(gen, p.Final[0]), plan.Language, auto, draftCh)
 			}
 		}
-		if hearStop == nil && !drafting {
+		if hearStop == nil && !drafting && m.siteState != siteFetching {
 			// Nothing runs and nothing can start, yet the film is not done. Plan says no such state exists, and a draft waits for more cells only while a run hears them; stop rather than wait for ever.
 			return m.fail("transcribe", errors.New("subtitles: work is left that nothing can do"))
 		}
@@ -454,6 +469,8 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 			return m.fail("transcribe", m.ctx.Err())
 		case d := <-m.coming:
 			m.videoCame(d)
+		case subtitles := <-m.siteCh:
+			m.siteCame(gen, plan, subtitles)
 		case <-watch.Jumped():
 		case c := <-heardCh:
 			if hearing == "" {
@@ -461,6 +478,7 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 				continue
 			}
 			m.commitHeard(gen, plan.Hearing, c)
+			m.siteHeard(gen, plan)
 		case d := <-doneCh:
 			hearStop()
 			hearStop = nil
@@ -485,6 +503,7 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 					m.commitHeard(gen, hearing, c)
 				}
 				pending = nil
+				m.siteHeard(gen, plan)
 				relanguage()
 			}
 			if hearing == "" {
@@ -580,7 +599,8 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 	// A film translated again keeps the lines it had, and what they were heard from.
 	if !m.copied {
 		job.Transcribed, job.Proofread = true, false
-		job.PlatformSubtitles, job.LocalLines, job.SubtitlesOnly = false, 0, subtitlesOnly
+		job.PlatformSubtitles, job.LocalLines = m.siteCounts(gen)
+		job.SubtitlesOnly = subtitlesOnly
 	}
 	job.SubtitlePath = m.bilingual
 	job.CompletedAt = time.Now()
@@ -613,6 +633,226 @@ func (m *making) generation(model string) (string, error) {
 	}
 	gen := track.NewID()
 	return gen, m.append(track.Event{Kind: track.KindGen, Gen: gen, Source: makeSource, Key: model})
+}
+
+// heardOnly are the lines of lines that are not the uploader's (site), copied, and where each is among lines.
+func heardOnly(lines []core.Segment, site []bool) ([]core.Segment, []int) {
+	var out []core.Segment
+	var at []int
+	for i, l := range lines {
+		if i >= len(site) || !site[i] {
+			out, at = append(out, l), append(at, i)
+		}
+	}
+	return out, at
+}
+
+// heardOnlyOf are the lines of lines at at.
+func heardOnlyOf(lines []core.Segment, at []int) []core.Segment {
+	out := make([]core.Segment, len(at))
+	for k, i := range at {
+		out[k] = lines[i]
+	}
+	return out
+}
+
+// siteState is what the making knows of the subtitles a link's site carries (core.SubtitlesPlatform).
+type siteState int
+
+const (
+	// siteUnasked: not fetched yet, as the language they are to be in is not known yet.
+	siteUnasked siteState = iota
+	siteFetching
+	// siteUndecided: in hand, with too few of their lines heard yet to tell whether they say what is said (siteCheck).
+	siteUndecided
+	// siteTaken: they say what is said, and each cell heard takes them where they match it (siteCell).
+	siteTaken
+	// siteNone: the film is heard alone, as a job that does not take them, a site that has none, or subtitles that do not match the speech.
+	siteNone
+)
+
+// siteSource is the Source of the revisions that hold the uploader's lines, and the Work of the record that a cell took them (siteCell).
+const siteSource = "site"
+
+// siteChecked is how many of the site's lines with words are checked against the speech before the film decides whether it takes them: enough that a few short words that happen to match do not decide it, as matchPlatform decides by every line of the film.
+const siteChecked = 20
+
+// fetchSite fetches the site's subtitles in language, the code of the language the speech is heard in, beside the making (siteCh).
+func (m *making) fetchSite(language string) {
+	m.siteState = siteFetching
+	m.siteCh = make(chan []core.Segment, 1)
+	fetcher, source, ctx := m.p.(PlatformSubtitler), m.job.Source, m.ctx
+	go func() {
+		subtitles, err := fetcher.PlatformSubtitles(ctx, source, language)
+		if err != nil {
+			subtitles = nil
+		}
+		m.siteCh <- subtitles
+	}()
+}
+
+// siteCame takes in the site's subtitles once fetched: none, and the film is heard alone; else the cells heard so far decide whether it takes them, if they can yet.
+func (m *making) siteCame(gen string, plan track.Making, subtitles []core.Segment) {
+	m.siteCh = nil
+	if len(subtitles) == 0 {
+		m.siteState = siteNone
+		return
+	}
+	m.site, m.siteState = subtitles, siteUndecided
+	// A film that took them before, as one stopped and run again, takes them still: the lines they replaced are gone.
+	for _, e := range m.doc.Events {
+		if e.Kind == track.KindUnit && e.Gen == gen && e.Source == siteSource {
+			m.siteState = siteTaken
+		}
+	}
+	m.siteHeard(gen, plan)
+}
+
+// siteHeard decides, once enough of the site's lines are heard (siteChecked) or the whole film is, whether the film takes them: when at least half of those checked match the speech, as matchPlatform decides; and each cell heard of a film that takes them takes them where they match (siteCell).
+func (m *making) siteHeard(gen string, plan track.Making) {
+	if m.siteState == siteUndecided {
+		heard := m.heardCells(gen, plan)
+		var subtitles []core.Segment
+		for _, s := range m.site {
+			if heard[int((s.Start+s.End)/2/track.Cell)] {
+				subtitles = append(subtitles, s)
+			}
+		}
+		_, _, checked, hits := platformCheck(subtitles, m.heardLines(gen, heard))
+		// Every cell heard, or given up, is as much as the film will tell.
+		if p := m.doc.Plan(plan); checked < siteChecked && len(p.Hear) > 0 {
+			return
+		}
+		m.siteState = siteNone
+		if checked > 0 && hits*2 >= checked {
+			m.siteState = siteTaken
+		}
+	}
+	if m.siteState != siteTaken {
+		return
+	}
+	taken := map[int]bool{}
+	for _, e := range m.doc.Events {
+		if e.Kind == track.KindUnit && e.Gen == gen && e.Source == siteSource {
+			taken[int(e.Start/track.Cell.Milliseconds())] = true
+		}
+	}
+	for c := range m.heardCells(gen, plan) {
+		if !taken[c] {
+			m.siteCell(gen, plan, c)
+		}
+	}
+}
+
+// heardCells are the cells of gen heard as plan hears them.
+func (m *making) heardCells(gen string, plan track.Making) map[int]bool {
+	out := map[int]bool{}
+	for _, e := range m.doc.Events {
+		if e.Kind == track.KindUnit && e.Gen == gen && track.Work(e.Source) == track.WorkHear && e.Key == plan.Hearing {
+			out[int(e.Start/track.Cell.Milliseconds())] = true
+		}
+	}
+	return out
+}
+
+// heardLines are the lines of gen in cells, as they were heard.
+func (m *making) heardLines(gen string, cells map[int]bool) []core.Segment {
+	var out []core.Segment
+	for _, l := range m.siteHeardLines(gen, cells) {
+		out = append(out, l.seg)
+	}
+	return out
+}
+
+type heardLine struct {
+	id  string
+	seg core.Segment
+}
+
+// siteHeardLines are the lines of gen in cells that were heard, not the uploader's, with their text as heard.
+func (m *making) siteHeardLines(gen string, cells map[int]bool) []heardLine {
+	heard := map[string]string{}
+	for _, e := range m.doc.Events {
+		if e.Kind == track.KindRev && e.Side == track.Original && e.Layer == track.LayerHeard {
+			heard[e.Line] = e.Text
+		}
+	}
+	var out []heardLine
+	for _, l := range m.doc.Lines(gen) {
+		if cells[int((l.Start+l.End)/2/track.Cell)] && l.Original.Source != siteSource {
+			out = append(out, heardLine{id: l.ID, seg: core.Segment{Start: l.Start, End: l.End, Text: heard[l.ID]}})
+		}
+	}
+	return out
+}
+
+// siteCell makes cell c of gen take the site's lines where they match what was heard there (platformMerge), the cells on either side looked at too, as a line heard often spans two of the site's: the lines heard there are replaced by the lines the merge keeps whose middle is in the cell, the uploader's revisions marked siteSource, and a record that the cell took them counts the site's lines with words that lines heard replaced (Count), which the job's LocalLines adds up (siteCounts).
+func (m *making) siteCell(gen string, plan track.Making, c int) {
+	in := func(s core.Segment, cells ...int) bool {
+		cell := int((s.Start + s.End) / 2 / track.Cell)
+		return slices.Contains(cells, cell)
+	}
+	var subtitles []core.Segment
+	for _, s := range m.site {
+		if in(s, c-1, c, c+1) {
+			subtitles = append(subtitles, s)
+		}
+	}
+	around := map[int]bool{}
+	heardCells := m.heardCells(gen, plan)
+	for _, n := range []int{c - 1, c, c + 1} {
+		around[n] = heardCells[n]
+	}
+	near := m.siteHeardLines(gen, around)
+	var heard []core.Segment
+	for _, l := range near {
+		heard = append(heard, l.seg)
+	}
+	matched, words, _, _ := platformCheck(subtitles, heard)
+	merged, site, _ := platformMerge(subtitles, heard, matched, words)
+	var events []track.Event
+	for _, l := range m.doc.Lines(gen) {
+		if in(core.Segment{Start: l.Start, End: l.End}, c) {
+			events = append(events, track.Event{Kind: track.KindGone, Line: l.ID})
+		}
+	}
+	local := 0
+	for i, s := range subtitles {
+		if in(s, c) && words[i] && !slices.ContainsFunc(merged, func(m core.Segment) bool { return m == s }) {
+			local++
+		}
+	}
+	for i, s := range merged {
+		if !in(s, c) {
+			continue
+		}
+		source := makeSource
+		if site[i] {
+			source = siteSource
+		}
+		id := track.NewID()
+		events = append(events,
+			track.Event{Kind: track.KindLine, Gen: gen, Line: id, Start: s.Start.Milliseconds(), End: s.End.Milliseconds()},
+			track.Event{Kind: track.KindRev, Line: id, Side: track.Original, Layer: track.LayerHeard, Text: s.Text, Source: source},
+		)
+	}
+	made := track.Unit{Work: siteSource, Gen: gen, Cell: c}.Made()
+	made.Count = local
+	_ = m.append(append(events, made)...)
+}
+
+// siteCounts are whether gen holds the uploader's lines and how many of the site's lines with words the speech replaced, as the job keeps them (core.Job.PlatformSubtitles, core.Job.LocalLines).
+func (m *making) siteCounts(gen string) (bool, int) {
+	taken, local := false, 0
+	for _, e := range m.doc.Events {
+		if e.Kind == track.KindUnit && e.Gen == gen && e.Source == siteSource {
+			local += e.Count
+		}
+	}
+	for _, l := range m.doc.Lines(gen) {
+		taken = taken || l.Original.Source == siteSource
+	}
+	return taken, local
 }
 
 // translateAgain translates job's film again (core.RedoTranslation), every line of it, into language, a part at a time nearest where it is watched first, as Make makes a film: its lines as the film shows them, its files taken in first, are copied into a generation of their own (copyGeneration), which the film shows once it is done, so one that fails or is stopped leaves the film as it was. It neither downloads nor hears the film, so it checks only what translating needs, and a film whose lines are gone fails with ErrNoTranscript.
@@ -659,7 +899,7 @@ func translateAgain(ctx context.Context, p Pipeline, job *core.Job, language, de
 	if watch == nil {
 		watch = From(job.ResumeAt)
 	}
-	m := &making{ctx: ctx, p: maker, job: job, video: job.VideoPath, hearFrom: job.VideoPath, redo: true, copied: true, device: device, doc: doc, report: report}
+	m := &making{ctx: ctx, p: maker, job: job, video: job.VideoPath, hearFrom: job.VideoPath, redo: true, copied: true, siteState: siteNone, device: device, doc: doc, report: report}
 	return m.run(lines[len(lines)-1].End, language, watch)
 }
 
@@ -966,6 +1206,8 @@ type draftInput struct {
 	lines   []core.Segment
 	earlier []string
 	terms   []Fix
+	// site says, line for line, which lines are the uploader's (siteSource), which neither terms nor the proofreading change.
+	site []bool
 	// redraft is a draft of lines drafted before a term was found in them: they take the term and are translated again, not proofread again.
 	redraft bool
 	// title names the film for the proofreading, read before the draft starts, as the making goes on changing the job beside it.
@@ -1020,6 +1262,7 @@ func (m *making) draftOf(gen string, units []track.Unit) draftInput {
 		case mid < end:
 			in.ids = append(in.ids, l.ID)
 			in.lines = append(in.lines, core.Segment{Start: l.Start, End: l.End, Text: l.Original.Text})
+			in.site = append(in.site, l.Original.Source == siteSource)
 		}
 	}
 	in.earlier = in.earlier[max(len(in.earlier)-draftContext, 0):]
@@ -1038,16 +1281,21 @@ func (m *making) terms(gen string) []Fix {
 // draft makes a draft of in's lines in language: the film's terms put in them, then, for lines not drafted before, what the speech recognition misheard corrected by the proofreading (a proofreading that fails leaves them as they are, as Run does), then each translated with the lines said before as context.
 func (m *making) draft(ctx context.Context, in draftInput, language string, out chan<- drafted) {
 	lines := slices.Clone(in.lines)
-	ApplyRecurring(lines, in.terms)
+	// The uploader's lines (in.site) are taken as they are written: only the lines heard take the terms and are proofread.
+	heard, at := heardOnly(lines, in.site)
+	ApplyRecurring(heard, in.terms)
 	var fixes []Fix
-	if pr, ok := m.p.(Proofreader); ok && !in.redraft && !m.copied {
-		if fixed, err := pr.Proofread(ctx, lines, in.title); err == nil && len(fixed) == len(lines) {
-			lines = fixed
+	if pr, ok := m.p.(Proofreader); ok && !in.redraft && !m.copied && len(heard) > 0 {
+		if fixed, err := pr.Proofread(ctx, heard, in.title); err == nil && len(fixed) == len(heard) {
+			heard = fixed
 		} else if ctx.Err() != nil {
 			out <- drafted{in: in, err: ctx.Err()}
 			return
 		}
-		fixes = ObservedFixes(in.lines, lines)
+		fixes = ObservedFixes(heardOnlyOf(in.lines, at), heard)
+	}
+	for k, i := range at {
+		lines[i] = heard[k]
 	}
 	translated, err := m.p.Translate(WithEarlier(ctx, in.earlier), lines, language)
 	var partial *UntranslatedError
@@ -1122,7 +1370,7 @@ func (m *making) commitDraft(gen string, d drafted, playhead time.Duration) {
 	for _, l := range m.doc.Lines(gen) {
 		mid := (l.Start + l.End) / 2
 		near := mid >= playhead-track.Behind && mid < playhead+track.Ahead
-		if near && !drafted[l.ID] && l.Translation.Text != "" {
+		if near && !drafted[l.ID] && l.Translation.Text != "" && l.Original.Source != siteSource {
 			line := []core.Segment{{Start: l.Start, End: l.End, Text: l.Original.Text}}
 			if ApplyRecurring(line, fresh)[0] {
 				in.ids = append(in.ids, l.ID)
@@ -1208,6 +1456,7 @@ func (m *making) finalOf(gen string, unit track.Unit) draftInput {
 			in.ids = append(in.ids, l.ID)
 			in.lines = append(in.lines, core.Segment{Start: l.Start, End: l.End, Text: l.Original.Text})
 			in.translations = append(in.translations, core.Segment{Start: l.Start, End: l.End, Text: l.Translation.Text})
+			in.site = append(in.site, l.Original.Source == siteSource)
 		}
 	}
 	in.earlier = in.earlier[max(len(in.earlier)-draftContext, 0):]
@@ -1218,7 +1467,11 @@ func (m *making) finalOf(gen string, unit track.Unit) draftInput {
 func (m *making) final(ctx context.Context, in draftInput, language string, auto core.ProofAuto, out chan<- drafted) {
 	lines := slices.Clone(in.lines)
 	translated := slices.Clone(in.translations)
-	changed := ApplyRecurring(lines, in.terms)
+	heard, at := heardOnly(lines, in.site)
+	changed := make([]bool, len(lines))
+	for k, c := range ApplyRecurring(heard, in.terms) {
+		lines[at[k]], changed[at[k]] = heard[k], c
+	}
 	var again []int
 	for i, c := range changed {
 		if c && strings.TrimSpace(translated[i].Text) != "" {
