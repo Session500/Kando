@@ -2,6 +2,13 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.32.0 - 2026-11-19
+
+### Features
+
+- Site packs for the built-in browser (#311)
+- Move several videos at once, remux from a location, and the rest of #307's list (#310)
+
 ## 0.31.0 - 2026-11-19
 
 ### Features
