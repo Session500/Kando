@@ -499,3 +499,18 @@ func TestMakeFillingThatFailsKeepsWhatItFilled(t *testing.T) {
 		t.Fatalf("lines %+v, %+v", lines[39], lines[40])
 	}
 }
+
+// A film whose video was moved off this computer, its subtitles and the files beside it left in the library (the app's storage locations), is translated again and has its missing lines translated as one whose video is here: neither reads the video.
+func TestMakeTranslatesAFilmWhoseVideoIsElsewhere(t *testing.T) {
+	for _, redo := range []core.Redo{core.RedoTranslation, core.RedoMissing} {
+		job := doneFilm(t, "你好。", "", "再见。")
+		if err := os.Remove(job.VideoPath); err != nil {
+			t.Fatal(err)
+		}
+		job.Redo = redo
+		final, _ := remake(&redoPipeline{t: t}, job, "简体中文")
+		if final.Stage != core.StageComplete || final.Untranslated != 0 {
+			t.Fatalf("%s: %+v", redo, final)
+		}
+	}
+}
