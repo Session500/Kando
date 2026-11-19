@@ -85,12 +85,13 @@ var minRun = 10 * time.Second
 
 // Make makes the subtitles of a film for the first time a part at a time, as its job asks (core.Job.Redo empty), into the film's subtitle document (track), device's log, and writes them out beside the video as they come (the transcript and "<video>.bilingual.srt"), so the film can be watched while it is made. The film's cells are heard and drafted nearest the playhead watch says first (track.Doc.Plan): the speech recognition hears a run of cells at a time, and the translation drafts each cell once heard, the two at once. A job run again, after it was stopped, failed or the app quit, goes on with what its document lacks.
 //
-// A job that cannot be made a part at a time is run as Run runs it: a redo, a link whose lines come from its site's subtitles or that keeps no video, a pipeline that is not a Maker, a video whose length cannot be told, or one whose document a newer Kando wrote.
+// A link that keeps no video (core.QualitySubtitles) is made from its sound alone, which goes once its subtitles are written (core.Job.SubtitlesOnly); a job downloading the video of such a film (core.RedoVideo) does only that (downloadVideo).
+//
+// A job that cannot be made a part at a time is run as Run runs it: a redo, a link whose lines come from its site's subtitles, a pipeline that is not a Maker, a video whose length cannot be told, or one whose document a newer Kando wrote.
 func Make(ctx context.Context, p Pipeline, job core.Job, language, device string, watch Watcher, report func(core.Job)) core.Job {
-	if !MakesAPartAtATime(p, job) || device == "" {
+	if job.Redo != core.RedoVideo && (!MakesAPartAtATime(p, job) || device == "") {
 		return Run(ctx, p, job, language, report)
 	}
-	maker := p.(Maker)
 	if watch == nil {
 		watch = From(job.ResumeAt)
 	}
@@ -131,10 +132,15 @@ func Make(ctx context.Context, p Pipeline, job core.Job, language, device string
 		ctx = withSpeechLanguage(ctx, code)
 	}
 	ctx = withQuality(ctx, job.Quality)
+	if job.Redo == core.RedoVideo {
+		return downloadVideo(ctx, p, &job, report)
+	}
 	if err := p.Check(); err != nil {
 		return fail("check", err)
 	}
 	_, local := localVideoPath(job.Source)
+	// soundOnly is a link at core.QualitySubtitles, which keeps no video: it is made from its sound alone, which goes once its subtitles are written.
+	soundOnly := !local && job.Quality == core.QualitySubtitles
 	video := job.VideoPath
 	// A link not downloaded yet is heard from its sound, downloaded alone first, which is soon there, while its video downloads beside the making (coming); the film is shown once its video is.
 	var coming chan downloaded
@@ -163,6 +169,9 @@ func Make(ctx context.Context, p Pipeline, job core.Job, language, device string
 		if os.Rename(sound, hearFrom) != nil {
 			hearFrom = sound
 		}
+		if soundOnly {
+			break
+		}
 		coming = make(chan downloaded, 1)
 		var videoCtx context.Context
 		videoCtx, stopVideo = context.WithCancel(WithTrace(ctx, &Trace{}))
@@ -174,6 +183,7 @@ func Make(ctx context.Context, p Pipeline, job core.Job, language, device string
 	if len(chapters) > 0 {
 		keepChapters(video, chapters, job.ChapterUse)
 	}
+	maker := p.(Maker)
 	length := maker.Length(ctx, hearFrom)
 	doc, err := track.Read(video)
 	if length <= 0 || err != nil || doc.Newer {
@@ -184,7 +194,7 @@ func Make(ctx context.Context, p Pipeline, job core.Job, language, device string
 		}
 		return Run(ctx, p, job, language, report)
 	}
-	m := &making{ctx: ctx, p: maker, job: &job, video: video, hearFrom: hearFrom, device: device, doc: doc, report: report, coming: coming}
+	m := &making{ctx: ctx, p: maker, job: &job, video: video, hearFrom: hearFrom, soundOnly: soundOnly, device: device, doc: doc, report: report, coming: coming}
 	defer stopVideo()
 	return m.run(length, language, watch)
 }
@@ -192,10 +202,31 @@ func Make(ctx context.Context, p Pipeline, job core.Job, language, device string
 // soundPath is where the sound of the link whose video is to be at video is kept while it is made from it: a hidden file beside it, as ".video.sound", which moves with the video (Companions) and goes once the video is there.
 func soundPath(video string) string { return hiddenBeside(video, ".sound") }
 
-// MakesAPartAtATime reports whether Make makes job with p a part at a time, so stopping it loses no more than the work it was doing: a film made for the first time with a pipeline that can (Maker), not a redo, nor a link whose lines come from its site's subtitles or that keeps no video, which Run makes whole.
+// MakesAPartAtATime reports whether Make makes job with p a part at a time, so stopping it loses no more than the work it was doing: a film made for the first time with a pipeline that can (Maker), not a redo, nor a link whose lines come from its site's subtitles, which Run makes whole.
 func MakesAPartAtATime(p Pipeline, job core.Job) bool {
 	_, can := p.(Maker)
-	return can && job.Redo == "" && job.Quality != core.QualitySubtitles && job.SubtitleSource != core.SubtitlesPlatform
+	return can && job.Redo == "" && job.SubtitleSource != core.SubtitlesPlatform
+}
+
+// downloadVideo downloads the video of a film that keeps none (core.RedoVideo) at job.Quality, puts it under the name its subtitles go by (placeVideo) and completes, neither hearing nor translating the film; one that fails leaves the film as it was.
+func downloadVideo(ctx context.Context, p Pipeline, job *core.Job, report func(core.Job)) core.Job {
+	job.Stage, job.Progress = core.StageDownloading, core.Progress{}
+	report(*job)
+	video, err := p.Download(ctx, job.Source)
+	if err == nil {
+		video, err = placeVideo(job.VideoPath, video)
+	}
+	if err != nil {
+		job.FailKind = downloadFailKind(*job, err)
+		job.Err, job.Stage = fmt.Errorf("download: %w", err), core.StageFailed
+	} else {
+		job.VideoPath, job.SubtitlesOnly = video, false
+		job.Redo, job.RedoLanguage = "", ""
+		job.Stage = core.StageComplete
+	}
+	job.Progress = core.Progress{}
+	report(*job)
+	return *job
 }
 
 // downloaded is how the download of a film's video beside its making ended: where the video is, or why it failed.
@@ -210,8 +241,9 @@ type making struct {
 	p     Maker
 	job   *core.Job
 	video string
-	// hearFrom is the file the speech is heard from: the video, or the sound of a link whose video is still coming.
-	hearFrom string
+	// hearFrom is the file the speech is heard from: the video, or the sound of a link whose video is still coming, or that keeps none (soundOnly).
+	hearFrom  string
+	soundOnly bool
 	device   string
 	doc      track.Doc
 	report   func(core.Job)
@@ -460,7 +492,11 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 	if err := m.finish(gen); err != nil {
 		return m.fail("export", err)
 	}
-	if m.hearFrom != job.VideoPath {
+	// The sound a film was made from goes once its subtitles are written: a film that keeps no video is named by where its sound was, which its subtitles are named after.
+	subtitlesOnly := false
+	if m.soundOnly {
+		job.VideoPath, subtitlesOnly = m.video, removeSound(m.hearFrom)
+	} else if m.hearFrom != job.VideoPath {
 		_ = os.Remove(m.hearFrom)
 	}
 	same := core.SameLanguage(job.SpokenLanguage, language, track.Originals(lines))
@@ -479,7 +515,7 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 		}
 	}
 	job.Transcribed, job.Proofread, job.SameLanguage = true, false, same
-	job.PlatformSubtitles, job.LocalLines, job.SubtitlesOnly = false, 0, false
+	job.PlatformSubtitles, job.LocalLines, job.SubtitlesOnly = false, 0, subtitlesOnly
 	job.SubtitlePath = m.bilingual
 	job.CompletedAt = time.Now()
 	job.Language, job.Untranslated, job.TranslationErr = language, untranslated, notTranslated
