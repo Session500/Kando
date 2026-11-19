@@ -530,12 +530,10 @@ func TestMakeProofreadsTheFilmABlockAtATime(t *testing.T) {
 		t.Fatalf("final proofread read blocks of %v lines", f.reviewed)
 	}
 	doc, _ := track.Read(video)
-	gen := doc.Shown()
-	final := doc.Final(gen, "简体中文", (&making{doc: doc}).finalKey(gen))
+	if drafts := DraftSpans(doc, "简体中文"); len(drafts) != 0 {
+		t.Fatalf("%d lines are drafts once the film is proofread", len(drafts))
+	}
 	for _, l := range doc.View() {
-		if !final[l.ID] {
-			t.Fatalf("line at %v is a draft once the film is proofread", l.Start)
-		}
 		want := "译:" + l.Original.Text
 		if l.Start%time.Minute == 0 {
 			want = "终:" + want
@@ -563,8 +561,8 @@ func TestMakeLeavesAFilmADraftWithoutTheFinalProofread(t *testing.T) {
 		t.Fatalf("job ended %s, %d blocks proofread", done.Stage, len(f.reviewed))
 	}
 	doc, _ := track.Read(video)
-	if final := doc.Final(doc.Shown(), "简体中文", nil); len(final) != 0 {
-		t.Fatalf("%d lines final without a final proofread", len(final))
+	if drafts := DraftSpans(doc, "简体中文"); len(drafts) != len(doc.View()) {
+		t.Fatalf("%d of %d lines are drafts without a final proofread, want all", len(drafts), len(doc.View()))
 	}
 }
 

@@ -193,7 +193,12 @@ func (a *app) VideoEnded() { a.playerEnded() }
 func (a *app) VideoFailed(err error) { a.playerFailed(err) }
 
 func (a *app) Subs() film.Subs {
-	return film.Subs{Key: a.player.subs.key, Ready: a.player.subs.ready, Err: a.player.subs.err, Cues: a.player.subs.cues}
+	subs := film.Subs{Key: a.player.subs.key, Ready: a.player.subs.ready, Err: a.player.subs.err, Cues: a.player.subs.cues}
+	// Lines are marked drafts while the film is made, until the final proofread makes them final. Without the final proofread none becomes final, so none is marked; and a film done with lines the final proofread did not get to, as when the service went, is left as one done, as Run leaves a film whose final proofread failed, rather than marked for good with nothing to make it final.
+	if item, ok := a.openFilm(); ok && a.prefs.review && item.Key == subs.Key && item.Stage != "" && !item.Stage.Done() {
+		subs.Drafts = a.player.subs.drafts
+	}
+	return subs
 }
 
 func (a *app) FilmSide() string { return a.player.filmSide }

@@ -3585,6 +3585,12 @@ func TestAFilmIsWatchedWhileItIsMade(t *testing.T) {
 	if got := len(a.player.subs.machine); got == 0 || got >= 9 || a.player.subs.machine[0].Text != "译:line 0s\nline 0s" {
 		t.Fatalf("while the film is made it shows %+v", a.player.subs.machine)
 	}
+	// Its lines are drafts while it is made, none proofread as a whole yet: the line under the title says so, and each row of the subtitle list has its dot.
+	msgs := testlocale.Messages()
+	wantText(t, tt, msgs.FilmStatusDraft(0))
+	if !tt.Exists("id:film-cue-draft") {
+		t.Fatal("no row of the subtitle list is marked a draft")
+	}
 	close(p.released)
 	settle(t, a, tt, updates)
 	if job := stageOf(t, a, id); job.Stage != core.StageComplete || job.Untranslated != 0 {
@@ -3593,5 +3599,11 @@ func TestAFilmIsWatchedWhileItIsMade(t *testing.T) {
 	waitUntil(t, tt, a, updates, func() bool { return a.player.subs.ready && len(a.player.subs.machine) == 9 })
 	if last := a.player.subs.machine[8].Text; last != "译:line 1m20s\nline 1m20s" {
 		t.Fatalf("last line %q", last)
+	}
+	// Done without a final proofread, which this pipeline cannot make, the film is one done, as before.
+	refresh(tt, a)
+	wantText(t, tt, msgs.FilmStatusTranslated(100))
+	if tt.Exists("id:film-cue-draft") {
+		t.Fatal("a row is still marked a draft once the film is done")
 	}
 }

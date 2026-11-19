@@ -1717,6 +1717,9 @@ filmKindOriginal:
 filmKindVideo:
   message: "Video"
   description: "What a file in the film's folder is: the video."
+filmLineDraft:
+  message: "Draft"
+  description: "Said of a subtitle line of a film made while it plays that is not proofread as a whole yet: what the accessible name of its row in the subtitle list adds, beside the small dot the row shows."
 filmLineOf:
   message: "Line {line} of {total}"
   description: "Message on the picture after moving to a subtitle line: its number, counting from 1, and how many lines the film has."
@@ -2011,6 +2014,11 @@ filmsSelectedCount:
   description: "First row of the menu a right click or ⋯ opens on one of several selected films, dimmed: how many films the menu acts on."
   placeholders:
     count: { type: "int", example: "12" }
+filmStatusDraft:
+  message: "Draft subtitles · {percent}% proofread"
+  description: "Line under the film's title in the player, in place of how much is translated, while the subtitles of a film made as it plays are not all proofread as a whole yet: how many of its lines are."
+  placeholders:
+    percent: { type: "int", example: "63" }
 filmStatusTranslated:
   message: "{percent}% translated"
   description: "Line under the film's title in the player: how much of its subtitles is translated."

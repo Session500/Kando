@@ -691,15 +691,20 @@ func (m *making) commitDraft(gen string, d drafted, playhead time.Duration) {
 	}
 }
 
-// finalKey is what a block's final proofread is made from besides its lines as heard (track.Making.Final): the film's terms found in them, so a term found later proofreads again only the blocks it is in. What it finds for a block's lines is kept until the film has more terms.
+// finalKey is what a block's final proofread is made from besides its lines as heard (track.Making.Final): the film's terms found in them, so a term found later proofreads again only the blocks it is in.
 func (m *making) finalKey(gen string) func([]string) string {
+	return finalKeyOf(func() []Fix { return m.terms(gen) })
+}
+
+// finalKeyOf is finalKey with terms giving the film's terms as they are now. What it finds for a block's lines is kept until the film has more terms.
+func finalKeyOf(terms func() []Fix) func([]string) string {
 	type memo struct {
 		terms int
 		key   string
 	}
 	seen := map[string]memo{}
 	return func(heard []string) string {
-		terms := m.terms(gen)
+		terms := terms()
 		id := strings.Join(heard, "\x00")
 		if was, ok := seen[id]; ok && was.terms == len(terms) {
 			return was.key
@@ -718,6 +723,27 @@ func (m *making) finalKey(gen string) func([]string) string {
 		seen[id] = memo{terms: len(terms), key: key}
 		return key
 	}
+}
+
+// DraftSpans are the spans of the lines doc shows that are drafts (track.Doc.Final), of a film made a part at a time (Make) into language: not proofread as a whole yet, or proofread before what their block holds now. A film not made so, as one whose subtitles were taken in from its files, has none.
+func DraftSpans(doc track.Doc, language string) map[core.Span]bool {
+	gen := doc.Shown()
+	made := slices.ContainsFunc(doc.Events, func(e track.Event) bool { return e.Kind == track.KindGen && e.Gen == gen && e.Source == makeSource })
+	if !made {
+		return nil
+	}
+	var terms []Fix
+	for _, t := range doc.Terms(gen) {
+		terms = append(terms, Fix{From: t.From, To: t.To})
+	}
+	final := doc.Final(gen, language, finalKeyOf(func() []Fix { return terms }))
+	out := map[core.Span]bool{}
+	for _, l := range doc.View() {
+		if !final[l.ID] {
+			out[core.Span{Start: l.Start, End: l.End}] = true
+		}
+	}
+	return out
 }
 
 // finalOf is what the final proofread of unit's block reads: its lines as they read now, their translations, the lines said before them and the film's terms.

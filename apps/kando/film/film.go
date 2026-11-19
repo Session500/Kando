@@ -2,6 +2,7 @@ package film
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -257,6 +258,25 @@ type Subs struct {
 	Ready bool
 	Err   string
 	Cues  []core.Segment
+	// Drafts says, cue for cue, which lines are drafts of a film made while it plays, not proofread as a whole yet; nil when none is, as for a film made before or a user who turned the final proofread off.
+	Drafts []bool
+}
+
+// Draft reports whether cue i is a draft.
+func (s Subs) Draft(i int) bool { return i >= 0 && i < len(s.Drafts) && s.Drafts[i] }
+
+// FinalPercent is the share of the lines that are final, rounded to a whole percent, and whether any is a draft.
+func (s Subs) FinalPercent() (int, bool) {
+	drafts := 0
+	for _, d := range s.Drafts {
+		if d {
+			drafts++
+		}
+	}
+	if drafts == 0 || len(s.Cues) == 0 {
+		return 100, false
+	}
+	return int(math.Floor(float64(len(s.Cues)-drafts) * 100 / float64(len(s.Cues)))), true
 }
 
 // Info is what the 信息 tab lists of the open film. Chapters are the chapters its site marks, which its job kept beside the video (media.ReadChapters), and ChapterUse whether the user chose to cut it at them or by time, "" to follow the setting; a film without chapters has none.

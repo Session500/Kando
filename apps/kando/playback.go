@@ -193,6 +193,7 @@ func (a *app) playerProgress(position, duration time.Duration) bool {
 	p.head, p.headAt = position, now
 	gen, paused := a.player.playGen, p.paused
 	changed := a.playerKeep(now)
+	changed = a.subtitlesLetGo() || changed
 	a.playerKeepLoop()
 	a.playerPauseAtLineEnd()
 	a.playerLoopSchedule()

@@ -589,6 +589,7 @@ var Parameters = map[string][]string{
 	"FilmsRetranslateConfirmMany":              {"count", "language"},
 	"FilmsRetranslateManyMessage":              {"count"},
 	"FilmsSelectedCount":                       {"count"},
+	"FilmStatusDraft":                          {"percent"},
 	"FilmStatusTranslated":                     {"percent"},
 	"FilmSubtitlesMode":                        {"mode"},
 	"FilmTranscribeAgain":                      {"language"},
@@ -1224,6 +1225,7 @@ type Translation struct {
 	FilmsRetranslateConfirmMany              func(count int, language string) string
 	FilmsRetranslateManyMessage              func(count int) string
 	FilmsSelectedCount                       func(count int) string
+	FilmStatusDraft                          func(percent int) string
 	FilmStatusTranslated                     func(percent int) string
 	FilmSubtitlesMode                        func(mode string) string
 	FilmTranscribeAgain                      func(language string) string
@@ -2111,6 +2113,7 @@ const (
 	textFilmKindCover
 	textFilmKindOriginal
 	textFilmKindVideo
+	textFilmLineDraft
 	textFilmLineOriginal
 	textFilmLineTranslation
 	textFilmLoadingSubtitles
@@ -3743,6 +3746,7 @@ var keyOfText = [numTexts]string{
 	"filmKindCover",
 	"filmKindOriginal",
 	"filmKindVideo",
+	"filmLineDraft",
 	"filmLineOriginal",
 	"filmLineTranslation",
 	"filmLoadingSubtitles",
@@ -5373,6 +5377,7 @@ var textsEn = i18n.NewTexts(""+
 	"Cover"+
 	"Original subtitles"+
 	"Video"+
+	"Draft"+
 	"Original"+
 	"Translation"+
 	"Loading subtitles…"+
@@ -6999,6 +7004,7 @@ var textsEn = i18n.NewTexts(""+
 		19,
 		5,
 		18,
+		5,
 		5,
 		8,
 		11,
@@ -8630,6 +8636,7 @@ var textsJa = i18n.NewTexts(""+
 	"カバー"+
 	"原文字幕"+
 	"動画"+
+	"下書き"+
 	"原文"+
 	"訳文"+
 	"字幕を読み込んでいます…"+
@@ -10257,6 +10264,7 @@ var textsJa = i18n.NewTexts(""+
 		9,
 		12,
 		6,
+		9,
 		6,
 		6,
 		36,
@@ -11887,6 +11895,7 @@ var textsKo = i18n.NewTexts(""+
 	"표지"+
 	"원문 자막"+
 	"동영상"+
+	"초안"+
 	"원문"+
 	"번역"+
 	"자막을 불러오는 중…"+
@@ -13514,6 +13523,7 @@ var textsKo = i18n.NewTexts(""+
 		6,
 		13,
 		9,
+		6,
 		6,
 		6,
 		29,
@@ -15144,6 +15154,7 @@ var textsZhHans = i18n.NewTexts(""+
 	"封面"+
 	"原文字幕"+
 	"视频"+
+	"草稿"+
 	"原文"+
 	"译文"+
 	"正在读取字幕…"+
@@ -16770,6 +16781,7 @@ var textsZhHans = i18n.NewTexts(""+
 		12,
 		6,
 		12,
+		6,
 		6,
 		6,
 		6,
@@ -18401,6 +18413,7 @@ var textsZhHant = i18n.NewTexts(""+
 	"封面"+
 	"原文字幕"+
 	"影片"+
+	"草稿"+
 	"原文"+
 	"譯文"+
 	"正在讀取字幕…"+
@@ -20027,6 +20040,7 @@ var textsZhHant = i18n.NewTexts(""+
 		12,
 		6,
 		12,
+		6,
 		6,
 		6,
 		6,
@@ -21717,6 +21731,9 @@ func Supply(lang string, t Translation) {
 	}
 	if t.FilmsSelectedCount != nil {
 		s.FilmsSelectedCount = t.FilmsSelectedCount
+	}
+	if t.FilmStatusDraft != nil {
+		s.FilmStatusDraft = t.FilmStatusDraft
 	}
 	if t.FilmStatusTranslated != nil {
 		s.FilmStatusTranslated = t.FilmStatusTranslated
@@ -30478,6 +30495,15 @@ func FilmKindVideo(cx *core.Scope) string { return For(cx).FilmKindVideo() }
 // FilmKindVideo is the package's FilmKindVideo in the language of msgs.
 func (msgs Messages) FilmKindVideo() string { return msgs.text(textFilmKindVideo) }
 
+// FilmLineDraft says "Draft"
+// in the language the app shows under cx.
+//
+// Said of a subtitle line of a film made while it plays that is not proofread as a whole yet: what the accessible name of its row in the subtitle list adds, beside the small dot the row shows.
+func FilmLineDraft(cx *core.Scope) string { return For(cx).FilmLineDraft() }
+
+// FilmLineDraft is the package's FilmLineDraft in the language of msgs.
+func (msgs Messages) FilmLineDraft() string { return msgs.text(textFilmLineDraft) }
+
 // FilmLineOf says "Line {line} of {total}"
 // in the language the app shows under cx.
 //
@@ -31791,6 +31817,36 @@ func (msgs Messages) FilmsSelectedCount(count int) string {
 			return "已选择 " + i18n.FormatNumber("zh-Hans", float64(count)) + " 部影片"
 		case "zh-Hant":
 			return "已選擇 " + i18n.FormatNumber("zh-Hant", float64(count)) + " 部影片"
+		}
+	}
+}
+
+// FilmStatusDraft says "Draft subtitles · {percent}% proofread"
+// in the language the app shows under cx.
+//
+// Line under the film's title in the player, in place of how much is translated, while the subtitles of a film made as it plays are not all proofread as a whole yet: how many of its lines are.
+func FilmStatusDraft(cx *core.Scope, percent int) string { return For(cx).FilmStatusDraft(percent) }
+
+// FilmStatusDraft is the package's FilmStatusDraft in the language of msgs.
+func (msgs Messages) FilmStatusDraft(percent int) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.FilmStatusDraft(percent))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].FilmStatusDraft; f != nil {
+			return f(percent)
+		}
+		switch lang {
+		case "", "en":
+			return "Draft subtitles · " + msgs.arg(i18n.FormatNumber("en", float64(percent))) + "% proofread"
+		case "ja":
+			return "下書き字幕 · 最終校正 " + i18n.FormatNumber("ja", float64(percent)) + "%"
+		case "ko":
+			return "초안 자막 · 최종 교정 " + i18n.FormatNumber("ko", float64(percent)) + "%"
+		case "zh-Hans":
+			return "草稿字幕 · 终校 " + i18n.FormatNumber("zh-Hans", float64(percent)) + "%"
+		case "zh-Hant":
+			return "草稿字幕 · 終校 " + i18n.FormatNumber("zh-Hant", float64(percent)) + "%"
 		}
 	}
 }

@@ -2739,3 +2739,38 @@ func TestPlayerFollowsTheMainWindowsLifecycle(t *testing.T) {
 		t.Fatal("the player did not hear that the main window shows again")
 	}
 }
+
+// TestALineOnScreenIsNotRewrittenWhileItIsRead checks that a line the machine rewrites while it is on screen keeps showing as it was until the playhead leaves it, while a line not on screen takes its new text at once, and so does a line on screen that had no translation and gets one.
+func TestALineOnScreenIsNotRewrittenWhileItIsRead(t *testing.T) {
+	a, tt, updates := playerOpen(t)
+	path := a.player.subs.path
+	rewrite := func(srt string) {
+		t.Helper()
+		if err := os.WriteFile(path, []byte(srt), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		later := time.Now().Add(time.Minute)
+		if err := os.Chtimes(path, later, later); err != nil {
+			t.Fatal(err)
+		}
+		apply(tt, a, a.reloadOpenSubtitles)
+		waitUntil(t, tt, a, updates, func() bool { return a.player.subs.ready })
+	}
+	machine := func(i int) string { return a.player.subs.machine[i].Text }
+	playerPlayTo(tt, a, 1500*time.Millisecond)
+	rewrite("1\n00:00:01,000 --> 00:00:02,500\n您好。\nHello.\n\n2\n00:00:04,000 --> 00:00:05,000\n再见。\nBye.\n\n")
+	if machine(0) != "你好。\nHello." || machine(1) != "再见。\nBye." {
+		t.Fatalf("lines %q, %q: want the one on screen as it was and the other rewritten", machine(0), machine(1))
+	}
+	playerPlayTo(tt, a, 3*time.Second)
+	if machine(0) != "您好。\nHello." {
+		t.Fatalf("line left reads %q, want its new text", machine(0))
+	}
+	// A line on screen without a translation takes the one that comes at once.
+	rewrite("1\n00:00:01,000 --> 00:00:02,500\n您好。\nHello.\n\n2\n00:00:04,000 --> 00:00:05,000\nBye.\n\n")
+	playerPlayTo(tt, a, 4500*time.Millisecond)
+	rewrite("1\n00:00:01,000 --> 00:00:02,500\n您好。\nHello.\n\n2\n00:00:04,000 --> 00:00:05,000\n回头见。\nBye.\n\n")
+	if machine(1) != "回头见。\nBye." {
+		t.Fatalf("line on screen without a translation reads %q, want the translation at once", machine(1))
+	}
+}

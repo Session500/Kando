@@ -620,6 +620,7 @@ func (s *screen) cueRow(cx *ns.Scope, cue func() core.Segment, index func() int,
 		return strings.Join(out, " ")
 	})
 	saved := live.Func(a, func() bool { return a.LineSaved(index()) })
+	draft := live.Func(a, func() bool { return a.Subs().Draft(index()) })
 	// peeking is set while the pointer rests on the row or the keyboard focus is in it.
 	hovered, focused := ns.NewSignal(cx, false), ns.NewSignal(cx, false)
 	peeking := func() bool { return hovered.Get() || focused.Get() }
@@ -632,6 +633,9 @@ func (s *screen) cueRow(cx *ns.Scope, cue func() core.Segment, index func() int,
 				label := cueClock(cue().Start) + " " + both()
 				if saved() {
 					label += ", " + locales.SavedMark(cx)
+				}
+				if draft() {
+					label += ", " + locales.FilmLineDraft(cx)
 				}
 				return label
 			},
@@ -655,6 +659,11 @@ func (s *screen) cueRow(cx *ns.Scope, cue func() core.Segment, index func() int,
 				ns.Show{When: looped, Then: func(*ns.Scope) ns.Node {
 					return ns.View{TestID: "film-cue-looped", PointerEvents: ns.PointerEventsNone,
 						Style: ns.Style{Position: ns.Absolute, Left: ns.Pt(3), Top: ns.Pt(9), Bottom: ns.Pt(9), Width: ns.Pt(3), CornerRadius: 1.5, Background: cueLoopBar}}
+				}},
+				// A line of a film made while it plays that is not proofread as a whole yet: a small dot, which the row's label says too.
+				ns.Show{When: draft, Then: func(*ns.Scope) ns.Node {
+					return ns.View{TestID: "film-cue-draft", PointerEvents: ns.PointerEventsNone,
+						Style: ns.Style{Position: ns.Absolute, Right: ns.Pt(7), Top: ns.Pt(7), Width: ns.Pt(5), Height: ns.Pt(5), CornerRadius: 2.5, Background: cueDraftDot}}
 				}},
 				ns.Text{ContentFunc: func() string { return cueClockTenths(cue().Start) }, MaxLines: 1, Style: cueClockStyle,
 					StyleFunc: func() ns.Style { return ns.Style{Width: ns.Pt(clockWidth())} }},
@@ -699,6 +708,9 @@ var cueSavedStar = ns.RGBA(0xFFD60A, 0.95)
 
 // cueLoopBar marks the rows of the lines the player loops, by their start.
 var cueLoopBar = ns.RGBA(0xFFD60A, 0.9)
+
+// cueDraftDot is the dot of a line that is a draft, dimmer than the lines' text, as it says less.
+var cueDraftDot = ns.RGBA(0xFFFFFF, 0.45)
 
 // cueSecondStyle is the style of a row's lines under its first.
 var cueSecondStyle = ns.Style{FontSize: 12, LineHeight: 16, Color: onGlass, Opacity: ns.Alpha(0.7)}
