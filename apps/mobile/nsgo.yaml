@@ -1,10 +1,10 @@
-# Kando's app for phones and tablets (yldm-tech/Kando#178), for the nsgo tool (go tool nsgo, the version go.mod pins). It plays the films Kando on a computer has made, downloaded over the local network from the computers it is paired with; downloading from video sites, transcribing and translating stay on the computer. Packaging and signing are phase 4 (#178).
+# Kando's app for phones and tablets (yldm-tech/Kando#178), for the nsgo tool (go tool nsgo, the version go.mod pins). It plays the films Kando on a computer has made, downloaded over the local network from the computers it is paired with; downloading from video sites, transcribing and translating stay on the computer. The Package (phone) workflow (.github/workflows/package-phone.yml) builds it for the stores, and listing/ holds its store listings and privacy answers; signing stays out of this file, as the desktop app's does.
 name: Kando
 id: ai.yldm.kando.mobile
 version: 0.1.0
-# The desktop app's icon, until phase 4 gives the phone app its own.
+# The phone app's own icon: the desktop icon's speech bubble on a full-bleed square with no transparency, which the App Store requires of an iOS icon and iOS and Android's launchers round themselves; the desktop icon draws its own rounded square on a transparent margin, as macOS icons do.
 icon:
-  png: ../kando/resources/icon.png
+  png: assets/Icon.png
 i18n: { dir: locales, source: en }
 
 # A build for the App Store or Google Play adds the store tag (tags: [store] here, or GOFLAGS=-tags=store), which leaves Browse out (browse.Available): its pages send other services' videos to a downloader, which App Store guideline 5.2.3 and Google Play's policy may refuse.
@@ -16,7 +16,10 @@ apple:
   info:
     # iOS asks before an app reaches devices on the local network, as the computers the app pairs with and downloads from are. Go's net/http on iOS goes through no URLSession, so App Transport Security does not apply to the computer's self-signed certificate, which the app pins by its fingerprint (kando/packages/sync).
     NSLocalNetworkUsageDescription: Kando connects to Kando on your computer over your local network to list and download your films.
-# Android: the runtime's manifest asks for INTERNET, the one permission the app needs; HTTPS to the computer needs no cleartext exception.
+# Android: the runtime's manifest asks for INTERNET, which the app reaches the computer with; HTTPS to the computer needs no cleartext exception. POST_NOTIFICATIONS lets the daily review reminder (session/learning.go) ask to show notifications from Android 13, where the system refuses an app whose manifest does not list it. target_sdk is the API level Google Play requires of new apps and updates, above the runtime's 34.
+android:
+  permissions: [POST_NOTIFICATIONS]
+  target_sdk: 35
 
 # The widgets of iPhones and iPads (package widgets, yldm-tech/Kando#225): the streak with what is due for review, on the Home Screen and as a ring on the Lock Screen, and the film to go on with. Android has none of NSGo's yet (nsgo#657).
 # TODO(nsgo): a kind's name and description, which the system's gallery of widgets shows, are one string each (cmd/nsgo/widgets.go:108-118, Kinds.swift's Text(verbatim:)), so they are in English whatever the phone's language; say them in the catalog's languages once nsgo.yaml can take them from the app's locales
