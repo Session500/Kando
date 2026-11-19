@@ -249,3 +249,25 @@ func TestTraceReachesTheStageThatReports(t *testing.T) {
 		t.Fatalf("progress %v, info %+v", got, info)
 	}
 }
+
+// A link whose formats are all sound alone, by their codec or, without one, by their file, is sound; one with a picture, or whose video's file names no codec, is not.
+func TestYtdlpReaderTellsSoundAlone(t *testing.T) {
+	for _, tc := range []struct {
+		line  string
+		sound bool
+	}{
+		{`[{"vcodec": "none", "ext": "mp3"}]`, true},
+		{`[{"ext": "mp3"}, {"vcodec": "none", "ext": "m4a"}]`, true},
+		{`[{"vcodec": "none", "ext": "m4a"}, {"vcodec": "avc1.64001F", "ext": "mp4"}]`, false},
+		{`[{"ext": "mp4"}]`, false},
+		{`[]`, false},
+	} {
+		var got Info
+		r := &ytdlpReader{info: func(info Info) { got = info }}
+		r.line(ytdlpPicturesPrefix + tc.line)
+		r.line(ytdlpInfoPrefix + `{"title": "Episode"}`)
+		if got.Sound != tc.sound || got.Title != "Episode" {
+			t.Errorf("%s: %+v, want sound %v", tc.line, got, tc.sound)
+		}
+	}
+}

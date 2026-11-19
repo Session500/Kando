@@ -36,6 +36,9 @@ type makeFilm struct {
 	videoGate chan struct{}
 	videoErr  error
 	heardFrom []string
+	// sound makes the link one to sound alone, as a podcast's episode, as its download says (Info.Sound); downloads counts the downloads.
+	sound     bool
+	downloads int
 
 	// stall, when set, is called by the first run once it has heard past its first cell, and the run then waits until it is stopped, as a run far from a jump does.
 	stall func()
@@ -56,6 +59,12 @@ func (f *makeFilm) Download(ctx context.Context, source string) (string, error) 
 		return "", errors.New("not a link")
 	}
 	// A link downloads into a folder of its own: its sound alone as video.m4a, its video as video.mp4, once videoGate lets it.
+	f.mu.Lock()
+	f.downloads++
+	f.mu.Unlock()
+	if f.sound {
+		reportInfo(ctx, Info{Title: "Episode", Sound: true})
+	}
 	name := "video.mp4"
 	if q, _ := ctx.Value(qualityKey{}).(core.Quality); q == core.QualitySubtitles {
 		name = "video.m4a"
@@ -801,6 +810,35 @@ func TestALinkIsMadeFromItsSoundWhileItsVideoDownloads(t *testing.T) {
 	}
 	if doc, err := track.Read(video); err != nil || len(doc.View()) != 9 {
 		t.Fatalf("the video's document shows %d lines (%v)", len(doc.View()), err)
+	}
+}
+
+// A link to sound alone, as a podcast's episode, is its sound: downloaded once, shown from the first lines made, and kept at every quality, 仅字幕 too.
+func TestALinkToSoundAloneIsItsSound(t *testing.T) {
+	for _, quality := range []core.Quality{core.QualityBest, core.QualitySubtitles} {
+		dir := t.TempDir()
+		f := &makeFilm{length: 60 * time.Second, language: "ja", linkDir: dir, sound: true}
+		job, _ := core.NewJob("https://example.com/episode/1")
+		job.SpeechLanguage, job.Quality = "ja", quality
+		sound := filepath.Join(dir, "video.m4a")
+		shownEarly := false
+		done := Make(context.Background(), f, job, "简体中文", "mac", nil, func(j core.Job) {
+			shownEarly = shownEarly || j.Stage != core.StageComplete && j.VideoPath == sound && j.SubtitlePath != ""
+		})
+		if done.Stage != core.StageComplete || done.VideoPath != sound || done.SubtitlesOnly || f.downloads != 1 {
+			t.Fatalf("%s: job ended %s with %q, subtitles only %v, after %d downloads: %v", quality, done.Stage, done.VideoPath, done.SubtitlesOnly, f.downloads, done.Err)
+		}
+		if !shownEarly {
+			t.Fatalf("%s: the film was not shown while it was made", quality)
+		}
+		for _, from := range f.heardFrom {
+			if from != "video.m4a" {
+				t.Fatalf("%s: heard from %v", quality, f.heardFrom)
+			}
+		}
+		if _, err := os.Stat(sound); err != nil {
+			t.Fatalf("%s: the sound is gone: %v", quality, err)
+		}
 	}
 }
 
