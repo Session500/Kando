@@ -198,3 +198,34 @@ func TestAReadOnlyDeviceLooksUpAndHasLinesExplained(t *testing.T) {
 		}
 	}
 }
+
+// A word's source is an addition to v2: a desktop that does not say leaves it out of the JSON, so an older phone reads the same entry as before; an older desktop's entry, without it, reads as the zero source; and a phone that does not know Source, as a phone before it, reads a newer desktop's entry with the fields it knows.
+func TestWordSourceIsAnAddition(t *testing.T) {
+	data, err := json.Marshal(WordEntry{Word: "river", Meaning: "河"})
+	if err != nil || strings.Contains(string(data), "source") {
+		t.Fatalf("an entry without a source reads %s, %v", data, err)
+	}
+	var e WordEntry
+	if err := json.Unmarshal([]byte(`{"word":"river","reading":"","meaning":"河","language":"简体中文"}`), &e); err != nil || e.Source != (WordSource{}) || e.Meaning != "河" {
+		t.Fatalf("an older desktop's entry reads %+v, %v", e, err)
+	}
+	data, err = json.Marshal(WordEntry{Word: "川", Meaning: "river", Source: WordSource{Kind: SourceDictionary, Name: "JMdict (English)", Credit: "JMdict © EDRDG", Desktop: "Studio"}})
+	if err != nil || !strings.Contains(string(data), `"source":{"kind":"dictionary","name":"JMdict (English)","credit":"JMdict © EDRDG","desktop":"Studio"}`) {
+		t.Fatalf("a dictionary's entry reads %s, %v", data, err)
+	}
+	var older struct {
+		Word    string `json:"word"`
+		Meaning string `json:"meaning"`
+	}
+	if err := json.Unmarshal(data, &older); err != nil || older.Word != "川" || older.Meaning != "river" {
+		t.Fatalf("an older phone reads %+v, %v", older, err)
+	}
+	if err := json.Unmarshal(data, &e); err != nil || e.Source.Kind != SourceDictionary || e.Source.Credit != "JMdict © EDRDG" || e.Source.Desktop != "Studio" {
+		t.Fatalf("a phone reads %+v, %v", e, err)
+	}
+	// A desktop before Desktop sends a source without it, which reads as a source of no desktop's name.
+	var unnamed WordEntry
+	if err := json.Unmarshal([]byte(`{"word":"river","meaning":"河","source":{"kind":"ai"}}`), &unnamed); err != nil || unnamed.Source != (WordSource{Kind: SourceAI}) {
+		t.Fatalf("a source without the desktop's name reads %+v, %v", unnamed, err)
+	}
+}

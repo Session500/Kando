@@ -30,13 +30,28 @@ type WordLookup struct {
 	Line    string `json:"line"`
 }
 
-// WordEntry is what the desktop's AI service said of a word: the word as a dictionary lists it, how it is said ("" for none) and what it means in the line, in Language, the language the meaning is written in, as the desktop names it (简体中文).
+// WordEntry is what the desktop said of a word: the word as a dictionary lists it, how it is said ("" for none) and what it means in the line, in Language, the language the meaning is written in, as the desktop names it (简体中文), and where that came from (Source). A desktop older than Source leaves it out, and a phone then says nothing of where the meaning came from; Source is an addition to v2, which a phone that does not know it skips, so it needs no new version.
 type WordEntry struct {
-	Word     string `json:"word"`
-	Reading  string `json:"reading"`
-	Meaning  string `json:"meaning"`
-	Language string `json:"language"`
+	Word     string     `json:"word"`
+	Reading  string     `json:"reading"`
+	Meaning  string     `json:"meaning"`
+	Language string     `json:"language"`
+	Source   WordSource `json:"source,omitzero"`
 }
+
+// WordSource is where a WordEntry came from: Kind is SourceDictionary, a dictionary pack installed on the desktop, with its name (Name) and the credit its license asks for (Credit, "" for none), both in the desktop's interface language, or SourceAI, the desktop's AI service, now or when the word was looked up before; a kind a phone does not know it says nothing of, so later kinds can be added. Desktop is the name of the desktop that answered, as Hello names it, which a phone keeps with the entry, so a word it answers from its own lookups later still names the desktop that answered it; "" from a desktop that did not say. The zero WordSource is a desktop that did not say where the entry came from.
+type WordSource struct {
+	Kind    string `json:"kind"`
+	Name    string `json:"name,omitempty"`
+	Credit  string `json:"credit,omitempty"`
+	Desktop string `json:"desktop,omitempty"`
+}
+
+// The kinds of a WordSource.
+const (
+	SourceDictionary = "dictionary"
+	SourceAI         = "ai"
+)
 
 // LineExplain is a line a phone has explained: Lines are the line with the lines around it, as its context, in the order they play, and Index the one explained among them; Film and Library are the film and library they are of, as for WordLookup.
 type LineExplain struct {

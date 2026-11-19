@@ -748,6 +748,7 @@ var Parameters = map[string][]string{
 	"PlaylistSeveral":                          {"count"},
 	"PlaylistSubscribe":                        {"kind"},
 	"PlaylistVideos":                           {"count"},
+	"PluginsErrStateUnsaved":                   {"error_"},
 	"PluginsErrSystem":                         {"error_"},
 	"PrecheckChannel":                          {"site"},
 	"PrecheckFailedDownload":                   {"detail"},
@@ -946,6 +947,7 @@ var Parameters = map[string][]string{
 	"VocabLongest":                             {"count"},
 	"VocabLookupCard":                          {"word"},
 	"VocabLookupFailed":                        {"error_"},
+	"VocabLookupSourceAINotInDict":             {"dictionary"},
 	"VocabLookupSourceDict":                    {"name"},
 	"VocabLookupSourceDictCredit":              {"name", "credit"},
 	"VocabLookupTerm":                          {"term"},
@@ -1368,6 +1370,7 @@ type Translation struct {
 	PlaylistSeveral                          func(count int) string
 	PlaylistSubscribe                        func(kind string) string
 	PlaylistVideos                           func(count int) string
+	PluginsErrStateUnsaved                   func(error_ string) string
 	PluginsErrSystem                         func(error_ string) string
 	PrecheckChannel                          func(site string) string
 	PrecheckFailedDownload                   func(detail string) string
@@ -1566,6 +1569,7 @@ type Translation struct {
 	VocabLongest                             func(count int) string
 	VocabLookupCard                          func(word string) string
 	VocabLookupFailed                        func(error_ string) string
+	VocabLookupSourceAINotInDict             func(dictionary string) string
 	VocabLookupSourceDict                    func(name string) string
 	VocabLookupSourceDictCredit              func(name string, credit string) string
 	VocabLookupTerm                          func(term string) string
@@ -2527,6 +2531,7 @@ const (
 	textPluginsErrReservedName
 	textPluginsErrSchema
 	textPluginsErrTooLarge
+	textPluginsErrUninstallRefused
 	textPluginsErrUnknownKind
 	textPluginsErrUnsafePath
 	textPluginsErrUnsupportedKind
@@ -3157,10 +3162,13 @@ const (
 	textVocabLines
 	textVocabLookupBusy
 	textVocabLookupClose
+	textVocabLookupDictHint
+	textVocabLookupDictHintOpen
 	textVocabLookupNoAI
 	textVocabLookupNotInDicts
 	textVocabLookupSettings
 	textVocabLookupSourceAI
+	textVocabLookupSourceAINotInDicts
 	textVocabMastery
 	textVocabMasteryNote
 	textVocabOtherDevices
@@ -4149,6 +4157,7 @@ var keyOfText = [numTexts]string{
 	"pluginsErrReservedName",
 	"pluginsErrSchema",
 	"pluginsErrTooLarge",
+	"pluginsErrUninstallRefused",
 	"pluginsErrUnknownKind",
 	"pluginsErrUnsafePath",
 	"pluginsErrUnsupportedKind",
@@ -4779,10 +4788,13 @@ var keyOfText = [numTexts]string{
 	"vocabLines",
 	"vocabLookupBusy",
 	"vocabLookupClose",
+	"vocabLookupDictHint",
+	"vocabLookupDictHintOpen",
 	"vocabLookupNoAI",
 	"vocabLookupNotInDicts",
 	"vocabLookupSettings",
 	"vocabLookupSourceAI",
+	"vocabLookupSourceAINotInDicts",
 	"vocabMastery",
 	"vocabMasteryNote",
 	"vocabOtherDevices",
@@ -5769,6 +5781,7 @@ var textsEn = i18n.NewTexts(""+
 	"Its name is reserved: it reads like Kando or a built-in AI service."+
 	"It's made for another version of Kando."+
 	"The pack is too large."+
+	"Kando didn't uninstall it, so that the plugins a newer version of Kando set up stay as they are."+
 	"Kando doesn't know this kind of plugin."+
 	"It holds a link or a path outside the pack."+
 	"This version of Kando doesn't support this kind of plugin yet."+
@@ -6062,7 +6075,7 @@ var textsEn = i18n.NewTexts(""+
 	"translation service EveryAPI OpenAI OpenRouter Groq DeepSeek xAI Mistral Qwen Kimi Zhipu SiliconFlow Ollama LM Studio Base URL API Key model test connection batch lines per request retries"+
 	"Google sign in sign out object storage upload R2 S3 OSS COS Endpoint Region Bucket Access Key Secret path style NAS SMB WebDAV SFTP"+
 	"library location Finder File Explorer file manager interface language version components yt-dlp ffmpeg whisper-cli detect again command line terminal kando install MCP Claude Code Cursor copy config update notifications notify browser sign-in signed in cookies members-only age-restricted Chrome Safari Firefox Edge Brave Chromium keychain Full Disk Access appearance light dark mode follow system bookmarklet bookmark start at once"+
-	"subtitles display bilingual original only translation only order translation original dim blank make room preview preset font size color bold word marks readings furigana ruby pinyin level color by level JLPT HSK CEFR vocabulary underline word list"+
+	"subtitles display bilingual original only translation only order translation original dim blank make room preview preset font size color bold word marks readings furigana ruby pinyin level underline by level JLPT HSK CEFR vocabulary underline dashed word list"+
 	"iPhone Android phone mobile sync pair QR code Wi-Fi network device revoke"+
 	"plugin pack extension install uninstall glossary terms AI service dictionary word list"+
 	"privacy offline network internet cache clear"+
@@ -6092,7 +6105,7 @@ var textsEn = i18n.NewTexts(""+
 	"Search languages"+
 	"Bold"+
 	"Underline Words in My Vocabulary"+
-	"Words you added to the vocabulary are underlined on the picture."+
+	"Words you added to the vocabulary get a dashed line under them on the picture."+
 	"Word Marks"+
 	"Default display"+
 	"Bilingual"+
@@ -6107,10 +6120,10 @@ var textsEn = i18n.NewTexts(""+
 	"Preview"+
 	"Every river begins as a trickle high in the mountains."+
 	"Readings over Words"+
-	"Furigana over Japanese needs a Japanese dictionary pack turned on, or a Japanese word list chosen in Color by Level; pinyin over Chinese comes from a Chinese dictionary pack."+
+	"Furigana over Japanese needs a Japanese dictionary pack turned on, or a Japanese word list chosen in Underline by Level; pinyin over Chinese comes from a Chinese dictionary pack."+
 	"Style"+
-	"Color by Level"+
-	"Word list packs from Plugins, such as JLPT or HSK levels."+
+	"Underline by Level"+
+	"A thick line in each level's color under the words of a word list pack from Plugins, such as JLPT or HSK levels."+
 	"Off"+
 	"Translation only, before the translation is ready"+
 	"Leave Blank"+
@@ -6399,10 +6412,13 @@ var textsEn = i18n.NewTexts(""+
 	"Saved lines"+
 	"Looking it up…"+
 	"Close"+
+	"Install an offline dictionary: lookups get faster and don't use the AI service."+
+	"Open Plugins"+
 	"Looking up a word asks your dictionaries, then the AI service. Set one up in AI Service, or install a dictionary in Plugins."+
 	"None of your dictionaries has this word. To look up the words they lack, set up an AI service in AI Service."+
 	"Open Settings"+
 	"Explained by your AI service"+
+	"Your dictionaries don't have this word; asked your AI service"+
 	"Mastery"+
 	"Words and saved lines together. One counts as mastered once you knew it five times in a row and its next review is over three weeks away."+
 	"Other devices"+
@@ -7386,6 +7402,7 @@ var textsEn = i18n.NewTexts(""+
 		67,
 		39,
 		22,
+		96,
 		39,
 		43,
 		62,
@@ -7679,7 +7696,7 @@ var textsEn = i18n.NewTexts(""+
 		188,
 		131,
 		432,
-		248,
+		259,
 		73,
 		86,
 		44,
@@ -7709,7 +7726,7 @@ var textsEn = i18n.NewTexts(""+
 		16,
 		4,
 		32,
-		64,
+		78,
 		10,
 		15,
 		9,
@@ -7724,10 +7741,10 @@ var textsEn = i18n.NewTexts(""+
 		7,
 		54,
 		19,
-		174,
+		178,
 		5,
-		14,
-		57,
+		18,
+		112,
 		3,
 		49,
 		11,
@@ -8016,10 +8033,13 @@ var textsEn = i18n.NewTexts(""+
 		11,
 		16,
 		5,
+		79,
+		12,
 		124,
 		108,
 		13,
 		28,
+		61,
 		7,
 		137,
 		13,
@@ -9006,6 +9026,7 @@ var textsJa = i18n.NewTexts(""+
 	"名前が予約されています。Kando や内蔵の AI サービスと紛らわしい名前です。"+
 	"別のバージョンの Kando 用に作られています。"+
 	"パックが大きすぎます。"+
+	"新しいバージョンの Kando が設定したプラグインを変えないよう、アンインストールしませんでした。"+
 	"この種類のプラグインは Kando にはわかりません。"+
 	"リンクやパックの外を指すパスが含まれています。"+
 	"このバージョンの Kando はこの種類のプラグインにまだ対応していません。"+
@@ -9299,7 +9320,7 @@ var textsJa = i18n.NewTexts(""+
 	"翻訳 サービス EveryAPI OpenAI OpenRouter Groq DeepSeek xAI Mistral Qwen Kimi Zhipu SiliconFlow Ollama LM Studio Base URL API Key モデル 接続テスト 行数 リクエスト 再試行"+
 	"Google ログイン ログアウト オブジェクトストレージ アップロード R2 S3 OSS COS Endpoint Region Bucket Access Key Secret パス形式 NAS SMB WebDAV SFTP"+
 	"ライブラリ 場所 Finder エクスプローラー ファイルマネージャー 表示言語 バージョン コンポーネント yt-dlp ffmpeg whisper-cli 再検出 コマンドライン ターミナル kando インストール MCP Claude Code Cursor 設定をコピー アップデート 通知 ブラウザ ログイン Cookie メンバー限定 年齢確認 Chrome Safari Firefox Edge キーチェーン フルディスクアクセス 外観 ライト ダーク システム ブックマークレット ブックマーク すぐに開始"+
-	"字幕 表示方法 二言語 原文のみ 訳文のみ 順序 訳文 原文 薄く 空白 移動 プレビュー プリセット フォント サイズ 色 太字 単語の注釈 ふりがな ルビ 読み ピンイン レベル 色分け JLPT HSK 単語帳 下線 単語リスト"+
+	"字幕 表示方法 二言語 原文のみ 訳文のみ 順序 訳文 原文 薄く 空白 移動 プレビュー プリセット フォント サイズ 色 太字 単語の注釈 ふりがな ルビ 読み ピンイン レベル レベルで下線 JLPT HSK 単語帳 下線 破線 単語リスト"+
 	"iPhone Android スマホ スマートフォン 同期 ペアリング QR コード Wi-Fi ネットワーク デバイス 取り消し"+
 	"プラグイン パック 拡張 インストール アンインストール 用語集 用語 AI サービス 辞書 単語リスト"+
 	"プライバシー オフライン ネットワーク インターネット キャッシュ 消去"+
@@ -9329,7 +9350,7 @@ var textsJa = i18n.NewTexts(""+
 	"言語を検索"+
 	"太字"+
 	"単語帳の単語に下線"+
-	"単語帳に追加した単語に、画面上で下線を引きます。"+
+	"単語帳に追加した単語に、画面上で破線の下線を引きます。"+
 	"単語の注釈"+
 	"デフォルトの表示方法"+
 	"二言語"+
@@ -9344,10 +9365,10 @@ var textsJa = i18n.NewTexts(""+
 	"プレビュー"+
 	"どんな川も、山の高みのひとすじの細い流れから始まります。"+
 	"ふりがな・ピンイン"+
-	"日本語のふりがなには、日本語の辞書パックを有効にするか、「レベルで色分け」で日本語の単語リストを選ぶ必要があります。中国語のピンインは中国語の辞書パックから取ります。"+
+	"日本語のふりがなには、日本語の辞書パックを有効にするか、「レベルで下線」で日本語の単語リストを選ぶ必要があります。中国語のピンインは中国語の辞書パックから取ります。"+
 	"スタイル"+
-	"レベルで色分け"+
-	"プラグインの単語リストパック（JLPT、HSK のレベルなど）を使います。"+
+	"レベルで下線"+
+	"プラグインの単語リストパック（JLPT、HSK のレベルなど）の単語の下に、レベルごとの色で太い線を引きます。"+
 	"オフ"+
 	"訳文のみで、訳文がまだないとき"+
 	"空白にする"+
@@ -9636,10 +9657,13 @@ var textsJa = i18n.NewTexts(""+
 	"保存したセリフ"+
 	"調べています…"+
 	"閉じる"+
+	"オフライン辞書を入れると、調べるのが速くなり、AI も使いません。"+
+	"プラグイン設定を開く"+
 	"単語はインストールした辞書で調べ、なければ AI サービスに聞きます。「AI サービス」で設定するか、「プラグイン」で辞書をインストールしてください。"+
 	"インストールした辞書にこの単語はありません。辞書にない単語も調べるには、「AI サービス」で設定してください。"+
 	"設定を開く"+
 	"AI サービスによる説明"+
+	"どの辞書にもこの語がないため、AI サービスに聞きました"+
 	"習得状況"+
 	"単語と保存したセリフを合わせて数えます。5 回続けて正解し、次の復習が 3 週間以上先になったものを習得済みとします。"+
 	"ほかのデバイス"+
@@ -10623,6 +10647,7 @@ var textsJa = i18n.NewTexts(""+
 		103,
 		61,
 		33,
+		136,
 		67,
 		69,
 		100,
@@ -10916,7 +10941,7 @@ var textsJa = i18n.NewTexts(""+
 		193,
 		176,
 		548,
-		281,
+		297,
 		133,
 		132,
 		98,
@@ -10946,7 +10971,7 @@ var textsJa = i18n.NewTexts(""+
 		15,
 		6,
 		27,
-		72,
+		81,
 		15,
 		30,
 		9,
@@ -10961,10 +10986,10 @@ var textsJa = i18n.NewTexts(""+
 		15,
 		84,
 		27,
-		249,
+		246,
 		12,
-		21,
-		95,
+		18,
+		149,
 		6,
 		45,
 		15,
@@ -11253,10 +11278,13 @@ var textsJa = i18n.NewTexts(""+
 		21,
 		21,
 		9,
+		93,
+		30,
 		211,
 		159,
 		15,
 		30,
+		78,
 		12,
 		167,
 		21,
@@ -12243,6 +12271,7 @@ var textsKo = i18n.NewTexts(""+
 	"이름이 예약되어 있습니다. Kando나 기본 AI 서비스처럼 보입니다."+
 	"다른 버전의 Kando용으로 만들어졌습니다."+
 	"팩이 너무 큽니다."+
+	"최신 버전의 Kando가 설정한 플러그인을 바꾸지 않도록 제거하지 않았습니다."+
 	"Kando가 모르는 종류의 플러그인입니다."+
 	"링크나 팩 밖을 가리키는 경로가 있습니다."+
 	"이 버전의 Kando는 아직 이 종류의 플러그인을 지원하지 않습니다."+
@@ -12536,7 +12565,7 @@ var textsKo = i18n.NewTexts(""+
 	"번역 서비스 EveryAPI OpenAI OpenRouter Groq DeepSeek xAI Mistral Qwen Kimi Zhipu SiliconFlow Ollama LM Studio Base URL API Key 모델 연결 테스트 줄 수 요청 재시도"+
 	"Google 로그인 로그아웃 오브젝트 스토리지 업로드 R2 S3 OSS COS Endpoint Region Bucket Access Key Secret 경로 스타일 NAS SMB WebDAV SFTP"+
 	"라이브러리 위치 Finder 파일 탐색기 파일 관리자 인터페이스 언어 버전 구성 요소 yt-dlp ffmpeg whisper-cli 다시 감지 명령줄 터미널 kando 설치 MCP Claude Code Cursor 설정 복사 업데이트 알림 브라우저 로그인 쿠키 멤버십 연령 확인 Chrome Safari Firefox Edge 키체인 전체 디스크 접근 권한 화면 모드 라이트 다크 시스템 북마클릿 북마크 바로 시작"+
-	"자막 표시 방식 이중 언어 원문만 번역만 순서 번역 원문 흐리게 비워 두기 이동 미리 보기 프리셋 서체 크기 색상 굵게 단어 표시 후리가나 읽기 병음 등급 등급별 색상 JLPT HSK 단어장 밑줄 단어 목록"+
+	"자막 표시 방식 이중 언어 원문만 번역만 순서 번역 원문 흐리게 비워 두기 이동 미리 보기 프리셋 서체 크기 색상 굵게 단어 표시 후리가나 읽기 병음 등급 등급별 밑줄 JLPT HSK 단어장 밑줄 점선 단어 목록"+
 	"iPhone Android 휴대폰 스마트폰 동기화 페어링 QR 코드 Wi-Fi 네트워크 기기 해제"+
 	"플러그인 팩 확장 설치 제거 용어집 용어 AI 서비스 사전 단어 목록"+
 	"개인정보 오프라인 네트워크 인터넷 캐시 지우기"+
@@ -12566,7 +12595,7 @@ var textsKo = i18n.NewTexts(""+
 	"언어 검색"+
 	"굵게"+
 	"단어장의 단어에 밑줄"+
-	"단어장에 추가한 단어는 화면에서 밑줄로 표시됩니다."+
+	"단어장에 추가한 단어는 화면에서 점선 밑줄로 표시됩니다."+
 	"단어 표시"+
 	"기본 표시 방식"+
 	"이중 언어"+
@@ -12581,10 +12610,10 @@ var textsKo = i18n.NewTexts(""+
 	"미리 보기"+
 	"모든 강은 높은 산의 가느다란 물줄기에서 시작됩니다."+
 	"후리가나·병음"+
-	"일본어 후리가나를 표시하려면 일본어 사전 팩을 켜거나 ‘등급별 색상’에서 일본어 단어 목록을 선택해야 하고, 중국어 병음은 중국어 사전 팩에서 가져옵니다."+
+	"일본어 후리가나를 표시하려면 일본어 사전 팩을 켜거나 ‘등급별 밑줄’에서 일본어 단어 목록을 선택해야 하고, 중국어 병음은 중국어 사전 팩에서 가져옵니다."+
 	"스타일"+
-	"등급별 색상"+
-	"플러그인의 단어 목록 팩(JLPT, HSK 등급 등)을 사용합니다."+
+	"등급별 밑줄"+
+	"플러그인의 단어 목록 팩(JLPT, HSK 등급 등)에 있는 단어 아래에 등급별 색상으로 굵은 선을 긋습니다."+
 	"끄기"+
 	"번역만 표시할 때 번역이 아직 없으면"+
 	"비워 두기"+
@@ -12873,10 +12902,13 @@ var textsKo = i18n.NewTexts(""+
 	"저장한 대사"+
 	"찾는 중…"+
 	"닫기"+
+	"오프라인 사전을 설치하면 더 빨리 찾고 AI를 쓰지 않습니다."+
+	"플러그인 설정 열기"+
 	"단어는 설치한 사전에서 먼저 찾고, 없으면 AI 서비스에 묻습니다. 「AI 서비스」에서 설정하거나 「플러그인」에서 사전을 설치하세요."+
 	"설치한 사전에 이 단어가 없습니다. 사전에 없는 단어도 찾으려면 「AI 서비스」에서 설정하세요."+
 	"설정 열기"+
 	"AI 서비스의 설명"+
+	"어느 사전에도 이 단어가 없어 AI 서비스에 물었습니다"+
 	"숙달 현황"+
 	"단어와 저장한 대사를 함께 셉니다. 5번 연속 맞히고 다음 복습이 3주 넘게 남으면 익힌 것으로 칩니다."+
 	"다른 기기"+
@@ -13860,6 +13892,7 @@ var textsKo = i18n.NewTexts(""+
 		85,
 		54,
 		24,
+		101,
 		51,
 		57,
 		86,
@@ -14153,7 +14186,7 @@ var textsKo = i18n.NewTexts(""+
 		180,
 		157,
 		437,
-		263,
+		270,
 		100,
 		88,
 		65,
@@ -14183,7 +14216,7 @@ var textsKo = i18n.NewTexts(""+
 		13,
 		6,
 		29,
-		72,
+		79,
 		13,
 		20,
 		13,
@@ -14201,7 +14234,7 @@ var textsKo = i18n.NewTexts(""+
 		216,
 		9,
 		16,
-		75,
+		133,
 		6,
 		50,
 		13,
@@ -14490,10 +14523,13 @@ var textsKo = i18n.NewTexts(""+
 		16,
 		13,
 		6,
+		80,
+		26,
 		180,
 		129,
 		13,
 		22,
+		72,
 		13,
 		136,
 		13,
@@ -15480,6 +15516,7 @@ var textsZhHans = i18n.NewTexts(""+
 	"它的名称被保留：看起来像看懂或内置的 AI 服务。"+
 	"它是为别的版本的看懂做的。"+
 	"这个插件包太大了。"+
+	"看懂没有卸载它，免得改动更新版本的看懂设置好的插件。"+
 	"看懂不认识这类插件。"+
 	"它含有链接或指向包外的路径。"+
 	"这个版本的看懂还不支持这类插件。"+
@@ -15773,7 +15810,7 @@ var textsZhHans = i18n.NewTexts(""+
 	"翻译 服务 EveryAPI OpenAI OpenRouter Groq DeepSeek xAI Mistral 通义千问 Kimi 智谱 硅基流动 Ollama LM Studio Base URL API Key 模型 测试连接 每批 句数 请求 重试"+
 	"Google 登录 退出 对象存储 上传 R2 S3 OSS COS Endpoint Region Bucket Access Key Secret 路径样式 NAS SMB WebDAV SFTP"+
 	"资料库 位置 访达 文件资源管理器 文件管理器 界面语言 版本 组件 yt-dlp ffmpeg whisper-cli 重新检测 命令行 终端 kando 安装 MCP Claude Code Cursor 拷贝配置 更新 通知 浏览器 登录 借用 Cookie 会员 年龄验证 Chrome Safari Firefox Edge 钥匙串 完全磁盘访问权限 外观 浅色 深色 跟随系统 书签小工具 书签 立即开始"+
-	"字幕 显示方式 双语 仅原文 仅译文 顺序 译文 原文 弱化 留空 让位 预览 预设 字体 字号 颜色 粗体 逐词标注 注音 假名 振假名 拼音 等级 按等级着色 JLPT HSK 生词本 已学词 下划线 词表"+
+	"字幕 显示方式 双语 仅原文 仅译文 顺序 译文 原文 弱化 留空 让位 预览 预设 字体 字号 颜色 粗体 逐词标注 注音 假名 振假名 拼音 等级 按等级画线 JLPT HSK 生词本 已学词 下划线 虚线 词表"+
 	"iPhone Android 手机 移动 同步 配对 二维码 Wi-Fi 网络 设备 撤销"+
 	"插件 插件包 扩展 安装 卸载 术语表 术语 AI 服务 词典 词表"+
 	"隐私 离线 联网 网络 缓存 清除"+
@@ -15803,7 +15840,7 @@ var textsZhHans = i18n.NewTexts(""+
 	"搜索语言"+
 	"粗体"+
 	"标出已学词"+
-	"加入生词本的词在画面上带下划线。"+
+	"加入生词本的词在画面上带虚线下划线。"+
 	"逐词标注"+
 	"默认显示方式"+
 	"双语"+
@@ -15818,10 +15855,10 @@ var textsZhHans = i18n.NewTexts(""+
 	"预览"+
 	"每条河都始于高山上的一股细流。"+
 	"注音或拼音"+
-	"日语的假名注音需要启用日语词典包，或在「按等级着色」里选日语词表；中文的拼音来自中文词典包。"+
+	"日语的假名注音需要启用日语词典包，或在「按等级画线」里选日语词表；中文的拼音来自中文词典包。"+
 	"样式"+
-	"按等级着色"+
-	"用插件里的词表包，比如 JLPT、HSK 等级。"+
+	"按等级画线"+
+	"在插件里词表包（比如 JLPT、HSK 等级）的词下面画一条粗线，颜色随等级。"+
 	"关闭"+
 	"仅译文时，译文还没好"+
 	"留空"+
@@ -16110,10 +16147,13 @@ var textsZhHans = i18n.NewTexts(""+
 	"收藏的句子"+
 	"正在查…"+
 	"关闭"+
+	"装一个离线词典，查词更快、不耗 AI。"+
+	"打开插件设置"+
 	"查词会先查已安装的词典，再问 AI 服务。先在「AI 服务」里设置一个，或在「插件」里安装词典。"+
 	"已安装的词典里没有这个词。要查词典里没有的词，先在「AI 服务」里设置一个。"+
 	"打开设置"+
 	"由 AI 服务解释"+
+	"你的词典都没有这个词，问了 AI 服务"+
 	"掌握情况"+
 	"生词和收藏的句子一起算。连续答对 5 次、下次复习在三周以后，就算掌握。"+
 	"其他设备"+
@@ -17097,6 +17137,7 @@ var textsZhHans = i18n.NewTexts(""+
 		67,
 		39,
 		27,
+		78,
 		30,
 		42,
 		48,
@@ -17390,7 +17431,7 @@ var textsZhHans = i18n.NewTexts(""+
 		186,
 		128,
 		390,
-		243,
+		250,
 		79,
 		78,
 		41,
@@ -17420,7 +17461,7 @@ var textsZhHans = i18n.NewTexts(""+
 		12,
 		6,
 		15,
-		48,
+		54,
 		12,
 		18,
 		6,
@@ -17438,7 +17479,7 @@ var textsZhHans = i18n.NewTexts(""+
 		138,
 		6,
 		15,
-		54,
+		99,
 		6,
 		30,
 		6,
@@ -17727,10 +17768,13 @@ var textsZhHans = i18n.NewTexts(""+
 		15,
 		12,
 		6,
+		51,
+		18,
 		130,
 		108,
 		12,
 		19,
+		49,
 		12,
 		102,
 		12,
@@ -18717,6 +18761,7 @@ var textsZhHant = i18n.NewTexts(""+
 	"它的名稱被保留：看起來像看懂或內建的 AI 服務。"+
 	"它是為其他版本的看懂製作的。"+
 	"這個外掛包太大了。"+
+	"看懂沒有解除安裝它，免得改動較新版本的看懂設定好的外掛。"+
 	"看懂不認得這類外掛。"+
 	"它含有連結或指向包外的路徑。"+
 	"這個版本的看懂還不支援這類外掛。"+
@@ -19010,7 +19055,7 @@ var textsZhHant = i18n.NewTexts(""+
 	"翻譯 服務 EveryAPI OpenAI OpenRouter Groq DeepSeek xAI Mistral 通義千問 Kimi 智譜 矽基流動 Ollama LM Studio Base URL API Key 模型 測試連線 每批 句數 請求 重試"+
 	"Google 登入 登出 物件儲存 上傳 R2 S3 OSS COS Endpoint Region Bucket Access Key Secret 路徑樣式 NAS SMB WebDAV SFTP"+
 	"資料庫 位置 Finder 檔案總管 檔案管理員 介面語言 版本 元件 yt-dlp ffmpeg whisper-cli 重新偵測 命令列 終端機 kando 安裝 MCP Claude Code Cursor 拷貝設定 更新 通知 瀏覽器 登入 借用 Cookie 會員 年齡驗證 Chrome Safari Firefox Edge 鑰匙圈 完整取用磁碟 外觀 淺色 深色 跟隨系統 書籤小工具 書籤 立即開始"+
-	"字幕 顯示方式 雙語 僅原文 僅譯文 順序 譯文 原文 淡化 留空 讓位 預覽 預設 字體 字級 顏色 粗體 逐詞標注 注音 假名 振假名 拼音 等級 按等級著色 JLPT HSK 生詞本 已學詞 底線 詞表"+
+	"字幕 顯示方式 雙語 僅原文 僅譯文 順序 譯文 原文 淡化 留空 讓位 預覽 預設 字體 字級 顏色 粗體 逐詞標注 注音 假名 振假名 拼音 等級 按等級畫線 JLPT HSK 生詞本 已學詞 底線 虛線 詞表"+
 	"iPhone Android 手機 行動 同步 配對 QR 碼 Wi-Fi 網路 裝置 撤銷"+
 	"外掛 外掛包 擴充 安裝 解除安裝 術語表 術語 AI 服務 詞典 詞表"+
 	"隱私 離線 連網 網路 快取 清除"+
@@ -19040,7 +19085,7 @@ var textsZhHant = i18n.NewTexts(""+
 	"搜尋語言"+
 	"粗體"+
 	"標出已學詞"+
-	"加入生詞本的詞在畫面上帶底線。"+
+	"加入生詞本的詞在畫面上帶虛線底線。"+
 	"逐詞標注"+
 	"預設顯示方式"+
 	"雙語"+
@@ -19055,10 +19100,10 @@ var textsZhHant = i18n.NewTexts(""+
 	"預覽"+
 	"每條河都始於高山上的一股細流。"+
 	"注音或拼音"+
-	"日語的假名注音需要啟用日語詞典包，或在「按等級著色」裡選日語詞表；中文的拼音來自中文詞典包。"+
+	"日語的假名注音需要啟用日語詞典包，或在「按等級畫線」裡選日語詞表；中文的拼音來自中文詞典包。"+
 	"樣式"+
-	"按等級著色"+
-	"用外掛裡的詞表包，比如 JLPT、HSK 等級。"+
+	"按等級畫線"+
+	"在外掛裡詞表包（比如 JLPT、HSK 等級）的詞下面畫一條粗線，顏色隨等級。"+
 	"關閉"+
 	"僅譯文時，譯文還沒好"+
 	"留空"+
@@ -19347,10 +19392,13 @@ var textsZhHant = i18n.NewTexts(""+
 	"收藏的句子"+
 	"正在查…"+
 	"關閉"+
+	"裝一個離線詞典，查詞更快、不耗 AI。"+
+	"打開外掛設定"+
 	"查詞會先查已安裝的詞典，再問 AI 服務。先在「AI 服務」裡設定一個，或在「外掛」裡安裝詞典。"+
 	"已安裝的詞典裡沒有這個詞。要查詞典裡沒有的詞，先在「AI 服務」裡設定一個。"+
 	"打開設定"+
 	"由 AI 服務解釋"+
+	"你的詞典都沒有這個詞，問了 AI 服務"+
 	"掌握情況"+
 	"生詞和收藏的句子一起算。連續答對 5 次、下次複習在三週以後，就算掌握。"+
 	"其他裝置"+
@@ -20334,6 +20382,7 @@ var textsZhHant = i18n.NewTexts(""+
 		67,
 		42,
 		27,
+		84,
 		30,
 		42,
 		48,
@@ -20627,7 +20676,7 @@ var textsZhHant = i18n.NewTexts(""+
 		186,
 		128,
 		378,
-		240,
+		247,
 		76,
 		84,
 		41,
@@ -20657,7 +20706,7 @@ var textsZhHant = i18n.NewTexts(""+
 		12,
 		6,
 		15,
-		45,
+		51,
 		12,
 		18,
 		6,
@@ -20675,7 +20724,7 @@ var textsZhHant = i18n.NewTexts(""+
 		138,
 		6,
 		15,
-		54,
+		99,
 		6,
 		30,
 		6,
@@ -20964,10 +21013,13 @@ var textsZhHant = i18n.NewTexts(""+
 		15,
 		12,
 		6,
+		51,
+		18,
 		130,
 		108,
 		12,
 		19,
+		49,
 		12,
 		102,
 		12,
@@ -22045,6 +22097,9 @@ func Supply(lang string, t Translation) {
 	if t.PlaylistVideos != nil {
 		s.PlaylistVideos = t.PlaylistVideos
 	}
+	if t.PluginsErrStateUnsaved != nil {
+		s.PluginsErrStateUnsaved = t.PluginsErrStateUnsaved
+	}
 	if t.PluginsErrSystem != nil {
 		s.PluginsErrSystem = t.PluginsErrSystem
 	}
@@ -22638,6 +22693,9 @@ func Supply(lang string, t Translation) {
 	}
 	if t.VocabLookupFailed != nil {
 		s.VocabLookupFailed = t.VocabLookupFailed
+	}
+	if t.VocabLookupSourceAINotInDict != nil {
+		s.VocabLookupSourceAINotInDict = t.VocabLookupSourceAINotInDict
 	}
 	if t.VocabLookupSourceDict != nil {
 		s.VocabLookupSourceDict = t.VocabLookupSourceDict
@@ -40704,6 +40762,38 @@ func PluginsErrSchema(cx *core.Scope) string { return For(cx).PluginsErrSchema()
 // PluginsErrSchema is the package's PluginsErrSchema in the language of msgs.
 func (msgs Messages) PluginsErrSchema() string { return msgs.text(textPluginsErrSchema) }
 
+// PluginsErrStateUnsaved says "Done, but Kando couldn't save which plugins are on: {error}"
+// in the language the app shows under cx.
+//
+// Plugins page: a pack was installed or uninstalled, but the file that says which plugins are on could not be saved after it; {error} is why: one of the plugins page's own messages, or the system's error in English.
+func PluginsErrStateUnsaved(cx *core.Scope, error_ string) string {
+	return For(cx).PluginsErrStateUnsaved(error_)
+}
+
+// PluginsErrStateUnsaved is the package's PluginsErrStateUnsaved in the language of msgs.
+func (msgs Messages) PluginsErrStateUnsaved(error_ string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.PluginsErrStateUnsaved(error_))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].PluginsErrStateUnsaved; f != nil {
+			return f(error_)
+		}
+		switch lang {
+		case "", "en":
+			return "Done, but Kando couldn't save which plugins are on: " + msgs.arg(error_)
+		case "ja":
+			return "完了しましたが、どのプラグインがオンかを保存できませんでした：" + error_
+		case "ko":
+			return "완료했지만 어떤 플러그인이 켜져 있는지 저장할 수 없습니다: " + error_
+		case "zh-Hans":
+			return "已完成，但看懂没能保存哪些插件是启用的：" + error_
+		case "zh-Hant":
+			return "已完成，但看懂沒能儲存哪些外掛是啟用的：" + error_
+		}
+	}
+}
+
 // PluginsErrSystem says "Kando couldn't read or write the pack: {error}"
 // in the language the app shows under cx.
 //
@@ -40742,6 +40832,17 @@ func PluginsErrTooLarge(cx *core.Scope) string { return For(cx).PluginsErrTooLar
 
 // PluginsErrTooLarge is the package's PluginsErrTooLarge in the language of msgs.
 func (msgs Messages) PluginsErrTooLarge() string { return msgs.text(textPluginsErrTooLarge) }
+
+// PluginsErrUninstallRefused says "Kando didn't uninstall it, so that the plugins a newer version of Kando set up stay as they are."
+// in the language the app shows under cx.
+//
+// Plugins page: an uninstall was refused before anything was removed, as the file that says which plugins are on was written by a newer Kando, which this one does not change; the note above the list says so too.
+func PluginsErrUninstallRefused(cx *core.Scope) string { return For(cx).PluginsErrUninstallRefused() }
+
+// PluginsErrUninstallRefused is the package's PluginsErrUninstallRefused in the language of msgs.
+func (msgs Messages) PluginsErrUninstallRefused() string {
+	return msgs.text(textPluginsErrUninstallRefused)
+}
 
 // PluginsErrUnknownKind says "Kando doesn't know this kind of plugin."
 // in the language the app shows under cx.
@@ -47431,7 +47532,7 @@ func SettingsKeywordsGeneral(cx *core.Scope) string { return For(cx).SettingsKey
 // SettingsKeywordsGeneral is the package's SettingsKeywordsGeneral in the language of msgs.
 func (msgs Messages) SettingsKeywordsGeneral() string { return msgs.text(textSettingsKeywordsGeneral) }
 
-// SettingsKeywordsLook says "subtitles display bilingual original only translation only order translation original dim blank make room preview preset font size color bold word marks readings furigana ruby pinyin level color by level JLPT HSK CEFR vocabulary underline word list"
+// SettingsKeywordsLook says "subtitles display bilingual original only translation only order translation original dim blank make room preview preset font size color bold word marks readings furigana ruby pinyin level underline by level JLPT HSK CEFR vocabulary underline dashed word list"
 // in the language the app shows under cx.
 //
 // Search keywords of the Subtitle Style settings section, separated by spaces, besides its title. Not shown.
@@ -47781,16 +47882,16 @@ func (msgs Messages) SettingsLookColorOf(line string) string {
 // SettingsLookKnown says "Underline Words in My Vocabulary"
 // in the language the app shows under cx.
 //
-// Switch of Subtitle Style's word marks card: underline the words of the original line that are in the learner's vocabulary.
+// Switch of Subtitle Style's word marks card: draw a dashed line under the words of the original line that are in the learner's vocabulary.
 func SettingsLookKnown(cx *core.Scope) string { return For(cx).SettingsLookKnown() }
 
 // SettingsLookKnown is the package's SettingsLookKnown in the language of msgs.
 func (msgs Messages) SettingsLookKnown() string { return msgs.text(textSettingsLookKnown) }
 
-// SettingsLookKnownHint says "Words you added to the vocabulary are underlined on the picture."
+// SettingsLookKnownHint says "Words you added to the vocabulary get a dashed line under them on the picture."
 // in the language the app shows under cx.
 //
-// Hint under the switch that underlines the words in the vocabulary.
+// Hint under the switch that underlines the words in the vocabulary: the line is dashed, unlike the solid lines of the levels.
 func SettingsLookKnownHint(cx *core.Scope) string { return For(cx).SettingsLookKnownHint() }
 
 // SettingsLookKnownHint is the package's SettingsLookKnownHint in the language of msgs.
@@ -47942,7 +48043,7 @@ func SettingsLookReadings(cx *core.Scope) string { return For(cx).SettingsLookRe
 // SettingsLookReadings is the package's SettingsLookReadings in the language of msgs.
 func (msgs Messages) SettingsLookReadings() string { return msgs.text(textSettingsLookReadings) }
 
-// SettingsLookReadingsHint says "Furigana over Japanese needs a Japanese dictionary pack turned on, or a Japanese word list chosen in Color by Level; pinyin over Chinese comes from a Chinese dictionary pack."
+// SettingsLookReadingsHint says "Furigana over Japanese needs a Japanese dictionary pack turned on, or a Japanese word list chosen in Underline by Level; pinyin over Chinese comes from a Chinese dictionary pack."
 // in the language the app shows under cx.
 //
 // Hint under the readings switch: where the readings come from, packs installed in Settings › Plugins.
@@ -47962,19 +48063,19 @@ func SettingsLookStyle(cx *core.Scope) string { return For(cx).SettingsLookStyle
 // SettingsLookStyle is the package's SettingsLookStyle in the language of msgs.
 func (msgs Messages) SettingsLookStyle() string { return msgs.text(textSettingsLookStyle) }
 
-// SettingsLookTiers says "Color by Level"
+// SettingsLookTiers says "Underline by Level"
 // in the language the app shows under cx.
 //
-// Row of Subtitle Style's word marks card: the word list pack whose levels color the words of the original line, or none.
+// Row of Subtitle Style's word marks card: the word list pack whose levels draw a line in their color under the words of the original line, or none.
 func SettingsLookTiers(cx *core.Scope) string { return For(cx).SettingsLookTiers() }
 
 // SettingsLookTiers is the package's SettingsLookTiers in the language of msgs.
 func (msgs Messages) SettingsLookTiers() string { return msgs.text(textSettingsLookTiers) }
 
-// SettingsLookTiersHint says "Word list packs from Plugins, such as JLPT or HSK levels."
+// SettingsLookTiersHint says "A thick line in each level's color under the words of a word list pack from Plugins, such as JLPT or HSK levels."
 // in the language the app shows under cx.
 //
-// Hint under the Color by Level row: the choices are word list packs installed and turned on in Settings › Plugins.
+// Hint under the Underline by Level row: the choices are word list packs installed and turned on in Settings › Plugins, and each level's words get a solid line in its color; the text keeps its own color.
 func SettingsLookTiersHint(cx *core.Scope) string { return For(cx).SettingsLookTiersHint() }
 
 // SettingsLookTiersHint is the package's SettingsLookTiersHint in the language of msgs.
@@ -47983,7 +48084,7 @@ func (msgs Messages) SettingsLookTiersHint() string { return msgs.text(textSetti
 // SettingsLookTiersOff says "Off"
 // in the language the app shows under cx.
 //
-// Choice of the Color by Level drop-down: color no word.
+// Choice of the Underline by Level drop-down: draw no level's line.
 func SettingsLookTiersOff(cx *core.Scope) string { return For(cx).SettingsLookTiersOff() }
 
 // SettingsLookTiersOff is the package's SettingsLookTiersOff in the language of msgs.
@@ -54044,6 +54145,24 @@ func VocabLookupClose(cx *core.Scope) string { return For(cx).VocabLookupClose()
 // VocabLookupClose is the package's VocabLookupClose in the language of msgs.
 func (msgs Messages) VocabLookupClose() string { return msgs.text(textVocabLookupClose) }
 
+// VocabLookupDictHint says "Install an offline dictionary: lookups get faster and don't use the AI service."
+// in the language the app shows under cx.
+//
+// Card of a word looked up, at its foot, shown once: the first time a learner of Japanese or Chinese looks a word up with no dictionary pack of its language installed.
+func VocabLookupDictHint(cx *core.Scope) string { return For(cx).VocabLookupDictHint() }
+
+// VocabLookupDictHint is the package's VocabLookupDictHint in the language of msgs.
+func (msgs Messages) VocabLookupDictHint() string { return msgs.text(textVocabLookupDictHint) }
+
+// VocabLookupDictHintOpen says "Open Plugins"
+// in the language the app shows under cx.
+//
+// Button after the offline dictionary hint of the lookup card: opens Settings › Plugins, where dictionary packs are installed.
+func VocabLookupDictHintOpen(cx *core.Scope) string { return For(cx).VocabLookupDictHintOpen() }
+
+// VocabLookupDictHintOpen is the package's VocabLookupDictHintOpen in the language of msgs.
+func (msgs Messages) VocabLookupDictHintOpen() string { return msgs.text(textVocabLookupDictHintOpen) }
+
 // VocabLookupFailed says "No meaning came back: {error}"
 // in the language the app shows under cx.
 //
@@ -54111,6 +54230,51 @@ func VocabLookupSourceAI(cx *core.Scope) string { return For(cx).VocabLookupSour
 
 // VocabLookupSourceAI is the package's VocabLookupSourceAI in the language of msgs.
 func (msgs Messages) VocabLookupSourceAI() string { return msgs.text(textVocabLookupSourceAI) }
+
+// VocabLookupSourceAINotInDict says "{dictionary} doesn't have this word; asked your AI service"
+// in the language the app shows under cx.
+//
+// Card of a word looked up, under the meaning: the one dictionary pack asked did not have the word, so the AI service gave the meaning; {dictionary} is the pack's name.
+func VocabLookupSourceAINotInDict(cx *core.Scope, dictionary string) string {
+	return For(cx).VocabLookupSourceAINotInDict(dictionary)
+}
+
+// VocabLookupSourceAINotInDict is the package's VocabLookupSourceAINotInDict in the language of msgs.
+func (msgs Messages) VocabLookupSourceAINotInDict(dictionary string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.VocabLookupSourceAINotInDict(dictionary))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].VocabLookupSourceAINotInDict; f != nil {
+			return f(dictionary)
+		}
+		switch lang {
+		case "", "en":
+			return msgs.arg(dictionary) + " doesn't have this word; asked your AI service"
+		case "ja":
+			return "辞書「" + dictionary + "」にこの語がないため、AI サービスに聞きました"
+		case "ko":
+			return "사전 「" + dictionary + "」에 이 단어가 없어 AI 서비스에 물었습니다"
+		case "zh-Hans":
+			return "词典「" + dictionary + "」没有这个词，问了 AI 服务"
+		case "zh-Hant":
+			return "詞典「" + dictionary + "」沒有這個詞，問了 AI 服務"
+		}
+	}
+}
+
+// VocabLookupSourceAINotInDicts says "Your dictionaries don't have this word; asked your AI service"
+// in the language the app shows under cx.
+//
+// Card of a word looked up, under the meaning: none of the dictionary packs asked had the word, so the AI service gave the meaning.
+func VocabLookupSourceAINotInDicts(cx *core.Scope) string {
+	return For(cx).VocabLookupSourceAINotInDicts()
+}
+
+// VocabLookupSourceAINotInDicts is the package's VocabLookupSourceAINotInDicts in the language of msgs.
+func (msgs Messages) VocabLookupSourceAINotInDicts() string {
+	return msgs.text(textVocabLookupSourceAINotInDicts)
+}
 
 // VocabLookupSourceDict says "From the dictionary {name}"
 // in the language the app shows under cx.
@@ -56396,13 +56560,13 @@ func (msgs Messages) SettingsPluginsDictionaryDetail(from string, to string) str
 		case "", "en":
 			return "Looks up " + msgs.arg(from) + " words, defined in " + msgs.arg(to)
 		case "ja":
-			return from + " の単語を " + to + " で引けます"
+			return from + "の単語を" + to + "で引けます"
 		case "ko":
 			return from + " 단어를 " + to + "(으)로 찾습니다"
 		case "zh-Hans":
-			return "查 " + from + " 词，释义为 " + to
+			return "查" + from + "词，释义为" + to
 		case "zh-Hant":
-			return "查 " + from + " 詞，釋義為 " + to
+			return "查" + from + "詞，釋義為" + to
 		}
 	}
 }
@@ -56525,13 +56689,13 @@ func (msgs Messages) SettingsPluginsGlossaryDetail(count int, from string, to st
 			b.WriteString(msgs.arg(to))
 			return b.String()
 		case "ja":
-			return from + " から " + to + " への翻訳に使う用語 " + i18n.FormatNumber("ja", float64(count)) + " 件"
+			return from + "から" + to + "への翻訳に使う用語 " + i18n.FormatNumber("ja", float64(count)) + " 件"
 		case "ko":
 			return from + "에서 " + to + "(으)로 번역할 때 쓰는 용어 " + i18n.FormatNumber("ko", float64(count)) + "개"
 		case "zh-Hans":
-			return i18n.FormatNumber("zh-Hans", float64(count)) + " 条术语，用于从 " + from + " 译成 " + to
+			return i18n.FormatNumber("zh-Hans", float64(count)) + " 条术语，用于从" + from + "译成" + to
 		case "zh-Hant":
-			return i18n.FormatNumber("zh-Hant", float64(count)) + " 條術語，用於從 " + from + " 譯成 " + to
+			return i18n.FormatNumber("zh-Hant", float64(count)) + " 條術語，用於從" + from + "譯成" + to
 		}
 	}
 }
@@ -57250,13 +57414,13 @@ func (msgs Messages) SettingsPluginsWordlistDetail(language string, count int) s
 			}
 			return b.String()
 		case "ja":
-			return language + " の単語、" + i18n.FormatNumber("ja", float64(count)) + " 段階"
+			return language + "の単語、" + i18n.FormatNumber("ja", float64(count)) + " 段階"
 		case "ko":
 			return language + " 단어, " + i18n.FormatNumber("ko", float64(count)) + "단계"
 		case "zh-Hans":
-			return language + " 词汇，分 " + i18n.FormatNumber("zh-Hans", float64(count)) + " 级"
+			return language + "词汇，分 " + i18n.FormatNumber("zh-Hans", float64(count)) + " 级"
 		case "zh-Hant":
-			return language + " 詞彙，分 " + i18n.FormatNumber("zh-Hant", float64(count)) + " 級"
+			return language + "詞彙，分 " + i18n.FormatNumber("zh-Hant", float64(count)) + " 級"
 		}
 	}
 }

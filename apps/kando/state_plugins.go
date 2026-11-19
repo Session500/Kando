@@ -3,6 +3,7 @@ package main
 import (
 	"cmp"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -21,7 +22,7 @@ import (
 	ns "github.com/nsgo-dev/nsgo/core"
 )
 
-// Plugins: the data packs the user installs from Settings › 插件 (docs/plugin-system.md). The packs are in the plugins folder beside settings.json (pluginsRoot), each in <kind>/<id>, and which are turned on in its state.json (plugins.State), never in settings.json. The app reads the folder off the UI thread once its window is ready (pluginsScan) and again after each install, removal or switch. A pack is installed only after the user confirmed what it is (the install confirmation), whether it came from 从文件安装…, a drop on the page, or the command line's inbox (`kando plugin install`), which the app looks at as it starts and each time it comes to the front. What the packs add: a glossary pack's terms join the global glossary of the films they match (pluginTerms), after the user's own; an ai-service pack's service joins the AI services the app offers (pluginPresets, through llmPresets); a dictionary pack answers lookups, offline, before the AI service (state_plugins_dict.go, vocabResolve); a word list pack colors the words of a film's lines by their levels, with readings over them from the dictionaries (state_plugins_marks.go).
+// Plugins: the data packs the user installs from Settings › 插件 (docs/plugin-system.md). The packs are in the plugins folder beside settings.json (pluginsRoot), each in <kind>/<id>, and which are turned on in its state.json (plugins.State), never in settings.json. The app reads the folder off the UI thread once its window is ready (pluginsScan) and again after each install, removal or switch. A pack is installed only after the user confirmed what it is (the install confirmation), whether it came from 从文件安装…, a drop on the page, or the command line's inbox (`kando plugin install`), which the app looks at as it starts and each time it comes to the front. What the packs add: a glossary pack's terms join the global glossary of the films they match (pluginTerms), after the user's own; an ai-service pack's service joins the AI services the app offers (pluginPresets, through llmPresets); a dictionary pack answers lookups, offline, before the AI service (state_plugins_dict.go, vocabResolve); a word list pack draws a line in the color of their level under the words of a film's lines, with readings over them from the dictionaries (state_plugins_marks.go).
 
 // pluginsUI is the plugins' state. packs and issues are what the last read of the plugins folder found, state and stateErr what state.json held (plugins.LoadState); scanGen counts the reads, so only the last one's answer is kept. order is every pack id the app has seen, in the order it came (savedPlugins), which orders the list and decides which glossary pack's term wins. busy is set while an install, a removal, a switch or a copy into the staging folder runs, and err is why the last one failed; inboxBusy while the inbox is looked at, which keeps none of those from running. pending is the install confirmation, nil while it is closed. gone is the AI service of a pack that went while it was in use (pluginsGoneService). dicts are the dictionary packs opened for lookups, by id (pluginsSyncDicts), and opening the index names (dict.IndexName) of the contents being opened; engine's goroutine only. prefs is how the open film's lines are marked (savedPlugins), marks their marks, marking the key of the marks being computed, zero while none are, and stop what stops that computation (pluginsMarkStop), subs the lines whose hash was taken last and list the word list chosen as last read (state_plugins_marks.go).
 type pluginsUI struct {
@@ -49,6 +50,8 @@ type pluginsUI struct {
 	stop      *atomic.Bool
 	subs      pluginsSubs
 	list      *pluginsList
+	// dictHintShown is set once the lookup card showed the hint to install an offline dictionary (pluginsDictHint), which shows once.
+	dictHintShown bool
 }
 
 // pluginsGone is the AI service of a pack that is not offered now, though the endpoint in use is still its own: id is its preset id (pack.<id>) and base its endpoint. The service settings.json saved, when it was a pack's, starts as one, as the packs are read only once the window is ready.
@@ -64,12 +67,13 @@ type pluginsPending struct {
 
 func newPluginsUI() pluginsUI { return pluginsUI{} }
 
-// savedPlugins is the plugins' part of settings.json: preferences alone, never what is installed or turned on, which the plugins folder and its state.json keep. PluginOrder is every pack id seen, in the order it came; an id whose pack is not in the plugins folder now is kept, and the page lists it as missing until the user forgets it. PluginReadings, PluginWordlist and PluginKnownWords are how 字幕外观's 逐词标注 marks the words of the originals (pluginsMarkPrefs): readings, the id of the word list whose levels color them, kept while that pack is missing, and an underline under the words in the vocabulary.
+// savedPlugins is the plugins' part of settings.json: preferences alone, never what is installed or turned on, which the plugins folder and its state.json keep. PluginOrder is every pack id seen, in the order it came; an id whose pack is not in the plugins folder now is kept, and the page lists it as missing until the user forgets it. PluginReadings, PluginWordlist and PluginKnownWords are how 字幕外观's 逐词标注 marks the words of the originals (pluginsMarkPrefs): readings, the id of the word list whose levels draw a line under them, kept while that pack is missing, and a dashed line under the words in the vocabulary. PluginDictHintShown is set once the lookup card showed the hint to install an offline dictionary, which shows once (pluginsDictHint).
 type savedPlugins struct {
-	PluginOrder      []string `json:"pluginOrder,omitempty"`
-	PluginReadings   bool     `json:"pluginReadings,omitempty"`
-	PluginWordlist   string   `json:"pluginWordlist,omitempty"`
-	PluginKnownWords bool     `json:"pluginKnownWords,omitempty"`
+	PluginOrder         []string `json:"pluginOrder,omitempty"`
+	PluginReadings      bool     `json:"pluginReadings,omitempty"`
+	PluginWordlist      string   `json:"pluginWordlist,omitempty"`
+	PluginKnownWords    bool     `json:"pluginKnownWords,omitempty"`
+	PluginDictHintShown bool     `json:"pluginDictHintShown,omitempty"`
 }
 
 // pluginOrderMax is the most ids PluginOrder keeps.
@@ -98,6 +102,7 @@ func (a *app) pluginsHooks() areaHooks {
 		restore: func(saved savedSettings) {
 			a.plugins.order = slices.Clone(saved.PluginOrder)
 			a.plugins.prefs = pluginsMarkPrefs{readings: saved.PluginReadings, list: saved.PluginWordlist, known: saved.PluginKnownWords}
+			a.plugins.dictHintShown = saved.PluginDictHintShown
 			if strings.HasPrefix(saved.LLMProvider, llmPackPrefix) {
 				a.plugins.gone = pluginsGone{id: saved.LLMProvider, base: saved.LLMBaseURL}
 			}
@@ -111,6 +116,7 @@ func (a *app) pluginsHooks() areaHooks {
 				}
 			}
 			saved.PluginReadings, saved.PluginWordlist, saved.PluginKnownWords = a.plugins.prefs.readings, a.plugins.prefs.list, a.plugins.prefs.known
+			saved.PluginDictHintShown = a.plugins.dictHintShown
 		},
 		ready: a.pluginsScan,
 		becameActive: func() {
@@ -392,7 +398,9 @@ func (a *app) pluginsInstall() {
 			case err != nil:
 				a.plugins.err = err
 			default:
-				a.plugins.err = saveErr
+				if saveErr != nil {
+					a.plugins.err = plugins.StateUnsaved{Err: saveErr}
+				}
 				if !slices.Contains(a.plugins.order, pack.ID) {
 					a.plugins.order = append(a.plugins.order, pack.ID)
 				}
@@ -438,10 +446,14 @@ func (a *app) pluginsSetEnabled(id string, on bool) {
 	}()
 }
 
-// pluginsUninstall removes the pack id from the plugins folder and from state.json off the UI thread (plugins.Remove), with a dictionary's index, closed first, and reads the folder again. The service an ai-service pack added keeps its key in settings.json under the pack's id (pluginsKeepLLM, savedLLM.clean), so installing it again brings it back.
+// pluginsUninstall removes the pack id from the plugins folder and from state.json off the UI thread (plugins.Remove), with a dictionary's index, closed first, and reads the folder again. The service an ai-service pack added keeps its key in settings.json under the pack's id (pluginsKeepLLM, savedLLM.clean), so installing it again brings it back. As with an install, a state.json a newer Kando wrote, which this one does not write over (plugins.ErrStateFormat), refuses the removal before anything is removed; once the folder is gone the pack is uninstalled, and a state.json that could not be saved after is said on the page apart from it (plugins.StateUnsaved).
 func (a *app) pluginsUninstall(id string) {
 	root := a.pluginsRoot()
 	if root == "" || a.plugins.busy {
+		return
+	}
+	if errors.Is(a.plugins.stateErr, plugins.ErrStateFormat) {
+		a.plugins.err = fmt.Errorf("%w: %w", plugins.ErrUninstallRefused, a.plugins.stateErr)
 		return
 	}
 	a.pluginsKeepLLM()
@@ -456,7 +468,9 @@ func (a *app) pluginsUninstall(id string) {
 		err := plugins.Remove(root, id)
 		if err == nil {
 			dict.Forget(index, id, "")
-			err = state.Save(root)
+			if saveErr := state.Save(root); saveErr != nil {
+				err = plugins.StateUnsaved{Err: saveErr}
+			}
 		}
 		update(func() {
 			a.plugins.busy, a.plugins.saving = false, false

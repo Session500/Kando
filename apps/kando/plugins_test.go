@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -115,6 +116,24 @@ func pluginInstalled(t *testing.T, root string, manifests ...string) {
 	}
 }
 
+// pluginInstalledWith installs into root the pack of manifest with its files (name to content), as an install the user confirmed would.
+func pluginInstalledWith(t *testing.T, root, manifest string, files map[string][]byte) {
+	t.Helper()
+	dir := pluginFolder(t, manifest)
+	for name, data := range files {
+		if err := os.WriteFile(filepath.Join(dir, name), data, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	staged, p, err := plugins.Stage(root, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := plugins.Swap(root, staged, &p); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // pluginsApp starts the app with its plugins folder in a new temporary folder, holding the packs of manifests, and waits until it has read it, as its ready does.
 func pluginsApp(t *testing.T, manifests ...string) (*app, *nsgotest.App, chan func(), string) {
 	t.Helper()
@@ -192,6 +211,55 @@ func TestPluginsPageUninstalls(t *testing.T) {
 	tt.Press("id:settings-plugins-forget-example.anime-ja-zh")
 	if len(a.plugins.order) != 0 || !tt.Exists("id:settings-plugins-none") {
 		t.Fatalf("after forgetting it: order %q; texts %q", a.plugins.order, tt.Texts())
+	}
+}
+
+// TestPluginsUninstallRefusedOverANewerState checks that while state.json is a newer Kando's, which this one does not write over (plugins.ErrStateFormat), an uninstall is refused before the pack's folder is removed, and the page says it was not uninstalled, in a sentence of its own beside the note above the list, rather than removing the pack and then saying it failed.
+func TestPluginsUninstallRefusedOverANewerState(t *testing.T) {
+	a, tt, updates, root := pluginsApp(t, pluginGlossary)
+	if err := os.WriteFile(filepath.Join(root, "state.json"), []byte(`{"format": 99, "revision": 1, "plugins": []}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	a.plugins.scanned = false
+	onEngine(a, a.pluginsScan)
+	waitUntil(t, tt, a, updates, func() bool { return a.plugins.scanned && !a.plugins.inboxBusy })
+	apply(tt, a, func() { a.UninstallPlugin("example.anime-ja-zh") })
+	m := testlocale.Messages()
+	if a.plugins.busy || !errors.Is(a.plugins.err, plugins.ErrUninstallRefused) || !errors.Is(a.plugins.err, plugins.ErrStateFormat) || a.PluginsErr() != m.PluginsErrUninstallRefused() || a.PluginsNote() != m.SettingsPluginsStateNewer() {
+		t.Fatalf("the uninstall over a newer state: busy %v, err %v, says %q", a.plugins.busy, a.plugins.err, a.PluginsErr())
+	}
+	if packs, _ := plugins.Scan(root); len(packs) != 1 {
+		t.Fatalf("removed over a newer state: %+v", packs)
+	}
+}
+
+// TestPluginsUninstalledThoughTheStateWasNotSaved checks that a pack whose folder was removed is uninstalled even when state.json cannot be saved after it: the pack leaves the list, and the page says it was done and that which packs are on was not saved, rather than that the uninstall failed.
+func TestPluginsUninstalledThoughTheStateWasNotSaved(t *testing.T) {
+	a, tt, updates, root := pluginsApp(t, pluginGlossary)
+	// A folder where state.json goes, which no file can be renamed over.
+	if err := os.MkdirAll(filepath.Join(root, "state.json", "x"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	apply(tt, a, func() { a.UninstallPlugin("example.anime-ja-zh") })
+	waitUntil(t, tt, a, updates, func() bool { return !a.plugins.busy && len(a.plugins.packs) == 0 })
+	if packs, _ := plugins.Scan(root); len(packs) != 0 {
+		t.Fatalf("still installed: %+v", packs)
+	}
+	var unsaved plugins.StateUnsaved
+	done := testlocale.Messages().PluginsErrStateUnsaved("")
+	if !errors.As(a.plugins.err, &unsaved) || !strings.HasPrefix(a.PluginsErr(), done) || len(a.PluginsErr()) == len(done) {
+		t.Fatalf("the page says %q (%v)", a.PluginsErr(), a.plugins.err)
+	}
+}
+
+// TestPluginsUnsavedSaysWhy checks the page's sentence for an install or a removal done whose state.json was not saved: why is the message of a known error when it has one, and the system's words otherwise.
+func TestPluginsUnsavedSaysWhy(t *testing.T) {
+	m := testlocale.Messages()
+	if got := pluginsErrorText(m, plugins.StateUnsaved{Err: fmt.Errorf("%w: format 99", plugins.ErrStateFormat)}); got != m.PluginsErrStateUnsaved(m.SettingsPluginsStateNewer()) {
+		t.Errorf("a known error: %q", got)
+	}
+	if got := pluginsErrorText(m, plugins.StateUnsaved{Err: errors.New("disk full")}); got != m.PluginsErrStateUnsaved("disk full") {
+		t.Errorf("an error of the system: %q", got)
 	}
 }
 
@@ -780,19 +848,7 @@ func pluginsDictInstalled(t *testing.T, a *app, tt *nsgotest.App, updates chan f
 	if a.plugins.root == "" {
 		a.plugins.root = filepath.Join(t.TempDir(), "plugins")
 	}
-	dir := pluginFolder(t, manifest)
-	for name, data := range files {
-		if err := os.WriteFile(filepath.Join(dir, name), data, 0o644); err != nil {
-			t.Fatal(err)
-		}
-	}
-	staged, p, err := plugins.Stage(a.plugins.root, dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := plugins.Swap(a.plugins.root, staged, &p); err != nil {
-		t.Fatal(err)
-	}
+	pluginInstalledWith(t, a.plugins.root, manifest, files)
 	pluginsClosedAtEnd(t, a, updates)
 	pluginsReadAgain(t, a, tt, updates)
 }
@@ -891,6 +947,94 @@ func TestPluginDictionaryAnswersOffline(t *testing.T) {
 	waitUntil(t, tt, a, updates, func() bool { return !a.plugins.busy && a.plugins.scanned && len(a.plugins.packs) == 0 })
 	if names, _ := filepath.Glob(filepath.Join(index, "example.words_*.idx")); len(names) != 0 || len(a.plugins.dicts) != 0 {
 		t.Fatalf("after the uninstall: indexes %v, open %v", names, a.plugins.dicts)
+	}
+}
+
+// TestPluginDictionariesMissedAreNamed checks the card of a word the dictionaries asked first did not have, which the AI service then answered (docs/plugin-system.md 7.5): with one dictionary asked it names it, with several it says "your dictionaries"; a word the AI service answers with no dictionary asked says only that it did; and a dictionary whose lookup failed is not counted among those that did not have the word.
+func TestPluginDictionariesMissedAreNamed(t *testing.T) {
+	srv, _ := fakeLLM(t, `{"word":"bye","meaning":"int. 再见"}`)
+	a, tt, updates := vocabTalk(t, media.Tools{Translator: media.ChatTranslator{BaseURL: srv.URL + "/v1", APIKey: "k", Model: "m1"}})
+	msgs := testlocale.Messages()
+	// Each look asks about another word, as the cache keeps the AI service's answers and a word answered from it asks no dictionary.
+	look := func(word string) string {
+		apply(tt, a, func() { a.LookUpWord(1, word) })
+		waitUntil(t, tt, a, updates, func() bool { return !a.vocab.lookup.busy })
+		if l := a.vocab.lookup; l.failed || l.entry.Meaning != "int. 再见" || l.source != "" {
+			t.Fatalf("the lookup %+v", l)
+		}
+		refresh(tt, a)
+		return tt.Find("id:film-lookup-source").Text
+	}
+	if got := look("Bye"); got != msgs.VocabLookupSourceAI() {
+		t.Fatalf("no dictionary asked: %q", got)
+	}
+	pluginsDictInstalled(t, a, tt, updates, pluginDictionary("example.words", "English words", "en", "zh-Hans"), map[string][]byte{"words.tsv": []byte("hello\t\t你好\n")})
+	if got := look("Byes"); got != msgs.VocabLookupSourceAINotInDict("English words") {
+		t.Fatalf("one dictionary asked: %q", got)
+	}
+	pluginsDictInstalled(t, a, tt, updates, pluginDictionary("example.more", "More words", "en", "zh-Hans"), map[string][]byte{"words.tsv": []byte("river\t\t河\n")})
+	if got := look("Byebye"); got != msgs.VocabLookupSourceAINotInDicts() {
+		t.Fatalf("two dictionaries asked: %q", got)
+	}
+
+	// The first dictionary's index is damaged where it keeps hello, so its lookup of hello fails: only the other is named as not having the word.
+	var hash string
+	onEngine(a, func() { hash = a.plugins.dicts["example.words"].hash })
+	f, err := os.OpenFile(filepath.Join(a.pluginsIndexDir(), dict.IndexName("example.words", hash)), os.O_WRONLY, 0)
+	if err == nil {
+		_, err = f.WriteAt(bytes.Repeat([]byte{0xff}, 10), 32)
+		err = errors.Join(err, f.Close())
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := look("Hello"); got != msgs.VocabLookupSourceAINotInDict("More words") {
+		t.Fatalf("one dictionary failed, the other missed: %q", got)
+	}
+}
+
+// TestPluginDictionaryHintShowsOnce checks the hint to install an offline dictionary on the card of a word looked up (docs/plugin-system.md 7.4): a learner of Japanese with no Japanese dictionary pack sees it the first time, and never again, as settings.json keeps it shown; its button opens Settings › 插件. A word of another language, or a learner with a Japanese dictionary installed, sees none.
+func TestPluginDictionaryHintShowsOnce(t *testing.T) {
+	srv, _ := fakeLLM(t, `{"word":"hello","meaning":"int. 你好"}`)
+	a, tt, updates, item := playerFilm(t, 12, media.Tools{Translator: media.ChatTranslator{BaseURL: srv.URL + "/v1", APIKey: "k", Model: "m1"}})
+	playerOpenFilm(t, a, tt, updates, item)
+	playerLoadFilm(tt, a, 12*time.Second)
+	// An English dictionary installed, which a Japanese word does not count as one of its language.
+	pluginsDictInstalled(t, a, tt, updates, pluginDictionary("example.words", "English words", "en", "zh-Hans"), map[string][]byte{"words.tsv": []byte("hello\t\t你好\n")})
+
+	apply(tt, a, func() { a.LookUpWord(0, "Hello") })
+	if a.vocab.lookup.dictHint || a.plugins.dictHintShown {
+		t.Fatal("the hint showed for an English word")
+	}
+	apply(tt, a, func() {
+		a.CloseLookup()
+		a.library.Jobs[0].SpokenLanguage = "ja"
+		a.LookUpWord(0, "Hello")
+	})
+	if !a.vocab.lookup.dictHint || !tt.Exists("id:film-lookup-dict-hint") || !hasText(tt, testlocale.Messages().VocabLookupDictHint()) {
+		t.Fatalf("no hint for a Japanese word: %+v; texts %q", a.vocab.lookup, tt.Texts())
+	}
+	var saved savedSettings
+	if data, err := os.ReadFile(a.settingsPath); err != nil || json.Unmarshal(data, &saved) != nil || !saved.PluginDictHintShown {
+		t.Fatalf("settings.json: %s, %v", data, err)
+	}
+	tt.Press("id:film-lookup-dict-hint-open")
+	refresh(tt, a)
+	wantSettings(t, a, settings.SectionPlugins)
+	if a.vocab.lookup.open {
+		t.Fatal("the card stayed open")
+	}
+	apply(tt, a, func() { a.prefs.open = false; a.LookUpWord(0, "Hello") })
+	if a.vocab.lookup.dictHint {
+		t.Fatal("the hint showed twice")
+	}
+
+	// A Japanese dictionary installed: no hint, though it was never shown.
+	apply(tt, a, func() { a.plugins.dictHintShown = false; a.CloseLookup() })
+	pluginsDictInstalled(t, a, tt, updates, pluginDictionary("example.ja-zh", "Japanese words", "ja", "zh-Hans"), map[string][]byte{"words.tsv": []byte("公園\tこうえん\t公园\n")})
+	apply(tt, a, func() { a.LookUpWord(0, "Hello") })
+	if a.vocab.lookup.dictHint || a.plugins.dictHintShown {
+		t.Fatal("the hint showed with a Japanese dictionary installed")
 	}
 }
 
@@ -1076,7 +1220,7 @@ func TestPluginDictionariesAnswerInTheirOrder(t *testing.T) {
 	}
 }
 
-// TestPluginDictionaryAnswersAPhone checks a paired phone's lookup through the desktop (phoneStudy.LookUp) with dictionaries: offline and without an AI service, a Japanese word as it inflects (行った) is found by its dictionary form (行く) in a Yomitan dictionary, though its definitions are in English while the film is translated into Chinese; with an AI service set the AI service answers instead, as only a dictionary in the language the lookup answers in comes before it; a dictionary in that language answers before the AI service, which is not asked; and a read-only phone keeps nothing among the words looked up.
+// TestPluginDictionaryAnswersAPhone checks a paired phone's lookup through the desktop (phoneStudy.LookUp) with dictionaries: offline and without an AI service, a Japanese word as it inflects (行った) is found by its dictionary form (行く) in a Yomitan dictionary, though its definitions are in English while the film is translated into Chinese; with an AI service set the AI service answers instead, as only a dictionary in the language the lookup answers in comes before it; a dictionary in that language answers before the AI service, which is not asked; and a read-only phone keeps nothing among the words looked up. Each answer says where it came from (psync.WordSource): the dictionary's name and credit, or the AI service.
 func TestPluginDictionaryAnswersAPhone(t *testing.T) {
 	a, tt, updates := newTestApp(t, &fakePipeline{})
 	onEngine(a, func() { a.prefs.language = "简体中文" })
@@ -1107,12 +1251,15 @@ func TestPluginDictionaryAnswersAPhone(t *testing.T) {
 	if err != nil || e.Word != "行く" || e.Reading != "いく" || e.Meaning != "to go; to move" || e.Language != "简体中文" {
 		t.Fatalf("offline: %+v, %v", e, err)
 	}
+	if e.Source != (psync.WordSource{Kind: psync.SourceDictionary, Name: "JMdict (English)", Desktop: phoneSyncName()}) {
+		t.Fatalf("offline, the source: %+v", e.Source)
+	}
 
 	srv, seen := fakeLLM(t, `{"word":"行く","reading":"いく","meaning":"去"}`)
 	onEngine(a, func() {
 		a.pipeline = media.Tools{Translator: media.ChatTranslator{BaseURL: srv.URL + "/v1", APIKey: "k", Model: "m1"}}
 	})
-	if e, err := look(psync.Caller{ReadOnly: true}, "行った", "公園に行った"); err != nil || e.Meaning != "去" || len(*seen) == 0 {
+	if e, err := look(psync.Caller{ReadOnly: true}, "行った", "公園に行った"); err != nil || e.Meaning != "去" || len(*seen) == 0 || e.Source != (psync.WordSource{Kind: psync.SourceAI, Desktop: phoneSyncName()}) {
 		t.Fatalf("with an AI service: %+v, %v, asked %d times", e, err, len(*seen))
 	}
 	if a.vocabCache().Len() != 0 {
@@ -1121,7 +1268,7 @@ func TestPluginDictionaryAnswersAPhone(t *testing.T) {
 	asked := len(*seen)
 
 	pluginsDictInstalled(t, a, tt, updates, pluginDictionary("example.ja-zh", "Japanese words", "ja", "zh-Hans"), map[string][]byte{"words.tsv": []byte("公園\tこうえん\t公园\n")})
-	if e, err := look(psync.Caller{}, "公園", "公園に行った"); err != nil || e.Meaning != "公园" || len(*seen) != asked {
+	if e, err := look(psync.Caller{}, "公園", "公園に行った"); err != nil || e.Meaning != "公园" || len(*seen) != asked || e.Source != (psync.WordSource{Kind: psync.SourceDictionary, Name: "Japanese words", Credit: "Japanese words © Example", Desktop: phoneSyncName()}) {
 		t.Fatalf("a dictionary into Chinese: %+v, %v, the AI service asked again", e, err)
 	}
 	if a.vocabCache().Len() != 0 {

@@ -602,6 +602,9 @@ var Parameters = map[string][]string{
 	"RevokedPending":                 {"count"},
 	"RevokedTitle":                   {"name"},
 	"PlayerTabNotesCount":            {"count"},
+	"PlayerWordSourceAI":             {"computer"},
+	"PlayerWordSourceDict":           {"name"},
+	"PlayerWordSourceDictCredit":     {"name", "credit"},
 	"SettingsConflictDate":           {"when"},
 	"SettingsConflictReadOnly":       {"computer"},
 	"SettingsConflictToday":          {"when"},
@@ -775,6 +778,9 @@ type Translation struct {
 	RevokedPending                 func(count int) string
 	RevokedTitle                   func(name string) string
 	PlayerTabNotesCount            func(count int) string
+	PlayerWordSourceAI             func(computer string) string
+	PlayerWordSourceDict           func(name string) string
+	PlayerWordSourceDictCredit     func(name string, credit string) string
 	SettingsConflictDate           func(hc string, when time.Time) string
 	SettingsConflictReadOnly       func(computer string) string
 	SettingsConflictToday          func(hc string, when time.Time) string
@@ -1143,6 +1149,7 @@ const (
 	textPlayerTabParts
 	textPlayerUnsavedToast
 	textPlayerWordInLine
+	textPlayerWordSourceAIUnnamed
 	textSessionDownloading
 	textSettingsAbout
 	textSettingsComputers
@@ -1587,6 +1594,7 @@ var keyOfText = [numTexts]string{
 	"playerTabParts",
 	"playerUnsavedToast",
 	"playerWordInLine",
+	"playerWordSourceAIUnnamed",
 	"sessionDownloading",
 	"settingsAbout",
 	"settingsComputers",
@@ -2029,6 +2037,7 @@ var textsEn = i18n.NewTexts(""+
 	"Parts"+
 	"Line removed from saved"+
 	"In this line"+
+	"Explained by your computer's AI service"+
 	"Downloading films"+
 	"About"+
 	"Computers"+
@@ -2468,6 +2477,7 @@ var textsEn = i18n.NewTexts(""+
 		5,
 		23,
 		12,
+		39,
 		17,
 		5,
 		9,
@@ -2910,6 +2920,7 @@ var textsJa = i18n.NewTexts(""+
 	"パート"+
 	"保存を取り消しました"+
 	"この文では"+
+	"パソコンの AI サービスによる説明"+
 	"動画をダウンロード中"+
 	"このアプリについて"+
 	"コンピュータ"+
@@ -3349,6 +3360,7 @@ var textsJa = i18n.NewTexts(""+
 		9,
 		30,
 		15,
+		46,
 		30,
 		27,
 		18,
@@ -3791,6 +3803,7 @@ var textsKo = i18n.NewTexts(""+
 	"구간"+
 	"저장을 취소했습니다"+
 	"이 문장에서"+
+	"컴퓨터에 있는 AI 서비스의 설명"+
 	"영상 다운로드 중"+
 	"정보"+
 	"컴퓨터"+
@@ -4230,6 +4243,7 @@ var textsKo = i18n.NewTexts(""+
 		6,
 		28,
 		16,
+		42,
 		23,
 		6,
 		9,
@@ -4672,6 +4686,7 @@ var textsZhHans = i18n.NewTexts(""+
 	"片段"+
 	"已取消收藏"+
 	"在这句里"+
+	"由电脑上的 AI 服务解释"+
 	"正在下载影片"+
 	"关于"+
 	"电脑"+
@@ -5111,6 +5126,7 @@ var textsZhHans = i18n.NewTexts(""+
 		6,
 		15,
 		12,
+		31,
 		18,
 		6,
 		6,
@@ -5553,6 +5569,7 @@ var textsZhHant = i18n.NewTexts(""+
 	"片段"+
 	"已取消收藏"+
 	"在這句裡"+
+	"由電腦上的 AI 服務解釋"+
 	"正在下載影片"+
 	"關於"+
 	"電腦"+
@@ -5992,6 +6009,7 @@ var textsZhHant = i18n.NewTexts(""+
 		6,
 		15,
 		12,
+		31,
 		18,
 		6,
 		6,
@@ -6576,6 +6594,15 @@ func Supply(lang string, t Translation) {
 	}
 	if t.PlayerTabNotesCount != nil {
 		s.PlayerTabNotesCount = t.PlayerTabNotesCount
+	}
+	if t.PlayerWordSourceAI != nil {
+		s.PlayerWordSourceAI = t.PlayerWordSourceAI
+	}
+	if t.PlayerWordSourceDict != nil {
+		s.PlayerWordSourceDict = t.PlayerWordSourceDict
+	}
+	if t.PlayerWordSourceDictCredit != nil {
+		s.PlayerWordSourceDictCredit = t.PlayerWordSourceDictCredit
 	}
 	if t.SettingsConflictDate != nil {
 		s.SettingsConflictDate = t.SettingsConflictDate
@@ -14480,6 +14507,113 @@ func PlayerWordInLine(cx *core.Scope) string { return For(cx).PlayerWordInLine()
 
 // PlayerWordInLine is the package's PlayerWordInLine in the language of msgs.
 func (msgs Messages) PlayerWordInLine() string { return msgs.text(textPlayerWordInLine) }
+
+// PlayerWordSourceAI says "Explained by the AI service on {computer}"
+// in the language the app shows under cx.
+//
+// Word card, under the meaning: the computer's AI service gave the meaning, now or when the word was looked up there before.
+func PlayerWordSourceAI(cx *core.Scope, computer string) string {
+	return For(cx).PlayerWordSourceAI(computer)
+}
+
+// PlayerWordSourceAI is the package's PlayerWordSourceAI in the language of msgs.
+func (msgs Messages) PlayerWordSourceAI(computer string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.PlayerWordSourceAI(computer))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].PlayerWordSourceAI; f != nil {
+			return f(computer)
+		}
+		switch lang {
+		case "", "en":
+			return "Explained by the AI service on " + msgs.arg(computer)
+		case "ja":
+			return computer + " の AI サービスによる説明"
+		case "ko":
+			return computer + "에 있는 AI 서비스의 설명"
+		case "zh-Hans":
+			return "由 " + computer + " 上的 AI 服务解释"
+		case "zh-Hant":
+			return "由 " + computer + " 上的 AI 服務解釋"
+		}
+	}
+}
+
+// PlayerWordSourceAIUnnamed says "Explained by your computer's AI service"
+// in the language the app shows under cx.
+//
+// Word card, under the meaning: a computer's AI service gave the meaning, from a computer that did not say its name with the answer.
+func PlayerWordSourceAIUnnamed(cx *core.Scope) string { return For(cx).PlayerWordSourceAIUnnamed() }
+
+// PlayerWordSourceAIUnnamed is the package's PlayerWordSourceAIUnnamed in the language of msgs.
+func (msgs Messages) PlayerWordSourceAIUnnamed() string {
+	return msgs.text(textPlayerWordSourceAIUnnamed)
+}
+
+// PlayerWordSourceDict says "From the dictionary {name}"
+// in the language the app shows under cx.
+//
+// Word card, under the meaning: a dictionary pack installed on the computer gave the meaning; {name} is its name, as the computer gives it.
+func PlayerWordSourceDict(cx *core.Scope, name string) string {
+	return For(cx).PlayerWordSourceDict(name)
+}
+
+// PlayerWordSourceDict is the package's PlayerWordSourceDict in the language of msgs.
+func (msgs Messages) PlayerWordSourceDict(name string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.PlayerWordSourceDict(name))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].PlayerWordSourceDict; f != nil {
+			return f(name)
+		}
+		switch lang {
+		case "", "en":
+			return "From the dictionary " + msgs.arg(name)
+		case "ja":
+			return "辞書「" + name + "」より"
+		case "ko":
+			return "사전 「" + name + "」에서"
+		case "zh-Hans":
+			return "来自词典「" + name + "」"
+		case "zh-Hant":
+			return "來自詞典「" + name + "」"
+		}
+	}
+}
+
+// PlayerWordSourceDictCredit says "From the dictionary {name} · {credit}"
+// in the language the app shows under cx.
+//
+// Word card, under the meaning: a dictionary pack installed on the computer gave the meaning; {name} is its name and {credit} the credit its license asks for, as the pack wrote it.
+func PlayerWordSourceDictCredit(cx *core.Scope, name string, credit string) string {
+	return For(cx).PlayerWordSourceDictCredit(name, credit)
+}
+
+// PlayerWordSourceDictCredit is the package's PlayerWordSourceDictCredit in the language of msgs.
+func (msgs Messages) PlayerWordSourceDictCredit(name string, credit string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.PlayerWordSourceDictCredit(name, credit))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].PlayerWordSourceDictCredit; f != nil {
+			return f(name, credit)
+		}
+		switch lang {
+		case "", "en":
+			return "From the dictionary " + msgs.arg(name) + " · " + msgs.arg(credit)
+		case "ja":
+			return "辞書「" + name + "」より · " + credit
+		case "ko":
+			return "사전 「" + name + "」에서 · " + credit
+		case "zh-Hans":
+			return "来自词典「" + name + "」 · " + credit
+		case "zh-Hant":
+			return "來自詞典「" + name + "」 · " + credit
+		}
+	}
+}
 
 // SessionDownloading says "Downloading films"
 // in the language the app shows under cx.

@@ -138,6 +138,41 @@ func TestAWordTappedIsLookedUpThroughTheComputer(t *testing.T) {
 	}
 }
 
+// The word card says where the meaning came from, as the computer says it: a dictionary installed there, with the credit its license asks for, or the AI service of the computer that answered, by the name it sent with the answer, or without a name when it sent none; an older computer that does not say leaves it out.
+func TestTheWordCardSaysWhereTheMeaningCameFrom(t *testing.T) {
+	d := newDesktop(t)
+	d.SetEntry("Good", sync.WordEntry{Word: "good", Meaning: "adj. 好", Language: "简体中文", Source: sync.WordSource{Kind: sync.SourceDictionary, Name: "CC-CEDICT", Credit: "CC-CEDICT © MDBG"}})
+	d.SetEntry("morning", sync.WordEntry{Word: "morning", Meaning: "n. 早晨", Language: "简体中文", Source: sync.WordSource{Kind: sync.SourceAI, Desktop: "Office"}})
+	p, _ := studyPlayer(t, d)
+	source := func(word string) (string, bool) {
+		p.app.Press(`id:player-card >> text:"` + word + `"`)
+		p.app.WaitFor("id:player-word-meaning", wait)
+		defer p.app.Press("id:player-word-close")
+		if !p.app.Exists("id:player-word-source") {
+			return "", false
+		}
+		return p.app.Find("id:player-word-source").Text, true
+	}
+	if got, _ := source("Good"); got != msgs.PlayerWordSourceDictCredit("CC-CEDICT", "CC-CEDICT © MDBG") {
+		t.Fatalf("a dictionary's meaning says %q", got)
+	}
+	// The name the computer sent with the answer, not that of the film's computer.
+	if got, _ := source("morning"); got != msgs.PlayerWordSourceAI("Office") {
+		t.Fatalf("the AI service's meaning says %q", got)
+	}
+
+	older := newDesktop(t)
+	older.SetEntry("morning", sync.WordEntry{Word: "morning", Meaning: "n. 早晨", Language: "简体中文"})
+	older.SetEntry("Good", sync.WordEntry{Word: "good", Meaning: "adj. 好", Language: "简体中文", Source: sync.WordSource{Kind: sync.SourceAI}})
+	p, _ = studyPlayer(t, older)
+	if got, _ := source("Good"); got != msgs.PlayerWordSourceAIUnnamed() {
+		t.Fatalf("the AI service's meaning without a name says %q", got)
+	}
+	if got, ok := source("morning"); ok {
+		t.Fatalf("an older computer's meaning says %q", got)
+	}
+}
+
 // Without an AI service on the computer, the word card says to set one up there.
 func TestALookupWithoutAnAIServiceSaysWhere(t *testing.T) {
 	d := newDesktop(t)
