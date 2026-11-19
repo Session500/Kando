@@ -117,7 +117,7 @@ func TestUseThisKeepsTheVersionPicked(t *testing.T) {
 	}
 }
 
-// The player sends where the film was left to its computer as it is held or left, not every few seconds while it plays on, so the computer and the other devices go on from there.
+// The player sends where the film was left to its computer as it is held, minimized or left, not every few seconds while it plays on, so the computer and the other devices go on from there.
 func TestWhereAFilmWasLeftGoesToTheComputer(t *testing.T) {
 	d := newDesktop(t)
 	p, _ := studyPlayer(t, d)
@@ -127,7 +127,7 @@ func TestWhereAFilmWasLeftGoesToTheComputer(t *testing.T) {
 	if d.Puts() != puts {
 		t.Fatal("the position went to the computer while the film played on")
 	}
-	p.app.Press("id:player-back")
+	p.app.Press("id:player-minimize")
 	p.app.WaitUntil(wait, func() bool {
 		r, ok := d.State("lib", sync.KindPosition, "f1")
 		return ok && string(r.Fields[sync.FieldPositionMS].Value) == "6000"
