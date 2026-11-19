@@ -16,18 +16,23 @@ import (
 	"testing"
 	"time"
 
+	"kando/apps/kando/browse"
 	"kando/apps/kando/film/subtitle"
+	"kando/apps/kando/films"
 	"kando/apps/kando/locales"
 	"kando/apps/kando/locales/testlocale"
 	"kando/apps/kando/plugins"
 	"kando/apps/kando/plugins/dict"
+	"kando/apps/kando/remote"
 	"kando/apps/kando/saved"
 	"kando/apps/kando/settings"
+	"kando/apps/kando/sites/catalog"
 	"kando/packages/core"
 	"kando/packages/core/segment"
 	"kando/packages/media"
 	psync "kando/packages/sync"
 
+	ns "github.com/nsgo-dev/nsgo/core"
 	"github.com/nsgo-dev/nsgo/nsgotest"
 )
 
@@ -1458,4 +1463,292 @@ func TestPluginMarksSurviveNewLines(t *testing.T) {
 		t.Fatalf("a changed original was not marked again, its old marks stayed on the new text, or an unchanged line lost its marks meanwhile: marking %+v, cue 0 %+v, cue 1 %+v", a.plugins.marking, a.CueMarks(0), a.CueMarks(1))
 	}
 	waitUntil(t, tt, a, updates, func() bool { return slices.Equal(a.CueMarks(0), bye) })
+}
+
+// pluginSite is a site pack's manifest of two sites, neither of Kando's own.
+const pluginSite = `{
+  "schema": 1,
+  "id": "example.videos",
+  "kind": "site",
+  "version": "1.0.0",
+  "license": "MIT",
+  "name": {"en": "Example videos", "zh-Hans": "示例视频"},
+  "site": {"sites": [
+    {"domain": "videos.example.org", "videos": [{"path": "^/v/[0-9]+/?$"}]},
+    {"domain": "clips.example.net", "videos": [{"path": "^/c/[a-z0-9]{6,12}$"}]}
+  ]}
+}`
+
+// The links of pluginSite's sites: a video and the home of videos.example.org, and a video of clips.example.net.
+const (
+	pluginSiteVideo = "https://videos.example.org/v/42"
+	pluginSiteHome  = "https://videos.example.org/"
+	pluginSiteClip  = "https://clips.example.net/c/abcdef12"
+)
+
+// pluginsSiteApp starts the app with pluginSite installed, turned on and allowing the domains of allow alone, on the browser's page.
+func pluginsSiteApp(t *testing.T, allow ...string) (*app, *nsgotest.App, chan func(), string) {
+	t.Helper()
+	a, tt, updates, root := pluginsApp(t, pluginSite)
+	for _, domain := range allow {
+		a.SetPluginSiteAllowed("example.videos", domain, true)
+		waitUntil(t, tt, a, updates, func() bool { return !a.plugins.busy })
+	}
+	a.Select(pageBrowse)
+	refresh(tt, a)
+	return a, tt, updates, root
+}
+
+// TestPluginSiteAllowsEachDomain checks that a site pack's domains are allowed one by one: the install confirmation has a checkbox for each, none ticked, and installs allowing only those ticked; the pack's details tick and untick each, saved in state.json; turning the pack off and on keeps them; the page says under the group that the browser extension does not cover them; and a domain no one allowed is not known to 下载视频.
+func TestPluginSiteAllowsEachDomain(t *testing.T) {
+	a, tt, updates, root := pluginsApp(t)
+	m := testlocale.Messages()
+	tt = settingsOpenAt(a, tt, settings.SectionPlugins)
+	tt.DropFiles("id:settings-plugins", fileURLs(pluginFolder(t, pluginSite))...)
+	waitUntil(t, tt, a, updates, func() bool { return a.plugins.pending != nil })
+	refresh(tt, a)
+	first, second := "id:plugins-install-site-videos.example.org", "id:plugins-install-site-clips.example.net"
+	if !tt.Exists(first) || !tt.Exists(second) || !hasText(tt, m.SettingsPluginsSiteDetail(2)) || !hasText(tt, m.SettingsPluginsSitesAllowed()) {
+		t.Fatalf("the confirmation; texts %q", tt.Texts())
+	}
+	if a.PluginInstallSiteTicked("videos.example.org") || a.PluginInstallSiteTicked("clips.example.net") {
+		t.Fatal("a domain is ticked before the user ticked it")
+	}
+	tt.Press(first)
+	if !a.PluginInstallSiteTicked("videos.example.org") || a.PluginInstallSiteTicked("clips.example.net") {
+		t.Fatalf("ticked %q", a.plugins.pending.sites)
+	}
+	// A domain the pack does not name cannot be ticked.
+	a.SetPluginInstallSite("evil.example.com", true)
+	tt.Press("id:plugins-install-ok")
+	waitUntil(t, tt, a, updates, func() bool { return !a.plugins.busy && len(a.plugins.packs) == 1 })
+	state, err := plugins.LoadState(root)
+	if err != nil || !state.Allowed("example.videos", "videos.example.org") || state.Allowed("example.videos", "clips.example.net") || state.Allowed("example.videos", "evil.example.com") {
+		t.Fatalf("state.json after the install: %+v, %v", state, err)
+	}
+	if id, video := a.pluginSiteOf(pluginSiteVideo); id != "example.videos" || !video {
+		t.Fatalf("pluginSiteOf(%q) = %q, %v", pluginSiteVideo, id, video)
+	}
+	if id, _ := a.pluginSiteOf(pluginSiteClip); id != "" {
+		t.Fatalf("a domain no one allowed is known to 下载视频: %q", id)
+	}
+	if !tt.Exists("id:settings-plugins-sites-note") || !hasText(tt, m.SettingsPluginsKindSite()) {
+		t.Fatalf("the site group; texts %q", tt.Texts())
+	}
+
+	tt.Press("id:settings-plugins-details-example.videos")
+	tt.Press("id:settings-plugins-site-example.videos-clips.example.net")
+	waitUntil(t, tt, a, updates, func() bool { return !a.plugins.busy })
+	if state, err := plugins.LoadState(root); err != nil || !state.Allowed("example.videos", "clips.example.net") || !state.Allowed("example.videos", "videos.example.org") {
+		t.Fatalf("state.json after allowing the second domain: %+v, %v", state, err)
+	}
+	tt.Press("id:settings-plugins-site-example.videos-videos.example.org")
+	waitUntil(t, tt, a, updates, func() bool { return !a.plugins.busy })
+	if state, _ := plugins.LoadState(root); state.Allowed("example.videos", "videos.example.org") {
+		t.Fatal("the first domain stayed allowed after it was unticked")
+	}
+	if id, _ := a.pluginSiteOf(pluginSiteVideo); id != "" {
+		t.Fatal("下载视频 still knows a domain no longer allowed")
+	}
+
+	a.SetPluginEnabled("example.videos", false)
+	waitUntil(t, tt, a, updates, func() bool { return !a.plugins.busy })
+	if id, _ := a.pluginSiteOf(pluginSiteClip); id != "" {
+		t.Fatal("下载视频 knows the site of a pack turned off")
+	}
+	a.SetPluginEnabled("example.videos", true)
+	waitUntil(t, tt, a, updates, func() bool { return !a.plugins.busy })
+	if state, _ := plugins.LoadState(root); !state.Allowed("example.videos", "clips.example.net") {
+		t.Fatalf("turning the pack off and on forgot its domains: %+v", state)
+	}
+	if id, _ := a.pluginSiteOf(pluginSiteClip); id != "example.videos" {
+		t.Fatal("下载视频 does not know the site again once the pack is on")
+	}
+}
+
+// TestPluginSiteInstalledAllowsNothing checks that a site pack installed without the confirmation's ticks, as one copied into the plugins folder, is turned on but allows no domain, so 下载视频 knows none of its sites.
+func TestPluginSiteInstalledAllowsNothing(t *testing.T) {
+	a, _, _, _ := pluginsApp(t, pluginSite)
+	if !a.plugins.state.Enabled("example.videos") || len(a.plugins.sites) != 0 {
+		t.Fatalf("sites %+v", a.plugins.sites)
+	}
+	for _, u := range []string{pluginSiteVideo, pluginSiteClip} {
+		if id, _ := a.pluginSiteOf(u); id != "" {
+			t.Fatalf("%s is known without being allowed", u)
+		}
+	}
+}
+
+// TestPluginSiteDownloadsWithoutSignIn checks the built-in browser's 下载视频 on an allowed site of a site pack: off on the site's pages that are no video, on on a video, whose job is the pack's and borrows no browser's sign-in, though Settings › 通用 › 浏览器登录 names one, nor the pages' cookies, even after a remedy set a browser on it; a domain of the pack not allowed is a site like any other, whose job borrows the sign-in as before.
+func TestPluginSiteDownloadsWithoutSignIn(t *testing.T) {
+	a, tt, updates, _ := pluginsSiteApp(t, "videos.example.org")
+	a.signin.browser = "chrome"
+	browseOpen(t, a, tt, pluginSiteHome)
+	if tt.Enabled("id:browse-download") || !a.BrowseState().NotVideo {
+		t.Fatal("下载视频 is on on the home of a site pack's site")
+	}
+	browseOpen(t, a, tt, pluginSiteVideo)
+	if !tt.Enabled("id:browse-download") {
+		t.Fatal("下载视频 is off on a video of a site pack's site")
+	}
+	tt.Press("id:browse-download")
+	tt.AnswerScript(browsePage, `"`+pluginSiteVideo+`"`, "")
+	tt.Settle()
+	settle(t, a, tt, updates)
+	browseOpen(t, a, tt, pluginSiteClip)
+	tt.Press("id:browse-download")
+	tt.AnswerScript(browsePage, `"`+pluginSiteClip+`"`, "")
+	tt.Settle()
+	settle(t, a, tt, updates)
+	video, ok := a.queueFindSource(pluginSiteVideo)
+	if !ok || video.PluginSite != "example.videos" || video.Cookies != core.CookiesNone || video.Browser() != "" {
+		t.Fatalf("the job of the site pack's video: %+v", video)
+	}
+	clip, ok := a.queueFindSource(pluginSiteClip)
+	if !ok || clip.PluginSite != "" || clip.Cookies != "chrome" {
+		t.Fatalf("the job of a domain not allowed: %+v", clip)
+	}
+
+	a.pipeline = media.Tools{SiteCookies: func(context.Context, string) ([]media.Cookie, string, error) { return nil, "", nil }}
+	video.Cookies = "chrome"
+	tools := a.queuePipeline(video).(media.Tools)
+	if tools.Cookies != "" || tools.SiteCookies != nil {
+		t.Fatalf("the download of the site pack's video borrows %q, site cookies %v", tools.Cookies, tools.SiteCookies != nil)
+	}
+	if other := a.queuePipeline(clip).(media.Tools); other.Cookies != "chrome" || other.SiteCookies == nil {
+		t.Fatalf("the download of another site borrows %q", other.Cookies)
+	}
+}
+
+// TestPluginSiteRemedyBorrowsNoSignIn checks that the card of a failed download from a site pack's site offers no browser's sign-in, which its download would not borrow, and says why, while the same failure from another site offers it.
+func TestPluginSiteRemedyBorrowsNoSignIn(t *testing.T) {
+	a, _, _, _ := pluginsSiteApp(t, "videos.example.org")
+	a.queue.ytdlp.browsers = []media.Browser{{ID: "chrome", Name: "Chrome"}}
+	for _, kind := range []core.FailKind{core.FailLogin, core.FailMembers, core.FailAge, core.FailRateLimit} {
+		a.library.Upsert(core.Job{ID: "site", Source: pluginSiteVideo, Stage: core.StageFailed, FailKind: kind, Cookies: core.CookiesNone, PluginSite: "example.videos", LibraryDir: a.snap().LibraryDir})
+		a.library.Upsert(core.Job{ID: "other", Source: "https://example.com/v/1", Stage: core.StageFailed, FailKind: kind, LibraryDir: a.snap().LibraryDir})
+		r, ok := a.FailureRemedy(films.Film{JobID: "site"})
+		if !ok || r.Why != testlocale.Messages().QueueRemedyPluginSite() || slices.ContainsFunc(r.Actions, func(act films.RemedyAction) bool { return strings.HasPrefix(act.ID, remedyBorrow) }) {
+			t.Errorf("%s: the card of the site pack's video %+v", kind, r)
+		}
+		if other, _ := a.FailureRemedy(films.Film{JobID: "other"}); !slices.ContainsFunc(other.Actions, func(act films.RemedyAction) bool { return strings.HasPrefix(act.ID, remedyBorrow) }) {
+			t.Errorf("%s: the card of another site offers no sign-in: %+v", kind, other)
+		}
+	}
+}
+
+// TestPluginSiteWidensNoGate checks that an allowed site of a site pack is known to the built-in browser alone: not to kcore.VideoLink or the catalog, which the other ways in trust; not to the browser extension's methods on the control socket (browser.state, browser.add, browser.show); not to the list of sites the command line and the MCP server read; and a link of it the command line or the MCP server adds (add) is a link of a site like any other, not the pack's.
+func TestPluginSiteWidensNoGate(t *testing.T) {
+	a, _, updates, _ := pluginsSiteApp(t, "videos.example.org", "clips.example.net")
+	remoteServe(t, a)
+	for _, u := range []string{pluginSiteVideo, pluginSiteClip} {
+		if core.VideoLink(u) || browse.VideoLink(u) || catalog.Load().On(u) || browserExtVideo(u) {
+			t.Fatalf("%s is known to a gate of the app", u)
+		}
+		if id, video := a.pluginSiteOf(u); id == "" || !video {
+			t.Fatalf("%s is not known to 下载视频", u)
+		}
+	}
+
+	state, err := remoteCall[remote.BrowserState](t, updates, remote.MethodBrowserState, remote.BrowserStateParams{URLs: []string{pluginSiteVideo, pluginSiteClip}})
+	if err != nil || len(state.Have) != 0 {
+		t.Fatalf("browser.state %+v, %v", state, err)
+	}
+	for _, u := range []string{pluginSiteVideo, pluginSiteClip} {
+		_, err := remoteCall[remote.BrowserAdded](t, updates, remote.MethodBrowserAdd, remote.BrowserAddParams{URL: u})
+		remoteWantCode(t, err, remote.CodeInvalid)
+		_, err = remoteCall[remote.BrowserShown](t, updates, remote.MethodBrowserShow, remote.BrowserShowParams{URL: u})
+		remoteWantCode(t, err, remote.CodeInvalid)
+	}
+	if len(a.library.Jobs) != 0 {
+		t.Fatalf("the extension's methods added %+v", a.library.Jobs)
+	}
+	for _, q := range []string{"videos.example.org", "example.org", "clips.example.net", "Example videos"} {
+		if sites := remoteSites(remote.SitesParams{Query: q}); slices.ContainsFunc(sites, func(s remote.Site) bool { return strings.Contains(s.Domain, "example") }) {
+			t.Fatalf("the sites list has a site pack's site for %q: %+v", q, sites)
+		}
+	}
+
+	// A pack that names a site the catalog lists, as one that slipped past plugins.Validate, is not consulted for it.
+	twitch, err := core.NewVideoMatcher([]core.VideoSite{{Domain: "twitch.tv", Videos: []core.VideoShape{{Path: `^/videos/[0-9]+$`}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.plugins.sites = append(a.plugins.sites, pluginsSite{id: "example.twitch", sites: twitch})
+	if id, _ := a.pluginSiteOf("https://www.twitch.tv/videos/1"); id != "" {
+		t.Fatalf("a site of the catalog is the pack %q's", id)
+	}
+
+	added, err := remoteCall[remote.AddResult](t, updates, remote.MethodAdd, remote.AddParams{Sources: []string{pluginSiteVideo}})
+	if err != nil || len(added.Jobs) != 1 {
+		t.Fatalf("add %+v, %v", added, err)
+	}
+	if job, ok := a.queueFindSource(pluginSiteVideo); !ok || job.PluginSite != "" {
+		t.Fatalf("the command line's job is the pack's: %+v", job)
+	}
+}
+
+// TestPluginSitePageButtons checks the built-in browser's own buttons on a site pack's sites: the page script knows the sites the user allowed and no other, and the web view is made again, at the page it showed, as that changes; the app answers what a page of an allowed site asks about its videos and adds the one its button posts, borrowing no sign-in, checking both with its own matcher of the sites, whatever the page says: a link of a domain not allowed, a page of a site not allowed, and a link of the site that is no video's are left alone.
+func TestPluginSitePageButtons(t *testing.T) {
+	a, tt, updates, _ := pluginsSiteApp(t, "videos.example.org")
+	browseOpen(t, a, tt, pluginSiteHome)
+	script := tt.FindMounted(browsePage).Web.InjectedJavaScriptBeforeContent
+	if !strings.Contains(script, `"videos.example.org"`) || strings.Contains(script, "clips.example.net") || !strings.Contains(script, `"youtube.com"`) {
+		t.Fatal("the page script does not know exactly the allowed site besides Kando's own")
+	}
+
+	// A page of a site not allowed, and links not allowed or of no video, are not answered.
+	browsePagePost(tt, pluginSiteClip, browseAskData(pluginSiteClip))
+	browsePagePost(tt, pluginSiteHome, browseAskData(pluginSiteClip, pluginSiteHome, "https://videos.example.org/v/x"))
+	if n := len(browsePageStates(t, tt)); n != 0 {
+		t.Fatalf("%d answers to what no button may ask", n)
+	}
+	browsePagePost(tt, pluginSiteHome, browseAskData(pluginSiteVideo, pluginSiteClip))
+	states := browsePageStates(t, tt)
+	if len(states) != 1 || len(states[0].Have) != 1 || states[0].Have[pluginSiteVideo] != "" {
+		t.Fatalf("answers %+v", states)
+	}
+	// A page of a pack's site asks about and adds only that pack's videos, never Kando's sites' (which would borrow a sign-in), and a page of Kando's sites never the pack's.
+	youtube := "https://www.youtube.com/watch?v=jNQXAC9IVRw"
+	browsePagePost(tt, pluginSiteHome, browseAskData(youtube))
+	browsePagePost(tt, "https://www.youtube.com/", browseAskData(pluginSiteVideo))
+	if n := len(browsePageStates(t, tt)); n != 1 {
+		t.Fatalf("%d answers to a page asking about another site's videos", n-1)
+	}
+	for _, add := range []struct{ page, link string }{{pluginSiteClip, pluginSiteClip}, {pluginSiteHome, pluginSiteClip}, {pluginSiteHome, pluginSiteHome}, {"https://evil.example.com/", pluginSiteVideo}, {pluginSiteHome, youtube}, {"https://www.youtube.com/", pluginSiteVideo}} {
+		browsePagePost(tt, add.page, browseAddData(add.link, ""))
+	}
+	if len(a.library.Jobs) != 0 {
+		t.Fatalf("jobs %+v", a.library.Jobs)
+	}
+	a.signin.browser = "chrome"
+	browsePagePost(tt, pluginSiteHome, browseAddData(pluginSiteVideo, "A video"))
+	settle(t, a, tt, updates)
+	job, ok := a.queueFindSource(pluginSiteVideo)
+	if !ok || job.PluginSite != "example.videos" || job.Cookies != core.CookiesNone {
+		t.Fatalf("the job the page's button added: %+v", job)
+	}
+
+	// Allowing the second domain makes the web view again, at the page it showed, with a script that knows it.
+	a.Select(pageFilms)
+	a.SetPluginSiteAllowed("example.videos", "clips.example.net", true)
+	waitUntil(t, tt, a, updates, func() bool { return !a.plugins.busy })
+	a.Select(pageBrowse)
+	refresh(tt, a)
+	web := tt.FindMounted(browsePage).Web
+	if !strings.Contains(web.InjectedJavaScriptBeforeContent, "clips.example.net") || web.Source.Src != pluginSiteHome {
+		t.Fatalf("the web view after allowing a domain loads %q", web.Source.Src)
+	}
+	browseReport(tt, ns.WebNavigation{URL: pluginSiteHome})
+	browsePagePost(tt, pluginSiteClip, browseAskData(pluginSiteClip))
+	if states := browsePageStates(t, tt); len(states) != 1 || len(states[0].Have) != 1 {
+		t.Fatalf("answers on the web view made again %+v", states)
+	}
+	// Turning the pack off takes its sites out of the script.
+	a.SetPluginEnabled("example.videos", false)
+	waitUntil(t, tt, a, updates, func() bool { return !a.plugins.busy })
+	refresh(tt, a)
+	if strings.Contains(tt.FindMounted(browsePage).Web.InjectedJavaScriptBeforeContent, "example") {
+		t.Fatal("the script knows the sites of a pack turned off")
+	}
 }

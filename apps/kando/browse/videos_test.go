@@ -2,7 +2,7 @@ package browse
 
 import (
 	"encoding/json"
-	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -85,21 +85,13 @@ func TestPageScriptReadsTheVideoShapes(t *testing.T) {
 	if err := json.Unmarshal([]byte(videoSitesJSON()), &back); err != nil || len(back) != len(videoSites) {
 		t.Fatalf("videoSites as the script reads them: %v", err)
 	}
-	// Go's and JavaScript's regular expressions differ in flags, named groups and lookaround, which the shapes leave out.
-	shared := regexp.MustCompile(`^[\w\\^$/|()\[\]{}+*?.,@-]*$`)
+	// Go's and JavaScript's regular expressions differ in flags, named groups, lookaround and backreferences, which the shapes leave out, as kcore.ValidateVideoSites checks.
+	if err := kcore.ValidateVideoSites(videoSites); err != nil {
+		t.Error(err)
+	}
 	for _, s := range videoSites {
 		if !catalog.Load().On("https://" + s.Domain) {
 			t.Errorf("%s is not a site of the catalog", s.Domain)
-		}
-		for _, v := range s.Videos {
-			for _, p := range []string{v.Path, v.Value} {
-				if strings.Contains(p, "(?") || !shared.MatchString(p) {
-					t.Errorf("%s: %q is not read alike by Go and JavaScript", s.Domain, p)
-				}
-			}
-			if !strings.HasPrefix(v.Path, "^/") || !strings.HasSuffix(v.Path, "$") || (v.Param != "") != (v.Value != "") {
-				t.Errorf("%s: shape %+v", s.Domain, v)
-			}
 		}
 	}
 	for _, want := range []string{AskMessage, AddMessage, StateMessage, "ev.isTrusted", "MutationObserver", "attachShadow"} {
@@ -173,5 +165,36 @@ func TestAddedAt(t *testing.T) {
 		if got := AddedAt(data); got != want {
 			t.Errorf("AddedAt(%q) = %v, want %v", data, got, want)
 		}
+	}
+}
+
+// ScriptWith's buttons know the sites given after Kando's own, as the page reads them, and leave out a site whose patterns kcore.ValidateVideoSite refuses; Script knows Kando's own alone, as before.
+func TestScriptWithKnowsTheSitesGiven(t *testing.T) {
+	good := kcore.VideoSite{Domain: "videos.example.org", Videos: []kcore.VideoShape{{Path: `^/v/[0-9]+/?$`}}}
+	bad := kcore.VideoSite{Domain: "bad.example.net", Videos: []kcore.VideoShape{{Path: `^/(a+)+$`}}}
+	script := ScriptWith([]kcore.VideoSite{good, bad})
+	if !strings.Contains(script, "const sites = ("+sitesJSON(append(slices.Clone(videoSites), good))+")") || strings.Contains(script, "bad.example.net") {
+		t.Fatal("ScriptWith does not know exactly the valid site given after Kando's own")
+	}
+	// Each site's patterns are compiled in a try of its own, so a site the page's engine refuses leaves the others' buttons working.
+	if !strings.Contains(script, ").flatMap((s) => {\n    try {\n      return [{") || !strings.Contains(script, "} catch (e) {\n      return [];\n    }") {
+		t.Fatal("the page script does not read each site on its own")
+	}
+	if Script() != ScriptWith(nil) || strings.Contains(Script(), "example.org") {
+		t.Fatal("Script knows another site")
+	}
+	// A site's text cannot end the script it is written into.
+	odd := kcore.VideoSite{Domain: "videos.example.org", Videos: []kcore.VideoShape{{Path: `^/v/[0-9]+/?$`}}, Cut: []string{"</script><script>alert(1)</script>\u2028"}}
+	if strings.Contains(sitesJSON([]videoSite{odd}), "</script>") {
+		t.Fatal("sitesJSON wrote </script>")
+	}
+	// The page's messages read by another rule keep only the links it takes.
+	video := func(u string) bool { return u == "https://videos.example.org/v/1" }
+	ask, _ := json.Marshal([]string{"https://videos.example.org/v/1", "https://www.youtube.com/watch?v=jNQXAC9IVRw"})
+	if got, ok := ParseAskWith(AskMessage+string(ask), video); !ok || len(got) != 1 || got[0] != "https://videos.example.org/v/1" {
+		t.Fatalf("ParseAskWith = %q", got)
+	}
+	if _, _, ok := ParseAddWith(AddMessage+`{"url":"https://www.youtube.com/watch?v=jNQXAC9IVRw"}`, video); ok {
+		t.Fatal("ParseAddWith took a link its rule does not")
 	}
 }

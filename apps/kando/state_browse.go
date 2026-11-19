@@ -55,12 +55,15 @@ type browseUI struct {
 	buttons browseButtons
 	// signin is what the browser knows of its pages' sign-in (state_browse_signin.go).
 	signin browseSignInState
+	// script is the script the pages run before their own (BrowseScript); sites are the sites of the site packs its buttons know besides Kando's own (browseSitesChanged).
+	script string
+	sites  []kcore.VideoSite
 }
 
 func newBrowseUI() browseUI {
 	agent := &browseAgent{}
 	agent.set(browse.UserAgent())
-	return browseUI{view: &core.Ref{}, agent: agent}
+	return browseUI{view: &core.Ref{}, agent: agent, script: browse.Script()}
 }
 
 // browseAgent is the user agent of the browser's pages, which a download sends with their cookies so the site sees the same browser that signed in. It is "" where the pages keep the platform's own, which the app does not know.
@@ -300,11 +303,11 @@ func (a *app) browseCutShort() {
 // browseHeard is what a page posted: that it changed its address without loading another page, or its title (browse.Script), as the web view reports nothing then, or what its own buttons ask and add (browsePageAsk, browsePageAdd). The address and the title are read from the page itself rather than taken from what it posted, which any page could fill with another site's address. A page that pushed an address has the one it left to go back to, and none to go forward to.
 func (a *app) browseHeard(msg core.WebMessage) {
 	data := msg.Data
-	if links, ok := browse.ParseAsk(data); ok {
+	if links, ok := browse.ParseAskWith(data, a.browsePageVideo); ok {
 		a.browsePageAsk(msg.Origin, links)
 		return
 	}
-	if link, title, ok := browse.ParseAdd(data); ok {
+	if link, title, ok := browse.ParseAddWith(data, a.browsePageVideo); ok {
 		a.browsePageAdd(msg.Origin, link, title, browse.AddedAt(data))
 		return
 	}
@@ -401,7 +404,11 @@ func (a *app) browseEnqueue(u, title string) {
 		}
 		return
 	}
-	if err := a.Enqueue(u); err != nil {
+	// A video of a site pack's site borrows no sign-in (state_plugins_sites.go).
+	restore := a.pluginsStampSite(u)
+	err := a.Enqueue(u)
+	restore()
+	if err != nil {
 		a.browseWarn(sourceError(a.messages(), err), "")
 		var dup *queueDuplicate
 		if errors.As(err, &dup) {
@@ -423,8 +430,11 @@ func (a *app) browseEnqueue(u, title string) {
 	a.browse.noticeURL = a.browse.url
 }
 
-// browseList reports whether u is a playlist or a channel whose videos 下载视频 lists (core.Link.IsList), which the pipeline can do (playlistCan).
+// browseList reports whether u is a playlist or a channel whose videos 下载视频 lists (core.Link.IsList), which the pipeline can do (playlistCan). No page of a site pack's site is one (pluginSiteOf): only its links of one video are added.
 func (a *app) browseList(u string) bool {
+	if id, _ := a.pluginSiteOf(u); id != "" {
+		return false
+	}
 	link, ok := kcore.ParseLink(u)
 	return ok && link.IsList() && a.playlistCan()
 }
@@ -458,8 +468,11 @@ func (a *app) browseEnqueueAll(sources []string) {
 	}
 }
 
-// browseNotVideo reports whether u is a link to a page that lists videos without being one, which 下载视频 does not add: a site's home page, its search results, a feed or a hashtag, and a playlist or a channel when the pipeline cannot list their videos (browseList).
+// browseNotVideo reports whether u is a link to a page that lists videos without being one, which 下载视频 does not add: a site's home page, its search results, a feed or a hashtag, and a playlist or a channel when the pipeline cannot list their videos (browseList). On a site pack's site the pack's shapes decide: every page but those of one video is none (pluginSiteOf).
 func (a *app) browseNotVideo(u string) bool {
+	if id, video := a.pluginSiteOf(u); id != "" {
+		return !video
+	}
 	link, ok := kcore.ParseLink(u)
 	return ok && !link.OneVideo() && !a.browseList(u)
 }
