@@ -2,6 +2,18 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.28.0 - 2026-11-19
+
+### Features
+
+- The glossary on phones, the Terms tab's edit log with undo, and suggested terms (#287)
+- Learning state, settings, conflicts and subscriptions through the storage relay, and the storage's health on the phone (#283)
+
+### Fixes
+
+- Wait for a followed film's record before reading it (#297)
+- Cut each line once for the Words tab count and coalesce the re-cut once a dictionary is read (#285)
+
 ## 0.27.0 - 2026-11-19
 
 ### Features
