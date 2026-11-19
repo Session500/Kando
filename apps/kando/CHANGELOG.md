@@ -2,6 +2,12 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.35.0 - 2026-11-19
+
+### Features
+
+- Kando-plugin CI tool, kando:// install links, update notice and the /plugin page (#326)
+
 ## 0.34.0 - 2026-11-19
 
 ### Features
