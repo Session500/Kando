@@ -17,13 +17,20 @@ import (
 	"kando/packages/core"
 )
 
-// The marks drawn on the words of the open film's originals (docs/plugin-system.md, E2): readings over the words in Han characters, a line in the color of their level under the words of the word list chosen, and a dashed one under the words in the vocabulary, as 字幕外观's 逐词标注 card turns them on (savedPlugins). They are computed off the UI thread (annotate.Lines) when the plugins' playing or afterChange hook finds that the film's key changed: its video, the times and originals of its lines, how it is marked and what from (pluginsMarkKey). Only the latest computation runs on: starting another, or the key going back to that of the marks shown, stops the one before at its next line. The result is kept, never changed, until the key changes again; the picture only reads it (CueMarks), and keeps showing it while the next one is computed, but not on a line whose original changed.
+// The marks drawn on the words of the open film's originals (docs/plugin-system.md, E2): readings over the words in Han characters, a line in the color of their level under the words of the word list chosen, and a dashed one under the words in the vocabulary, as 字幕外观's 逐词标注 card turns them on (savedPlugins). They are computed off the UI thread (annotate.Lines) when the plugins' playing or afterChange hook finds that the film's key changed: its video, the times and originals of its lines, how it is marked and what from (pluginsMarkKey). Only the latest computation runs on: starting another, or the key going back to that of the marks shown, stops the one before at its next line. The result is kept, never changed, until the key changes again; the picture only reads it (CueMarks), and keeps showing it while the next one is computed, but not on a line whose original changed. A line's marks depend on its original and how it is marked alone, so when only the lines changed, as each part of a film made while it plays comes in (media.Make writes its subtitles every few seconds, more lines each time), the next computation marks only the originals the marks shown do not hold, and the lines that were there keep theirs at once.
 
-// pluginsMarks is the marks of the lines of a film: key is what they were computed for, lines the marks of each line's original, and originals the originals they were computed for, index for index.
+// pluginsMarks is the marks of the lines of a film: key is what they were computed for, lines the marks of each line's original, and originals the originals they were computed for, index for index; byOriginal is lines by their originals, which a line keeps when the lines around it change (CueMarks) and which the next computation for the same film marked the same way takes instead of marking those originals again.
 type pluginsMarks struct {
-	key       pluginsMarkKey
-	lines     [][]subtitle.Mark
-	originals []string
+	key        pluginsMarkKey
+	lines      [][]subtitle.Mark
+	originals  []string
+	byOriginal map[string][]subtitle.Mark
+}
+
+// sameMarking reports whether marks for k mark a line as those for o do: the same film, marked the same way from the same sources, whatever lines it has.
+func (k pluginsMarkKey) sameMarking(o pluginsMarkKey) bool {
+	k.subs, o.subs = "", ""
+	return k == o
 }
 
 // pluginsMarkKey is what a film's marks are computed for: its video and the hash of its lines (pluginsSubsHash), the language it is spoken in, and how it is marked: readings, from the larger Japanese dictionary (analyze) and from the Chinese dictionaries open (dicts, their ids and contents), the word list chosen (list, its id and content), and the words in the vocabulary (known, with vocab the hash of the words in it spoken in the film's language, pluginsVocabHash, so a word added, removed or changed marks the lines again). It is comparable, so the playing hook compares it at each report.
@@ -101,6 +108,17 @@ func (a *app) pluginsMarksFollow() bool {
 		}
 	}
 	src.Stop = stop.Load
+	// The originals the marks shown hold for the same film marked the same way are not marked again.
+	var had map[string][]subtitle.Mark
+	if p.marks.key.sameMarking(key) {
+		had = p.marks.byOriginal
+	}
+	var fresh []string
+	for _, line := range lines {
+		if _, ok := had[line]; !ok {
+			fresh = append(fresh, line)
+		}
+	}
 	var cached *pluginsList
 	if listed {
 		src.ListLanguage = pack.Wordlist.Language
@@ -118,15 +136,26 @@ func (a *app) pluginsMarksFollow() bool {
 		if list != nil {
 			src.List = list.l
 		}
-		got := annotate.Lines(lines, src)
+		got := annotate.Lines(fresh, src)
 		if stop.Load() && (list == nil || list == cached) {
 			return
 		}
-		marks := make([][]subtitle.Mark, len(got))
+		byOriginal := make(map[string][]subtitle.Mark, len(lines))
 		for i, line := range got {
+			var marks []subtitle.Mark
 			for _, m := range line {
-				marks[i] = append(marks[i], subtitle.Mark(m))
+				marks = append(marks, subtitle.Mark(m))
 			}
+			byOriginal[fresh[i]] = marks
+		}
+		marks := make([][]subtitle.Mark, len(lines))
+		for i, line := range lines {
+			m, ok := byOriginal[line]
+			if !ok {
+				m = had[line]
+				byOriginal[line] = m
+			}
+			marks[i] = m
 		}
 		update(func() {
 			if list != nil && list != cached {
@@ -136,7 +165,7 @@ func (a *app) pluginsMarksFollow() bool {
 				return
 			}
 			p.marking, p.stop = pluginsMarkKey{}, nil
-			p.marks = pluginsMarks{key: key, lines: marks, originals: lines}
+			p.marks = pluginsMarks{key: key, lines: marks, originals: lines, byOriginal: byOriginal}
 		})
 	}()
 	return forgot
@@ -237,17 +266,18 @@ func (a *app) pluginsListIssues() []plugins.Issue {
 	return nil
 }
 
-// CueMarks are the marks of cue i's original, while the marks kept are of the open film's video, it has as many lines as they were computed for, and cue i's original is the one they were computed for; nil otherwise. When the lines change, the marks kept go on showing on the lines whose originals did not change until those of the new lines replace them, so a translation landing does not make the readings go and come back nor the lines jump, while a corrected line shows no marks until its own are computed.
+// CueMarks are the marks of cue i's original, while the marks kept are of the open film's video and were computed for that original: the marks of line i when the film has as many lines as they were computed for and line i's original is the one they were for, else those of the same original among them (byOriginal), as when lines were added around it; nil otherwise. When the lines change, the marks kept go on showing on the lines whose originals did not change until those of the new lines replace them, so a translation landing or the next part of a film made while it plays does not make the readings go and come back nor the lines jump, while a corrected or new line shows no marks until its own are computed.
 func (a *app) CueMarks(i int) []subtitle.Mark {
 	m := a.plugins.marks
 	cues := a.playerCues()
-	if i < 0 || i >= len(m.lines) || len(cues) != len(m.lines) || m.key.video != a.player.film.video {
+	if i < 0 || i >= len(cues) || m.key.video != a.player.film.video {
 		return nil
 	}
-	if _, original := film.SplitCue(cues[i].Text); original != m.originals[i] {
-		return nil
+	_, original := film.SplitCue(cues[i].Text)
+	if len(cues) == len(m.lines) && original == m.originals[i] {
+		return m.lines[i]
 	}
-	return m.lines[i]
+	return m.byOriginal[original]
 }
 
 // The 逐词标注 card's reads and edits (settings.MarksApp). Each change is saved, and marks the open film's lines again.
