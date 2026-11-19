@@ -554,3 +554,166 @@ func TestPluginIndexDownloadLeavesThePageFree(t *testing.T) {
 		t.Error("a download stopped by closing opened a confirmation")
 	}
 }
+
+// pluginsIndexAge makes the index read an hour old, as one a link does not take without asking for a newer one (pluginsIndexLinkFresh).
+func pluginsIndexAge(a *app) { a.plugins.index.meta.Fetched = time.Now().Add(-time.Hour) }
+
+// TestPluginIndexLink checks a link of Kando's site that asks to install a pack of the index (kando://plugin/install?id=…): Settings › 插件 opens with 浏览插件 searching for it, a newer index is asked for unless one was a moment ago, and with it the pack downloads and its install confirmation opens, installing nothing before it is confirmed; a pack that index does not list, and a link naming no pack, say so; any other link is left to the areas that know it.
+func TestPluginIndexLink(t *testing.T) {
+	a, tt, updates, root := pluginsApp(t)
+	srv := newPluginsIndexServer(t)
+	srv.point(a)
+	m := testlocale.Messages()
+	srv.list(t, srv.entry(t, "anime.zip", pluginZip(t, pluginGlossary), ""), srv.entry(t, "quiz.zip", pluginZip(t, pluginTaskLine), ""))
+
+	apply(tt, a, func() { a.areasOpenLinks([]string{"kando://plugin/install?id=example.anime-ja-zh"}) })
+	wantSettings(t, a, settings.SectionPlugins)
+	waitUntil(t, tt, a, updates, func() bool { return a.plugins.pending != nil && !a.plugins.busy })
+	if a.plugins.pending.err != nil || !a.plugins.pending.listed || !tt.Exists("id:plugins-install-confirm") || !hasText(tt, m.SettingsPluginsInstallSourceIndex()) {
+		t.Fatalf("the confirmation: %v; texts %q", a.plugins.pending.err, tt.Texts())
+	}
+	if a.PluginIndexQuery() != "example.anime-ja-zh" || !a.PluginIndexOpen() {
+		t.Errorf("浏览插件 is open %v searching for %q", a.PluginIndexOpen(), a.PluginIndexQuery())
+	}
+	if packs, _ := plugins.Scan(root); len(packs) != 0 {
+		t.Fatal("the pack was installed before it was confirmed")
+	}
+	tt.Press("id:plugins-install-cancel")
+	waitUntil(t, tt, a, updates, func() bool { return a.plugins.pending == nil && !a.plugins.busy })
+
+	// A pack the index does not list: a newer index is asked for, and then the page says it is not listed.
+	apply(tt, a, func() { pluginsIndexAge(a) })
+	hits := srv.hits.Load()
+	apply(tt, a, func() { a.areasOpenLinks([]string{index.InstallLink("example.unknown")}) })
+	waitUntil(t, tt, a, updates, func() bool { return a.plugins.index.wanted == "" && pluginsIndexReady(a)() })
+	if srv.hits.Load() != hits+1 || !hasText(tt, m.SettingsPluginsIndexLinkMissing("example.unknown")) || a.plugins.pending != nil {
+		t.Errorf("an unlisted pack: %d asks; texts %q", srv.hits.Load()-hits, tt.Texts())
+	}
+	// An index asked for a moment ago is taken as it is.
+	hits = srv.hits.Load()
+	apply(tt, a, func() { a.areasOpenLinks([]string{index.InstallLink("example.other")}) })
+	if srv.hits.Load() != hits || a.plugins.index.wanted != "" || !hasText(tt, m.SettingsPluginsIndexLinkMissing("example.other")) {
+		t.Errorf("a link after a fresh index: %d asks, waiting for %q", srv.hits.Load()-hits, a.plugins.index.wanted)
+	}
+
+	// A pack the index lists once it is asked for again, as one added to the directory since the copy kept.
+	srv.list(t, srv.entry(t, "anime.zip", pluginZip(t, pluginGlossary), ""), srv.entry(t, "quiz.zip", pluginZip(t, pluginTaskLine), ""), srv.entry(t, "roots.zip", pluginZip(t, pluginTaskWord), ""))
+	apply(tt, a, func() { pluginsIndexAge(a); a.areasOpenLinks([]string{index.InstallLink("example.roots")}) })
+	waitUntil(t, tt, a, updates, func() bool { return a.plugins.pending != nil && !a.plugins.busy })
+	if a.plugins.pending.err != nil || a.plugins.pending.pack.ID != "example.roots" || hasText(tt, m.SettingsPluginsIndexLinkMissing("example.roots")) {
+		t.Fatalf("a pack added since: %v; texts %q", a.plugins.pending.err, tt.Texts())
+	}
+	tt.Press("id:plugins-install-cancel")
+	waitUntil(t, tt, a, updates, func() bool { return a.plugins.pending == nil && !a.plugins.busy })
+
+	apply(tt, a, func() {
+		a.areasOpenLinks([]string{"kando://plugin/install?id=../../etc", "kando://plugin/other?id=example.quiz"})
+	})
+	if !hasText(tt, m.SettingsPluginsIndexLinkBad()) || a.plugins.index.downloading != "" || a.plugins.pending != nil {
+		t.Errorf("a link naming no pack; texts %q", tt.Texts())
+	}
+	apply(tt, a, func() { a.SetPluginIndexOpen(false) })
+	if a.PluginIndexLinkNote() != "" {
+		t.Error("what was said of the link stays once 浏览插件 closes")
+	}
+}
+
+// TestPluginIndexLinkWaits checks that a link waits for a newer index rather than taking the copy kept: offline it shows the pack and downloads nothing, nor says it is missing, until Kando is back online; when the ask fails the status says why, until 刷新 brings the index; and the version installed is the one the newer index lists, whose file is the one served, not the copy kept's.
+func TestPluginIndexLinkWaits(t *testing.T) {
+	a, tt, updates, _ := pluginsApp(t)
+	srv := newPluginsIndexServer(t)
+	srv.point(a)
+	m := testlocale.Messages()
+	srv.list(t, srv.entry(t, "anime-1.2.0.zip", pluginZip(t, pluginGlossary), ""), srv.entry(t, "quiz.zip", pluginZip(t, pluginTaskLine), ""))
+	tt = settingsOpenAt(a, tt, settings.SectionPlugins)
+	tt.Press("id:settings-plugins-browse")
+	waitUntil(t, tt, a, updates, pluginsIndexReady(a))
+	apply(tt, a, func() { a.SetPluginIndexOpen(false); pluginsIndexAge(a) })
+
+	// The directory moved on to 1.3.0 and serves 1.2.0's file no longer.
+	srv.files.Delete("/packs/anime-1.2.0.zip")
+	srv.list(t, srv.entry(t, "anime-1.3.0.zip", pluginZip(t, strings.Replace(pluginGlossary, `"version": "1.2.0"`, `"version": "1.3.0"`, 1)), ""), srv.entry(t, "quiz.zip", pluginZip(t, pluginTaskLine), ""))
+
+	hits := srv.hits.Load()
+	apply(tt, a, func() {
+		a.privacy.offline = true
+		a.areasOpenLinks([]string{index.InstallLink("example.anime-ja-zh"), index.InstallLink("example.unknown")})
+	})
+	if srv.hits.Load() != hits || a.plugins.index.wanted != "example.unknown" || a.plugins.index.downloading != "" || a.PluginIndexLinkNote() != "" {
+		t.Fatalf("offline: %d asks, waiting for %q, downloading %q, note %q", srv.hits.Load()-hits, a.plugins.index.wanted, a.plugins.index.downloading, a.PluginIndexLinkNote())
+	}
+
+	// Back online, the ask fails: the link still waits, and the status says why.
+	served := srv.served.Load()
+	srv.served.Store(nil)
+	apply(tt, a, func() {
+		a.privacy.offline = false
+		a.areasOpenLinks([]string{index.InstallLink("example.anime-ja-zh")})
+	})
+	waitUntil(t, tt, a, updates, func() bool { return a.plugins.index.asked && pluginsIndexReady(a)() })
+	if a.plugins.index.wanted != "example.anime-ja-zh" || a.PluginIndexLinkNote() != "" || !a.PluginIndexFailed() || a.plugins.pending != nil {
+		t.Fatalf("a failed ask: waiting for %q, note %q, failed %v", a.plugins.index.wanted, a.PluginIndexLinkNote(), a.PluginIndexFailed())
+	}
+
+	// 刷新 brings the newer index, and the version it lists is the one offered.
+	srv.served.Store(served)
+	tt.Press("id:settings-plugins-index-refresh")
+	waitUntil(t, tt, a, updates, func() bool { return a.plugins.pending != nil && !a.plugins.busy })
+	if a.plugins.pending.err != nil || a.plugins.pending.pack.Version != "1.3.0" || !hasText(tt, m.SettingsPluginsInstallSourceIndex()) {
+		t.Fatalf("the confirmation: %v %q; texts %q", a.plugins.pending.err, a.plugins.pending.pack.Version, tt.Texts())
+	}
+}
+
+// TestPluginIndexUpdates checks the notice of updates: with the index read once, an installed pack it lists newer is counted beside 插件 in the settings' sidebar and in 有可用更新 at the top of the page, whose button shows 浏览插件 listing only it until 显示全部; and as Kando starts it reads the copy kept for the count without asking the network.
+func TestPluginIndexUpdates(t *testing.T) {
+	a, tt, updates, _ := pluginsApp(t, pluginGlossary)
+	srv := newPluginsIndexServer(t)
+	srv.point(a)
+	m := testlocale.Messages()
+	newer := strings.Replace(pluginGlossary, `"version": "1.2.0"`, `"version": "1.3.0"`, 1)
+	srv.list(t, srv.entry(t, "anime.zip", pluginZip(t, newer), ""), srv.entry(t, "quiz.zip", pluginZip(t, pluginTaskLine), ""))
+	tt = settingsOpenAt(a, tt, settings.SectionPlugins)
+	if tt.Exists("id:settings-plugins-updates") || tt.Exists("id:settings-section-plugins-updates") {
+		t.Fatal("updates are shown before the index was read")
+	}
+
+	// Kando starting with the copy kept counts the update from it, asking the network nothing.
+	src, err := a.pluginsIndexSource()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := src.Refresh(context.Background(), time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	hits := srv.hits.Load()
+	onEngine(a, a.pluginsIndexPeek)
+	waitUntil(t, tt, a, updates, func() bool { return len(a.plugins.index.idx.Entries) == 2 })
+	if srv.hits.Load() != hits || a.plugins.index.read {
+		t.Errorf("reading the copy kept asked the network %d times, or took it as 浏览插件's read", srv.hits.Load()-hits)
+	}
+	if a.PluginIndexUpdates() != 1 || !hasText(tt, m.SettingsPluginsIndexUpdatesAvailable(1)) || !tt.Exists("id:settings-section-plugins-updates") {
+		t.Fatalf("%d updates; texts %q", a.PluginIndexUpdates(), tt.Texts())
+	}
+
+	tt.Press("id:settings-plugins-updates-show")
+	waitUntil(t, tt, a, updates, pluginsIndexReady(a))
+	if !a.PluginIndexOpen() || !a.PluginIndexUpdatesOnly() || !tt.Exists("id:settings-plugins-index-update-example.anime-ja-zh") || tt.Exists("id:settings-plugins-index-row-example.quiz") || tt.Exists("id:settings-plugins-updates") {
+		t.Fatalf("the directory filtered to updates; texts %q", tt.Texts())
+	}
+	tt.Press("id:settings-plugins-index-show-all")
+	refresh(tt, a)
+	if !tt.Exists("id:settings-plugins-index-row-example.quiz") || tt.Exists("id:settings-plugins-index-updates-only") || !tt.Exists("id:settings-plugins-updates") {
+		t.Errorf("every pack again; texts %q", tt.Texts())
+	}
+
+	// Updated, the pack is no longer counted.
+	tt.Press("id:settings-plugins-index-update-example.anime-ja-zh")
+	waitUntil(t, tt, a, updates, func() bool { return a.plugins.pending != nil && !a.plugins.busy })
+	tt.Press("id:plugins-install-ok")
+	waitUntil(t, tt, a, updates, func() bool {
+		return a.plugins.pending == nil && !a.plugins.busy && !a.plugins.saving && len(a.plugins.packs) == 1 && a.plugins.packs[0].Version == "1.3.0"
+	})
+	if a.PluginIndexUpdates() != 0 || tt.Exists("id:settings-plugins-updates") || tt.Exists("id:settings-section-plugins-updates") {
+		t.Errorf("updates after the update; texts %q", tt.Texts())
+	}
+}
