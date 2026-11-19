@@ -1041,7 +1041,9 @@ var Parameters = map[string][]string{
 	"SettingsPluginsCredentialMismatch":        {"service"},
 	"SavedExportingPlugin":                     {"name"},
 	"SavedExportPluginFailed":                  {"name"},
+	"SavedExportPluginFailedReason":            {"name", "reason"},
 	"SavedExportedPlugin":                      {"sent", "skipped", "name"},
+	"SavedExportedPluginSoundless":             {"sent", "skipped", "soundless", "name"},
 	"PluginsOpenURLTitle":                      {"host"},
 	"PluginsOpenURLMessage":                    {"plugin", "url"},
 	"PluginsCommandFailed":                     {"command"},
@@ -1728,7 +1730,9 @@ type Translation struct {
 	SettingsPluginsCredentialMismatch        func(service string) string
 	SavedExportingPlugin                     func(name string) string
 	SavedExportPluginFailed                  func(name string) string
+	SavedExportPluginFailedReason            func(name string, reason string) string
 	SavedExportedPlugin                      func(sent int, skipped int, name string) string
+	SavedExportedPluginSoundless             func(sent int, skipped int, soundless int, name string) string
 	PluginsOpenURLTitle                      func(host string) string
 	PluginsOpenURLMessage                    func(plugin string, url string) string
 	PluginsCommandFailed                     func(command string) string
@@ -24810,8 +24814,14 @@ func Supply(lang string, t Translation) {
 	if t.SavedExportPluginFailed != nil {
 		s.SavedExportPluginFailed = t.SavedExportPluginFailed
 	}
+	if t.SavedExportPluginFailedReason != nil {
+		s.SavedExportPluginFailedReason = t.SavedExportPluginFailedReason
+	}
 	if t.SavedExportedPlugin != nil {
 		s.SavedExportedPlugin = t.SavedExportedPlugin
+	}
+	if t.SavedExportedPluginSoundless != nil {
+		s.SavedExportedPluginSoundless = t.SavedExportedPluginSoundless
 	}
 	if t.PluginsOpenURLTitle != nil {
 		s.PluginsOpenURLTitle = t.PluginsOpenURLTitle
@@ -61531,6 +61541,38 @@ func (msgs Messages) SavedExportPluginFailed(name string) string {
 	}
 }
 
+// SavedExportPluginFailedReason says "{name} could not take the lines: {reason}"
+// in the language the app shows under cx.
+//
+// Saved Lines sheet, once an export to a script plugin's target failed and the plugin said why; reason is the plugin's own words, often in English, such as that Anki is not running.
+func SavedExportPluginFailedReason(cx *core.Scope, name string, reason string) string {
+	return For(cx).SavedExportPluginFailedReason(name, reason)
+}
+
+// SavedExportPluginFailedReason is the package's SavedExportPluginFailedReason in the language of msgs.
+func (msgs Messages) SavedExportPluginFailedReason(name string, reason string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.SavedExportPluginFailedReason(name, reason))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].SavedExportPluginFailedReason; f != nil {
+			return f(name, reason)
+		}
+		switch lang {
+		case "", "en":
+			return msgs.arg(name) + " could not take the lines: " + msgs.arg(reason)
+		case "ja":
+			return name + " はセリフを受け取れませんでした：" + reason
+		case "ko":
+			return name + "에서 대사를 받지 못했습니다: " + reason
+		case "zh-Hans":
+			return name + " 没能接收这些句子：" + reason
+		case "zh-Hant":
+			return name + " 沒能接收這些句子：" + reason
+		}
+	}
+}
+
 // SavedExportedPlugin says "{name}: {sent, plural, one {sent #} other {sent #}}, {skipped, plural, one {skipped #} other {skipped #}}."
 // in the language the app shows under cx.
 //
@@ -61580,6 +61622,68 @@ func (msgs Messages) SavedExportedPlugin(sent int, skipped int, name string) str
 			return name + "：已发送 " + i18n.FormatNumber("zh-Hans", float64(sent)) + " 条，跳过 " + i18n.FormatNumber("zh-Hans", float64(skipped)) + " 条。"
 		case "zh-Hant":
 			return name + "：已傳送 " + i18n.FormatNumber("zh-Hant", float64(sent)) + " 則，略過 " + i18n.FormatNumber("zh-Hant", float64(skipped)) + " 則。"
+		}
+	}
+}
+
+// SavedExportedPluginSoundless says "{name}: {sent, plural, one {sent #} other {sent #}}, {skipped, plural, one {skipped #} other {skipped #}}, {soundless, plural, one {# line without its sound} other {# lines without their sound}}."
+// in the language the app shows under cx.
+//
+// Saved Lines sheet, once an export to a script plugin's target is done and some lines went without the sound the plugin was to attach (for instance more lines than Kando reads sounds for in a minute): how many it sent, skipped and sent without sound.
+func SavedExportedPluginSoundless(cx *core.Scope, sent int, skipped int, soundless int, name string) string {
+	return For(cx).SavedExportedPluginSoundless(sent, skipped, soundless, name)
+}
+
+// SavedExportedPluginSoundless is the package's SavedExportedPluginSoundless in the language of msgs.
+func (msgs Messages) SavedExportedPluginSoundless(sent int, skipped int, soundless int, name string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.SavedExportedPluginSoundless(sent, skipped, soundless, name))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].SavedExportedPluginSoundless; f != nil {
+			return f(sent, skipped, soundless, name)
+		}
+		switch lang {
+		case "", "en":
+			var b strings.Builder
+			b.WriteString(msgs.arg(name))
+			b.WriteString(": ")
+			switch i18n.Cardinal("en", float64(sent)) {
+			case i18n.One:
+				b.WriteString("sent ")
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(sent))))
+			default:
+				b.WriteString("sent ")
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(sent))))
+			}
+			b.WriteString(", ")
+			switch i18n.Cardinal("en", float64(skipped)) {
+			case i18n.One:
+				b.WriteString("skipped ")
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(skipped))))
+			default:
+				b.WriteString("skipped ")
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(skipped))))
+			}
+			b.WriteString(", ")
+			switch i18n.Cardinal("en", float64(soundless)) {
+			case i18n.One:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(soundless))))
+				b.WriteString(" line without its sound")
+			default:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(soundless))))
+				b.WriteString(" lines without their sound")
+			}
+			b.WriteString(".")
+			return b.String()
+		case "ja":
+			return name + "：" + i18n.FormatNumber("ja", float64(sent)) + " 件送信、" + i18n.FormatNumber("ja", float64(skipped)) + " 件スキップ、うち " + i18n.FormatNumber("ja", float64(soundless)) + " 件は音声なし。"
+		case "ko":
+			return name + ": " + i18n.FormatNumber("ko", float64(sent)) + "개 보냄, " + i18n.FormatNumber("ko", float64(skipped)) + "개 건너뜀, 그중 " + i18n.FormatNumber("ko", float64(soundless)) + "개는 음성 없음."
+		case "zh-Hans":
+			return name + "：已发送 " + i18n.FormatNumber("zh-Hans", float64(sent)) + " 条，跳过 " + i18n.FormatNumber("zh-Hans", float64(skipped)) + " 条，其中 " + i18n.FormatNumber("zh-Hans", float64(soundless)) + " 句没有附上声音。"
+		case "zh-Hant":
+			return name + "：已傳送 " + i18n.FormatNumber("zh-Hant", float64(sent)) + " 則，略過 " + i18n.FormatNumber("zh-Hant", float64(skipped)) + " 則，其中 " + i18n.FormatNumber("zh-Hant", float64(soundless)) + " 句沒有附上聲音。"
 		}
 	}
 }

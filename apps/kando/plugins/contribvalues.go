@@ -1,8 +1,23 @@
 package plugins
 
 import (
+	"strings"
+	"unicode/utf8"
+
 	kcore "kando/packages/core"
 )
+
+// reasonMax is the most characters of a plugin's reason Kando shows.
+const reasonMax = 200
+
+// Reason is what a script plugin said, rejecting a call on purpose with a coded error, as Kando shows it under the plugin's name, such as why its export target could not take the lines ("Anki is not running…"): on one line, its spaces collapsed, without invisible or control characters, at most reasonMax characters. It is the plugin's own text, in the plugin's words, which a toast of its (kando.toast) could show as well.
+func Reason(message string) string {
+	s := strings.Join(strings.Fields(cleanText(strings.NewReplacer("\r", " ", "\n", " ").Replace(message), false)), " ")
+	if utf8.RuneCountInString(s) > reasonMax {
+		s = string([]rune(s)[:reasonMax-1]) + "…"
+	}
+	return s
+}
 
 // SubtitlesMax is the most bytes of a file a subtitle format of a script plugin may return.
 const SubtitlesMax = 8 << 20
@@ -26,11 +41,11 @@ func SubtitlesText(v any) (string, bool) {
 	return s, ok && len(s) <= SubtitlesMax
 }
 
-// Exported is what an exporter of a script plugin answered as v ({sent, skipped}), each a count of at least 0, and whether it answered that.
-func Exported(v any) (sent, skipped int, ok bool) {
+// Exported is what an exporter of a script plugin answered as v ({sent, skipped, soundless}), each a count of at least 0, and whether it answered that; soundless is how many lines it sent without the sound it was to attach, as when Kando's quota of host calls ran out. A count left out is 0.
+func Exported(v any) (sent, skipped, soundless int, ok bool) {
 	m, isMap := v.(map[string]any)
 	if !isMap {
-		return 0, 0, false
+		return 0, 0, 0, false
 	}
 	count := func(key string) (int, bool) {
 		n, ok := Number(m[key])
@@ -41,7 +56,8 @@ func Exported(v any) (sent, skipped int, ok bool) {
 	}
 	sent, ok1 := count("sent")
 	skipped, ok2 := count("skipped")
-	return sent, skipped, ok1 && ok2
+	soundless, ok3 := count("soundless")
+	return sent, skipped, soundless, ok1 && ok2 && ok3
 }
 
 // Number is v as a number, as a plugin's answer holds one: tsx gives a whole number as an int64 and another as a float64.
