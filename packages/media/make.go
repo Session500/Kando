@@ -208,6 +208,7 @@ func Make(ctx context.Context, p Pipeline, job core.Job, language, device string
 				job.VideoPath = d.path
 			}
 		}
+		stopVideo()
 		if hearFrom != video {
 			_ = os.Remove(hearFrom)
 		}
@@ -223,6 +224,9 @@ func Make(ctx context.Context, p Pipeline, job core.Job, language, device string
 	m := &making{ctx: ctx, p: p, job: &job, video: video, hearFrom: hearFrom, soundOnly: soundOnly, redo: job.Redo != "", device: device, doc: doc, report: report, coming: coming}
 	if _, fetches := p.(PlatformSubtitler); !fetches || local || job.SubtitleSource != core.SubtitlesPlatform {
 		m.siteState = siteNone
+	}
+	if _, fetches := p.(AutoCaptioner); !fetches || local || job.SubtitleSource != core.SubtitlesAuto {
+		m.reference = referenceKept
 	}
 	defer stopVideo()
 	return m.run(length, language, watch)
@@ -278,6 +282,9 @@ type making struct {
 	siteCh    chan []core.Segment
 	site      []core.Segment
 	siteState siteState
+	// referenceCh brings the captions the link's site made itself (core.SubtitlesAuto), fetched beside the making once the language is known (fetchReference), which are kept beside the video as the film's reference layer; reference says how far that is.
+	referenceCh chan struct{}
+	reference   referenceState
 	// copied is a film translated again (core.RedoTranslation), whose generation holds the lines the film shows as they read, heard already (copyGeneration): they are translated again, and not proofread again.
 	copied bool
 	device string
@@ -422,6 +429,9 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 	}()
 	for {
 		plan.Playhead = watch.Playhead()
+		if m.reference == referenceUnasked && hearing != "" && hearing != "auto" {
+			m.fetchReference(hearing)
+		}
 		switch {
 		case m.siteState == siteUnasked && hearing != "" && hearing != "auto":
 			m.fetchSite(hearing)
@@ -433,7 +443,7 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 		last = p
 		m.progress(p)
 		siteWaits := m.siteState == siteFetching || m.siteState == siteUndecided
-		if p.Done() && hearStop == nil && !drafting && !siteWaits && (len(m.redrafts) == 0 || plan.Language == "") {
+		if p.Done() && hearStop == nil && !drafting && !siteWaits && m.reference != referenceFetching && (len(m.redrafts) == 0 || plan.Language == "") {
 			break
 		}
 		// A run hearing far from where the film is now watched gives way, once it has gone long enough to have heard something; what it heard is kept.
@@ -466,7 +476,7 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 				go m.final(m.ctx, m.finalOf(gen, p.Final[0]), plan.Language, auto, draftCh)
 			}
 		}
-		if hearStop == nil && !drafting && m.siteState != siteFetching {
+		if hearStop == nil && !drafting && m.siteState != siteFetching && m.reference != referenceFetching {
 			// Nothing runs and nothing can start, yet the film is not done. Plan says no such state exists, and a draft waits for more cells only while a run hears them; stop rather than wait for ever.
 			return m.fail("transcribe", errors.New("subtitles: work is left that nothing can do"))
 		}
@@ -477,6 +487,8 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 			m.videoCame(d)
 		case subtitles := <-m.siteCh:
 			m.siteCame(gen, plan, subtitles)
+		case <-m.referenceCh:
+			m.referenceCh, m.reference = nil, referenceKept
 		case <-watch.Jumped():
 		case c := <-heardCh:
 			if hearing == "" {
@@ -551,6 +563,10 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 		}
 	}
 
+	// A making stopped as its last work ended, as the fetch of the site's captions, is stopped, not done.
+	if err := m.ctx.Err(); err != nil {
+		return m.fail("transcribe", err)
+	}
 	lines := m.doc.Lines(gen)
 	if len(lines) == 0 {
 		return m.fail("transcribe", ErrNoSpeech)
@@ -655,6 +671,30 @@ func (m *making) generation(model string) (string, error) {
 	}
 	gen := track.NewID()
 	return gen, m.append(track.Event{Kind: track.KindGen, Gen: gen, Source: makeSource, Key: model})
+}
+
+// referenceState is how far the making is with the captions the link's site made itself (core.SubtitlesAuto).
+type referenceState int
+
+const (
+	// referenceUnasked: not fetched yet, as the language they are to be in is not known yet.
+	referenceUnasked referenceState = iota
+	referenceFetching
+	// referenceKept: kept beside the video, or none to keep, as a site without them or a job that does not keep them.
+	referenceKept
+)
+
+// fetchReference fetches the captions the link's site made itself in language, the code of the language the speech is heard in, beside the making, and keeps them beside the video as the film's reference layer (keepReference); referenceCh says when that is done. The film's lines stay those heard. A job stopped meanwhile stops the fetch with it.
+func (m *making) fetchReference(language string) {
+	m.reference = referenceFetching
+	done := make(chan struct{})
+	m.referenceCh = done
+	ctx, p, job := m.ctx, m.p, *m.job
+	job.VideoPath = m.video
+	go func() {
+		_ = keepReference(ctx, p, job, language)
+		close(done)
+	}()
 }
 
 // heardOnly are the lines of lines that are not the uploader's (site), copied, and where each is among lines.
@@ -920,7 +960,7 @@ func translateAgain(ctx context.Context, p Pipeline, job *core.Job, language, de
 	if watch == nil {
 		watch = From(job.ResumeAt)
 	}
-	m := &making{ctx: ctx, p: p, job: job, video: job.VideoPath, hearFrom: job.VideoPath, redo: true, copied: true, siteState: siteNone, device: device, doc: doc, report: report}
+	m := &making{ctx: ctx, p: p, job: job, video: job.VideoPath, hearFrom: job.VideoPath, redo: true, copied: true, siteState: siteNone, reference: referenceKept, device: device, doc: doc, report: report}
 	return m.run(lines[len(lines)-1].End, language, watch)
 }
 

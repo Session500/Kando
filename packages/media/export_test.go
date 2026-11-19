@@ -29,11 +29,6 @@ func exportSubtitles(videoPath string, original, translated []core.Segment) (str
 	return path, os.WriteFile(path, []byte(formatSRT(both)), 0o644)
 }
 
-// saveTranscript writes segments, the original speech of a video, to path as SubRip (writeFileAtomic), so a job that reads the transcript back to resume never finds one cut off by a crash in the middle of writing it.
-func saveTranscript(path string, segments []core.Segment) error {
-	return writeFileAtomic(path, []byte(formatSRT(segments)))
-}
-
 // loadTranscript reads back the original speech saveTranscript wrote to path.
 func loadTranscript(path string) ([]core.Segment, error) {
 	data, err := os.ReadFile(path)

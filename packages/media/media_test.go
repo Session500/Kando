@@ -29,6 +29,9 @@ func (f *fakePipeline) Download(_ context.Context, source string) (string, error
 	if path, ok := localVideoPath(source); ok {
 		return path, nil
 	}
+	if f.dir == "" {
+		return "", errors.New("the test gave the fake no folder to download into")
+	}
 	path := filepath.Join(f.dir, "video.mp4")
 	return path, os.WriteFile(path, []byte("v"), 0o644)
 }

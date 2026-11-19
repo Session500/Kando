@@ -95,6 +95,11 @@ func hiddenBeside(videoPath, suffix string) string {
 	return filepath.Join(filepath.Dir(videoPath), "."+name+suffix)
 }
 
+// saveTranscript writes segments, the original speech of a video, to path as SubRip (writeFileAtomic), so one read back never holds part of what was written, as a crash in the middle of writing it would leave.
+func saveTranscript(path string, segments []core.Segment) error {
+	return writeFileAtomic(path, []byte(formatSRT(segments)))
+}
+
 // writeFileAtomic writes data to path through a hidden file beside it, renamed over it once written, so path holds either what it held before or all of data.
 func writeFileAtomic(path string, data []byte) error {
 	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+"-*")
