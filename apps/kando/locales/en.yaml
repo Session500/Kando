@@ -8976,3 +8976,32 @@ playerRemuxingFrom:
   placeholders:
     place: { type: "String", example: "Home NAS" }
     percent: { type: "int", example: "42" }
+filmNextUp:
+  message: "Up Next"
+  description: "Heading of the card that shows once a film ends and another plays after it, as a course's next lesson or a playlist's next video; also the card's name for assistive technology."
+filmNextIn:
+  message: "Plays in {seconds, plural, one {# second} other {# seconds}}"
+  description: "Line of the Up Next card counting down to the next film."
+  placeholders:
+    seconds: { type: "int", example: "8" }
+filmNextPlay:
+  message: "Play Now"
+  description: "Button of the Up Next card that plays the next film at once; Return does the same."
+filmNextCancel:
+  message: "Cancel"
+  description: "Button of the Up Next card that puts it away, the film staying at its end; Escape does the same."
+filmNext:
+  message: "Next Film"
+  description: "Transport button that plays the next film of a course, disc, season or playlist."
+playerKeyNextFilm:
+  message: "Next Film"
+  description: "Menu item and shortcut row of the Playback menu playing the next film of a course, disc, season or playlist."
+playerKeyPreviousFilm:
+  message: "Previous Film"
+  description: "Menu item and shortcut row of the Playback menu playing the film before the open one, or the open one from its start once it has played a few seconds."
+playerKeyAutoNext:
+  message: "Play Next Automatically"
+  description: "Menu item of the Playback menu, checked while on: once a film ends, the next of its course, disc, season or playlist plays after a short countdown."
+cheatsheetPrevNextFilm:
+  message: "Previous / Next Film"
+  description: "Line of the keyboard shortcuts sheet for the keys that play the film before or after the open one in its course, disc, season or playlist."

@@ -2461,3 +2461,13 @@ storedStoppedBackMany: "已停止把视频移回资料库。已经移回 {done} 
 accountLocationRemoveStored: "有 {count} 部影片的视频在这个存储位置上。在用同样的地址重新添加它之前，这些视频都无法播放；要让它们继续能播放，请先对这些影片选择「将视频移回资料库」。它的密码和密钥也会一并删除，服务器上的文件不会被删除。"
 playerRemuxing: "正在为播放器准备视频… {percent}%"
 playerRemuxingFrom: "正在从「{place}」为播放器准备视频… {percent}%"
+
+filmNextUp: "接下来"
+filmNextIn: "{seconds} 秒后播放"
+filmNextPlay: "立即播放"
+filmNextCancel: "取消"
+filmNext: "下一部"
+playerKeyNextFilm: "下一部"
+playerKeyPreviousFilm: "上一部"
+playerKeyAutoNext: "自动播放下一部"
+cheatsheetPrevNextFilm: "上一部 / 下一部"

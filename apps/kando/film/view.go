@@ -127,6 +127,7 @@ func (v View) Render(cx *core.Scope) core.Node {
 			s.lookupCard(),
 			s.streamCard(),
 			s.recapCard(),
+			s.nextCard(),
 			s.osd(),
 			s.progressBadge(),
 			s.uploadCapsule(),

@@ -85,6 +85,7 @@ func cheatsheetLayout(cx *core.Scope) []cheatsheetGroup {
 			{locales.CheatsheetVolume(cx), []string{"up", "down"}},
 			{"", []string{"m"}},
 			{locales.CheatsheetSpeed(cx), []string{"shift+,", "shift+."}},
+			{locales.CheatsheetPrevNextFilm(cx), []string{"shift+p", "shift+n"}},
 		}},
 		{groupSubtitles, []cheatsheetLine{
 			{locales.CheatsheetSubtitlesShowHide(cx), []string{"v"}},

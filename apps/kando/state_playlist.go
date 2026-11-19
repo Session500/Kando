@@ -169,6 +169,8 @@ func (a *app) playlistAdd() {
 	default:
 		a.libraryEnqueue(fresh...)
 	}
+	// The films go on one after another in their lists' order (nextKeepLists).
+	a.nextKeepLists(lists)
 	// The films of a playlist are a series, as its site groups them (glossaryPlaylistSeries).
 	if series {
 		a.glossaryPlaylistSeries(lists)

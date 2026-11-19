@@ -53,6 +53,7 @@ type fakeApp struct {
 	fakeStreamer
 	fakeExplainer
 	fakeExtender
+	fakeNexter
 	item       Item
 	play       *fakePlay
 	sound      bool

@@ -14,6 +14,9 @@ import (
 
 // playerUI is the state of the open film: the picture, the subtitle file and how subtitles look. The settings in it are saved with the app's settings (savedSettings).
 type playerUI struct {
+	// next is the card that plays the next film once the open one ends, and nextOff is set while 自动播放下一部 is off (player_next.go).
+	next    playerNext
+	nextOff bool
 	// play is the video open in the system's player (playback.go), from when startPlayback opens it until it stops; it plays only once the player has loaded it (filmPlay.loaded). playPath is its video, the film's own, "" without one.
 	play     *filmPlay
 	playPath string
@@ -282,7 +285,7 @@ type playerSaves struct {
 	delayGen   int
 }
 
-// playerAfterChange keeps where the open film is on disk when it paused, ended or was moved (playerKeep), keeps the display awake while a film plays (player_awake.go), times the return of a looped line to its start (playerLoopSchedule) and shows the tip that the subtitles can be dragged the first time a film plays with them (playerSubTip). The positions it saves are what the library's 继续 reads, and the tip shows over the picture, so it reports when it saved one or showed the tip.
+// playerAfterChange keeps where the open film is on disk when it paused, ended or was moved (playerKeep), keeps the display awake while a film plays (player_awake.go), times the return of a looped line to its start (playerLoopSchedule), shows the card that plays the next film once the film ends (playerNextFollow) and shows the tip that the subtitles can be dragged the first time a film plays with them (playerSubTip). The positions it saves are what the library's 继续 reads, and the tip shows over the picture, so it reports when it saved one or showed the tip.
 func (a *app) playerAfterChange() bool {
 	changed := a.playerKeep(a.playerNow())
 	a.playerKeepAwake()
@@ -290,7 +293,8 @@ func (a *app) playerAfterChange() bool {
 	tip := a.playerSubTip()
 	stream := a.playerStreamFollow()
 	drafts := a.playerDraftsFollow()
-	return changed || tip || stream || drafts
+	next := a.playerNextFollow()
+	return changed || tip || stream || drafts || next
 }
 
 // playerTipFor is how long the tip that the subtitles can be dragged shows.
@@ -463,9 +467,10 @@ func (a *app) restorePlayer(saved savedSettings) {
 	a.player.pauseLines = saved.PauseLines
 	a.player.loopGap = saved.LoopGap
 	a.player.subTipSeen = saved.SubtitleTipSeen
+	a.player.nextOff = saved.PlayNext != nil && !*saved.PlayNext
 }
 
-// savedPlayer is the player's part of settings.json: how subtitles look, which lines show, how loud and how fast films play, whether they stop after each line, and whether the tip that the subtitles can be dragged has shown. Where each film's subtitles were moved to is the film's, kept in library.json (shelf.Library.Lifts); a look saved by a version that kept one place for every film (its Lift) reads without it, so every film's subtitles start at the look's place.
+// savedPlayer is the player's part of settings.json: how subtitles look, which lines show, how loud and how fast films play, whether they stop after each line, whether the next film plays by itself, and whether the tip that the subtitles can be dragged has shown. Where each film's subtitles were moved to is the film's, kept in library.json (shelf.Library.Lifts); a look saved by a version that kept one place for every film (its Lift) reads without it, so every film's subtitles start at the look's place.
 type savedPlayer struct {
 	Look         *film.Look `json:"look,omitempty"`
 	SubMode      string     `json:"subMode,omitempty"`
@@ -482,6 +487,8 @@ type savedPlayer struct {
 	LoopGap    string `json:"loopGap,omitempty"`
 	// SubtitleTipSeen is set once the tip that the subtitles can be dragged has shown.
 	SubtitleTipSeen bool `json:"subtitleTipSeen,omitempty"`
+	// PlayNext is whether the next film plays by itself once one ends (自动播放下一部); nil plays it.
+	PlayNext *bool `json:"playNext,omitempty"`
 }
 
 // clean brings a saved speed to the nearest of film.Rates and drops a loop gap this version does not know, and leaves the player's other settings as they were read; restorePlayer replaces a value it does not know with the default.
@@ -499,6 +506,7 @@ func (a *app) savePlayer(saved *savedSettings) {
 	yieldSubs := a.player.yieldSubs
 	volume := a.player.volume
 	rate := a.player.rate
+	playNext := !a.player.nextOff
 	saved.savedPlayer = savedPlayer{
 		Look:            changedLook(a.player.look),
 		SubMode:         a.player.subMode,
@@ -511,6 +519,7 @@ func (a *app) savePlayer(saved *savedSettings) {
 		PauseLines:      a.player.pauseLines,
 		LoopGap:         a.player.loopGap,
 		SubtitleTipSeen: a.player.subTipSeen,
+		PlayNext:        &playNext,
 	}
 }
 
