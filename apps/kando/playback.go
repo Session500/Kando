@@ -352,7 +352,7 @@ func (a *app) playerStopRemux() {
 	}
 }
 
-// readFilmInfo lists the folder of the video at path off the engine's goroutine, for the player's 信息 tab, and reads the chapters its site marks, which its job kept beside it (media.ReadChapters), for the 片段 tab, and the captions its site made itself (media.ReadReference), the picture's reference layer. A film without a video has nothing to list.
+// readFilmInfo lists the folder of the video at path off the engine's goroutine, for the player's 信息 tab, and reads the chapters its site marks, which its job kept beside it, or its file marks in itself (media.KeepEmbeddedChapters), for the 片段 tab, and the captions its site made itself (media.ReadReference), the picture's reference layer. A film without a video has nothing to list.
 func (a *app) readFilmInfo(path string) {
 	if path == "" || a.update == nil {
 		return
@@ -360,6 +360,7 @@ func (a *app) readFilmInfo(path string) {
 	dir := filepath.Dir(path)
 	a.player.film.infoFor = path
 	update := a.update
+	ffmpeg := a.ffmpegPath()
 	go func() {
 		entries, err := os.ReadDir(dir)
 		files := make([]film.File, 0, len(entries))
@@ -373,7 +374,7 @@ func (a *app) readFilmInfo(path string) {
 			}
 			files = append(files, film.File{Name: entry.Name(), Size: info.Size()})
 		}
-		chapters, _ := media.ReadChapters(path)
+		chapters, kept := media.ReadChapters(path)
 		reference := media.ReadReference(path)
 		update(func() {
 			if a.player.film.infoFor != path {
@@ -384,6 +385,22 @@ func (a *app) readFilmInfo(path string) {
 			if len(chapters.Chapters) > 0 {
 				a.loadClipFrames()
 			}
+		})
+		// A film without chapters kept beside it may mark them in its file, as an audiobook does: they are read once the rest is shown, as ffmpeg may take its time over a file on a network share, and kept beside it from then on (media.KeepEmbeddedChapters).
+		if kept || ffmpeg == "" {
+			return
+		}
+		marked, ok := media.KeepEmbeddedChapters(ffmpeg, path)
+		if !ok {
+			return
+		}
+		update(func() {
+			info := &a.player.film.info
+			if a.player.film.infoFor != path || len(info.Chapters) > 0 {
+				return
+			}
+			info.Chapters, info.ChapterUse = marked.Chapters, marked.Use
+			a.loadClipFrames()
 		})
 	}()
 }
