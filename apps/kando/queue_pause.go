@@ -59,7 +59,9 @@ func (a *app) queuePausedJob(id string, result core.Job) {
 	case keep:
 		// A job a phone held keeps the phone's name (queueHold), which the pipeline's copy of it does not have.
 		job.Stage, job.Progress, job.Err, job.PausedBy = core.StageQueued, core.Progress{}, nil, was.PausedBy
-		a.queue.order = slices.Insert(slices.DeleteFunc(a.queue.order, func(queued string) bool { return queued == id }), 0, id)
+		order := slices.DeleteFunc(a.queue.order, func(queued string) bool { return queued == id })
+		a.queue.order = order
+		a.queue.order = slices.Insert(order, a.queueAfterPreferred(id), id)
 		a.show(job)
 	}
 	if a.queue.active == id {

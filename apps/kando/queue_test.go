@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -26,6 +27,7 @@ import (
 	"kando/apps/kando/sidebar"
 	"kando/packages/core"
 	"kando/packages/media"
+	"kando/packages/track"
 
 	ns "github.com/nsgo-dev/nsgo/core"
 	"github.com/nsgo-dev/nsgo/nsgotest"
@@ -3605,5 +3607,86 @@ func TestAFilmIsWatchedWhileItIsMade(t *testing.T) {
 	wantText(t, tt, msgs.FilmStatusTranslated(100))
 	if tt.Exists("id:film-cue-draft") {
 		t.Fatal("a row is still marked a draft once the film is done")
+	}
+}
+
+// preferPipeline makes films a part at a time as makerPipeline does, its speech recognition stopping a minute into "first" until released is closed, and records which film each run heard.
+type preferPipeline struct {
+	makerPipeline
+	mu    sync.Mutex
+	heard []string
+}
+
+func (p *preferPipeline) Hear(ctx context.Context, video string, from, to time.Duration, heard func(core.Segment)) (string, error) {
+	name := strings.TrimSuffix(filepath.Base(video), filepath.Ext(video))
+	p.mu.Lock()
+	p.heard = append(p.heard, name)
+	p.mu.Unlock()
+	if name != "first" {
+		inner := makerPipeline{length: p.length, released: closedGate}
+		return inner.Hear(ctx, video, from, to, heard)
+	}
+	return p.makerPipeline.Hear(ctx, video, from, to, heard)
+}
+
+func (p *preferPipeline) runs() []string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return slices.Clone(p.heard)
+}
+
+var closedGate = func() chan struct{} { c := make(chan struct{}); close(c); return c }()
+
+// TestTheFilmOpenedIsMadeFirst opens a film waiting behind one being made: the one being made gives way, the opened one is made, and the other goes on where it was.
+func TestTheFilmOpenedIsMadeFirst(t *testing.T) {
+	p := &preferPipeline{makerPipeline: makerPipeline{length: 90 * time.Second, released: make(chan struct{})}}
+	a, tt, updates := newTestApp(t, p)
+	dir := t.TempDir()
+	first, second := filepath.Join(dir, "first", "first.mp4"), filepath.Join(dir, "second", "second.mp4")
+	writeFakeClip(t, first, 90, "202020", "101010")
+	writeFakeClip(t, second, 90, "202020", "101010")
+	if err := a.Enqueue(core.FileURL(first)); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.Enqueue(core.FileURL(second)); err != nil {
+		t.Fatal(err)
+	}
+	refresh(tt, a)
+	var firstID, secondID string
+	for _, j := range a.library.Jobs {
+		if strings.HasSuffix(j.Source, "first.mp4") {
+			firstID = j.ID
+		} else {
+			secondID = j.ID
+		}
+	}
+	// The first is heard to its first minute, where it waits; the second waits behind it.
+	queueUntilState(t, updates, func() bool { return stageOf(t, a, firstID).SubtitlePath != "" })
+	if a.queue.active != firstID || stageOf(t, a, secondID).Stage != core.StageQueued {
+		t.Fatalf("running %q, second %s", a.queue.active, stageOf(t, a, secondID).Stage)
+	}
+	item, ok := films.Find(a.films(), secondID)
+	if !ok {
+		t.Fatal("no film for the second job")
+	}
+	apply(tt, a, func() { a.Open(item) })
+	queueUntilState(t, updates, func() bool { return stageOf(t, a, secondID).Stage == core.StageComplete })
+	if job := stageOf(t, a, firstID); job.Stage.Done() {
+		t.Fatalf("the first ended %s while the second was made", job.Stage)
+	}
+	close(p.released)
+	settle(t, a, tt, updates)
+	if job := stageOf(t, a, firstID); job.Stage != core.StageComplete {
+		t.Fatalf("the first ended %s: %v", job.Stage, job.Err)
+	}
+	// The first gave way, the second was made, then the first went on: it heard again only what it had not.
+	runs := p.runs()
+	at := slices.Index(runs, "second")
+	if at < 0 || !slices.Contains(runs[:at], "first") || !slices.Contains(runs[at:], "first") {
+		t.Fatalf("runs %v, want the first, then the second, then the first again", runs)
+	}
+	doc, err := track.Read(first)
+	if err != nil || len(doc.View()) != 9 {
+		t.Fatalf("the first film shows %d lines (%v), want each once", len(doc.View()), err)
 	}
 }

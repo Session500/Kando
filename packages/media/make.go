@@ -59,10 +59,10 @@ var minRun = 10 * time.Second
 //
 // A job that cannot be made a part at a time is run as Run runs it: a redo, a link whose lines come from its site's subtitles or that keeps no video, a pipeline that is not a Maker, a video whose length cannot be told, or one whose document a newer Kando wrote.
 func Make(ctx context.Context, p Pipeline, job core.Job, language, device string, watch Watcher, report func(core.Job)) core.Job {
-	maker, ok := p.(Maker)
-	if !ok || job.Redo != "" || job.Quality == core.QualitySubtitles || job.SubtitleSource == core.SubtitlesPlatform || device == "" {
+	if !MakesAPartAtATime(p, job) || device == "" {
 		return Run(ctx, p, job, language, report)
 	}
+	maker := p.(Maker)
 	if watch == nil {
 		watch = From(job.ResumeAt)
 	}
@@ -151,6 +151,12 @@ func Make(ctx context.Context, p Pipeline, job core.Job, language, device string
 
 // soundPath is where the sound of the link whose video is to be at video is kept while it is made from it: a hidden file beside it, as ".video.sound", which moves with the video (Companions) and goes once the video is there.
 func soundPath(video string) string { return hiddenBeside(video, ".sound") }
+
+// MakesAPartAtATime reports whether Make makes job with p a part at a time, so stopping it loses no more than the work it was doing: a film made for the first time with a pipeline that can (Maker), not a redo, nor a link whose lines come from its site's subtitles or that keeps no video, which Run makes whole.
+func MakesAPartAtATime(p Pipeline, job core.Job) bool {
+	_, can := p.(Maker)
+	return can && job.Redo == "" && job.Quality != core.QualitySubtitles && job.SubtitleSource != core.SubtitlesPlatform
+}
 
 // downloaded is how the download of a film's video beside its making ended: where the video is, or why it failed.
 type downloaded struct {
