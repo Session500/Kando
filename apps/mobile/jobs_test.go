@@ -3,6 +3,7 @@ package main
 import (
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"kando/apps/mobile/store"
 	"kando/apps/mobile/theme"
 	"kando/packages/sync"
+	"kando/packages/sync/synctest"
 
 	"github.com/nsgo-dev/nsgo/base"
 	"github.com/nsgo-dev/nsgo/core"
@@ -58,8 +60,8 @@ func TestALinkSentFromThePhoneIsFollowedToItsFilm(t *testing.T) {
 	p.app.WaitFor("id:add-link", wait)
 	p.app.Clipboard = "Look at this https://youtu.be/dQw4w9WgXcQ"
 	p.app.Press("id:add-paste")
-	if got := p.app.WaitFor("id:add-site", wait).Text; got != "youtube.com" {
-		t.Fatalf("the sheet names the site %q, want youtube.com", got)
+	if got := p.app.WaitFor("id:add-site", wait).Text; got != msgs.FilmsSourceYoutube() {
+		t.Fatalf("the sheet names the site %q, want %q", got, msgs.FilmsSourceYoutube())
 	}
 	p.app.Press("id:add-send")
 	p.app.WaitFor("id:jobs-page", wait)
@@ -73,16 +75,20 @@ func TestALinkSentFromThePhoneIsFollowedToItsFilm(t *testing.T) {
 	p.app.WaitUntil(wait, func() bool {
 		return p.app.Exists("id:jobs-step-detail-job1-download") && p.app.Find("id:jobs-step-detail-job1-download").Text == msgs.JobsPercent(42)
 	})
-	if got, want := p.app.Find("id:jobs-status-job1").Text, msgs.JobsFrom(msgs.JobsStepPercent(msgs.JobsStepDownload(), 42), "Test Phone"); got != want {
+	// The job sent from this phone names its site alone; how far it is shows over its picture, the share of its three steps done.
+	if got, want := p.app.Find("id:jobs-status-job1").Text, msgs.FilmsSourceYoutube(); got != want {
 		t.Fatalf("the job says %q, want %q", got, want)
+	}
+	if got, want := p.texts("id:jobs-job-job1"), msgs.JobsPercent(14); !strings.Contains(got, want) {
+		t.Fatalf("the job's card says %q, want %q over its picture", got, want)
 	}
 
 	job := moved(d, "job1", "https://youtu.be/dQw4w9WgXcQ", sync.JobFailed, 3, 0)
 	job.Steps[0].State, job.Failure = sync.StepFailed, &sync.Failure{Step: sync.StepDownload, Code: sync.FailOutdated, Message: "yt-dlp is too old", Remedy: sync.RemedyUpdateYTDLP}
 	d.SetJob(job)
 	p.app.WaitFor("id:jobs-update-job1", wait)
-	if got := p.app.Find("id:jobs-failure-job1").Text; got != msgs.JobsFailOutdated() {
-		t.Fatalf("the failure says %q, want %q", got, msgs.JobsFailOutdated())
+	if got, want := p.app.Find("id:jobs-failure-job1").Text, msgs.JobsFailOutdatedSite(msgs.FilmsSourceYoutube()); got != want {
+		t.Fatalf("the failure says %q, want %q", got, want)
 	}
 	p.app.Press("id:jobs-update-job1")
 	p.app.WaitUntil(wait, func() bool { return d.YTDLPUpdates() == 1 })
@@ -125,7 +131,7 @@ func TestALinkSentWhileTheComputerIsOffGoesOnceItIsBack(t *testing.T) {
 	if jobs := d.Jobs(); len(jobs) != 1 {
 		t.Fatalf("the computer made %d jobs of the link", len(jobs))
 	}
-	p.app.WaitUntil(wait, func() bool { return p.app.Find("id:jobs-summary-"+id).Text == msgs.JobsActive(1) })
+	p.app.WaitUntil(wait, func() bool { return p.app.Find("id:jobs-summary-"+id).Text == msgs.JobsLockPhone(msgs.JobsActive(1)) })
 }
 
 // A computer that does not take links from phones refuses the link, which stays with why until it is removed; one that asks its user first takes it without a job, and the phone says so.
@@ -214,6 +220,10 @@ func TestATabletShowsJobsInItsSidebar(t *testing.T) {
 	p.app.WaitUntil(wait, func() bool {
 		return p.app.Exists("id:sidebar-badge-tab-jobs") && p.texts("id:sidebar-badge-tab-jobs") == "1"
 	})
+	// Out of reach, the sidebar's computers card says so and how many jobs wait, as the design's does.
+	d.SetOff(true)
+	p.app.WaitUntil(reconnect, func() bool { return p.texts("id:sidebar-computers-status") == msgs.JobsOfflineWaiting(1) })
+	d.SetOff(false)
 	// A tablet's Add sheet is a card in the middle of the screen, as the Pad artboards draw it, not a sheet across its width.
 	p.app.Press("id:jobs-add")
 	p.app.WaitFor("id:add-link", wait)
@@ -221,6 +231,34 @@ func TestATabletShowsJobsInItsSidebar(t *testing.T) {
 	if field.Size.Width > 560 || field.Origin.X < 300 {
 		t.Fatalf("the Add sheet's field is at %+v on a 1180pt-wide tablet, want it in a card in the middle", field)
 	}
+}
+
+// With two computers, a tablet's sidebar says the computers are offline only once neither answers: while one does, the card counts its running and failed jobs, not the other's as waiting.
+func TestATabletSidebarSaysOfflineOnlyWhenNoComputerAnswers(t *testing.T) {
+	if nsgotest.Target() != "" {
+		t.Skip("the idiom is the platform's on a target")
+	}
+	studio := newDesktop(t)
+	macbook := synctest.NewOwn(t, "MacBook")
+	macbook.Offer("123456")
+	moved(macbook, "job1", "https://youtu.be/dQw4w9WgXcQ", sync.JobRunning, 0, 0.1)
+	failed := moved(macbook, "job2", "https://youtu.be/ScMzIvxBSi4", sync.JobFailed, 3, 0)
+	failed.Steps[0].State, failed.Failure = sync.StepFailed, &sync.Failure{Step: sync.StepDownload, Code: sync.FailNetwork, Remedy: sync.RemedyRetry}
+	macbook.SetJob(failed)
+	dir := t.TempDir()
+	p := startPhone(t, dir, pairedWithAll(t, dir, studio, macbook), nsgotest.Size(1180, 820), nsgotest.Environment(core.Environment{Locale: lang, Idiom: core.IdiomTablet}))
+	p.app.WaitFor("id:sidebar-tab-jobs", wait)
+	p.app.Press("id:sidebar-tab-jobs")
+	p.app.WaitUntil(wait, func() bool { return p.texts("id:sidebar-computers-status") == msgs.JobsActiveFailed(1, 1) })
+	studio.SetOff(true)
+	p.app.WaitUntil(reconnect, func() bool { return p.reach(store.DesktopID(studio.Fingerprint)) == msgs.JobsOffline() })
+	if got, want := p.texts("id:sidebar-computers-status"), msgs.JobsActiveFailed(1, 1); got != want {
+		t.Fatalf("with Studio offline and the MacBook running its jobs, the sidebar says %q, want %q", got, want)
+	}
+	macbook.SetOff(true)
+	p.app.WaitUntil(reconnect, func() bool { return p.texts("id:sidebar-computers-status") == msgs.JobsOfflineWaiting(1) })
+	studio.SetOff(false)
+	macbook.SetOff(false)
 }
 
 // A link whose call drops after the computer took it, while the computer keeps answering, goes again under the same call ID rather than waiting until the computer drops off; the computer makes one job of it.
@@ -571,5 +609,81 @@ func TestTheLibraryCountsJobsWhereTheTabBarIsTheSystems(t *testing.T) {
 	app.Press("id:films-jobs")
 	if opened != 1 {
 		t.Fatalf("pressing Jobs opened it %d times, want once", opened)
+	}
+}
+
+// A job that failed for a region the uploader restricted offers another link, which opens the Add sheet, rather than trying again; one whose sign-in to its site expired on the computer names the site and is tried again once the user signed in there.
+func TestAFailedJobSaysWhatCanBeDoneAboutIt(t *testing.T) {
+	d := newDesktop(t)
+	region := moved(d, "job1", "https://youtu.be/ScMzIvxBSi4", sync.JobFailed, 3, 0)
+	region.Steps[0].State, region.Failure = sync.StepFailed, &sync.Failure{Step: sync.StepDownload, Code: sync.FailRegion}
+	d.SetJob(region)
+	login := moved(d, "job2", "https://www.bilibili.com/video/BV1GJ411x7h7", sync.JobFailed, 3, 0)
+	login.Steps[0].State, login.Failure = sync.StepFailed, &sync.Failure{Step: sync.StepDownload, Code: sync.FailLoginExpired, Remedy: sync.RemedyDesktop}
+	d.SetJob(login)
+	dir := t.TempDir()
+	p := startPhone(t, dir, pairedWith(t, d, dir))
+	p.openTab(jobsTab, msgs.JobsTitle())
+	p.app.WaitFor("id:jobs-another-job1", wait)
+	if got := p.app.Find("id:jobs-failure-job1").Text; got != msgs.JobsFailRegion() {
+		t.Fatalf("the region failure says %q", got)
+	}
+	if got := p.app.Find("id:jobs-failure-body-job1").Text; got != msgs.JobsRemedyRegion("Studio") {
+		t.Fatalf("the region failure's remedy says %q", got)
+	}
+	if p.app.Exists("id:jobs-retry-job1") {
+		t.Fatal("a video restricted by region is offered another try")
+	}
+	bilibili := msgs.FilmsSourceBilibili()
+	if got := p.app.Find("id:jobs-failure-job2").Text; got != msgs.JobsFailLoginExpiredSite(bilibili) {
+		t.Fatalf("the sign-in failure says %q", got)
+	}
+	if got := p.app.Find("id:jobs-failure-body-job2").Text; got != msgs.JobsRemedySignIn(bilibili, "Studio") {
+		t.Fatalf("the sign-in failure's remedy says %q", got)
+	}
+	if got := p.texts("id:jobs-retry-job2"); got != msgs.JobsSignedInRetry() {
+		t.Fatalf("the sign-in failure's button reads %q", got)
+	}
+	p.app.Press("id:jobs-retry-job2")
+	p.app.WaitUntil(wait, func() bool {
+		for _, j := range d.Jobs() {
+			if j.ID == "job2" && j.State != sync.JobFailed {
+				return true
+			}
+		}
+		return false
+	})
+	p.app.Press("id:jobs-another-job1")
+	p.app.WaitFor("id:add-link", wait)
+}
+
+// A computer that drops out of reach says when it last answered, not when its jobs were listed, though it was followed over its events for hours after; its unfinished jobs say they wait for it, over their pictures and under their titles, and one with no site to name says so as a sentence.
+func TestAComputerOutOfReachSaysWhenItLastAnswered(t *testing.T) {
+	var later atomic.Int64
+	sessionNow = func() time.Time { return now().Add(time.Duration(later.Load())) }
+	t.Cleanup(func() { sessionNow = now })
+	d := newDesktop(t)
+	// The job is 47% through its three steps, its running one at 40%, so the picture's share is not the step's.
+	moved(d, "job1", "https://youtu.be/dQw4w9WgXcQ", sync.JobRunning, 1, 0.4)
+	moved(d, "job2", "not a link", sync.JobWaiting, 0, 0)
+	dir := t.TempDir()
+	p := startPhone(t, dir, pairedWith(t, d, dir))
+	id := store.DesktopID(d.Fingerprint)
+	p.openTab(jobsTab, msgs.JobsTitle())
+	p.app.WaitUntil(wait, func() bool { return p.app.Find("id:jobs-thumb-job1").Text == msgs.JobsPercent(47) })
+	// Two hours on, the computer still answers: the job moves on and the phone hears it over its events.
+	later.Store(int64(2 * time.Hour))
+	moved(d, "job1", "https://youtu.be/dQw4w9WgXcQ", sync.JobRunning, 2, 0.4)
+	p.app.WaitUntil(wait, func() bool { return p.app.Find("id:jobs-thumb-job1").Text == msgs.JobsPercent(80) })
+	d.SetOff(true)
+	p.app.WaitUntil(reconnect, func() bool { return p.app.Find("id:jobs-thumb-job1").Text == msgs.JobsThumbWaiting() })
+	if got, want := p.texts("id:jobs-summary-"+id), msgs.JobsOfflineSeen(msgs.JobsAgoMinutes(1)); got != want {
+		t.Fatalf("the computer out of reach says %q, want %q", got, want)
+	}
+	if got, want := p.app.Find("id:jobs-status-job1").Text, msgs.FilmsSourceYoutube()+" · "+msgs.JobsWaitingSuffix("Studio"); got != want {
+		t.Fatalf("the job says %q, want %q", got, want)
+	}
+	if got, want := p.app.Find("id:jobs-status-job2").Text, msgs.JobsWaitingFor("Studio"); got != want {
+		t.Fatalf("the job with no site says %q, want %q", got, want)
 	}
 }
