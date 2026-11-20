@@ -2,6 +2,38 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.39.0 - 2026-11-21
+
+### Features
+
+- Design look for the shell, and a Jobs tab in place of Browse (#352)
+- Let a script plugin suggest glossary terms (kando.glossary.suggest) (#344)
+- Design pass for the Library tab (#369)
+- Pair by taking a photo of the computer's QR code (#366)
+- Check packs against the revocation list in kando-plugin validate and index (#343)
+- Show the version's release notes in the update dialogs (#388)
+- Film page in the design's grouped look, and a row plays a film on the phone (#386)
+- Say what a grant cannot limit, group permissions, log every decision (#345)
+- Design look for the Jobs page and the Add sheet (#365)
+- Word list frequency ranks on the lookup card (#346)
+- Settings design pass (#367)
+
+### Fixes
+
+- Keep the manifest rules, examples and preview in step (#348)
+- Host API gaps: plugins.list, one film id per film, install checks, missing-key precheck (#347)
+- Keep showing what a panel's module mounts, keep the test tree (#355)
+- Reading alignment and kana splits found reviewing the plugin screenshots (#349)
+- Let a plugin's suggested term be dismissed when the suggestions file cannot be read (#371)
+- Don't ask for a plugin's key when the secure store failed to read it (#372)
+- Add a collection's or playlist's episodes when subscribing to it (#351)
+- Say when a site's new page script waits, test the load it cuts short (#375)
+- Keep the time watched until the film's library is known (#379)
+- Finish a detach whose volume left after hdiutil gave up, retry a silent hdiutil create (#383)
+- Answer a relayed marks ask from what the engine had at the ask (#381)
+- Keep reading and cleaning a legacy secret setting (#373)
+- Keywords that don't repeat the app's name, and tell App Review why the app asks for the camera (#390)
+
 ## 0.38.0 - 2026-11-20
 
 ### Features
