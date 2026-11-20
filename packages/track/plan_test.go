@@ -82,6 +82,22 @@ func TestPlanDoesNotDraftAFilmNotTranslated(t *testing.T) {
 	}
 }
 
+// A film not translated whose lines are to be proofread all the same has each heard cell drafted, the draft only proofreading it; it has no final proofread.
+func TestPlanDraftsAFilmNotTranslatedToProofreadIt(t *testing.T) {
+	m := making(30*time.Second, 0)
+	m.Language, m.Proofread = "", true
+	m.Final = func([]string) string { return "" }
+	doc := Doc{}.Plus("mac", hearCell(Doc{}.Plan(m).Hear[0], "hello")...)
+	p := doc.Plan(m)
+	if got := cells(p.Draft); !slices.Equal(got, []int{0}) || p.Done() {
+		t.Fatalf("plan = %+v, want the heard cell drafted", p)
+	}
+	doc = doc.Plus("mac", p.Draft[0].Made())
+	if p := doc.Plan(m); !p.Done() || p.Blocks != 0 {
+		t.Fatalf("plan = %+v, want done once drafted, with no final proofread", p)
+	}
+}
+
 func TestPlanGivesUpAUnitTriedThreeTimes(t *testing.T) {
 	m := making(30*time.Second, 0)
 	doc := Doc{}

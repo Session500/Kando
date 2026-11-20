@@ -20,7 +20,7 @@ const (
 	Behind = 2 * time.Second
 )
 
-// Work is the kind of a unit: hearing a cell's speech, or making a draft of its lines.
+// Work is the kind of a unit: hearing a cell's speech, or making a draft of its lines: proofread, and translated when the film is.
 type Work string
 
 const (
@@ -76,6 +76,8 @@ type Making struct {
 	Hearing string
 	// Language is what the lines are translated into, "" when they are not translated, as a film heard in the language its subtitles are for.
 	Language string
+	// Proofread, with Language "", still drafts each heard cell, the draft then only correcting what the speech recognition misheard: a film heard in the language its subtitles are for shows its lines as heard, so they are proofread all the same.
+	Proofread bool
 	// Final, when set, has each block of the film proofread as a whole once its cells are drafted (WorkFinal), and names what else its final proofread is made from besides its lines as heard, given those lines: the film's terms found in them, so a term found later in the film does not have the blocks it is not in proofread again. Nil makes no final proofread, as for a film not translated or a user who turned it off.
 	Final func(heard []string) string
 }
@@ -150,7 +152,7 @@ func (d Doc) Plan(m Making) Plan {
 			p.Hear = append(p.Hear, hear)
 			continue
 		}
-		if m.Language == "" || len(inCell[c]) == 0 {
+		if m.Language == "" && !m.Proofread || len(inCell[c]) == 0 {
 			p.Drafted++
 			done[c] = true
 			continue

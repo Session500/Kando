@@ -29,7 +29,9 @@ type makeFilm struct {
 	say        func(time.Duration) string
 	proofread  func(n int, lines []string) []string
 	proofreads int
-	reviewed   []int
+	// proofreadErr fails the nth batch the proofreading is sent with the error it returns, when set and not nil.
+	proofreadErr func(n int) error
+	reviewed     []int
 
 	// linkDir is where a link downloads to; videoGate, when set, holds its video back until closed, and videoErr fails it.
 	linkDir   string
@@ -148,6 +150,11 @@ func (f *makeFilm) Proofread(_ context.Context, segments []core.Segment, _ strin
 	f.proofreads++
 	n := f.proofreads
 	f.mu.Unlock()
+	if f.proofreadErr != nil {
+		if err := f.proofreadErr(n); err != nil {
+			return nil, err
+		}
+	}
 	if f.proofread == nil {
 		return segments, nil
 	}
@@ -1040,5 +1047,105 @@ func TestMakeKeepsALineHeardLate(t *testing.T) {
 	}
 	if want := []string{"line 0s", "line 10s", "line 20s", "line 30s", "line 40s", "line 50s"}; !slices.Equal(texts, want) {
 		t.Fatalf("lines %q, want %q", texts, want)
+	}
+}
+
+// sayFooInChinese is a film in Mandarin where every line says "这是foo", which its proofreading may correct to "这是bar".
+func sayFooInChinese(time.Duration) string { return "这是foo" }
+
+// ownLanguageFilm is a film heard in the language Make makes its subtitles in (makeFilmOf's 简体中文), its proofreading set to proofread.
+func ownLanguageFilm(length time.Duration, proofread func(int, []string) []string) *makeFilm {
+	return &makeFilm{length: length, language: "zh", say: sayFooInChinese, proofread: proofread}
+}
+
+// A film heard in the language its subtitles are for is not translated, but what the speech recognition misheard is corrected all the same: its lines are proofread as they are heard, and the queue says so.
+func TestMakeProofreadsAFilmInItsOwnLanguage(t *testing.T) {
+	job, video := makeJob(t)
+	f := ownLanguageFilm(95*time.Second, correctFoo(1))
+	done, reports := makeFilmOf(t, f, job, 0)
+	if done.Stage != core.StageComplete || !done.SameLanguage || done.Untranslated != 0 || done.TranslationErr != "" {
+		t.Fatalf("job = %+v", done)
+	}
+	if len(f.translated) != 0 || f.proofreads == 0 {
+		t.Fatalf("translated %q, proofread %d batches; want proofread alone", f.translated, f.proofreads)
+	}
+	doc, _ := track.Read(video)
+	for _, l := range doc.View() {
+		if l.Original.Text != "这是bar" || l.Translation.Text != "" {
+			t.Fatalf("line at %v reads %q, %q; want it proofread and not translated", l.Start, l.Original.Text, l.Translation.Text)
+		}
+	}
+	data, _ := os.ReadFile(done.SubtitlePath)
+	if cues, _ := ParseSRT(data); len(cues) != 10 || cues[0].Text != "这是bar" {
+		t.Fatalf("subtitles = %+v", cues)
+	}
+	if !slices.ContainsFunc(reports, func(j core.Job) bool {
+		return j.Stage == core.StageTranslating && j.Progress.Proofreading && j.Progress.Of == 10
+	}) {
+		t.Fatal("the film was never said to be proofreading its lines")
+	}
+}
+
+// A term the proofreading of a film in its own language finds late is put at once in the lines drafted before it, all through the film: its drafts have no translation to make again, and it has no final proofread.
+func TestATermFoundLateIsMadeInAFilmInItsOwnLanguage(t *testing.T) {
+	job, video := makeJob(t)
+	job.SpeechLanguage = "zh"
+	f := ownLanguageFilm(240*time.Second, correctFoo(3))
+	done, _ := makeFilmOf(t, f, job, 0)
+	if done.Stage != core.StageComplete {
+		t.Fatalf("job ended %s: %v", done.Stage, done.Err)
+	}
+	doc, _ := track.Read(video)
+	for _, l := range doc.View() {
+		if l.Original.Text != "这是bar" {
+			t.Fatalf("line at %v reads %q; want the term made in it", l.Start, l.Original.Text)
+		}
+	}
+	if len(f.translated) != 0 {
+		t.Fatalf("translated %q", f.translated)
+	}
+}
+
+// Proofreading that is not there, as in offline mode, leaves a film in its own language as it was heard: it is made all the same, without asking again cell after cell, and has no translation that failed.
+func TestMakeLeavesAFilmInItsOwnLanguageAsHeardWithoutProofreading(t *testing.T) {
+	job, video := makeJob(t)
+	job.SpeechLanguage = "zh"
+	f := ownLanguageFilm(95*time.Second, correctFoo(1))
+	f.proofreadErr = func(int) error { return ErrOffline }
+	done, _ := makeFilmOf(t, f, job, 0)
+	if done.Stage != core.StageComplete || !done.SameLanguage || done.TranslationErr != "" || done.Untranslated != 0 {
+		t.Fatalf("job = %+v", done)
+	}
+	if f.proofreads != 1 {
+		t.Fatalf("proofreading asked %d times, want once", f.proofreads)
+	}
+	doc, _ := track.Read(video)
+	for _, l := range doc.View() {
+		if l.Original.Text != "这是foo" {
+			t.Fatalf("line at %v reads %q; want it as heard", l.Start, l.Original.Text)
+		}
+	}
+}
+
+// A proofreading of a film in its own language that leaves lines unproofread, as a batch whose reply could not be read, is made again rather than kept: the cell is proofread on the next try.
+func TestMakeProofreadsAgainACellItsProofreadingLeftUnproofread(t *testing.T) {
+	job, video := makeJob(t)
+	job.SpeechLanguage = "zh"
+	f := ownLanguageFilm(25*time.Second, correctFoo(1))
+	f.proofreadErr = func(n int) error {
+		if n == 1 {
+			return &UnproofreadError{Lines: 3, Total: 3, Err: errors.New("reply is not JSON")}
+		}
+		return nil
+	}
+	done, _ := makeFilmOf(t, f, job, 0)
+	if done.Stage != core.StageComplete || f.proofreads != 2 {
+		t.Fatalf("job ended %s (%v), proofread %d times", done.Stage, done.Err, f.proofreads)
+	}
+	doc, _ := track.Read(video)
+	for _, l := range doc.View() {
+		if l.Original.Text != "这是bar" {
+			t.Fatalf("line at %v reads %q; want it proofread on the second try", l.Start, l.Original.Text)
+		}
 	}
 }
