@@ -2,6 +2,12 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.40.1 - 2026-11-21
+
+### Fixes
+
+- Hold a film's folder while its marks are written, so Windows can delete it (#393)
+
 ## 0.40.0 - 2026-11-21
 
 ### Features
