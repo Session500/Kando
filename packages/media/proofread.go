@@ -30,7 +30,7 @@ const proofreadPrompt = `You proofread the transcript of a video titled "{{title
 
 The user sends a JSON array of the lines, each {"id": its number, "text": the line}. Reply with only a JSON array with one element for each line you corrected, and none for the others: {"id": the line's number, "heard": the line exactly as it was sent, "text": the corrected line}. Reply [] when no line needs a correction.`
 
-// Proofread corrects the words a speech recognizer misheard in segments, in batches of proofreadBatch lines, through the same endpoint and model translations use. A correction is kept only where it puts words in place of others (ApplyFixes), and one made in two lines or more is made wherever else the film has the same words (spreadFixes), as a model corrects a recurring term in most of the lines it is in but not all. A batch whose reply cannot be used after it was sent again keeps its lines as they were heard, and the rest of the film is still proofread; a key, model or address the API rejects, or an account out of credit, fails the proofreading, which the draft then goes without (making.draft).
+// Proofread corrects the words a speech recognizer misheard in segments, in batches of proofreadBatch lines, through the same endpoint and model translations use. A correction is kept only where it puts words in place of others (ApplyFixes), and one made in two lines or more is made wherever else the film has the same words (spreadFixes), as a model corrects a recurring term in most of the lines it is in but not all. A batch whose reply cannot be used after it was sent again keeps its lines as they were heard, and the rest of the film is still proofread, and the error is an *UnproofreadError beside the lines that were; a key, model or address the API rejects, or an account out of credit, fails the proofreading (making.draft says what a draft does without it).
 func (t ChatTranslator) Proofread(ctx context.Context, segments []core.Segment, title string) ([]core.Segment, error) {
 	if err := t.offline(); err != nil {
 		return nil, err
@@ -46,6 +46,7 @@ func (t ChatTranslator) Proofread(ctx context.Context, segments []core.Segment, 
 	renewed := false
 	out := make([]core.Segment, len(segments))
 	copy(out, segments)
+	var skipped *UnproofreadError
 	batches := (len(segments) + proofreadBatch - 1) / proofreadBatch
 	for start := 0; start < len(segments); start += proofreadBatch {
 		batch := segments[start:min(start+proofreadBatch, len(segments))]
@@ -74,6 +75,11 @@ func (t ChatTranslator) Proofread(ctx context.Context, segments []core.Segment, 
 			if !skippableBatch(err) {
 				return nil, err
 			}
+			if skipped == nil {
+				skipped = &UnproofreadError{Total: len(segments)}
+			}
+			skipped.Lines += len(batch)
+			skipped.Err = err
 			continue
 		}
 		for i, fix := range fixes {
@@ -87,8 +93,23 @@ func (t ChatTranslator) Proofread(ctx context.Context, segments []core.Segment, 
 	done := core.Fraction(1)
 	done.Proofreading = true
 	reportProgress(ctx, done)
+	if skipped != nil {
+		return out, skipped
+	}
 	return out, nil
 }
+
+// UnproofreadError is a proofreading that left Lines of its Total lines as they were heard, their batches failing with Err (the last of them), as a reply that could not be read or a server that kept failing; Proofread returns it with every line, those of the other batches proofread.
+type UnproofreadError struct {
+	Lines, Total int
+	Err          error
+}
+
+func (e *UnproofreadError) Error() string {
+	return fmt.Sprintf("%d of %d lines were left unproofread: %v", e.Lines, e.Total, e.Err)
+}
+
+func (e *UnproofreadError) Unwrap() error { return e.Err }
 
 // proofreadFix is a correction a proofreading reply suggests: the line numbered ID, which the model says it heard as Heard, written as Text.
 type proofreadFix struct {

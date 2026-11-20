@@ -3,6 +3,7 @@ package media
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -37,7 +38,7 @@ func TestApplyFixesTakesOnlyWordsInPlace(t *testing.T) {
 	}
 }
 
-// TestProofreadKeepsABatchItCannotUse proofreads 81 lines, two batches: the first comes back with two corrections, one of them put on a line it was not heard in, as a model that lost count writes; the second with a reply that is not corrections every time it is sent. The first batch's good correction is kept, the misplaced one dropped, and the second batch's line stays as whisper heard it.
+// TestProofreadKeepsABatchItCannotUse proofreads 81 lines, two batches: the first comes back with two corrections, one of them put on a line it was not heard in, as a model that lost count writes; the second with a reply that is not corrections every time it is sent. The first batch's good correction is kept, the misplaced one dropped, and the second batch's line stays as whisper heard it, which the error says (UnproofreadError).
 func TestProofreadKeepsABatchItCannotUse(t *testing.T) {
 	sends := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -65,8 +66,10 @@ func TestProofreadKeepsABatchItCannotUse(t *testing.T) {
 	}
 	segments[1].Text = "梯度下将在前面"
 	got, err := ChatTranslator{BaseURL: server.URL, Model: "m"}.Proofread(context.Background(), segments, "神经网络入门")
-	if err != nil {
-		t.Fatal(err)
+	// The lines are all there, those of the batch it could not use as heard, and the error says how many those are.
+	var partly *UnproofreadError
+	if !errors.As(err, &partly) || partly.Lines != 1 || partly.Total != proofreadBatch+1 || len(got) != len(segments) {
+		t.Fatalf("Proofread = %d lines, %v; want every line and 1 of %d left unproofread", len(got), err, proofreadBatch+1)
 	}
 	if got[0].Text != "今天讲神经网络" || got[1].Text != "梯度下将在前面" || got[proofreadBatch].Text != "今天讲神经网罗" {
 		t.Errorf("proofread lines %q, %q, %q", got[0].Text, got[1].Text, got[proofreadBatch].Text)

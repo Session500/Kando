@@ -355,7 +355,9 @@ type hearDone struct {
 
 // drafted is how a draft or a final proofread ended: what it was given, its lines proofread and their translations line for line, the corrections the proofreading made, the changes the final proofread suggested, and why it failed.
 type drafted struct {
-	in         draftInput
+	in draftInput
+	// language is what the draft translated into, "" for one that only proofread (track.Making.Proofread).
+	language   string
 	original   []core.Segment
 	translated []core.Segment
 	fixes      []Fix
@@ -434,18 +436,24 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 		}
 	}
 	// translates is the language the film's lines are drafted in, "" while they are not: a film heard in the language its subtitles are for is not translated, which for Chinese is told by the script of the lines heard so far.
+	ownLanguage := func() bool { return core.SameLanguage(spoken, language, track.Originals(m.doc.Lines(gen))) }
 	translates := func() string {
-		if notTranslated != "" || hearing == "" || core.SameLanguage(spoken, language, track.Originals(m.doc.Lines(gen))) {
+		if notTranslated != "" || hearing == "" || ownLanguage() {
 			return ""
 		}
 		return language
 	}
+	// A film heard in the language its subtitles are for shows its lines as heard, so they are drafted all the same, the draft only proofreading them (track.Making.Proofread), when the AI service can: not when the check before the making found the service itself not set up, as a translation source of its own failing it does not tell, nor once proofreading failed cell after cell. A film translated again keeps its lines as they read and is not proofread again (copied).
+	_, proofreader := m.p.(Proofreader)
+	proofreadOff := !proofreader || !chats(m.p) || m.copied || notTranslated != "" && notTranslatedBy == ""
+	proofreadsOwn := func() bool { return !proofreadOff && hearing != "" && ownLanguage() }
 	// The final proofread, when the job asks for it and the pipeline can: each block of the film proofread as a whole once drafted, its inputs the film's terms found in it.
 	auto, reviewAsked := reviewOf(m.ctx)
 	_, canReview := m.p.(Reviewer)
 	finals := reviewAsked && canReview && chats(m.p)
 	relanguage := func() {
 		plan.Language, plan.Final = translates(), nil
+		plan.Proofread = plan.Language == "" && proofreadsOwn()
 		if finals && plan.Language != "" {
 			plan.Final = m.finalKey(gen)
 		}
@@ -487,7 +495,7 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 		}
 		p := m.doc.Plan(plan)
 		last = p
-		m.progress(p)
+		m.progress(gen, p, plan.Proofread)
 		siteWaits := m.siteState == siteFetching || m.siteState == siteUndecided
 		if p.Done() && hearStop == nil && !drafting && !siteWaits && m.reference != referenceFetching && (len(m.redrafts) == 0 || plan.Language == "") {
 			break
@@ -505,7 +513,7 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 			m.spawn(func() { m.hear(runCtx, cells, heardCh, doneCh) })
 		}
 		// The translation's one line of work: lines to draft again for a new term first, then drafts, then, while no draft is ready, the final proofread. While the site's subtitles are fetched, or in hand and not yet found to match the speech or not, nothing is drafted, as the lines they replace would be drafted for nothing; the fetch gives up after platformFetchTimeout.
-		if !drafting && plan.Language != "" && !siteWaits {
+		if !drafting && (plan.Language != "" || plan.Proofread) && !siteWaits {
 			switch {
 			case len(m.redrafts) > 0:
 				drafting = true
@@ -594,8 +602,12 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 				finals = false
 				relanguage()
 			case (errors.Is(d.err, ErrOffline) || draftFailures+1 >= maxFailedBatches) && m.redo:
-				// A redo without its translation would replace the film's translated subtitles with fewer: it fails, leaving the film as it was.
+				// A redo without its translation, or its proofreading, would replace the film's subtitles with lesser ones: it fails, leaving the film as it was.
 				return m.fail(StageTranslate, d.err)
+			case (errors.Is(d.err, ErrOffline) || draftFailures+1 >= maxFailedBatches) && !d.in.final && d.language == "":
+				// The service is not there, or fails cell after cell: the film, in its own language, is made with the lines of the cells left as heard. It is not translated, so it has no translation that failed (TranslationErr).
+				proofreadOff = true
+				relanguage()
 			case errors.Is(d.err, ErrOffline) || draftFailures+1 >= maxFailedBatches:
 				// The service is not there, or fails cell after cell: the film is made without the translation of the cells left, as it is without a translator.
 				notTranslated = d.err.Error()
@@ -1429,7 +1441,7 @@ func (m *making) terms(gen string) []Fix {
 	return out
 }
 
-// draft makes a draft of in's lines in language: the film's terms put in them, then, for lines not drafted before, what the speech recognition misheard corrected by the proofreading (a proofreading that fails leaves them as they are), then each translated with the lines said before as context.
+// draft makes a draft of in's lines in language: the film's terms put in them, then, for lines not drafted before, what the speech recognition misheard corrected by the proofreading, then each translated with the lines said before as context. A draft in no language (track.Making.Proofread) is the proofreading alone, which fails when the proofreading does, even in part, so its cells are proofread again rather than kept as heard; a draft that translates goes on with what the proofreading corrected, the lines as heard where it failed.
 func (m *making) draft(ctx context.Context, in draftInput, language string, out chan<- drafted) {
 	lines := slices.Clone(in.lines)
 	// The uploader's lines (in.site) are taken as they are written: only the lines heard take the terms and are proofread.
@@ -1437,16 +1449,29 @@ func (m *making) draft(ctx context.Context, in draftInput, language string, out 
 	ApplyRecurring(heard, in.terms)
 	var fixes []Fix
 	if pr, ok := m.p.(Proofreader); ok && chats(m.p) && !in.redraft && !m.copied && len(heard) > 0 {
-		if fixed, err := pr.Proofread(ctx, heard, in.title); err == nil && len(fixed) == len(heard) {
-			heard = fixed
-		} else if ctx.Err() != nil {
-			out <- drafted{in: in, err: ctx.Err()}
+		fixed, err := pr.Proofread(ctx, heard, in.title)
+		var partly *UnproofreadError
+		if err == nil && len(fixed) != len(heard) {
+			err = fmt.Errorf("%d proofread lines for %d lines", len(fixed), len(heard))
+		}
+		switch {
+		case ctx.Err() != nil:
+			out <- drafted{in: in, language: language, err: ctx.Err()}
 			return
+		case language == "" && err != nil:
+			out <- drafted{in: in, language: language, err: err}
+			return
+		case err == nil, errors.As(err, &partly) && len(fixed) == len(heard):
+			heard = fixed
 		}
 		fixes = ObservedFixes(heardOnlyOf(in.lines, at), heard)
 	}
 	for k, i := range at {
 		lines[i] = heard[k]
+	}
+	if language == "" {
+		out <- drafted{in: in, language: language, original: lines, translated: make([]core.Segment, len(lines)), fixes: fixes}
+		return
 	}
 	translated, err := m.p.Translate(WithEarlier(ctx, in.earlier), lines, language)
 	var partial *UntranslatedError
@@ -1456,10 +1481,10 @@ func (m *making) draft(ctx context.Context, in draftInput, language string, out 
 	if err == nil && len(translated) != len(lines) {
 		err = fmt.Errorf("%d translated lines for %d lines", len(translated), len(lines))
 	}
-	out <- drafted{in: in, original: lines, translated: translated, fixes: fixes, err: err}
+	out <- drafted{in: in, language: language, original: lines, translated: translated, fixes: fixes, err: err}
 }
 
-// commitDraft writes a draft: each line it corrected and each translation, the corrections it made, then that its cells are drafted. A correction that becomes a term with it is put at once in the lines near the playhead drafted before (redrafts); the rest of the film takes it in the final proofread.
+// commitDraft writes a draft: each line it corrected and each translation, the corrections it made, then that its cells are drafted. A correction that becomes a term with it is put at once in the lines near the playhead drafted before (redrafts); the rest of the film takes it in the final proofread. A film in its own language takes it in all its lines at once (spreadTerms).
 func (m *making) commitDraft(gen string, d drafted, playhead time.Duration) {
 	before := map[track.Term]bool{}
 	for _, t := range m.doc.Terms(gen) {
@@ -1512,11 +1537,15 @@ func (m *making) commitDraft(gen string, d drafted, playhead time.Duration) {
 	if len(fresh) == 0 || d.in.redraft {
 		return
 	}
-	in := draftInput{redraft: true, terms: fresh}
 	drafted := map[string]bool{}
 	for _, id := range d.in.ids {
 		drafted[id] = true
 	}
+	if d.language == "" {
+		m.spreadTerms(gen, fresh, drafted)
+		return
+	}
+	in := draftInput{redraft: true, terms: fresh}
 	var earlier []string
 	for _, l := range m.doc.Lines(gen) {
 		mid := (l.Start + l.End) / 2
@@ -1536,6 +1565,21 @@ func (m *making) commitDraft(gen string, d drafted, playhead time.Duration) {
 	if len(in.ids) > 0 {
 		m.redrafts = append(m.redrafts, in)
 	}
+}
+
+// spreadTerms puts terms in the lines of gen other than skip, all through the film, as a film in its own language takes a term it found: its drafts only proofread, and have no translation to make again (redrafts) nor a final proofread to make the rest of the film with it, so a term is put in its lines at once, which needs no request. The uploader's lines are left as they are written, and so is a line someone rewrote, as its text is above the drafts' (the user's, or one edited outside Kando while the film is made).
+func (m *making) spreadTerms(gen string, terms []Fix, skip map[string]bool) {
+	var events []track.Event
+	for _, l := range m.doc.Lines(gen) {
+		if skip[l.ID] || l.Original.Source == siteSource || l.Original.Layer > track.LayerDraft {
+			continue
+		}
+		line := []core.Segment{{Start: l.Start, End: l.End, Text: l.Original.Text}}
+		if ApplyRecurring(line, terms)[0] {
+			events = append(events, track.Event{Kind: track.KindRev, Line: l.ID, Side: track.Original, Layer: track.LayerDraft, Text: line[0].Text, Source: makeSource})
+		}
+	}
+	_ = m.append(events...)
 }
 
 // finalKey is what a block's final proofread is made from besides its lines as heard (track.Making.Final): the film's terms found in them, so a term found later proofreads again only the blocks it is in.
@@ -1727,8 +1771,8 @@ func (m *making) keepProofs(gen string, last track.Plan) {
 	_ = SaveProofs(ProofsPath(m.video), proofs)
 }
 
-// progress reports how far the film is made: hearing while cells are left to hear, then translating.
-func (m *making) progress(p track.Plan) {
+// progress reports how far the film is made: hearing while cells are left to hear, then translating, or, for a film whose drafts only proofread (proofreads, track.Making.Proofread), proofreading, which says how many of its lines are drafted.
+func (m *making) progress(gen string, p track.Plan, proofreads bool) {
 	stage := core.StageTranscribing
 	if len(p.Hear) == 0 {
 		stage = core.StageTranslating
@@ -1738,6 +1782,19 @@ func (m *making) progress(p track.Plan) {
 		m.job.Stage, m.job.Progress = stage, core.Progress{}
 	}
 	progress := core.Fraction(done)
+	if stage == core.StageTranslating && proofreads {
+		progress.Proofreading = true
+		left := map[int]bool{}
+		for _, u := range p.Draft {
+			left[u.Cell] = true
+		}
+		for _, l := range m.doc.Lines(gen) {
+			progress.Of++
+			if !left[int((l.Start+l.End)/2/track.Cell)] {
+				progress.Lines++
+			}
+		}
+	}
 	progress.Started, progress.From = m.job.Progress.Started, m.job.Progress.From
 	if progress.Started.IsZero() {
 		progress.Started, progress.From = time.Now(), done
