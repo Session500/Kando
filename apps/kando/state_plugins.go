@@ -90,6 +90,8 @@ type pluginsPending struct {
 	release func()
 	sites   []string
 	listed  bool
+	// size is how many bytes the staged script plugin holds.
+	size int64
 }
 
 func newPluginsUI() pluginsUI { return pluginsUI{index: newPluginsIndex()} }
@@ -433,6 +435,7 @@ func (a *app) pluginsCheckInbox() {
 		file := files[0]
 		staged, pack, err := plugins.Stage(root, file)
 		v, err := pluginsVerifyStaged(verify, pack, err)
+		size := pluginsStagedSize(pack, staged, err)
 		update(func() {
 			a.plugins.inboxBusy = false
 			if a.plugins.busy || a.plugins.pending != nil {
@@ -443,7 +446,7 @@ func (a *app) pluginsCheckInbox() {
 			}
 			// The file leaves the inbox here, once it is asked about, so a look that yielded leaves it for the next; removing a file is quick enough for the engine's goroutine, and the inbox is empty as the confirmation opens.
 			os.Remove(file)
-			a.pluginsAskStaged(pack, staged, v, err)
+			a.pluginsAskStaged(pack, staged, v, size, err)
 		})
 	})
 }
@@ -468,9 +471,10 @@ func (a *app) pluginsStageThen(src string, after func()) {
 			after()
 		}
 		v, err := pluginsVerifyStaged(verify, pack, err)
+		size := pluginsStagedSize(pack, staged, err)
 		update(func() {
 			a.plugins.busy = false
-			a.pluginsAskStaged(pack, staged, v, err)
+			a.pluginsAskStaged(pack, staged, v, size, err)
 		})
 	})
 }
@@ -483,8 +487,17 @@ func pluginsVerifyStaged(verify func(plugins.Pack) (script.Verified, error), pac
 	return verify(pack)
 }
 
-// pluginsAskStaged opens the install confirmation of the pack staged in staged, after a script plugin passed the checks of the engine's goroutine (pluginsStagedCheck), or says why it cannot be installed, throwing the staged copy away.
-func (a *app) pluginsAskStaged(pack plugins.Pack, staged string, v script.Verified, err error) {
+// pluginsStagedSize is how many bytes the script plugin pack staged in staged holds, which its confirmation says (plugins.Size); 0 for a data pack, or when staging failed with err. Off the UI thread.
+func pluginsStagedSize(pack plugins.Pack, staged string, err error) int64 {
+	if err != nil || staged == "" || pack.Kind != plugins.KindScript {
+		return 0
+	}
+	n, _ := plugins.Size(staged)
+	return n
+}
+
+// pluginsAskStaged opens the install confirmation of the pack staged in staged, size bytes for a script plugin (pluginsStagedSize), after a script plugin passed the checks of the engine's goroutine (pluginsStagedCheck), or says why it cannot be installed, throwing the staged copy away.
+func (a *app) pluginsAskStaged(pack plugins.Pack, staged string, v script.Verified, size int64, err error) {
 	if err == nil {
 		err = a.pluginsStagedCheck(&pack, v)
 	}
@@ -492,7 +505,7 @@ func (a *app) pluginsAskStaged(pack plugins.Pack, staged string, v script.Verifi
 		go os.RemoveAll(staged)
 		staged = ""
 	}
-	a.pluginsAsk(&pluginsPending{pack: pack, staged: staged, err: err})
+	a.pluginsAsk(&pluginsPending{pack: pack, staged: staged, size: size, err: err})
 }
 
 // pluginsAsk opens the install confirmation of p, holding the window's modal flag until it closes (pluginsClose). A site pack's domains start ticked only where the user allowed them for the pack of its id installed now (pluginsTickedBefore).
@@ -515,10 +528,14 @@ func (a *app) pluginsClose(keep bool) {
 	if p.staged != "" && !keep {
 		go os.RemoveAll(p.staged)
 	}
+	// A confirmation closed without installing is its answer too, which the audit log keeps; a file that could not be installed was never asked about.
+	if !keep && p.err == nil && p.pack.ID != "" {
+		a.pluginsAudit(plugins.AuditCancel, p.pack.ID, p.pack.Version)
+	}
 	a.pluginsCheckInbox()
 }
 
-// pluginsInstall installs the pack of the open confirmation off the UI thread (plugins.Swap), turned on for its content (state.json), a site pack allowing the domains ticked in it and no other, a task pack off until the user turns it on, and reads the plugins folder again. A pack of the same id is replaced; one of another kind with the id is not (plugins.ErrIDTaken). When the install fails the confirmation stays open and says why, as it may show over the main window with the 插件 page nowhere in sight. A state.json a newer Kando wrote, which this one does not write over (plugins.ErrStateFormat), refuses the install before anything is replaced; once the pack is in place it is installed, and a state.json that could not be saved after is said on the page, apart from the install.
+// pluginsInstall installs the pack of the open confirmation off the UI thread (plugins.Swap), turned on for its content (state.json), a site pack allowing the domains ticked in it and no other, a task pack off until the user turns it on, writes the install to the audit log once the pack is in place, and reads the plugins folder again. A pack of the same id is replaced; one of another kind with the id is not (plugins.ErrIDTaken). When the install fails the confirmation stays open and says why, as it may show over the main window with the 插件 page nowhere in sight. A state.json a newer Kando wrote, which this one does not write over (plugins.ErrStateFormat), refuses the install before anything is replaced; once the pack is in place it is installed, and a state.json that could not be saved after is said on the page, apart from the install.
 func (a *app) pluginsInstall() {
 	p := a.plugins.pending
 	root := a.pluginsRoot()
@@ -561,7 +578,6 @@ func (a *app) pluginsInstall() {
 		}
 		a.plugins.script.health = plugins.SetHealth(a.plugins.script.health, plugins.Health{ID: pack.ID})
 		a.pluginsSaveHealth()
-		a.pluginsAudit(plugins.AuditInstall, pack.ID, pack.Version+" "+string(pack.Source)+" "+pack.Signer)
 	}
 	state := a.pluginsNextState(func(s *plugins.State) { s.Set(entry) })
 	a.plugins.busy, a.plugins.err, a.plugins.saving = true, nil, true
@@ -581,6 +597,7 @@ func (a *app) pluginsInstall() {
 			case err != nil:
 				a.plugins.err = err
 			default:
+				a.pluginsAudit(plugins.AuditInstall, pack.ID, pluginsInstallAudit(pack, entry))
 				if saveErr != nil {
 					a.plugins.err = plugins.StateUnsaved{Err: saveErr}
 				}
@@ -614,6 +631,26 @@ func (a *app) pluginsSetEnabled(id string, on bool) {
 		s.Set(e)
 	})
 	a.pluginsApplyState(next)
+	// Turning a task pack on grants it the user's AI service and its tokens (docs/plugin-system.md 6.2).
+	if a.plugins.packs[i].Kind == plugins.KindTask {
+		event := plugins.AuditDisable
+		if on {
+			event = plugins.AuditEnable
+		}
+		a.pluginsAudit(event, id, "")
+	}
+}
+
+// pluginsInstallAudit is what the audit log says of the pack installed with the entry of state.json entry: its version and kind, where a script plugin comes from and who signed it, and the domains a site pack was allowed.
+func pluginsInstallAudit(pack plugins.Pack, entry plugins.PluginState) string {
+	out := pack.Version + " " + string(pack.Kind)
+	if pack.Kind == plugins.KindScript {
+		out += " " + string(pack.Source) + " " + pack.Signer
+	}
+	if pack.Kind == plugins.KindSite {
+		out += " sites:" + strings.Join(entry.Sites, ",")
+	}
+	return out
 }
 
 // pluginsApplyState takes next as state.json, a pack turned on or off or a site allowed, saving it off the UI thread; what follows the packs turned on (the AI services offered, the dictionaries open) follows at once, and goes back when the file could not be saved; the sites the browser knows follow once it is saved, as a change of them has the browser's web view load its page again (browseSitesChanged), which a failed save would do twice. Once the save ends, the inbox is looked at again, as a look at it gives way while the save runs (pluginsCheckInbox).
@@ -643,7 +680,7 @@ func (a *app) pluginsApplyState(next plugins.State) {
 	})
 }
 
-// pluginsUninstall removes the pack id from the plugins folder and from state.json off the UI thread (plugins.Remove), with a dictionary's index, closed first, and reads the folder again. The service an ai-service pack added keeps its key in settings.json under the pack's id (pluginsKeepLLM, savedLLM.clean), so installing it again brings it back. As with an install, a state.json a newer Kando wrote, which this one does not write over (plugins.ErrStateFormat), refuses the removal before anything is removed; once the folder is gone the pack is uninstalled, and a state.json that could not be saved after is said on the page apart from it (plugins.StateUnsaved).
+// pluginsUninstall removes the pack id from the plugins folder and from state.json off the UI thread (plugins.Remove), with a dictionary's index, closed first, writes the uninstall to the audit log once the folder is gone, and reads the folder again. The service an ai-service pack added keeps its key in settings.json under the pack's id (pluginsKeepLLM, savedLLM.clean), so installing it again brings it back. As with an install, a state.json a newer Kando wrote, which this one does not write over (plugins.ErrStateFormat), refuses the removal before anything is removed; once the folder is gone the pack is uninstalled, and a state.json that could not be saved after is said on the page apart from it (plugins.StateUnsaved).
 func (a *app) pluginsUninstall(id string) {
 	root := a.pluginsRoot()
 	if root == "" || a.plugins.busy {
@@ -668,7 +705,6 @@ func (a *app) pluginsUninstall(id string) {
 		a.plugins.script.health = plugins.SetHealth(a.plugins.script.health, plugins.Health{ID: id})
 		a.pluginsSaveHealth()
 		pluginsWriteValues(id, func() { plugins.RemoveValues(root, id) })
-		a.pluginsAudit(plugins.AuditUninstall, id, "")
 	}
 	state := a.pluginsNextState(func(s *plugins.State) {
 		s.Plugins = slices.DeleteFunc(s.Plugins, func(e plugins.PluginState) bool { return e.ID == id })
@@ -690,9 +726,13 @@ func (a *app) pluginsUninstall(id string) {
 			if err != nil {
 				a.plugins.err = err
 			}
-			// What a task pack spent goes with it once its folder is gone, so installing it again starts from its budget.
+			// Once its folder is gone the pack is uninstalled, which the audit log keeps; a removal that failed is not one. What a task pack spent goes with it then, so installing it again starts from its budget.
 			var unsaved plugins.StateUnsaved
-			if _, ok := a.plugins.usage.Tokens[id]; ok && (err == nil || errors.As(err, &unsaved)) {
+			gone := err == nil || errors.As(err, &unsaved)
+			if gone {
+				a.pluginsAudit(plugins.AuditUninstall, id, "")
+			}
+			if _, ok := a.plugins.usage.Tokens[id]; ok && gone {
 				a.plugins.usage.Forget(id)
 				if err := a.plugins.usage.Save(root); err != nil {
 					a.plugins.err = err
