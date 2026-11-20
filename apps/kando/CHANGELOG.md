@@ -2,6 +2,12 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.43.0 - 2026-11-21
+
+### Features
+
+- Scan the computer's pairing QR code with the camera's live picture (#391)
+
 ## 0.42.0 - 2026-11-21
 
 ### Features
