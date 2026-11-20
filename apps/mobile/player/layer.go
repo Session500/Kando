@@ -20,10 +20,9 @@ type Layer struct {
 	held bool
 	// carried is what the player gives the next film's as it goes on to it (goOn), which that player takes as it is built (carry).
 	carried carried
+	// OpenStyle opens Settings › Subtitle Style, as the playback settings' row does; nil leaves the row out.
+	OpenStyle func()
 }
-
-// miniRoom is how much of a tab page's foot the mini player covers: its bar and the gap under it.
-const miniRoom = miniHeight + miniGap
 
 // NewLayer is the app's player, with nothing playing yet.
 func NewLayer(cx *core.Scope, s *session.Session) *Layer {
@@ -76,15 +75,21 @@ func (l *Layer) Minimize() {
 // Full reports whether the player shows over the app. Read it in a binding.
 func (l *Layer) Full() bool { return l.key.Get() != "" && l.full.Get() }
 
-// Mini reports whether the mini player shows over the tabs. Read it in a binding.
-func (l *Layer) Mini() bool { return l.key.Get() != "" && !l.full.Get() && l.cur.Get() != nil }
+// Mini reports whether the mini player shows over the tabs: not while the film plays in picture in picture, whose window stands in for it. Read it in a binding.
+func (l *Layer) Mini() bool {
+	p := l.cur.Get()
+	return l.key.Get() != "" && !l.full.Get() && p != nil && !p.pip.Get().Active
+}
 
-// Room is how much of a tab page's foot the mini player covers, 0 while it does not show, for look.ProvideMini. Read it in a binding.
-func (l *Layer) Room() core.Points {
-	if l.Mini() {
-		return miniRoom
+// Room is how much of a tab page's foot the mini player covers, 0 while it does not show, for look.ProvideMini: its bar and the gap under it, over a tab bar (overTabBar) or beside a tablet's sidebar. Read it in a binding.
+func (l *Layer) Room(overTabBar bool) core.Points {
+	switch {
+	case !l.Mini():
+		return 0
+	case overTabBar:
+		return miniHeight + miniGap
 	}
-	return 0
+	return miniHeight + miniSideGap
 }
 
 // StatusBar is the status bar while the player shows over the app, light over its dark, hidden while a phone on its side hides the controls; nothing while it does not show, so the pages' own settings hold. Read it in a binding.

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"kando/apps/mobile/store"
+	"kando/apps/mobile/theme"
 	"kando/packages/sync"
 	"kando/packages/sync/synctest"
 
@@ -20,7 +21,7 @@ var talkMarks = sync.FilmMarks{Lines: []sync.LineMarks{
 	{Line: 2, Hash: sync.LineHash("Fine, thank you."), Marks: []sync.Mark{{Start: 0, End: 4, Tone: sync.ToneWarn}}},
 }}
 
-// TestMarksFromTheComputerShowOnTheCard checks the word marks the computer computes for a film's lines: the phone asks for them as the film opens and keeps them with it, the card draws a level's line solid in its tone, a word of the vocabulary dashed and a reading over its word, and a line whose original is not the one they were computed for shows none of them. Settings › Subtitle Style turns them off and on.
+// TestMarksFromTheComputerShowOnTheCard checks the word marks the computer computes for a film's lines: the phone asks for them as the film opens and keeps them with it, the card draws a level's word on a faint box in its tone, a word of the vocabulary black on yellow and a reading over its word, and a line whose original is not the one they were computed for shows none of them. Settings › Subtitle Style turns them off and on.
 func TestMarksFromTheComputerShowOnTheCard(t *testing.T) {
 	d := newDesktop(t)
 	d.SetMarks("f1", talkMarks)
@@ -30,27 +31,27 @@ func TestMarksFromTheComputerShowOnTheCard(t *testing.T) {
 		return err == nil
 	})
 	p.app.WaitUntil(wait, func() bool {
-		return p.app.Exists("id:player-card >> text:Good") && p.app.SpanStyle("id:player-card >> text:Good").DecorationThickness > 0
+		return p.app.Exists("id:player-card >> text:Good") && p.app.Span("id:player-card >> text:Good").Background.Color != 0
 	})
-	good := p.app.SpanStyle("id:player-card >> text:Good")
-	if good.Decoration != core.TextDecorationUnderline || good.DecorationStyle == core.DecorationDashed || good.DecorationColor == 0 {
-		t.Fatalf("the level's line under Good: %+v", good)
+	// On the card a level's word is a highlighter's faint box in its tone, rather than a line under it.
+	if good := p.app.Span("id:player-card >> text:Good"); good.Style.Decoration != 0 || good.Background.Color == theme.SubtitleYellow {
+		t.Fatalf("the level's mark on Good: %+v", good)
 	}
-	// An unmarked word keeps the card's faint line, which says a tap looks it up.
-	if morning := p.app.SpanStyle("id:player-card >> text:morning"); morning.DecorationThickness != 0 || morning.Decoration != core.TextDecorationUnderline {
+	// An unmarked word is plain, a tap on it still looking it up.
+	if morning := p.app.Span("id:player-card >> text:morning"); morning.Style.Decoration != 0 || morning.Background.Color != 0 {
 		t.Fatalf("the word without a mark: %+v", morning)
 	}
 
 	p.at(3200 * time.Millisecond)
 	p.app.WaitFor("id:player-card >> id:player-ruby >> text:はう", wait)
-	you := p.app.SpanStyle("id:player-card >> text:you")
-	if you.DecorationStyle != core.DecorationDashed || you.DecorationThickness == 0 {
+	// A word of the vocabulary is black on the subtitles' yellow.
+	if you := p.app.Span("id:player-card >> text:you"); you.Background.Color != theme.SubtitleYellow || you.Style.Color != core.RGB(0x000000) {
 		t.Fatalf("the word of the vocabulary: %+v", you)
 	}
 
 	p.at(5500 * time.Millisecond)
 	p.app.WaitUntil(wait, func() bool { return p.texts("id:player-card-original") == "Fine, thanks." })
-	if fine := p.app.SpanStyle("id:player-card >> text:Fine"); fine.DecorationThickness != 0 {
+	if fine := p.app.Span("id:player-card >> text:Fine"); fine.Background.Color != 0 || fine.Style.Decoration != 0 {
 		t.Fatalf("marks computed for another original show: %+v", fine)
 	}
 	if d.MarksAsked() == 0 {
@@ -114,7 +115,7 @@ func openWithMarks(t *testing.T, d *synctest.Desktop) (*phone, string, store.Fil
 	return p, dir, f
 }
 
-// TestMarksOnThePicture checks the marks on the line over the picture, as a phone on its side shows it: the reading over its word and the dashed line under the word of the vocabulary.
+// TestMarksOnThePicture checks the marks on the line over the picture, as a phone on its side shows it: the reading over its word and the word of the vocabulary black on yellow.
 func TestMarksOnThePicture(t *testing.T) {
 	d := newDesktop(t)
 	d.SetMarks("f1", talkMarks)
@@ -122,7 +123,7 @@ func TestMarksOnThePicture(t *testing.T) {
 	p.app.Resize(844, 390)
 	p.at(3200 * time.Millisecond)
 	p.app.WaitFor("id:player-subtitles >> id:player-ruby >> text:はう", wait)
-	if you := p.app.SpanStyle("id:player-subtitles >> text:you"); you.DecorationStyle != core.DecorationDashed || you.DecorationThickness == 0 {
+	if you := p.app.Span("id:player-subtitles >> text:you"); you.Background.Color != theme.SubtitleYellow {
 		t.Fatalf("the word of the vocabulary on the picture: %+v", you)
 	}
 }
@@ -154,7 +155,7 @@ func TestMarksTurnOffInSubtitleStyle(t *testing.T) {
 	p.app.Play("id:player-video", core.VideoInfo{Duration: 10 * sec, Size: core.Size{Width: 1920, Height: 1080}})
 	p.at(3200 * time.Millisecond)
 	p.app.WaitUntil(wait, func() bool { return p.texts("id:player-card-original") == "How are you?" })
-	if p.app.Exists("id:player-ruby") || p.app.SpanStyle("id:player-card >> text:you").DecorationStyle == core.DecorationDashed {
+	if p.app.Exists("id:player-ruby") || p.app.Span("id:player-card >> text:you").Background.Color == theme.SubtitleYellow {
 		t.Fatal("the marks show once turned off")
 	}
 }
