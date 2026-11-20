@@ -2,6 +2,12 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.41.0 - 2026-11-21
+
+### Features
+
+- The player in the design's look (#370)
+
 ## 0.40.1 - 2026-11-21
 
 ### Fixes
