@@ -34,7 +34,7 @@ var presetKeys = map[string]map[string]string{
 		"mod+-":   "shift+f",
 	},
 	PresetMPV: {
-		// mpv: Ctrl+← and Ctrl+→ go to the previous and next subtitle (not on macOS, which takes them, systemKeys), ↑ and ↓ seek further (a minute in mpv, Kando's longer skip here), 9 and 0 set the volume, [ and ] the speed, and G and F scale the subtitles. Z, X, V, M, F, L and Space are mpv's as they are.
+		// mpv: Ctrl+← and Ctrl+→ go to the previous and next subtitle (not on macOS, which takes them, systemKeys), ↑ and ↓ seek further (a minute in mpv, Kando's longer skip here), 9 and 0 set the volume, [ and ] the speed, < and > the previous and next file of the playlist, Kando's previous and next film, and G and F scale the subtitles. Z, X, V, M, F, L and Space are mpv's as they are.
 		"a":         "ctrl+left",
 		"d":         "ctrl+right",
 		"mod+left":  "down",
@@ -43,6 +43,8 @@ var presetKeys = map[string]map[string]string{
 		"down":      "9",
 		"shift+,":   "[",
 		"shift+.":   "]",
+		"shift+p":   "shift+,",
+		"shift+n":   "shift+.",
 		"mod+=":     "shift+g",
 		"mod+-":     "shift+f",
 	},

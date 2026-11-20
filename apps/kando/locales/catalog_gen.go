@@ -1156,6 +1156,7 @@ var Parameters = map[string][]string{
 	"AccountLocationRemoveStored":              {"count"},
 	"PlayerRemuxing":                           {"percent"},
 	"PlayerRemuxingFrom":                       {"place", "percent"},
+	"FilmNextIn":                               {"seconds"},
 }
 
 // Translation is a language's messages another package supplies:
@@ -1859,6 +1860,7 @@ type Translation struct {
 	AccountLocationRemoveStored              func(count int) string
 	PlayerRemuxing                           func(percent int) string
 	PlayerRemuxingFrom                       func(place string, percent int) string
+	FilmNextIn                               func(seconds int) string
 }
 
 var supplied = map[string]Translation{}
@@ -3633,6 +3635,14 @@ const (
 	textStoredLocked
 	textStoredSizeMismatch
 	textStoredLocalTaken
+	textFilmNextUp
+	textFilmNextPlay
+	textFilmNextCancel
+	textFilmNext
+	textPlayerKeyNextFilm
+	textPlayerKeyPreviousFilm
+	textPlayerKeyAutoNext
+	textCheatsheetPrevNextFilm
 	numTexts
 )
 
@@ -5407,6 +5417,14 @@ var keyOfText = [numTexts]string{
 	"storedLocked",
 	"storedSizeMismatch",
 	"storedLocalTaken",
+	"filmNextUp",
+	"filmNextPlay",
+	"filmNextCancel",
+	"filmNext",
+	"playerKeyNextFilm",
+	"playerKeyPreviousFilm",
+	"playerKeyAutoNext",
+	"cheatsheetPrevNextFilm",
 }
 
 // textsEn are the messages without arguments in en.
@@ -7178,7 +7196,15 @@ var textsEn = i18n.NewTexts(""+
 	"Another video is being moved. Try again once it's done."+
 	"The videos of a library with a password stay in it, so they aren't moved to a storage location."+
 	"the copy came out a different size"+
-	"a file is already where the video goes in the library",
+	"a file is already where the video goes in the library"+
+	"Up Next"+
+	"Play Now"+
+	"Cancel"+
+	"Next Film"+
+	"Next Film"+
+	"Previous Film"+
+	"Play Next Automatically"+
+	"Previous / Next Film",
 	[]uint16{
 		5,
 		19,
@@ -8948,6 +8974,14 @@ var textsEn = i18n.NewTexts(""+
 		95,
 		34,
 		53,
+		7,
+		8,
+		6,
+		9,
+		9,
+		13,
+		23,
+		20,
 	})
 
 // textsJa are the messages without arguments in ja.
@@ -10719,7 +10753,15 @@ var textsJa = i18n.NewTexts(""+
 	"別の動画を移動中です。終わってからもう一度お試しください。"+
 	"パスワードを設定したライブラリの動画はライブラリに残り、保存場所には移しません。"+
 	"コピーのサイズが一致しません"+
-	"ライブラリ内の動画の戻し先にすでにファイルがあります",
+	"ライブラリ内の動画の戻し先にすでにファイルがあります"+
+	"次はこちら"+
+	"今すぐ再生"+
+	"キャンセル"+
+	"次の作品"+
+	"次の作品"+
+	"前の作品"+
+	"次の作品を自動再生"+
+	"前 / 次の作品",
 	[]uint16{
 		5,
 		30,
@@ -12489,6 +12531,14 @@ var textsJa = i18n.NewTexts(""+
 		120,
 		42,
 		78,
+		15,
+		15,
+		15,
+		12,
+		12,
+		12,
+		27,
+		18,
 	})
 
 // textsKo are the messages without arguments in ko.
@@ -14260,7 +14310,15 @@ var textsKo = i18n.NewTexts(""+
 	"다른 동영상을 옮기는 중입니다. 끝난 뒤 다시 시도하세요."+
 	"암호를 설정한 라이브러리의 동영상은 라이브러리에 남으며 저장 위치로 옮기지 않습니다."+
 	"사본의 크기가 맞지 않습니다"+
-	"라이브러리에서 동영상이 돌아갈 자리에 이미 파일이 있습니다",
+	"라이브러리에서 동영상이 돌아갈 자리에 이미 파일이 있습니다"+
+	"다음 영상"+
+	"지금 재생"+
+	"취소"+
+	"다음 작품"+
+	"다음 작품"+
+	"이전 작품"+
+	"다음 작품 자동 재생"+
+	"이전 / 다음 작품",
 	[]uint16{
 		5,
 		28,
@@ -16030,6 +16088,14 @@ var textsKo = i18n.NewTexts(""+
 		121,
 		39,
 		84,
+		13,
+		13,
+		6,
+		13,
+		13,
+		13,
+		27,
+		22,
 	})
 
 // textsZhHans are the messages without arguments in zh-Hans.
@@ -17801,7 +17867,15 @@ var textsZhHans = i18n.NewTexts(""+
 	"另一个视频正在移动，等它完成后再试。"+
 	"设了密码的资料库的视频留在资料库里，不会移到存储位置。"+
 	"副本的大小不一致"+
-	"资料库中视频要放回的位置已经有文件",
+	"资料库中视频要放回的位置已经有文件"+
+	"接下来"+
+	"立即播放"+
+	"取消"+
+	"下一部"+
+	"下一部"+
+	"上一部"+
+	"自动播放下一部"+
+	"上一部 / 下一部",
 	[]uint16{
 		6,
 		15,
@@ -19571,6 +19645,14 @@ var textsZhHans = i18n.NewTexts(""+
 		81,
 		24,
 		51,
+		9,
+		12,
+		6,
+		9,
+		9,
+		9,
+		21,
+		21,
 	})
 
 // textsZhHant are the messages without arguments in zh-Hant.
@@ -21342,7 +21424,15 @@ var textsZhHant = i18n.NewTexts(""+
 	"另一個影片檔正在移動，等它完成後再試。"+
 	"設了密碼的資料庫的影片檔留在資料庫裡，不會移到儲存位置。"+
 	"副本的大小不一致"+
-	"資料庫中影片檔要放回的位置已經有檔案",
+	"資料庫中影片檔要放回的位置已經有檔案"+
+	"接下來"+
+	"立即播放"+
+	"取消"+
+	"下一部"+
+	"下一部"+
+	"上一部"+
+	"自動播放下一部"+
+	"上一部 / 下一部",
 	[]uint16{
 		6,
 		15,
@@ -23112,6 +23202,14 @@ var textsZhHant = i18n.NewTexts(""+
 		84,
 		24,
 		54,
+		9,
+		12,
+		6,
+		9,
+		9,
+		9,
+		21,
+		21,
 	})
 
 // texts returns the messages without arguments in lang, nil for a
@@ -25258,6 +25356,9 @@ func Supply(lang string, t Translation) {
 	}
 	if t.PlayerRemuxingFrom != nil {
 		s.PlayerRemuxingFrom = t.PlayerRemuxingFrom
+	}
+	if t.FilmNextIn != nil {
+		s.FilmNextIn = t.FilmNextIn
 	}
 	supplied[lang] = s
 	Catalog.Add(lang)
@@ -66901,6 +67002,118 @@ func (msgs Messages) PlayerRemuxingFrom(place string, percent int) string {
 		}
 	}
 }
+
+// FilmNextUp says "Up Next"
+// in the language the app shows under cx.
+//
+// Heading of the card that shows once a film ends and another plays after it, as a course's next lesson or a playlist's next video; also the card's name for assistive technology.
+func FilmNextUp(cx *core.Scope) string { return For(cx).FilmNextUp() }
+
+// FilmNextUp is the package's FilmNextUp in the language of msgs.
+func (msgs Messages) FilmNextUp() string { return msgs.text(textFilmNextUp) }
+
+// FilmNextIn says "Plays in {seconds, plural, one {# second} other {# seconds}}"
+// in the language the app shows under cx.
+//
+// Line of the Up Next card counting down to the next film.
+func FilmNextIn(cx *core.Scope, seconds int) string { return For(cx).FilmNextIn(seconds) }
+
+// FilmNextIn is the package's FilmNextIn in the language of msgs.
+func (msgs Messages) FilmNextIn(seconds int) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.FilmNextIn(seconds))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].FilmNextIn; f != nil {
+			return f(seconds)
+		}
+		switch lang {
+		case "", "en":
+			var b strings.Builder
+			b.WriteString("Plays in ")
+			switch i18n.Cardinal("en", float64(seconds)) {
+			case i18n.One:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(seconds))))
+				b.WriteString(" second")
+			default:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(seconds))))
+				b.WriteString(" seconds")
+			}
+			return b.String()
+		case "ja":
+			return i18n.FormatNumber("ja", float64(seconds)) + " 秒後に再生"
+		case "ko":
+			return i18n.FormatNumber("ko", float64(seconds)) + "초 후 재생"
+		case "zh-Hans":
+			return i18n.FormatNumber("zh-Hans", float64(seconds)) + " 秒后播放"
+		case "zh-Hant":
+			return i18n.FormatNumber("zh-Hant", float64(seconds)) + " 秒後播放"
+		}
+	}
+}
+
+// FilmNextPlay says "Play Now"
+// in the language the app shows under cx.
+//
+// Button of the Up Next card that plays the next film at once; Return does the same.
+func FilmNextPlay(cx *core.Scope) string { return For(cx).FilmNextPlay() }
+
+// FilmNextPlay is the package's FilmNextPlay in the language of msgs.
+func (msgs Messages) FilmNextPlay() string { return msgs.text(textFilmNextPlay) }
+
+// FilmNextCancel says "Cancel"
+// in the language the app shows under cx.
+//
+// Button of the Up Next card that puts it away, the film staying at its end; Escape does the same.
+func FilmNextCancel(cx *core.Scope) string { return For(cx).FilmNextCancel() }
+
+// FilmNextCancel is the package's FilmNextCancel in the language of msgs.
+func (msgs Messages) FilmNextCancel() string { return msgs.text(textFilmNextCancel) }
+
+// FilmNext says "Next Film"
+// in the language the app shows under cx.
+//
+// Transport button that plays the next film of a course, disc, season or playlist.
+func FilmNext(cx *core.Scope) string { return For(cx).FilmNext() }
+
+// FilmNext is the package's FilmNext in the language of msgs.
+func (msgs Messages) FilmNext() string { return msgs.text(textFilmNext) }
+
+// PlayerKeyNextFilm says "Next Film"
+// in the language the app shows under cx.
+//
+// Menu item and shortcut row of the Playback menu playing the next film of a course, disc, season or playlist.
+func PlayerKeyNextFilm(cx *core.Scope) string { return For(cx).PlayerKeyNextFilm() }
+
+// PlayerKeyNextFilm is the package's PlayerKeyNextFilm in the language of msgs.
+func (msgs Messages) PlayerKeyNextFilm() string { return msgs.text(textPlayerKeyNextFilm) }
+
+// PlayerKeyPreviousFilm says "Previous Film"
+// in the language the app shows under cx.
+//
+// Menu item and shortcut row of the Playback menu playing the film before the open one, or the open one from its start once it has played a few seconds.
+func PlayerKeyPreviousFilm(cx *core.Scope) string { return For(cx).PlayerKeyPreviousFilm() }
+
+// PlayerKeyPreviousFilm is the package's PlayerKeyPreviousFilm in the language of msgs.
+func (msgs Messages) PlayerKeyPreviousFilm() string { return msgs.text(textPlayerKeyPreviousFilm) }
+
+// PlayerKeyAutoNext says "Play Next Automatically"
+// in the language the app shows under cx.
+//
+// Menu item of the Playback menu, checked while on: once a film ends, the next of its course, disc, season or playlist plays after a short countdown.
+func PlayerKeyAutoNext(cx *core.Scope) string { return For(cx).PlayerKeyAutoNext() }
+
+// PlayerKeyAutoNext is the package's PlayerKeyAutoNext in the language of msgs.
+func (msgs Messages) PlayerKeyAutoNext() string { return msgs.text(textPlayerKeyAutoNext) }
+
+// CheatsheetPrevNextFilm says "Previous / Next Film"
+// in the language the app shows under cx.
+//
+// Line of the keyboard shortcuts sheet for the keys that play the film before or after the open one in its course, disc, season or playlist.
+func CheatsheetPrevNextFilm(cx *core.Scope) string { return For(cx).CheatsheetPrevNextFilm() }
+
+// CheatsheetPrevNextFilm is the package's CheatsheetPrevNextFilm in the language of msgs.
+func (msgs Messages) CheatsheetPrevNextFilm() string { return msgs.text(textCheatsheetPrevNextFilm) }
 
 // dated is lang with the hour cycle the user set, which times take.
 func (msgs Messages) dated(lang string) string {

@@ -28,6 +28,7 @@ type App interface {
 	Streamer
 	Explainer
 	Recapper
+	Nexter
 	Tasker
 	Extender
 	OpenKey() string

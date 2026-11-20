@@ -395,6 +395,7 @@ func (a *app) subscribeEnqueue(sub *subscribe.Sub, videos []subscribe.Video) (fa
 		}
 	}
 	sub.Queued(queued)
+	a.nextKeepSubscribed(sub, queued)
 	return failed, why
 }
 

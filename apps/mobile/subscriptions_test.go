@@ -144,6 +144,8 @@ func TestAComputerWithoutSubscriptionsTakesAChannelAsALink(t *testing.T) {
 	dir := t.TempDir()
 	p := startPhone(t, dir, pairedWith(t, d, dir))
 	p.sendLink("https://www.youtube.com/@earthscience")
+	// The Jobs page shows as the link is sent, before the computer has taken it.
+	p.app.WaitUntil(wait, func() bool { return len(d.Jobs()) > 0 })
 	if jobs := d.Jobs(); len(jobs) != 1 || jobs[0].Link != "https://www.youtube.com/@earthscience" {
 		t.Fatalf("the computer's queue is %+v", jobs)
 	}

@@ -8,6 +8,7 @@ import (
 	"kando/apps/kando/theme"
 
 	"github.com/nsgo-dev/nsgo/core"
+	"github.com/nsgo-dev/nsgo/icons/lucide"
 )
 
 // transportGlass is the glass of the capsule along the bottom of the picture.
@@ -55,6 +56,11 @@ func (s *screen) transport() core.Node {
 					skipButton(cx, iconBack5, back, withKey(cx, back, "left"), "film-back5", live.Do(a, func() { a.Skip(-5 * time.Second) })),
 					s.playButton(cx),
 					skipButton(cx, iconForward5, forward, withKey(cx, forward, "right"), "film-forward5", live.Do(a, func() { a.Skip(5 * time.Second) })),
+					// A film of a course, a disc, a season or a playlist goes on to the next (Nexter).
+					core.Show{When: live.Func(a, a.HasNext), Then: func(cx *core.Scope) core.Node {
+						next := func() string { return locales.FilmNext(cx) }
+						return glyphButton(cx, lucide.SkipForward, next, withKey(cx, next, "shift+n"), 32, 32, 16, 16, "film-next-film", live.Do(a, a.PlayNext))
+					}},
 				),
 				clock(s.shownHead, "", false),
 				s.scrubber(cx),

@@ -44,6 +44,25 @@ func TestScreenshotsPlayer(t *testing.T) {
 		}
 	}
 	f.shoot(t, "player-opened", held(nil))
+	// The film played to its end, and the next of the list it was added from counting down on the Up Next card.
+	f.shoot(t, "player-next", func(t *testing.T, a *app, tt *nsgotest.App, updates chan func()) {
+		for i, job := range a.library.Jobs {
+			switch job.ID {
+			case "j1":
+				a.library.Jobs[i].List, a.library.Jobs[i].ListIndex = "youtube.com/playlist?list=PLrivers", 1
+			case "j8":
+				a.library.Jobs[i].List, a.library.Jobs[i].ListIndex = "youtube.com/playlist?list=PLrivers", 2
+			}
+		}
+		open(t, a, tt, updates, "j1", 0)
+		screenshotProgress(tt, a, a.PlayLength())
+		// On a platform the scene reports for the system's player, which plays nothing, that the film ended, as headless the progress to its end does.
+		if nsgotest.Target() != "" {
+			onEngine(a, a.VideoEnded)
+		}
+		refresh(tt, a)
+		tt.Advance(3 * time.Second)
+	})
 	f.shoot(t, "player-clips", held(func(t *testing.T, _ *app, tt *nsgotest.App) { tt.Press("id:film-tab-clips") }))
 	f.shoot(t, "player-info", held(func(t *testing.T, _ *app, tt *nsgotest.App) { tt.Press("id:film-tab-info") }))
 	// The film heard in English, and 日语 named in the info tab as the language spoken in it, which offers to transcribe it again in Japanese.

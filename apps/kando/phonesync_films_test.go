@@ -18,6 +18,7 @@ import (
 	"kando/apps/kando/cloud"
 	"kando/apps/kando/phonesync"
 	"kando/apps/kando/settings"
+	"kando/packages/core"
 	psync "kando/packages/sync"
 )
 
@@ -188,5 +189,40 @@ func TestPhoneSourceSaysWhichFilmsWereWatched(t *testing.T) {
 		if want := f.Video == talk; f.Watched != want || (want && !f.WatchedAt.Equal(played)) {
 			t.Errorf("%s watched %v at %v", f.Title, f.Watched, f.WatchedAt)
 		}
+	}
+}
+
+// Phone Sync names the film that plays after each, as the player goes on from it (films.Next), so the phone goes on to it too.
+func TestPhoneSourceNamesTheNextFilm(t *testing.T) {
+	a, tt, updates, dir, _ := phoneSyncApp(t)
+	list := "youtube.com/playlist?list=PLrust"
+	next := filepath.Join(dir, "Rust Talk 2", "video.mp4")
+	writeFakeClip(t, next, 12, "202020", "101010")
+	srt := filepath.Join(dir, "Rust Talk 2", "video.bilingual.srt")
+	if err := os.WriteFile(srt, []byte(talkSubtitles), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	first, _ := a.library.Find("yt")
+	first.List, first.ListIndex = list, 1
+	a.library.Upsert(first)
+	a.library.Upsert(core.Job{ID: "yt2", Source: "https://www.youtube.com/watch?v=hijklmn", Title: "Rust Talk 2", Language: "简体中文", Stage: core.StageComplete,
+		VideoPath: next, SubtitlePath: srt, LibraryDir: dir, CompletedAt: time.Now(), List: list, ListIndex: 2})
+	refresh(tt, a)
+	films, err := phoneCall(t, a, tt, updates, func(ctx context.Context) ([]phonesync.Film, error) {
+		libs, err := phoneSource{a}.Libraries(ctx)
+		if err != nil || len(libs) == 0 {
+			return nil, fmt.Errorf("libraries %v, %v", libs, err)
+		}
+		return phoneSource{a}.Films(ctx, libs[0])
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	nexts := map[string]string{}
+	for _, f := range films {
+		nexts[f.ID] = f.Next
+	}
+	if nexts["yt"] != "yt2" || nexts["yt2"] != "" {
+		t.Fatalf("nexts %v", nexts)
 	}
 }

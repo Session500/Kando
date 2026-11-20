@@ -8,7 +8,7 @@ import (
 	"github.com/nsgo-dev/nsgo/core"
 )
 
-// Layer is the film the app plays: the player over the whole app, or, minimized, a bar over the tabs (MiniBar) while the film plays on, from which a tap opens the player again where it was. The player stays one and the same while it is minimized, so the film plays on without a break and keeps its loop, its sleep timer and the word looked up; it goes once another film plays, or once its film is no longer on the phone.
+// Layer is the film the app plays: the player over the whole app, or, minimized, a bar over the tabs (MiniBar) while the film plays on, from which a tap opens the player again where it was. The player stays one and the same while it is minimized, so the film plays on without a break and keeps its loop, its sleep timer and the word looked up; it goes once another film plays, or once its film is no longer on the phone. Going on to the next film of a course or playlist (next.go) keeps the sleep timer running in the next film's player.
 type Layer struct {
 	s *session.Session
 	// key is the film playing, "" for none; full is set while the player shows over the app, unset while it is minimized.
@@ -18,6 +18,8 @@ type Layer struct {
 	cur *core.Signal[*play]
 	// held is set while the film playing was opened held where it was left (PlayHeld): its player shows the recap of the part watched until it is played (newRecapper).
 	held bool
+	// carried is what the player gives the next film's as it goes on to it (goOn), which that player takes as it is built (carry).
+	carried carried
 }
 
 // miniRoom is how much of a tab page's foot the mini player covers: its bar and the gap under it.

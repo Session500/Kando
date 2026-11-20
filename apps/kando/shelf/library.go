@@ -387,6 +387,9 @@ type storedJob struct {
 	Device string `json:"device,omitempty"`
 	// Series is the series the film is part of (core.Job.Series).
 	Series string `json:"series,omitempty"`
+	// List is the list the film was added from and ListIndex its place in it (core.Job.List).
+	List      string `json:"list,omitempty"`
+	ListIndex int    `json:"listIndex,omitempty"`
 	// PausedBy is the paired phone that paused the job (core.Job.PausedBy).
 	PausedBy string `json:"pausedBy,omitempty"`
 	// ResumeAtMs is where the film opens once done, in milliseconds (core.Job.ResumeAt), and ChapterUse how it is cut, as the Add sheet chose it (core.Job.ChapterUse).
@@ -408,6 +411,7 @@ func storeJob(job core.Job) storedJob {
 	stored.PlatformSubtitles, stored.LocalLines = job.PlatformSubtitles, job.LocalLines
 	stored.SubtitlesOnly = job.SubtitlesOnly
 	stored.Series, stored.PausedBy = job.Series, job.PausedBy
+	stored.List, stored.ListIndex = job.List, job.ListIndex
 	stored.ResumeAtMs, stored.ChapterUse = job.ResumeAt.Milliseconds(), job.ChapterUse
 	stored.PluginSite = job.PluginSite
 	switch {
@@ -450,6 +454,7 @@ func (s storedJob) job() core.Job {
 	job.PlatformSubtitles, job.LocalLines = s.PlatformSubtitles, s.LocalLines
 	job.SubtitlesOnly = s.SubtitlesOnly
 	job.Series, job.PausedBy = s.Series, s.PausedBy
+	job.List, job.ListIndex = s.List, s.ListIndex
 	job.ResumeAt, job.ChapterUse = time.Duration(max(s.ResumeAtMs, 0))*time.Millisecond, s.ChapterUse
 	job.PluginSite = s.PluginSite
 	switch s.Error {

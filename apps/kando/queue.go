@@ -1043,6 +1043,8 @@ func (a *app) show(job core.Job) {
 	// The series is the user's, as the glossary's 术语 tab changes it while the job runs (core.Job.Series): the pipeline's copy of a job the library holds does not change it.
 	if was.ID != "" {
 		job.Series = was.Series
+		// So is the list it was added from (core.Job.List), which the app writes once the queue has the job.
+		job.List, job.ListIndex = was.List, was.ListIndex
 	}
 	// A phone's pause is the shelf's too (queueHold): a report of the running pipeline, which made its copy before, does not let the job go on; the queue's own steps say whether it is held.
 	if was.PausedBy != "" && job.Stage != core.StageQueued && !job.Stage.Done() {

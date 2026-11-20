@@ -28,6 +28,9 @@ type Film struct {
 	JobID, VideoPath, SubtitlePath   string
 	// Language is what the job translates into, such as 简体中文; empty for a video no job has processed.
 	Language string
+	// List is the list the film was added from and ListIndex its place in it (core.Job.List), which play goes on in (Next).
+	List      string
+	ListIndex int
 	// Spoken is the language the speech recognition heard in the video, as whisper's code (ja, en); empty until the job transcribed it, and for a video no job has processed.
 	Spoken string
 	// SpeechLanguage is the language the user said the video is spoken in, as whisper's code, which its job is transcribed in from then on (core.Job.SpeechLanguage); empty when the user named none.
@@ -162,6 +165,7 @@ func FromJob(job core.Job, name, detail string) Film {
 		Stopped: errors.Is(job.Err, context.Canceled), Failure: jobfailure.Of(job), Target: jobTarget(job), Device: job.Device, PausedBy: job.PausedBy,
 		PlatformSubtitles: job.PlatformSubtitles, LocalLines: job.LocalLines,
 		SubtitlesOnly: job.SubtitlesOnly, VideoComing: job.Redo == core.RedoVideo && !job.Stage.Done(),
+		List: job.List, ListIndex: job.ListIndex,
 	}
 }
 
