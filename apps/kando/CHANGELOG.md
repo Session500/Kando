@@ -2,6 +2,13 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.40.0 - 2026-11-21
+
+### Features
+
+- Design pass for onboarding and pairing (#364)
+- Design look for Learn, the review, the word list and the export (#368)
+
 ## 0.39.0 - 2026-11-21
 
 ### Features
