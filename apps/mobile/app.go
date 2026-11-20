@@ -54,6 +54,8 @@ const (
 	conflictsPage
 	shortcutsPage
 	widgetsPage
+	languagePage
+	offlinePage
 )
 
 // The tabs, in the order the tab bar and a tablet's sidebar show them.
@@ -89,6 +91,8 @@ func App(cx *core.Scope, cfg session.Config) core.Node {
 			cx.SetAppearance(core.AppearanceSystem)
 		}
 	})
+	// The interface's language is the one the user chose in Settings, or the system's ("" follows it again).
+	cx.Effect(func() { cx.SetLocale(s.Prefs().Language) })
 	if widget.Available() {
 		widgets.Keep(cx, s, widget.Update)
 	}
@@ -121,7 +125,7 @@ func App(cx *core.Scope, cfg session.Config) core.Node {
 		navs[filmsTab].PopToRoot()
 		outer.Pop(1)
 	}
-	// Unpaired, a computer's films not on the phone go from the Library's stack, and from Jobs', with the pages opened from them: with no client left they could not be downloaded. A film's page of one on the phone stays. Its page in Settings goes.
+	// Unpaired, a computer's films not on the phone go from the Library's stack, and from Jobs', with the pages opened from them: with no client left they could not be downloaded. A film's page of one on the phone stays. The computer page in Settings goes with the last computer.
 	unpaired := func(id string) {
 		for _, n := range []*base.Nav[route]{navs[filmsTab], navs[jobsTab]} {
 			routes := n.Routes()
@@ -132,9 +136,12 @@ func App(cx *core.Scope, cfg session.Config) core.Node {
 				n.Pop(len(routes) - i)
 			}
 		}
-		// The computer's page in Settings goes too.
+		// The computer's page in Settings shows whichever computer processes new links, so it goes once no computer is left to show.
+		if len(s.Desktops()) > 0 {
+			return
+		}
 		routes := navs[settingsTab].Routes()
-		if i := slices.IndexFunc(routes, func(r route) bool { return r.page == computerPage && r.desktop == id }); i >= 0 {
+		if i := slices.IndexFunc(routes, func(r route) bool { return r.page == computerPage }); i >= 0 {
 			navs[settingsTab].Pop(len(routes) - i)
 		}
 	}
@@ -194,13 +201,19 @@ func App(cx *core.Scope, cfg session.Config) core.Node {
 						Introduction: func() { outer.Push(route{page: introductionPage}) },
 						Shortcuts:    func() { n.Push(route{page: shortcutsPage}) },
 						Widgets:      func() { n.Push(route{page: widgetsPage}) },
+						Language:     func() { n.Push(route{page: languagePage}) },
+						Offline:      func() { n.Push(route{page: offlinePage}) },
 						Computer: func(id string) {
 							n.Push(route{page: computerPage, desktop: id})
 							s.SyncLearning()
 						},
 						Unpaired: unpaired})
 				case computerPage:
-					return settings.ComputerPage(cx, s, r.desktop, unpaired, back)
+					return settings.ComputerPage(cx, s, openPair, unpaired, back)
+				case languagePage:
+					return settings.LanguagePage(cx, s, back)
+				case offlinePage:
+					return settings.OfflinePage(cx, s, back)
 				case shortcutsPage:
 					return settings.ShortcutsPage(cx, sectionNames(cx), back)
 				case widgetsPage:

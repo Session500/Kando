@@ -105,6 +105,15 @@ func (p *phone) openTab(i int, name string) {
 	p.app.Emit("id:tab-bar", "change", float64(i))
 }
 
+// openComputers opens Settings › Processing Computer, which lists the paired computers and unpairs the one it shows.
+func (p *phone) openComputers() {
+	p.t.Helper()
+	p.openTab(settingsTab, msgs.SettingsTitle())
+	p.app.Press("id:settings-computer")
+	// A page over the tabs, as a revoked computer's, hides it from WaitFor, which sees only visible views.
+	p.app.WaitUntil(wait, func() bool { return len(p.app.QueryMounted("id:computer-page")) == 1 })
+}
+
 // startPairing goes through a new phone's introduction to its pairing step.
 func (p *phone) startPairing() {
 	p.t.Helper()
@@ -199,7 +208,12 @@ func (p *phone) texts(selector string) string {
 	}
 	var out []string
 	var walk func(v *nsgotest.View)
+	root := p.app.Find(selector)
+	// What assistive technology skips inside the view, as a settings row's glyph tile, is not read; a view asked for itself, as a badge, is.
 	walk = func(v *nsgotest.View) {
+		if v != root && v.Props.ElementsHidden {
+			return
+		}
 		if v.Text != "" {
 			out = append(out, v.Text)
 		}
@@ -207,7 +221,7 @@ func (p *phone) texts(selector string) string {
 			walk(c)
 		}
 	}
-	walk(p.app.Find(selector))
+	walk(root)
 	return strings.Join(out, "\n")
 }
 

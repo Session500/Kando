@@ -76,14 +76,14 @@ func TestTheTokenIsKeptInTheSecureStore(t *testing.T) {
 	p = startPhone(t, p.dir, nsgotest.Secrets(map[string]string{account: token}))
 	p.app.WaitFor(talkRow(store.DesktopID(d.Fingerprint)), wait)
 	id := store.DesktopID(d.Fingerprint)
-	p.openTab(settingsTab, msgs.SettingsTitle())
-	// The options' Cancel keeps the computer.
-	p.app.Press("id:settings-computer-options-" + id)
+	p.openComputers()
+	// Unpair's Cancel keeps the computer.
+	p.app.Press("id:computer-unpair")
 	p.app.Answer(0)
 	if !p.app.Exists("id:settings-computer-"+id) || func() string { token, _ := secretOf(p, account); return token }() == "" {
-		t.Fatal("cancelling the computer's options unpaired it")
+		t.Fatal("cancelling Unpair unpaired it")
 	}
-	p.app.Press("id:settings-computer-options-" + id)
+	p.app.Press("id:computer-unpair")
 	p.app.Answer(1)
 	p.app.WaitUntil(wait, func() bool { token, _ := secretOf(p, account); return token == "" })
 	p.app.WaitForGone("id:settings-computer-"+id, wait)

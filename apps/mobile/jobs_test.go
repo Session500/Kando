@@ -377,10 +377,12 @@ func TestARevokedComputerSaysSoAndUnpairingDropsItsLinks(t *testing.T) {
 		t.Fatalf("a revoked computer's link is %+v, want it waiting", links)
 	}
 
-	p.openTab(settingsTab, msgs.SettingsTitle())
-	p.app.Press("id:settings-computer-options-" + id)
+	// Opening the computer's page syncs with it, which finds the phone revoked: the page that says so covers the tabs, and unpairs it.
+	p.openComputers()
+	p.app.WaitFor("id:revoked-page", wait)
+	p.app.Press("id:revoked-unpair")
 	p.app.Answer(1)
-	p.app.WaitForGone("id:settings-computer-"+id, wait)
+	p.app.WaitForGone("id:revoked-page", wait)
 	p.app.WaitUntil(wait, func() bool { links, _ := store.Open(dir).Links(); return len(links) == 0 })
 }
 
@@ -670,6 +672,7 @@ func TestAComputerOutOfReachSaysWhenItLastAnswered(t *testing.T) {
 	p := startPhone(t, dir, pairedWith(t, d, dir))
 	id := store.DesktopID(d.Fingerprint)
 	p.openTab(jobsTab, msgs.JobsTitle())
+	p.app.WaitFor("id:jobs-thumb-job1", wait)
 	p.app.WaitUntil(wait, func() bool { return p.app.Find("id:jobs-thumb-job1").Text == msgs.JobsPercent(47) })
 	// Two hours on, the computer still answers: the job moves on and the phone hears it over its events.
 	later.Store(int64(2 * time.Hour))

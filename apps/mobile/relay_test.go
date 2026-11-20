@@ -87,8 +87,8 @@ func TestAwayFromTheComputerTheQueueGoesThroughItsStorage(t *testing.T) {
 	}
 
 	// Unpaired, the computer's relay is forgotten with it.
-	p.openTab(settingsTab, msgs.SettingsTitle())
-	p.app.Press("id:settings-computer-options-" + id)
+	p.openComputers()
+	p.app.Press("id:computer-unpair")
 	p.app.Answer(1)
 	p.app.WaitForGone("id:settings-computer-"+id, wait)
 	p.app.WaitUntil(wait, func() bool { _, ok, _ := store.Open(dir).Relay(id); return !ok })
