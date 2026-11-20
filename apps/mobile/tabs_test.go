@@ -1,11 +1,14 @@
 package main
 
 import (
+	"net/netip"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"kando/apps/mobile/store"
+	"kando/packages/sync"
 
 	"github.com/nsgo-dev/nsgo/core"
 	"github.com/nsgo-dev/nsgo/nsgotest"
@@ -109,6 +112,93 @@ func TestTheIntroductionCanBeSkipped(t *testing.T) {
 	}
 }
 
+// The introduction's picture plays a line of the sample film in the app's language over the original, and moves to the next line every few seconds.
+func TestTheIntroductionsPicturePlaysItsLines(t *testing.T) {
+	p := startPhone(t, "")
+	p.app.WaitFor("id:onboarding-intro", wait)
+	if got, want := p.texts("id:onboarding-cue"), msgs.OnboardingCue1()+"\nEvery river begins as a trickle high in the mountains."; got != want {
+		t.Fatalf("the picture's line is %q, want %q", got, want)
+	}
+	p.app.Advance(3500 * time.Millisecond)
+	p.app.WaitUntil(wait, func() bool {
+		return p.texts("id:onboarding-cue") == msgs.OnboardingCue2()+"\nAs water flows downhill, it picks up sand and stones."
+	})
+}
+
+// The picture's Skip stays on the pairing step, and leaves the introduction unpaired from there as from the others.
+func TestTheIntroductionCanBeSkippedAtItsPairingStep(t *testing.T) {
+	p := startPhone(t, "")
+	p.startPairing()
+	p.app.Press("id:onboarding-skip")
+	p.app.WaitFor("id:films-unpaired", wait)
+	p.app.WaitUntil(wait, func() bool { prefs, _ := store.Open(p.dir).Prefs(); return prefs.Onboarded })
+}
+
+// While a pairing code is out the introduction cannot be left: the computer may take the code whether or not the phone waits for its answer, so Skip and the way on without a computer wait, as pairing's Cancel does. The card that says the phone is connecting shows that once, the button under it only waiting.
+func TestTheIntroductionWaitsWhileItsPairingCodeIsOut(t *testing.T) {
+	d := newDesktop(t)
+	release := d.HoldPairing()
+	defer release()
+	p := startPhone(t, "")
+	p.startPairing()
+	p.app.WaitFor("id:pair-address", wait)
+	p.app.Type("id:pair-address", sync.PairURL{Addrs: []netip.AddrPort{d.Addr}, Code: "123456", Fingerprint: d.Fingerprint, Name: "Studio"}.String())
+	p.app.Press("id:pair-continue")
+	p.app.WaitFor("id:pair-connecting", wait)
+	p.app.WaitUntil(wait, func() bool { return p.app.Find("id:onboarding-skip").Props.Disabled })
+	if !p.app.Find("id:onboarding-later").Props.Disabled {
+		t.Fatal("the way on without a computer can be pressed while the pairing code is out")
+	}
+	if got := p.texts("id:pair-continue"); got != msgs.PairContinue() || !p.app.Find("id:pair-continue").Props.Disabled {
+		t.Fatalf("while connecting the button says %q, or can be pressed; want %q, waiting", got, msgs.PairContinue())
+	}
+	release()
+	p.finishPairing(d)
+}
+
+// The introduction's icon, name and Skip stay over the page as the picture scrolls away under them, on the page once the picture has gone from behind them.
+func TestTheIntroductionsTopBarStaysAsThePictureScrollsAway(t *testing.T) {
+	p := startPhone(t, "", nsgotest.Size(390, 600))
+	p.startPairing()
+	if bg := p.app.Find("id:onboarding-top").Style.Background; bg&0xff != 0 {
+		t.Fatalf("the top bar is filled %08x over the picture", bg)
+	}
+	p.app.Scroll("id:onboarding-scroll", 300)
+	p.app.WaitUntil(wait, func() bool { return p.app.Find("id:onboarding-top").Style.Background&0xff != 0 })
+	if !p.app.Exists("id:onboarding-skip") {
+		t.Fatal("Skip scrolled away with the picture")
+	}
+}
+
+// Paired at the introduction, the phone says which computer it paired with and, once that computer listed its library, how many films it holds, keeping the steps over them.
+func TestTheIntroductionCountsThePairedComputersFilms(t *testing.T) {
+	d := newDesktopWithMovies(t)
+	p := startPhone(t, "")
+	p.startPairing()
+	if !p.app.Exists("id:pair-steps") {
+		t.Fatal("the pairing step does not show how to pair")
+	}
+	p.fillPairing(d.Addr.String(), "123456")
+	p.app.Press("id:pair-continue")
+	p.app.WaitFor("id:pair-confirm", wait)
+	// Comparing the fingerprint, Cancel goes back, so the way on without a computer gives way to it.
+	if p.app.Exists("id:onboarding-later") {
+		t.Fatal("the way on without a computer shows beside Cancel while the fingerprint is compared")
+	}
+	p.app.Press("id:pair-confirm")
+	p.app.WaitFor("id:onboarding-paired", wait)
+	if got, want := p.app.WaitFor("id:onboarding-paired-films", wait).Text, msgs.OnboardingPairedFilms(2); got != want {
+		t.Fatalf("the paired card says %q, want %q", got, want)
+	}
+	if !p.app.Exists("id:pair-steps") {
+		t.Fatal("the steps went once the phone paired")
+	}
+	if p.app.Find("id:onboarding-skip").Props.Disabled {
+		t.Fatal("Skip still waits once the phone paired")
+	}
+	p.finishPairing(d)
+}
+
 // Unpaired in Settings while the Library shows one of its films not on the phone, a computer takes that page off the Library's stack, and its films off the list: with no client left they could not be downloaded.
 func TestUnpairingInSettingsClosesTheComputersFilms(t *testing.T) {
 	d := newDesktop(t)
@@ -136,7 +226,7 @@ func TestTheIntroductionKeepsTheLanguagesHoweverItIsLeft(t *testing.T) {
 	p.app.Press("id:onboarding-continue")
 	p.app.WaitFor("id:onboarding-languages", wait)
 	p.app.Press("id:onboarding-spoken-ja")
-	p.app.Press("id:onboarding-target-ko")
+	p.pickTarget("ko")
 	var prefs store.Prefs
 	p.app.WaitUntil(wait, func() bool { prefs, _ = store.Open(p.dir).Prefs(); return prefs.Target == "ko" })
 	if !slices.Equal(prefs.Spoken, []string{"ja"}) || prefs.Onboarded {
@@ -152,7 +242,7 @@ func TestTheIntroductionKeepsTheLanguagesHoweverItIsLeft(t *testing.T) {
 	p.app.WaitFor("id:onboarding-intro", wait)
 	p.app.Press("id:onboarding-continue")
 	p.app.WaitFor("id:onboarding-languages", wait)
-	p.app.Press("id:onboarding-target-ko")
+	p.pickTarget("ko")
 	p.app.Back()
 	p.app.WaitForGone("id:onboarding", wait)
 	p.app.WaitUntil(wait, func() bool { prefs, _ = store.Open(p.dir).Prefs(); return prefs.Target == "ko" })
@@ -199,14 +289,30 @@ func TestTheIntroductionKeepsTheLanguages(t *testing.T) {
 	p.app.Press("id:onboarding-continue")
 	p.app.WaitFor("id:onboarding-languages", wait)
 	// The phone's own language is the target to start with.
-	if !p.app.Find("id:onboarding-target-en").Props.Checked {
-		t.Fatal("the phone's language is not the target the introduction starts with")
+	if got := p.texts("id:onboarding-target"); !strings.Contains(got, "English") {
+		t.Fatalf("the target row says %q, not the phone's language, which the introduction starts with", got)
+	}
+	// Each language is named in itself and, under that, in the app's language, but the app's own only once.
+	if got := p.texts("id:onboarding-spoken-en"); got != "English" {
+		t.Fatalf("the tile of the app's own language says %q, want it named once", got)
+	}
+	if got, want := p.texts("id:onboarding-spoken-ja"), "日本語\n"+msgs.OnboardingLanguageJa(); got != want {
+		t.Fatalf("the Japanese tile says %q, want %q", got, want)
+	}
+	p.app.Press("id:onboarding-target")
+	p.app.WaitFor("id:onboarding-target-en", wait)
+	if !p.app.Find("id:onboarding-target-en").Props.Checked || p.app.Find("id:onboarding-target-ko").Props.Checked {
+		t.Fatal("the target list does not check the phone's language alone")
+	}
+	p.app.Press("id:onboarding-target-ko")
+	p.app.WaitForGone("id:onboarding-target-sheet", wait)
+	if got := p.texts("id:onboarding-target"); !strings.Contains(got, "한국어") {
+		t.Fatalf("the target row says %q after 한국어 was picked", got)
 	}
 	p.app.Press("id:onboarding-spoken-ja")
 	p.app.Press("id:onboarding-spoken-fr")
 	p.app.Press("id:onboarding-spoken-fr")
 	p.app.Press("id:onboarding-spoken-en")
-	p.app.Press("id:onboarding-target-ko")
 	p.app.Press("id:onboarding-continue")
 	p.app.WaitFor("id:onboarding-pairing", wait)
 	p.app.Press("id:onboarding-later")
@@ -230,6 +336,19 @@ func TestTheIntroductionKeepsTheLanguages(t *testing.T) {
 	p.app.WaitUntil(wait, func() bool { prefs, _ = store.Open(p.dir).Prefs(); return prefs.Target == "zh-Hans" })
 	if !slices.Equal(prefs.Spoken, []string{"ja", "en"}) || !prefs.Onboarded {
 		t.Fatalf("changing the target lost the other choices: %+v", prefs)
+	}
+}
+
+// On a tablet the introduction is the design's 480-wide card, which fits a screen shorter than its 780 points, its top bar across the card.
+func TestTheIntroductionIsACardOnATablet(t *testing.T) {
+	p := startPhone(t, "", nsgotest.Size(1180, 820), nsgotest.Environment(core.Environment{Locale: lang, Idiom: core.IdiomTablet}))
+	p.app.WaitFor("id:onboarding-intro", wait)
+	card := p.app.Find("id:onboarding-card").Frame.Size
+	if card.Width != 480 || card.Height > 820-48 {
+		t.Fatalf("the card is %+v, want 480 wide within the screen's padding", card)
+	}
+	if top := p.app.Find("id:onboarding-top").Frame.Size; top.Width != card.Width {
+		t.Fatalf("the top bar is %+v on a card %+v, want it across the card", top, card)
 	}
 }
 

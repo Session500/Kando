@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"net/netip"
+	"strconv"
 	"strings"
 	"time"
 
@@ -60,21 +61,23 @@ func ParseTarget(address, code string) (Target, bool) {
 
 // Page is the pairing page; done runs once the phone is paired, back leaves it.
 func Page(cx *core.Scope, s *session.Session, done, back func()) base.NavPage {
-	f := New(cx, s, func(store.Desktop) { done() }, func() core.Points { return ui.NavInset(cx) })
+	f := New(cx, s, func(store.Desktop) { done() }, func() core.Points { return ui.NavInset(cx) }, false)
 	return ui.NavPage(cx, base.NavPage{TitleFunc: func() string { return locales.PairTitle(cx) }, TestID: "pair-page", Children: []core.Node{
 		core.View{Style: core.Style{FlexGrow: 1, FlexShrink: 1}, Children: []core.Node{f.Body, look.ActionBar(cx, f.Actions)}},
 	}}, ui.NavHeader{OnBack: back, Scroll: f.Scroll})
 }
 
-// Flow is pairing as a page lays it out: Body, the form or the fingerprint to compare, which fills the room it is given, and Actions, the button that goes on, for the page's foot; Scroll is the form's, for a header that follows it.
+// Flow is pairing as a page lays it out: Body, the form or the fingerprint to compare, which fills the room it is given, and Actions, the button that goes on, for the page's foot; Scroll is the form's, for a header that follows it. Content is Body without its scroll view, for a page that scrolls the form with what is around it, as the introduction does. Comparing is whether the fingerprint is on show, and Sending whether the code is out: it cannot be called back then, so a page's own ways out wait too, as Cancel does.
 type Flow struct {
-	Body, Actions core.Node
-	Scroll        *core.Ref
+	Body, Content, Actions core.Node
+	Scroll                 *core.Ref
+	Comparing, Sending     func() bool
 }
 
-// New is the pairing flow under cx, which a pairing under way ends with; done runs once the phone is paired, with the computer it paired with, and top is the room the fingerprint keeps clear of above it, which does not scroll.
-func New(cx *core.Scope, s *session.Session, done func(store.Desktop), top func() core.Points) Flow {
+// New is the pairing flow under cx, which a pairing under way ends with; done runs once the phone is paired, with the computer it paired with, and top is the room the fingerprint keeps clear of above it, which does not scroll. intro lays the flow out for the introduction's white page: its main button in the tall shape (look.Button's Tall), and its cards in the page grey rather than the fill a card on the grey page has.
+func New(cx *core.Scope, s *session.Session, done func(store.Desktop), top func() core.Points, intro bool) Flow {
 	colors := ui.ColorsOf(cx)
+	tall, fill := intro, CardFill(cx, intro)
 	address := core.NewSignal(cx, "")
 	code := core.NewSignal(cx, "")
 	at := core.NewSignal(cx, editing)
@@ -183,34 +186,29 @@ func New(cx *core.Scope, s *session.Session, done func(store.Desktop), top func(
 		})
 	}
 	scroll := &core.Ref{}
-	form := core.Scroll{Ref: scroll, Style: core.Style{FlexGrow: 1, FlexShrink: 1}, Children: []core.Node{
-		core.View{Style: core.Style{Padding: core.All(16), Gap: 24, MaxWidth: core.Pt(480), Width: core.Pct(100), AlignSelf: core.AlignCenter}, Children: []core.Node{
-			core.Text{ContentFunc: func() string {
-				if cx.Env().CanTakePhoto() {
-					return locales.PairHintScan(cx)
-				}
-				return locales.PairHint(cx)
-			}, Style: look.Subhead, StyleFunc: ui.Colored(colors.Muted)},
-			core.Show{When: cx.Env().CanTakePhoto, Then: func(cx *core.Scope) core.Node {
-				return look.Button{Kind: look.Tinted, Icon: lucide.ScanQrCode, Text: func() string { return locales.PairScan(cx) }, TestID: "pair-scan",
-					Busy: scanning.Get, BusyLabel: func() string { return locales.PairScanning(cx) }, Disabled: busy, OnPress: scan}
-			}},
-			field(cx, locales.PairAddress(cx), ui.Input{TestID: "pair-address", Label: locales.PairAddress(cx), Value: address.Get, OnChange: func(v string) { address.Set(v); problem.Set("") },
-				Placeholder: locales.PairAddressExample(cx), KeyboardType: core.KeyboardURL, AutoCapitalize: core.AutoCapitalizeNone, NoAutoCorrect: true, Disabled: busy,
-				Style: core.Style{Height: core.Pt(50), FontSize: 17, CornerRadius: 12, Padding: core.Symmetric(0, 14)}}),
-			field(cx, locales.PairCode(cx), codeInput(cx, code.Get, func(v string) { code.Set(v); problem.Set("") }, busy)),
-			core.Show{When: func() bool { return problem.Get() != "" }, Then: func(cx *core.Scope) core.Node {
-				return core.Text{TestID: "pair-problem", ContentFunc: problem.Get, LiveRegion: core.LiveRegionPolite, Style: look.Subhead, StyleFunc: ui.Colored(colors.Danger)}
-			}},
+	fields := core.View{Style: core.Style{Padding: core.All(16), Gap: 24, MaxWidth: core.Pt(480), Width: core.Pct(100), AlignSelf: core.AlignCenter}, Children: []core.Node{
+		Steps(cx, fill),
+		core.Show{When: cx.Env().CanTakePhoto, Then: func(cx *core.Scope) core.Node {
+			return look.Button{Kind: look.Tinted, Icon: lucide.ScanQrCode, Text: func() string { return locales.PairScan(cx) }, TestID: "pair-scan",
+				Busy: scanning.Get, BusyLabel: func() string { return locales.PairScanning(cx) }, Disabled: busy, OnPress: scan}
 		}},
+		field(cx, locales.PairAddress(cx), ui.Input{TestID: "pair-address", Label: locales.PairAddress(cx), Value: address.Get, OnChange: func(v string) { address.Set(v); problem.Set("") },
+			Placeholder: locales.PairAddressExample(cx), KeyboardType: core.KeyboardURL, AutoCapitalize: core.AutoCapitalizeNone, NoAutoCorrect: true, Disabled: busy,
+			Style: core.Style{Height: core.Pt(50), FontSize: 17, CornerRadius: 12, Padding: core.Symmetric(0, 14)}}),
+		field(cx, locales.PairCode(cx), codeInput(cx, code.Get, func(v string) { code.Set(v); problem.Set("") }, busy)),
+		core.Show{When: func() bool { return problem.Get() != "" }, Then: func(cx *core.Scope) core.Node {
+			return core.Text{TestID: "pair-problem", ContentFunc: problem.Get, LiveRegion: core.LiveRegionPolite, Style: look.Subhead, StyleFunc: ui.Colored(colors.Danger)}
+		}},
+		core.Show{When: busy, Then: func(cx *core.Scope) core.Node { return connecting(cx, fill) }},
 	}}
+	form := core.Scroll{Ref: scroll, Style: core.Style{FlexGrow: 1, FlexShrink: 1}, Children: []core.Node{fields}}
 	compare := core.View{TestID: "pair-compare", Style: core.Style{FlexGrow: 1, JustifyContent: core.JustifyCenter, AlignItems: core.AlignCenter, Gap: 20},
 		// The comparison does not scroll, so it keeps clear of iOS's header itself.
 		StyleFunc: func() core.Style { return core.Style{Padding: core.Edges{Top: top(), Right: 24, Left: 24}} },
 		Children: []core.Node{
 			ui.Icon(lucide.ShieldCheck, 40, colors.Accent),
 			core.Text{ContentFunc: func() string { return locales.PairCompareTitle(cx) }, Role: core.RoleHeader, Style: look.Heading.Merge(core.Style{TextAlign: core.TextAlignCenter}), StyleFunc: ui.Colored(colors.Text)},
-			core.View{Style: core.Style{CornerRadius: 16, Padding: core.Symmetric(20, 24)}, StyleFunc: ui.Filled(colors.Inset), Children: []core.Node{
+			core.View{Style: core.Style{CornerRadius: 16, Padding: core.Symmetric(20, 24)}, StyleFunc: ui.Filled(fill), Children: []core.Node{
 				core.Text{TestID: "pair-fingerprint", ContentFunc: func() string { return sync.ShortFingerprint(answer.Get().fingerprint) },
 					Style: core.Style{FontSize: 30, LineHeight: 38, FontFamily: ui.Mono, FontWeight: core.FontWeightSemibold, LetterSpacing: 2, TextAlign: core.TextAlignCenter}, StyleFunc: ui.Colored(colors.Text)},
 			}},
@@ -218,18 +216,59 @@ func New(cx *core.Scope, s *session.Session, done func(store.Desktop), top func(
 	actions := core.Show{When: comparingNow,
 		Then: func(cx *core.Scope) core.Node {
 			return core.View{Style: core.Style{Gap: 4}, Children: []core.Node{
-				look.Button{Kind: look.Primary, Text: func() string { return locales.PairConfirm(cx) }, TestID: "pair-confirm", Busy: func() bool { return at.Get() == pairing },
+				look.Button{Kind: look.Primary, Tall: tall, Text: func() string { return locales.PairConfirm(cx) }, TestID: "pair-confirm", Busy: func() bool { return at.Get() == pairing },
 					BusyLabel: func() string { return locales.PairConnecting(cx) }, OnPress: confirm},
 				// Once the code goes out it cannot be called back: the computer may take it whether or not the phone waits for the answer, so Cancel waits too.
 				look.Button{Kind: look.Plain, Text: func() string { return locales.CommonCancel(cx) }, TestID: "pair-reject", Disabled: func() bool { return at.Get() == pairing }, OnPress: func() { at.Set(editing) }},
 			}}
 		},
 		Else: func(cx *core.Scope) core.Node {
-			return look.Button{Kind: look.Primary, Text: func() string { return locales.PairContinue(cx) }, TestID: "pair-continue", Busy: busy,
-				BusyLabel: func() string { return locales.PairConnecting(cx) }, Disabled: func() bool { return !ready() }, OnPress: check}
+			// The connecting card over it says the phone is reaching the computer, so the button only waits.
+			return look.Button{Kind: look.Primary, Tall: tall, Text: func() string { return locales.PairContinue(cx) }, TestID: "pair-continue",
+				Disabled: func() bool { return busy() || !ready() }, OnPress: check}
 		}}
 	body := core.Show{When: comparingNow, Then: func(*core.Scope) core.Node { return compare }, Else: func(*core.Scope) core.Node { return form }}
-	return Flow{Body: body, Actions: actions, Scroll: scroll}
+	content := core.Show{When: comparingNow, Then: func(*core.Scope) core.Node { return compare }, Else: func(*core.Scope) core.Node { return fields }}
+	return Flow{Body: body, Content: content, Actions: actions, Scroll: scroll, Comparing: comparingNow, Sending: func() bool { return at.Get() == pairing }}
+}
+
+// CardFill is the fill of the flow's cards: on the introduction's white page the grouped page's grey, as the design draws them, and on a page of that grey the fill a card has on it.
+func CardFill(cx *core.Scope, intro bool) func() core.Color {
+	colors := ui.ColorsOf(cx)
+	if intro {
+		return colors.Background
+	}
+	return colors.Inset
+}
+
+// Steps is how to pair, as a card of numbered steps in fill: open Kando on the computer, its Settings › Phone Sync, and the address and code it shows there.
+// TODO(nsgo#429): no camera QR scanner, so the card has no QR code beside the steps and they end in typing what the computer shows; add the scanner, QR card and waiting state once it exists https://github.com/nsgo-dev/nsgo/issues/429
+func Steps(cx *core.Scope, fill func() core.Color) core.Node {
+	colors := ui.ColorsOf(cx)
+	// The design's steps are a grey between the ink and the muted text (#3A3A3F on white).
+	ink := func() core.Color { return ui.Mix(colors.Text(), colors.Muted(), 0.38) }
+	lines := []func(*core.Scope) string{locales.PairStepOpen, locales.PairStepSettings, locales.PairStepEnter}
+	var rows []core.Node
+	for i, line := range lines {
+		text := look.Caption.Merge(core.Style{LineHeight: 21})
+		rows = append(rows, core.View{Style: core.Style{Direction: core.Row, Gap: 6}, Children: []core.Node{
+			core.Text{Content: strconv.Itoa(i+1) + ".", Style: text.Merge(core.Style{MinWidth: core.Pt(14), FontVariant: core.FontTabularNums}), StyleFunc: ui.Colored(ink)},
+			core.Text{ContentFunc: func() string { return line(cx) }, Style: text.Merge(core.Style{FlexShrink: 1}), StyleFunc: ui.Colored(ink)},
+		}})
+	}
+	return core.View{TestID: "pair-steps", Role: core.RoleGroup, LabelFunc: func() string { return locales.PairSteps(cx) },
+		Style: core.Style{Padding: core.All(14), CornerRadius: 16, BorderCurve: core.BorderCurveContinuous}, StyleFunc: ui.Filled(fill), Children: rows}
+}
+
+// connecting is the card in fill that says the phone is reaching the computer, while it does.
+func connecting(cx *core.Scope, fill func() core.Color) core.Node {
+	colors := ui.ColorsOf(cx)
+	return core.View{TestID: "pair-connecting", Style: core.Style{Direction: core.Row, AlignItems: core.AlignCenter, Gap: 12, Padding: core.Symmetric(12, 14), CornerRadius: 16, BorderCurve: core.BorderCurveContinuous},
+		StyleFunc: ui.Filled(fill),
+		Children: []core.Node{
+			ui.Spinner{Size: 22, Tint: colors.Accent},
+			core.Text{ContentFunc: func() string { return locales.PairConnecting(cx) }, LiveRegion: core.LiveRegionPolite, Style: core.Style{FontSize: 15, LineHeight: 20, FontWeight: core.FontWeightBold, FlexShrink: 1}, StyleFunc: ui.Colored(colors.Text)},
+		}}
 }
 
 // field is a labeled control of the form.

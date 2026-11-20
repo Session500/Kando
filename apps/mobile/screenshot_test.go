@@ -42,6 +42,13 @@ func TestScreenshotsOnboarding(t *testing.T) {
 	p.app.WaitFor("id:onboarding-languages", wait)
 	p.app.Press("id:onboarding-spoken-ja")
 	p.app.Press("id:onboarding-spoken-en")
+	p.app.Press("id:onboarding-target")
+	p.app.WaitFor("id:onboarding-target-zh-Hans", wait)
+	shot(p, "onboarding-target")
+	p.app.Press("id:onboarding-target-zh-Hans")
+	// The sheet's exit runs on the test's clock.
+	p.app.Advance(500 * time.Millisecond)
+	p.app.WaitForGone("id:onboarding-target-sheet", wait)
 	shot(p, "onboarding-languages")
 	p.app.Press("id:onboarding-continue")
 	p.app.WaitFor("id:onboarding-pairing", wait)
@@ -51,8 +58,42 @@ func TestScreenshotsOnboarding(t *testing.T) {
 	p.app.WaitFor("id:pair-fingerprint", wait)
 	shot(p, "onboarding-pair-compare")
 	p.app.Press("id:pair-confirm")
-	p.app.WaitFor("id:onboarding-paired", wait)
+	p.app.WaitFor("id:onboarding-paired-films", wait)
 	shot(p, "onboarding-paired")
+}
+
+// The pairing step while a pasted link's code is out: the card says the phone is connecting, and the ways out wait.
+func TestScreenshotsOnboardingConnecting(t *testing.T) {
+	shot := screenshots(t)
+	d := newDesktop(t)
+	release := d.HoldPairing()
+	defer release()
+	p := startPhone(t, "")
+	p.startPairing()
+	p.app.WaitFor("id:pair-address", wait)
+	p.app.Type("id:pair-address", sync.PairURL{Addrs: []netip.AddrPort{d.Addr}, Code: "123456", Fingerprint: d.Fingerprint, Name: "Studio"}.String())
+	p.app.Press("id:pair-continue")
+	p.app.WaitFor("id:pair-connecting", wait)
+	// The card is under the form, the picture scrolled away under the top bar.
+	p.app.Scroll("id:onboarding-scroll", 400)
+	shot(p, "onboarding-connecting")
+}
+
+// The introduction on a tablet, the design's card over the screen dimmed, on its side and upright.
+func TestScreenshotsTabletOnboarding(t *testing.T) {
+	shot := screenshots(t)
+	p := startPhone(t, "", nsgotest.Size(1180, 820), nsgotest.Environment(core.Environment{Locale: lang, Idiom: core.IdiomTablet}))
+	p.app.WaitFor("id:onboarding-intro", wait)
+	// A target reports its own idiom, which an app on a computer's or a phone's is not a tablet's.
+	if !p.app.Exists("id:onboarding-card") {
+		t.Skip("the target is not a tablet")
+	}
+	shot(p, "tablet-onboarding")
+	p.app.Press("id:onboarding-continue")
+	p.app.WaitFor("id:onboarding-languages", wait)
+	p.app.Resize(820, 1180)
+	p.app.WaitFor("id:onboarding-card", wait)
+	shot(p, "tablet-onboarding-upright")
 }
 
 func TestScreenshotsSettings(t *testing.T) {
