@@ -1,8 +1,13 @@
 package look
 
 import (
+	"slices"
+
+	"kando/apps/mobile/theme"
+
 	"github.com/nsgo-dev/nsgo/base"
 	"github.com/nsgo-dev/nsgo/core"
+	"github.com/nsgo-dev/nsgo/mobile"
 	"github.com/nsgo-dev/nsgo/ui"
 )
 
@@ -39,7 +44,7 @@ func TabRootWith(cx *core.Scope, p base.NavPage, h Head) base.NavPage {
 		}
 		return p
 	}
-	// TODO(nsgo#485): ui.NavPage draws a 44pt desktop header on Android (navpage.go:44-50, navheader.go:50-64), with no large title or Material top app bar, so a tab's root page draws its title in its content; give it the platform's top app bar once NSGo has one https://github.com/nsgo-dev/nsgo/issues/485
+	// TODO(nsgo#485): Android's system header is a toolbar with no large title (Header.java), and a desktop's is ui.NavHeader's 44pt bar (navheader.go:50-64), so a tab's root page draws its title in its content; give it the platform's top app bar once NSGo has one https://github.com/nsgo-dev/nsgo/issues/485
 	p.HeaderHidden = true
 	head := core.Text{ContentFunc: h.Title, Role: core.RoleHeader, MaxLines: 1, Style: PageTitle(cx).Merge(core.Style{Padding: core.Edges{Top: 2, Right: 16, Bottom: 4, Left: 16}}),
 		StyleFunc: ui.Colored(colors.Text)}
@@ -115,3 +120,71 @@ func Column(cx *core.Scope) func() core.Style {
 
 // Tablet reports whether the app runs on a tablet, whose shell shows a sidebar on its side and whose sheets show in the middle of the screen.
 func Tablet(cx *core.Scope) bool { return cx.Env().Idiom() == core.IdiomTablet }
+
+// NavPage is ui.NavPage, a page a tab's page opens, under header: on Android the system's toolbar with its back arrow, titled in Material's title large (SubPageTitle) left of the bar on the bar's frosted fill, as the design's top app bar, with header's Leading and Trailing at its ends (its Symbols are iOS's only); elsewhere ui.NavPage's own.
+// TODO(nsgo#485): Android's toolbar takes only a title, its color, the arrow's tint and the bar's background (Header.java:55-99), and titles in the platform's toolbar style, so the app gives it its title as the header's view (base.NavPage.Header, which ui.NavPage makes the title view) in the design's 22pt regular; set the title's style once NSGo has Material's top app bar https://github.com/nsgo-dev/nsgo/issues/485
+func NavPage(cx *core.Scope, p base.NavPage, header ui.NavHeader) base.NavPage {
+	if cx.Env().OS() != core.OSAndroid || !mobile.IsAvailable(cx) {
+		return ui.NavPage(cx, p, header)
+	}
+	colors := ui.ColorsOf(cx)
+	if p.Header == nil {
+		if title := subPageTitle(p, header); title != nil {
+			// ui.NavPage keeps only the header's Scroll once the page has a Header of its own, and keeps the page's left and right views, so the header's buttons move there.
+			if len(header.Leading) > 0 && p.HeaderLeft == nil {
+				p.HeaderLeft = headerItems(header.Leading)
+			}
+			if len(header.Trailing) > 0 && p.HeaderRight == nil {
+				p.HeaderRight = headerItems(header.Trailing)
+			}
+			ends := len(header.Leading) + len(header.Trailing)
+			// The toolbar is the page's, as wide as the page, which beside a tablet's sidebar is narrower than the window: the title is bounded by the page's width once it is laid out, by the window's before.
+			width := core.NewSignal(cx, core.Points(0))
+			p.Children = append(slices.Clip(p.Children), core.View{PointerEvents: core.PointerEventsNone,
+				Style:    core.Style{Position: core.Absolute, Top: core.Pt(0), Right: core.Pt(0), Left: core.Pt(0), Height: core.Pt(0)},
+				OnLayout: func(b core.Bounds) { width.Set(b.Size.Width) }})
+			p.Header = core.Text{ContentFunc: title, Role: core.RoleHeader, MaxLines: 1, Style: SubPageTitle, StyleFunc: func() core.Style {
+				page := width.Get()
+				if page <= 0 {
+					page = cx.Env().Window().Width
+				}
+				return core.Style{Color: colors.Text(), MaxWidth: core.Pt(SubPageTitleWidth(page, ends))}
+			}}
+		}
+	}
+	p = ui.NavPage(cx, p, header)
+	bar := theme.Of(cx).Bar
+	p.HeaderStyleFunc = func() core.Style {
+		return core.Style{Background: bar(), Color: colors.Text(), TintColor: colors.Text()}
+	}
+	return p
+}
+
+// SubPageTitleWidth is the most a sub-page's title can take of Android's toolbar on a page page wide with buttons buttons in its ends: the toolbar is laid out at the title's own size (ui.NavPage), so without a bound a long title, as a computer's name, would run under the buttons rather than end in an ellipsis. The toolbar starts a title 72 after its back arrow's edge (Material's inset with a navigation icon) and holds each button in a 48pt target, the end's 12 from the edge (Header.java); 16 is left after the title. At least 48.
+func SubPageTitleWidth(page core.Points, buttons int) core.Points {
+	w := page - 72 - 16
+	if buttons > 0 {
+		w -= core.Points(48*buttons + 12)
+	}
+	return max(w, 48)
+}
+
+// headerItems is the buttons of a header's end in a row, as ui.NavPage puts them in the system's header.
+func headerItems(children []core.Node) core.Node {
+	return core.View{Style: core.Style{Direction: core.Row, AlignItems: core.AlignCenter}, Children: children}
+}
+
+// subPageTitle is the title a page and its header give it, the header's first, nil for a page without one.
+func subPageTitle(p base.NavPage, header ui.NavHeader) func() string {
+	switch {
+	case header.TitleFunc != nil:
+		return header.TitleFunc
+	case header.Title != "":
+		return func() string { return header.Title }
+	case p.TitleFunc != nil:
+		return p.TitleFunc
+	case p.Title != "":
+		return func() string { return p.Title }
+	}
+	return nil
+}
