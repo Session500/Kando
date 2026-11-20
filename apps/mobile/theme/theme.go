@@ -16,10 +16,12 @@ const (
 	roleTileInk  = "tileInk"
 	roleWarnText = "warnText"
 	roleSubtext  = "subtext"
+	roleDueText  = "dueText"
 	roleOkText   = "okText"
 	roleWarnBox  = "warnBox"
 	roleWarnBody = "warnBody"
 	roleGlyph    = "glyph"
+	roleNoteText = "noteText"
 )
 
 // Kando is NSGo's default theme in the design's palette: the page is the grouped list's grey and a card (Surface) is white, black under #1C1C1E in the dark; ink, muted text, hairlines and fills are the system's; danger is the destructive red and warning the system's orange, with warnText the orange that reads as text.
@@ -44,10 +46,12 @@ func Kando() *core.Theme {
 	l.SetColor(roleTileInk, core.RGB(0x1D1D1F))
 	l.SetColor(roleWarnText, core.RGB(0x8A4B00))
 	l.SetColor(roleSubtext, core.RGB(0x3A3A3F))
+	l.SetColor(roleDueText, core.RGB(0xB25E00))
 	l.SetColor(roleOkText, core.RGB(0x1E7B34))
 	l.SetColor(roleWarnBox, core.RGB(0xFFF4E5))
 	l.SetColor(roleWarnBody, core.RGB(0x6B4A1F))
 	l.SetColor(roleGlyph, core.RGB(0x3A3A3F))
+	l.SetColor(roleNoteText, core.RGB(0x6B5300))
 	d.Background, d.Surface, d.Text, d.TextMuted = core.RGB(0x000000), core.RGB(0x1C1C1E), core.RGB(0xF5F5F7), core.RGB(0xA1A1A6)
 	d.SurfacePressed, d.Border = core.RGBA(0x767680, 0.32), core.RGBA(0x545458, 0.65)
 	d.SetColor("line", core.RGBA(0x545458, 0.65))
@@ -61,11 +65,13 @@ func Kando() *core.Theme {
 	d.SetColor(roleWarnText, core.RGB(0xFFB340))
 	// The design's #3A3A3F would be lost on the dark page, so the dark keeps the ink.
 	d.SetColor(roleSubtext, d.Text)
+	d.SetColor(roleDueText, core.RGB(0xFFB340))
 	// The design draws the warning box and the green text in the light alone: in the dark they are the system's dark green and a warm tint of the orange on the card.
 	d.SetColor(roleOkText, core.RGB(0x30D158))
 	d.SetColor(roleWarnBox, core.RGBA(0xFF9500, 0.16))
 	d.SetColor(roleWarnBody, core.RGB(0xE3C9A3))
 	d.SetColor(roleGlyph, core.RGB(0xD1D1D6))
+	d.SetColor(roleNoteText, core.RGB(0xFFE066))
 	return t
 }
 
@@ -98,6 +104,9 @@ func (c Colors) WarnText() core.Color { return c.role(roleWarnText) }
 // Subtext is the ink a step softer than the text's, as the Library switcher's name: #3A3A3F in the light, the ink in the dark.
 func (c Colors) Subtext() core.Color { return c.role(roleSubtext) }
 
+// DueText is the text of the Due badge on its orange tint: a brighter orange than WarnText in the light, as the design draws the badge, and WarnText's in the dark.
+func (c Colors) DueText() core.Color { return c.role(roleDueText) }
+
 // OkText is the green of text that says something went well, as a step done or a computer online, darker than the status dot's so it reads on a card.
 func (c Colors) OkText() core.Color { return c.role(roleOkText) }
 
@@ -107,6 +116,9 @@ func (c Colors) WarnBody() core.Color { return c.role(roleWarnBody) }
 
 // Glyph is the ink of a glyph on a round button on the fill, as a job's pause and cancel: a step softer than the text's.
 func (c Colors) Glyph() core.Color { return c.role(roleGlyph) }
+
+// NoteText is the ink of a learner's note on its yellow box (NoteBox).
+func (c Colors) NoteText() core.Color { return c.role(roleNoteText) }
 
 // BarBlur is what a bar's fill frosts behind it.
 var BarBlur = []core.Filter{core.Blur(24), core.Saturate(1.8)}
@@ -180,4 +192,19 @@ var (
 	// LaptopBase is the base tucked under the larger laptop's lid (look.LaptopFront).
 	LaptopBase              = core.RGB(0xB9B9BE)
 	ScreenTop, ScreenBottom = core.RGB(0x2F7DF0), core.RGB(0x6AA8FF)
+	// The day's goal on Learn: its card's gradient from the accent, the disc in its ring and the shadow it casts.
+	GoalVia, GoalTo = core.RGB(0x3B8BFF), core.RGB(0x6AA8FF)
+	GoalDisc        = core.RGB(0x2F7DF0)
+	GoalShadow      = core.RGBA(0x0A66D8, 0.3)
+	// The words by how well they are known, in the bar under Learn's week: mastered, still learning; new ones are the fill.
+	Mastered = core.RGB(0x34C759)
+	Learning = core.RGB(0xFF9F0A)
+	// NoteBox is the yellow box of a learner's note on a saved line, and Highlight the band under the word in its line.
+	NoteBox   = core.RGBA(0xFFD60A, 0.18)
+	Highlight = core.RGBA(0xFFD60A, 0.5)
+	// The review's cards: the shadow they cast, the check of a review done and its shadow.
+	CardShadow = core.RGBA(0x000000, 0.1)
+	DoneFrom   = core.RGB(0x30D158)
+	DoneTo     = core.RGB(0x34C7A0)
+	DoneShadow = core.RGBA(0x30D158, 0.35)
 )

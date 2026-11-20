@@ -88,18 +88,28 @@ func TestLearnReviewsTheComputersWordsAndLines(t *testing.T) {
 	p.app.WaitUntil(wait, func() bool { return p.app.Exists("id:bar-badge-tab-learn") && p.texts("id:bar-badge-tab-learn") == "2" })
 	p.openTab(learnTab, msgs.LearnTitle())
 	p.app.WaitUntil(wait, func() bool { return p.texts("id:learn-review-title") == msgs.LearnReviewDue(2) })
-	if got, want := p.texts("id:learn-vocabulary"), msgs.LearnWordCount(2); !strings.Contains(got, want) {
-		t.Errorf("the vocabulary's row says %q, want %q", got, want)
+	if got, want := p.texts("id:learn-vocabulary-section"), msgs.LearnWordsDue(2, 1); !strings.Contains(got, want) {
+		t.Errorf("the word list's heading says %q, want %q", got, want)
 	}
 
 	p.app.Press("id:learn-review-start")
 	p.app.WaitFor("id:review-page", wait)
-	// The word was due longest, so it comes first: its answer shows once asked for.
+	// The word was due longest, so it comes first: its answer shows once the card is turned over, and the grades wait for it.
 	if got := p.texts("id:review-text"); got != "おはよう" {
 		t.Fatalf("the first card shows %q", got)
 	}
 	if p.app.Exists("id:review-meaning") {
 		t.Fatal("the meaning shows before it was asked for")
+	}
+	if !p.app.Find("id:review-known").Props.Disabled {
+		t.Fatal("the grades can be given before the answer shows")
+	}
+	if got, want := p.texts("id:review-progress"), msgs.ReviewProgress(1, 2); got != want {
+		t.Errorf("the review's counter says %q, want %q", got, want)
+	}
+	// The word was in box 0, so known it comes back tomorrow.
+	if got, want := p.texts("id:review-known"), msgs.ReviewKnown(1); got != want {
+		t.Errorf("the known grade says %q, want %q", got, want)
 	}
 	p.app.Press("id:review-show")
 	if got := p.texts("id:review-meaning"); got != "早上好" {
@@ -118,10 +128,14 @@ func TestLearnReviewsTheComputersWordsAndLines(t *testing.T) {
 	if got := p.texts("id:review-text"); got != "おはよう" {
 		t.Fatalf("the word not known did not come back: %q", got)
 	}
+	// The counter counts the items, as the summary does: the word come back keeps its number.
+	if got, want := p.texts("id:review-progress"), msgs.ReviewProgress(2, 2); got != want {
+		t.Errorf("the review's counter says %q on the word come back, want %q", got, want)
+	}
 	p.app.Press("id:review-show")
 	p.app.Press("id:review-known")
 	p.app.WaitFor("id:review-done", wait)
-	if got, want := p.texts("id:review-done-again"), msgs.ReviewDoneAgain(1); got != want {
+	if got, want := p.texts("id:review-done-summary"), msgs.ReviewDoneSummary(2, 1); got != want {
 		t.Errorf("the review's end says %q, want %q", got, want)
 	}
 	p.app.Press("id:review-finish")
@@ -170,23 +184,31 @@ func TestTheVocabularyRemovesAWordOnTheComputerToo(t *testing.T) {
 	p := startPhone(t, dir, pairedWith(t, d, dir), nsgotest.PendingAlerts())
 	p.waitLearned(store.DesktopID(d.Fingerprint))
 	p.openTab(learnTab, msgs.LearnTitle())
-	p.app.WaitFor("id:learn-vocabulary", wait)
-	p.app.Press("id:learn-vocabulary")
-	p.app.WaitFor("id:vocabulary-item-w-morning", wait)
-	if got := p.texts("id:vocabulary-item-w-later"); !strings.Contains(got, msgs.LearnDueIn(7)) || !strings.Contains(got, "再") {
+	p.app.WaitFor("id:learn-word-w-morning", wait)
+	if got := p.texts("id:learn-word-w-later"); !strings.Contains(got, msgs.LearnDueIn(7)) || !strings.Contains(got, "再") {
 		t.Errorf("the word not due says %q", got)
 	}
-	p.app.Press("id:vocabulary-remove-w-later")
+	if got := p.texts("id:learn-word-w-morning"); !strings.Contains(got, msgs.LearnDueNow()) {
+		t.Errorf("the word due says %q", got)
+	}
+	// A word opens its sheet, with the line it was looked up in, which removes it.
+	p.app.Press("id:learn-word-w-later")
+	p.app.WaitFor("id:word-sheet", wait)
+	if got := p.texts("id:word-text"); got != "また" {
+		t.Errorf("the word's sheet shows %q", got)
+	}
+	p.app.Press("id:word-remove")
 	if len(p.app.Alerts()) != 1 {
 		t.Fatalf("removing a word asked %d questions, want one", len(p.app.Alerts()))
 	}
 	p.app.Answer(0)
-	if !p.app.Exists("id:vocabulary-item-w-later") {
+	if !p.app.Exists("id:learn-word-w-later") {
 		t.Fatal("a removal cancelled removed the word")
 	}
-	p.app.Press("id:vocabulary-remove-w-later")
+	p.app.Press("id:word-remove")
 	p.app.Answer(1)
-	p.app.WaitForGone("id:vocabulary-item-w-later", wait)
+	p.app.WaitForGone("id:learn-word-w-later", wait)
+	p.app.WaitForGone("id:word-sheet", wait)
 	p.app.WaitUntil(wait, func() bool { r, ok := d.State("lib", sync.KindWord, "w-later"); return ok && r.Removed != nil })
 }
 
@@ -245,7 +267,7 @@ func TestTheDailyGoal(t *testing.T) {
 	p := startPhone(t, dir)
 	p.app.WaitFor("id:tab-bar", wait)
 	p.openTab(learnTab, msgs.LearnTitle())
-	p.app.WaitUntil(wait, func() bool { return p.texts("id:learn-goal-minutes") == msgs.LearnMinutes(12) })
+	p.app.WaitUntil(wait, func() bool { return p.texts("id:learn-goal-minutes") == "12" })
 	if got, want := p.texts("id:learn-goal-text"), msgs.LearnGoalLeft(8); got != want {
 		t.Errorf("the goal says %q, want %q", got, want)
 	}
@@ -388,6 +410,16 @@ func pairedWithBoth(t *testing.T, d, e *synctest.Desktop, dir string) nsgotest.O
 	return nsgotest.Secrets(secrets)
 }
 
+// removeWord removes the word of record id from Learn's word list through its sheet, confirming it, and waits until it is gone.
+func (p *phone) removeWord(id string) {
+	p.t.Helper()
+	p.app.Press("id:learn-word-" + id)
+	p.app.WaitFor("id:word-remove", wait)
+	p.app.Press("id:word-remove")
+	p.app.Answer(1)
+	p.app.WaitForGone("id:learn-word-"+id, wait)
+}
+
 // learnRefresh pulls the Learn tab to sync and waits until the sync is done.
 func (p *phone) learnRefresh() {
 	p.t.Helper()
@@ -470,7 +502,7 @@ func TestAReviewOfALockedLibraryIsSentOnceItIsUnlocked(t *testing.T) {
 	p.app.Press("id:review-finish")
 	p.app.WaitFor("id:learn-page", wait)
 	p.learnRefresh()
-	if !p.app.Exists("id:learn-vocabulary") {
+	if !p.app.Exists("id:learn-words") {
 		t.Fatal("the library's words went from the phone, with the review the computer did not take")
 	}
 
@@ -529,7 +561,7 @@ func TestTheReviewDictatesTheLinesOfAFilmOnThePhone(t *testing.T) {
 		t.Fatalf("the line's clip played on to %v (playing %v); want it stopped after 2.25s and back at its start", pl.Position, pl.Playing)
 	}
 	p.app.Type("id:dictation-input", "おはよう")
-	p.app.Press("id:review-show")
+	p.app.Press("id:dictation-check")
 	if got, want := p.texts("id:dictation-score"), msgs.DictationScore(4, 9); got != want {
 		t.Errorf("the check says %q, want %q", got, want)
 	}
@@ -540,7 +572,7 @@ func TestTheReviewDictatesTheLinesOfAFilmOnThePhone(t *testing.T) {
 
 	p.app.WaitUntil(wait, func() bool { return p.texts("id:dictation-input") == "" })
 	p.app.Type("id:dictation-input", "fine THANKS")
-	p.app.Press("id:review-show")
+	p.app.Press("id:dictation-check")
 	if got, want := p.texts("id:dictation-score"), msgs.DictationScore(2, 2); got != want {
 		t.Errorf("the check says %q, want %q", got, want)
 	}
@@ -566,7 +598,7 @@ func TestDictationShowsACardForAFilmNotOnThePhone(t *testing.T) {
 	p.app.Press("id:learn-review-dictation")
 	p.app.Press("id:learn-review-start")
 	p.app.WaitFor("id:review-no-film", wait)
-	if p.app.Exists("id:dictation-card") || p.texts("id:review-text") != "おはよう" || p.texts("id:review-show") != msgs.ReviewShow() {
+	if p.app.Exists("id:dictation-card") || p.texts("id:review-text") != "おはよう" || p.app.Find("id:review-show").Props.Label != msgs.ReviewShow() {
 		t.Fatalf("a line not on the phone shows %q", p.texts("id:review-page"))
 	}
 }
@@ -581,11 +613,11 @@ func TestTheTimeWatchedIsEveryDevices(t *testing.T) {
 	p := startPhone(t, dir, pairedWith(t, d, dir))
 	p.waitLearned(f.Desktop)
 	p.openTab(learnTab, msgs.LearnTitle())
-	p.app.WaitUntil(wait, func() bool { return p.texts("id:learn-goal-minutes") == msgs.LearnMinutes(10) })
-	if got, want := p.texts("id:learn-week-total"), msgs.LearnMinutes(10)+"\n"+msgs.LearnStudyTime(); got != want {
+	p.app.WaitUntil(wait, func() bool { return p.texts("id:learn-goal-minutes") == "10" })
+	if got, want := p.texts("id:learn-week-total"), "10\n"+msgs.LearnMinutesUnit()+"\n"+msgs.LearnStudyTime(); got != want {
 		t.Errorf("the week's study time says %q, want %q", got, want)
 	}
-	if got, want := p.texts("id:learn-week-words"), "2\n"+msgs.LearnNewWords(); got != want {
+	if got, want := p.texts("id:learn-week-words"), "2\n"+msgs.LearnWordsUnit(2)+"\n"+msgs.LearnNewWords(); got != want {
 		t.Errorf("the week's new words say %q, want %q", got, want)
 	}
 
@@ -712,4 +744,155 @@ func TestTheTimeWatchedOfflineReachesTheComputer(t *testing.T) {
 		var ms float64
 		return json.Unmarshal(r.Fields[sync.FieldWatchedMS].Value, &ms) == nil && ms >= 5000
 	})
+}
+
+// Learn lists the words and the saved lines itself: the words by how well they are known under the week, a line with its note, which plays the film from the line when the film is on the phone, and a long press removes a line once confirmed.
+func TestLearnListsTheWordsAndLinesInline(t *testing.T) {
+	d := studyDesktop(t)
+	dir, f := keptFrom(t, d)
+	p := startPhone(t, dir, pairedWith(t, d, dir), nsgotest.PendingAlerts())
+	p.waitLearned(f.Desktop)
+	p.openTab(learnTab, msgs.LearnTitle())
+	p.app.WaitFor("id:learn-line-l-fine", wait)
+	// また is in box 2, still being learned; おはよう in box 0, new.
+	if got := p.texts("id:learn-mastery"); !strings.Contains(got, msgs.LearnMasteredCount(0)) || !strings.Contains(got, msgs.LearnLearningCount(1)) || !strings.Contains(got, msgs.LearnNewCount(1)) {
+		t.Errorf("the words by how well they are known say %q", got)
+	}
+	if got := p.texts("id:learn-lines"); !strings.Contains(got, msgs.LearnLineCount(1)) || !strings.Contains(got, "Fine, thanks.") || !strings.Contains(got, "a polite answer") || !strings.Contains(got, "0:05") {
+		t.Errorf("the saved lines say %q", got)
+	}
+
+	p.app.LongPress("id:learn-line-l-fine")
+	if len(p.app.Alerts()) != 1 {
+		t.Fatalf("a long press on a line asked %d questions, want one", len(p.app.Alerts()))
+	}
+	p.app.Answer(0)
+	p.app.Press("id:learn-line-play-l-fine")
+	p.app.WaitFor("id:player-video", wait)
+	p.app.WaitUntil(wait, func() bool {
+		films, _ := store.Open(dir).Films()
+		return len(films) == 1 && films[0].PositionMS == 5000
+	})
+}
+
+// With nothing due, the review card says so and OK puts it away.
+func TestOKPutsAwayTheReviewCardWithNothingDue(t *testing.T) {
+	d := newDesktop(t)
+	d.SetState("lib", now().Add(-time.Hour), studyRecords()[1])
+	dir := t.TempDir()
+	p := startPhone(t, dir, pairedWith(t, d, dir))
+	p.waitLearned(store.DesktopID(d.Fingerprint))
+	p.openTab(learnTab, msgs.LearnTitle())
+	p.app.WaitUntil(wait, func() bool { return p.texts("id:learn-review-title") == msgs.LearnReviewNone() })
+	if p.app.Exists("id:learn-review-start") {
+		t.Fatal("the review can start with nothing due")
+	}
+	// With no line saved, the saved lines' section says where they come from rather than showing its heading over nothing.
+	if got := p.texts("id:learn-lines-empty"); got != msgs.LinesEmpty() {
+		t.Errorf("the saved lines' section says %q with no line saved, want %q", got, msgs.LinesEmpty())
+	}
+	p.app.Press("id:learn-review-ok")
+	p.app.WaitForGone("id:learn-review", wait)
+	if !p.app.Exists("id:learn-word-w-later") {
+		t.Fatal("the word list went with the review card")
+	}
+}
+
+// While the reminder is on, Learn says when it comes under the review mode, and that leads to Settings.
+func TestLearnSaysWhenTheReminderComes(t *testing.T) {
+	d := studyDesktop(t)
+	dir := t.TempDir()
+	p := startPhone(t, dir, pairedWith(t, d, dir), nsgotest.Environment(core.Environment{Locale: lang, ScheduledNotifications: true}))
+	p.waitLearned(store.DesktopID(d.Fingerprint))
+	p.openTab(learnTab, msgs.LearnTitle())
+	p.app.WaitFor("id:learn-review", wait)
+	if p.app.Exists("id:learn-reminder") {
+		t.Fatal("Learn tells of a reminder that is off")
+	}
+	p.openTab(settingsTab, msgs.SettingsTitle())
+	p.app.Press("id:settings-remind-switch")
+	p.openTab(learnTab, msgs.LearnTitle())
+	p.app.WaitFor("id:learn-reminder", wait)
+	if got, want := p.texts("id:learn-reminder"), msgs.LearnReminderCaption("21:00"); got != want {
+		t.Errorf("the reminder's line says %q, want %q", got, want)
+	}
+	p.app.Press("id:learn-reminder")
+	p.app.WaitFor("id:settings-page", wait)
+}
+
+// Turned over, a review card's front is hidden from the screen reader, which reads the back alone; before, the back is.
+func TestTheReviewCardHidesTheFaceTurnedAway(t *testing.T) {
+	d := studyDesktop(t)
+	dir := t.TempDir()
+	p := startPhone(t, dir, pairedWith(t, d, dir))
+	p.waitLearned(store.DesktopID(d.Fingerprint))
+	p.openTab(learnTab, msgs.LearnTitle())
+	p.app.WaitFor("id:learn-review-start", wait)
+	p.app.Press("id:learn-review-start")
+	p.app.WaitFor("id:review-card", wait)
+	if p.app.Find("id:review-show").Props.ElementsHidden || !p.app.Find("id:review-back").Props.ElementsHidden {
+		t.Fatal("before it turns over, the card does not show its front alone to the screen reader")
+	}
+	p.app.Press("id:review-show")
+	p.app.WaitFor("id:review-answer", wait)
+	if !p.app.Find("id:review-show").Props.ElementsHidden || p.app.Find("id:review-back").Props.ElementsHidden {
+		t.Fatal("turned over, the card does not show its back alone to the screen reader")
+	}
+}
+
+// A saved line plays its film, and a word's sheet leads back to it, only once the film is whole on the phone: one still downloading has no video to play.
+func TestLearnPlaysOnlyAWholeFilm(t *testing.T) {
+	dir := t.TempDir()
+	learnSample(t, dir)
+	st := store.Open(dir)
+	films, err := st.Films()
+	if err != nil || len(films) != 1 {
+		t.Fatalf("the sample keeps %d films: %v", len(films), err)
+	}
+	f := films[0]
+	f.Video = ""
+	if err := st.SaveFilm(f); err != nil {
+		t.Fatal(err)
+	}
+	p := startPhone(t, dir)
+	p.openTab(learnTab, msgs.LearnTitle())
+	p.app.WaitFor("id:learn-line-l-see", wait)
+	if p.app.Exists("id:learn-line-play-l-see") {
+		t.Error("a line plays a film still downloading")
+	}
+	p.app.Press("id:learn-word-w-station")
+	p.app.WaitFor("id:word-sheet", wait)
+	if p.app.Exists("id:word-back-to-film") {
+		t.Error("a word's sheet leads back to a film still downloading")
+	}
+}
+
+// Where the platform speaks text, a word's sheet says the word in its film's language.
+func TestTheWordSheetSaysTheWord(t *testing.T) {
+	p := wordSheetOf(t, true)
+	p.app.Press("id:word-say")
+	if len(p.app.Spoken) != 1 || p.app.Spoken[0].Text != "駅" || p.app.Spoken[0].Lang != "ja" {
+		t.Errorf("the speaker said %+v, want 駅 in ja", p.app.Spoken)
+	}
+}
+
+// Where the platform speaks no text, a word's sheet has no speaker.
+func TestTheWordSheetHasNoSpeakerWithoutSpeech(t *testing.T) {
+	p := wordSheetOf(t, false)
+	if p.app.Exists("id:word-say") {
+		t.Error("the word's sheet offers to say the word where the platform speaks no text")
+	}
+}
+
+// wordSheetOf opens the sheet of a word of the sample, on a platform that speaks text or not.
+func wordSheetOf(t *testing.T, speaks bool) *phone {
+	t.Helper()
+	dir := t.TempDir()
+	learnSample(t, dir)
+	p := startPhone(t, dir, nsgotest.Environment(core.Environment{Locale: lang, Speak: speaks}))
+	p.openTab(learnTab, msgs.LearnTitle())
+	p.app.WaitFor("id:learn-word-w-station", wait)
+	p.app.Press("id:learn-word-w-station")
+	p.app.WaitFor("id:word-sheet", wait)
+	return p
 }
