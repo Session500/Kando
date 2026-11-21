@@ -542,55 +542,61 @@ func (s *screen) cueList(cx *ns.Scope, cues func() []core.Segment, shown func() 
 	}).Get
 	clockWidth := cueClockWidth(cx, a, cues)
 	list := &ns.Ref{}
-	// seen is the first and the last cue in view, by index, as the list reports its viewable rows, -1 before it has.
-	seen := ns.NewSignal(cx, [2]int{-1, -1})
-	inView := func(i int) bool { r := ns.Untracked(cx, seen.Get); return r[0] >= 0 && i >= r[0] && i <= r[1] }
+	// The list knows its cues by cueKeyOf, not by index, as lines that come in before them move them on.
+	keyOf := func(i int) cueKey { return cueKeyOf(ns.Untracked(cx, cues), i) }
+	// seen is the first and the last cue in view, as the list reports its viewable rows, the zero cueKey before it has.
+	seen := ns.NewSignal(cx, [2]cueKey{})
+	inView := func(k cueKey) bool {
+		r := ns.Untracked(cx, seen.Get)
+		return k.ok && r[0].ok && !k.before(r[0]) && !r[1].before(k)
+	}
 	// anchor is the cue the list last scrolled to; away is set while the list was left scrolled off it, the user reading elsewhere in it, so it does not follow the film until the pill brings it back, the user scrolls the playing cue into view, or moves the picture.
-	anchor := -1
+	var anchor cueKey
 	away := ns.NewSignal(cx, false)
 	follow := func(cur int) {
 		for row, i := range ns.Untracked(cx, shown) {
 			if i == cur {
 				list.ScrollToIndex(row, true)
-				anchor = cur
+				anchor = keyOf(cur)
 				away.Set(false)
 				return
 			}
 		}
 	}
 	jumps := live.Memo(cx, a, a.Jumps)
-	// The list follows the playing cue as it changes, or as the user moves the picture (Jumps), not as it is scrolled by hand or narrowed by the search.
-	followed, jumped := -2, ns.Untracked(cx, jumps)
+	// The list follows the playing cue as it changes, or as the user moves the picture (Jumps), not as it is scrolled by hand, narrowed by the search, or as lines come in before it.
+	followed, started, jumped := cueKey{}, false, ns.Untracked(cx, jumps)
 	cx.Effect(func() {
 		cur, j := current(), jumps()
 		shown()
 		moved := j != jumped
 		jumped = j
-		if cur == followed && !moved {
+		k := keyOf(cur)
+		if started && k == followed && !moved {
 			return
 		}
-		followed = cur
+		followed, started = k, true
 		switch {
 		case cur < 0:
-		case moved || anchor < 0 || inView(anchor):
+		case moved || !anchor.ok || inView(anchor):
 			follow(cur)
 		default:
 			away.Set(true)
 		}
 	})
 	viewable := func(v ns.ViewableItems) {
-		r := [2]int{-1, -1}
+		var r [2]cueKey
 		if n := len(v.Viewable); n > 0 {
-			first, ok1 := v.Viewable[0].Key.(int)
-			last, ok2 := v.Viewable[n-1].Key.(int)
+			first, ok1 := v.Viewable[0].Key.(cueKey)
+			last, ok2 := v.Viewable[n-1].Key.(cueKey)
 			if ok1 && ok2 {
-				r = [2]int{first, last}
+				r = [2]cueKey{first, last}
 			}
 		}
 		seen.Set(r)
 		// The user scrolled the playing cue back into view: the list follows it again from there.
-		if cur := current(); away.Get() && cur >= 0 && inView(cur) {
-			anchor = cur
+		if k := keyOf(current()); away.Get() && inView(k) {
+			anchor = k
 			away.Set(false)
 		}
 	}
@@ -621,6 +627,30 @@ func (s *screen) cueList(cx *ns.Scope, cues func() []core.Segment, shown func() 
 	}
 }
 
+// cueKey is a line's identity in the subtitle list: when it starts, and which of the lines that start then it is. A line keeps it as lines come in before it, as they do for a film made while it plays, which reaches the part before where it was opened last, so the rows read stay in place and the list follows the line playing, not its index. The saved lines know a line by its start too. ok is false for no line.
+type cueKey struct {
+	start time.Duration
+	nth   int
+	ok    bool
+}
+
+// cueKeyOf is the key of cues[i], which are in the order they start; the zero cueKey for an i out of them.
+func cueKeyOf(cues []core.Segment, i int) cueKey {
+	if i < 0 || i >= len(cues) {
+		return cueKey{}
+	}
+	nth := 0
+	for j := i - 1; j >= 0 && cues[j].Start == cues[i].Start; j-- {
+		nth++
+	}
+	return cueKey{start: cues[i].Start, nth: nth, ok: true}
+}
+
+// before reports whether k is a line that shows before o.
+func (k cueKey) before(o cueKey) bool {
+	return k.start < o.start || k.start == o.start && k.nth < o.nth
+}
+
 // cueRows is the list of the cues of shown, the current one lit, which reports the cues in view to viewable.
 func (s *screen) cueRows(cx *ns.Scope, list *ns.Ref, cues func() []core.Segment, shown func() []int, current func() int, clockWidth func() ns.Points, viewable func(ns.ViewableItems)) ns.Node {
 	return ns.List{TestID: "film-cues", Ref: list, Style: ns.Style{FlexGrow: 1, MinHeight: ns.Pt(0)}, EstimatedSize: 56,
@@ -628,7 +658,7 @@ func (s *screen) cueRows(cx *ns.Scope, list *ns.Ref, cues func() []core.Segment,
 		Count:                 func() int { return len(shown()) },
 		Key: func(i int) any {
 			if rows := shown(); i < len(rows) {
-				return rows[i]
+				return cueKeyOf(cues(), rows[i])
 			}
 			return i
 		},

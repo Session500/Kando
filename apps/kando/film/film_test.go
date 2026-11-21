@@ -612,6 +612,75 @@ func TestCueListLetsTheUserReadAway(t *testing.T) {
 	}
 }
 
+// TestCueListKeepsItsRowsAsLinesComeBefore reads the subtitle list away from the playing line while lines come in before the part read, as they do for a film made while it plays from where it was opened, which goes back for the part before it once it reaches the end: the rows read stay where they are, rather than the list's rows moving on by the lines that came in.
+func TestCueListKeepsItsRowsAsLinesComeBefore(t *testing.T) {
+	a := newFakeApp()
+	cue := func(n int, at time.Duration) core.Segment {
+		return core.Segment{Start: at, End: at + time.Second, Text: fmt.Sprintf("第 %d 句", n)}
+	}
+	a.subs.Cues = nil
+	for i := range 200 {
+		a.subs.Cues = append(a.subs.Cues, cue(100+i, 1000*time.Second+time.Duration(i)*2*time.Second))
+	}
+	a.play = &fakePlay{head: 1000500 * time.Millisecond, length: 2000 * time.Second}
+	app := start(t, a)
+	app.Advance(time.Second)
+	// top is the row at the top of the list and how far down the window it is.
+	top := func() (string, ns.Points) {
+		list := app.Find("id:film-cues")
+		from := pageY(list) + list.Offset.Y
+		text, at := "", ns.Points(math.MaxFloat32)
+		var walk func(v *nsgotest.View)
+		walk = func(v *nsgotest.View) {
+			if strings.HasPrefix(v.Text, "第 ") {
+				if y := pageY(v); y >= from && y < at {
+					text, at = v.Text, y
+				}
+			}
+			for _, c := range v.Children {
+				walk(c)
+			}
+		}
+		walk(list)
+		return text, at
+	}
+	// The list follows the playing line: lines that come in before it leave it on that line, and following it.
+	playing, y := top()
+	if playing != "第 100 句" {
+		t.Fatalf("the list following the film is on %q", playing)
+	}
+	change(app, a, func() {
+		var before []core.Segment
+		for i := range 5 {
+			before = append(before, cue(51+i, 100*time.Second+time.Duration(i)*2*time.Second))
+		}
+		a.subs.Cues = append(before, a.subs.Cues...)
+	})
+	app.Advance(time.Second)
+	if got, at := top(); got != playing || math.Abs(float64(at-y)) > 1 || app.Exists(`label:"`+testlocale.Messages().FilmBackToCurrentLine()+`"`) {
+		t.Fatalf("the list following %q, %v down, shows %q, %v down, once lines came in before it", playing, y, got, at)
+	}
+	app.Scroll("id:film-cues", 2000)
+	app.Advance(time.Second)
+	read, y := top()
+	if read == "" || read == "第 100 句" {
+		t.Fatalf("the list scrolled to %q", read)
+	}
+	// The lines of the film's first minute come in.
+	change(app, a, func() {
+		var before []core.Segment
+		for i := range 30 {
+			before = append(before, cue(i+1, time.Duration(i)*2*time.Second))
+		}
+		a.subs.Cues = append(before, a.subs.Cues...)
+	})
+	app.Advance(time.Second)
+	got, at := top()
+	if got != read || math.Abs(float64(at-y)) > 1 {
+		t.Fatalf("the list read at %q, %v down, shows %q, %v down, once lines came in before it", read, y, got, at)
+	}
+}
+
 // TestCueRowsFollowTheMode lists a bilingual line in each subtitle mode: the list shows the lines the picture shows, in the order the settings put them, and the line the mode hides stays under them blurred until the pointer rests on the row or the keyboard focus comes to it, so the list can be read as a transcript without giving the answer away. The row is named by both lines in their order, and the playing one is selected.
 func TestCueRowsFollowTheMode(t *testing.T) {
 	a := newFakeApp()
