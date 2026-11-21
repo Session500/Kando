@@ -2,6 +2,20 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.47.0 - 2026-11-21
+
+### Features
+
+- Translate the lines a gone service left once it answers again (#424)
+
+### Fixes
+
+- Keep a proxy URL served until every holder revoked it (#425)
+- Copy a video at a share's root into a folder of its own (#426)
+- Number a source's saves apart from its Tests (#427)
+- Finish undoing the desktop workarounds of #409 (#428)
+- Keep the secure store in step with settings.json when a save does not finish (#431)
+
 ## 0.46.0 - 2026-11-21
 
 ### Features
