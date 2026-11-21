@@ -15,7 +15,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -397,7 +396,7 @@ func (t Tools) ytdlpDownload(ctx context.Context, source, temp string, named *bo
 			args = append(args, "--user-agent", userAgent)
 		}
 	}
-	if _, _, err := runFollowing(ctx, false, reader.line, t.YTDLP, append(args, "--", source)...); err != nil {
+	if _, _, err := runFollowing(ctx, followStdout, reader.line, t.YTDLP, append(args, "--", source)...); err != nil {
 		var exit *exec.ExitError
 		if !errors.As(err, &exit) || exit.ExitCode() != ytdlpMaxDownloadsExit || reader.path == "" {
 			return "", withClosedBrowserData(err, t.Cookies)
@@ -481,15 +480,7 @@ func NoAudioStream(ffmpegError string) bool {
 
 // WhisperArgs are the arguments whisper-cli is run with to recognize the speech of audio, a 16 kHz mono WAV file, in language, whisper's code or "auto", writing its lines as JSON to out.json: the model, the threads (WhisperThreads), the language, the hints (WhisperHints) and the progress on stderr (-pp), which -np leaves alone. Settings › 语音识别 shows them as the command it runs.
 func (t Tools) WhisperArgs(language, out, audio string) []string {
-	threads := t.WhisperThreads
-	if threads <= 0 {
-		threads = WhisperThreadsAuto()
-	}
-	args := []string{"-m", t.WhisperModel, "-t", strconv.Itoa(threads), "-l", language}
-	if hints := WhisperPrompt(t.WhisperHints); hints != "" {
-		args = append(args, "--prompt", hints)
-	}
-	return append(args, "-np", "-pp", "-oj", "-of", out, "-f", audio)
+	return append(t.whisperBase(language), "-np", "-pp", "-oj", "-of", out, "-f", audio)
 }
 
 // WhisperPrompt is the hints typed in Settings › 语音识别 as whisper.cpp's --prompt takes them: one line of words separated by commas, the blank lines and the spaces around each dropped, "" for none. whisper reads the prompt as text said before the audio, so the words it lists are spelled as they are.

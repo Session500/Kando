@@ -1149,3 +1149,72 @@ func TestMakeProofreadsAgainACellItsProofreadingLeftUnproofread(t *testing.T) {
 		}
 	}
 }
+
+// speechFilm is a makeFilm whose Hear hears only the speech, as Tools does where whisper-cli can find it.
+type speechFilm struct{ *makeFilm }
+
+func (speechFilm) hearsSpeech(context.Context) bool { return true }
+
+// A film begun when every sound of it was heard, its language told from its opening music, is heard again by its speech alone, and its language told again.
+func TestAFilmHeardWholeIsHeardAgainByItsSpeech(t *testing.T) {
+	job, video := makeJob(t)
+	job.SpokenLanguage = "en"
+	f := &makeFilm{length: 60 * time.Second, language: "ja"}
+	gen := track.NewID()
+	events := []track.Event{
+		{Kind: track.KindGen, Gen: gen, Source: makeSource},
+		{Kind: track.KindLine, Gen: gen, Line: "e0", Start: 0, End: 29_980},
+		{Kind: track.KindRev, Line: "e0", Side: track.Original, Layer: track.LayerHeard, Text: "Thank you."},
+		track.Unit{Work: track.WorkHear, Gen: gen, Cell: 0, Key: "en"}.Made(),
+	}
+	if _, err := track.Append(video, "mac", events...); err != nil {
+		t.Fatal(err)
+	}
+	done, _ := makeFilmOf(t, speechFilm{f}, job, 0)
+	if done.Stage != core.StageComplete || done.SpokenLanguage != "ja" {
+		t.Fatalf("job ended %s in %q: %v", done.Stage, done.SpokenLanguage, done.Err)
+	}
+	// The first run is not told the language heard before: it hears a cell alone to tell it.
+	if f.runs[0] != [2]time.Duration{0, 45 * time.Second} || f.langs[0] != "" {
+		t.Fatalf("first run %v in %q", f.runs[0], f.langs[0])
+	}
+	doc, _ := track.Read(video)
+	lines := doc.View()
+	if len(lines) != 6 || lines[0].Original.Text != "line 0s" {
+		t.Fatalf("lines %+v", lines)
+	}
+	for _, e := range doc.Events {
+		if e.Kind == track.KindUnit && track.Work(e.Source) == track.WorkHear && e.Gen == gen && e.Key != "en" && e.Key != "ja+speech" {
+			t.Fatalf("a cell heard as %q", e.Key)
+		}
+	}
+	if !slices.ContainsFunc(doc.Events, func(e track.Event) bool {
+		return e.Kind == track.KindUnit && track.Work(e.Source) == track.WorkHear && e.Key == "ja+speech"
+	}) {
+		t.Fatal("no cell heard by its speech")
+	}
+}
+
+// A film heard by its speech goes on in the language told then.
+func TestAFilmHeardByItsSpeechGoesOnInItsLanguage(t *testing.T) {
+	job, video := makeJob(t)
+	job.SpokenLanguage = "ja"
+	f := &makeFilm{length: 60 * time.Second, language: "ja"}
+	gen := track.NewID()
+	events := []track.Event{
+		{Kind: track.KindGen, Gen: gen, Source: makeSource},
+		{Kind: track.KindLine, Gen: gen, Line: "e0", Start: 0, End: 2000},
+		{Kind: track.KindRev, Line: "e0", Side: track.Original, Layer: track.LayerHeard, Text: "earlier"},
+		track.Unit{Work: track.WorkHear, Gen: gen, Cell: 0, Key: "ja+speech"}.Made(),
+	}
+	if _, err := track.Append(video, "mac", events...); err != nil {
+		t.Fatal(err)
+	}
+	done, _ := makeFilmOf(t, speechFilm{f}, job, 0)
+	if done.Stage != core.StageComplete {
+		t.Fatalf("job ended %s: %v", done.Stage, done.Err)
+	}
+	if len(f.runs) != 1 || f.runs[0][0] != 15*time.Second || f.langs[0] != "ja" {
+		t.Fatalf("runs %v in %q, want only the second cell heard, in ja", f.runs, f.langs)
+	}
+}

@@ -417,20 +417,37 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 	if h, ok := m.p.(hearer); ok && hearing == "" {
 		_, hearing = h.hearing(m.ctx)
 	}
+	// method is how the cells are heard, as their records name it after the language: speechHearing when only the speech is heard (Tools.hearSpeech). A film whose cells were heard the other way is heard again, and its language told again, as the language told that way may be its music's.
+	method := ""
+	if s, ok := m.p.(speechHearer); ok && !m.copied && s.hearsSpeech(m.ctx) {
+		method = speechHearing
+	}
+	hearKey := func(language string) string {
+		if language == copyHearing {
+			return language
+		}
+		return language + method
+	}
+	prior := m.heardIn(gen)
+	told := method == "" || strings.HasSuffix(prior, method)
+	if !told && !m.redo {
+		spoken = ""
+	}
 	switch {
 	case m.copied:
 		hearing = copyHearing
 	case hearing != "":
+	case !told:
 	case m.redo:
-		hearing = m.heardIn(gen)
+		hearing = strings.TrimSuffix(prior, speechHearing)
 	default:
-		hearing = cmpOr(job.SpokenLanguage, m.heardIn(gen))
+		hearing = cmpOr(job.SpokenLanguage, strings.TrimSuffix(prior, speechHearing))
 	}
 	if hearing != "" && hearing != "auto" && !m.copied {
 		m.ctx = withSpeechLanguage(m.ctx, hearing)
 		setSpoken(cmpOr(spoken, hearing))
 	}
-	plan := track.Making{Gen: gen, Length: length, Playhead: watch.Playhead(), Hearing: cmpOr(hearing, "auto")}
+	plan := track.Making{Gen: gen, Length: length, Playhead: watch.Playhead(), Hearing: hearKey(cmpOr(hearing, "auto"))}
 
 	// notTranslated is why the film is not translated, once it is not: no translator set up, the service gone, or failing cell after cell.
 	var notTranslated string
@@ -581,9 +598,9 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 				if d.language != "" {
 					m.ctx = withSpeechLanguage(m.ctx, d.language)
 				}
-				plan.Hearing = hearing
+				plan.Hearing = hearKey(hearing)
 				for _, c := range pending {
-					m.commitHeard(gen, hearing, c)
+					m.commitHeard(gen, plan.Hearing, c)
 				}
 				pending = nil
 				m.siteHeard(gen, plan)
@@ -1226,7 +1243,7 @@ func (m *making) mayResume(gen track.Event) bool {
 	return gen.Device == m.device || m.doc.Idle(gen.Device, track.Now())
 }
 
-// heardIn is how generation gen's cells were heard, as their records name it (track.Making.Hearing): the language, or "auto" for a film whose language the speech recognition did not say; "" when no cell is heard yet.
+// heardIn is how generation gen's cells were heard, as their records name it (track.Making.Hearing): the language, or "auto" for a film whose language the speech recognition did not say, followed by speechHearing when only their speech was heard; "" when no cell is heard yet.
 func (m *making) heardIn(gen string) string {
 	hearing := ""
 	for _, e := range m.doc.Events {

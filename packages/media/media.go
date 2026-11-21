@@ -32,6 +32,14 @@ type hearer interface {
 	hearing(ctx context.Context) (model, language string)
 }
 
+// speechHearer is a Pipeline that says whether its Hear hears only the speech of a video, as Tools does where whisper-cli can find it (Tools.hearSpeech). Cells heard that way are recorded as heard so (speechHearing), so a film begun the other way is heard again.
+type speechHearer interface {
+	hearsSpeech(ctx context.Context) bool
+}
+
+// speechHearing follows the language in the record of a cell heard by its speech alone (track.Making.Hearing), as "ja+speech".
+const speechHearing = "+speech"
+
 // Pipeline is the cross-platform boundary for media processing, which Make makes a film's subtitles with. Implementations keep OS-specific details out of the core package.
 type Pipeline interface {
 	// Check reports missing tools or settings before a job spends time downloading.
