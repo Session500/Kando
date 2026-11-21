@@ -61,7 +61,7 @@ func (t Tools) Hear(ctx context.Context, videoPath string, from, to time.Duratio
 			heard(s)
 		}
 	}
-	if _, _, err := runFollowing(ctx, followStdout, follow, t.Whisper, t.WhisperArgs(language, out, audio)...); err != nil {
+	if _, _, err := runFollowing(ctx, false, follow, t.Whisper, t.WhisperArgs(language, out, audio)...); err != nil {
 		return "", err
 	}
 	data, err := os.ReadFile(out + ".json")
