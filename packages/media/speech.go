@@ -123,6 +123,10 @@ func (t Tools) hearSpeech(ctx context.Context, dir, audio, videoPath string, fro
 			if i == 0 {
 				return "", err
 			}
+			if errors.Is(err, errNoSpeechSearch) {
+				// The first stretch's lines are handed on already, so the run must not be heard whole again (errNoSpeechSearch), which would hand them on twice.
+				return language, fmt.Errorf("finding the speech after the first stretch: %v", err)
+			}
 			return language, err
 		}
 		if i == 0 && len(stretches) > 1 {

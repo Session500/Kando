@@ -3,6 +3,7 @@ package media
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
@@ -173,5 +174,18 @@ func TestCollapseRepeatsMakesALineSaidOverAndOverOne(t *testing.T) {
 	}
 	if got := collapseRepeats(lines); !slices.Equal(got, want) {
 		t.Fatalf("collapsed to %+v", got)
+	}
+}
+
+func TestHearDoesNotHearTheWholeSoundAgainOnceTheFirstStretchIsHeard(t *testing.T) {
+	tools := speechTools(t, fakeTool{Speech: [][2]float64{{3, 5}}, NoVADAgain: true, Transcript: `{"result":{"language":"ja"},"transcription":[]}`})
+	if err := os.MkdirAll(filepath.Dir(tools.WhisperModel), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	var lines []string
+	_, err := tools.Hear(withSpeechLanguage(context.Background(), "ja"), filepath.Join(t.TempDir(), "film.mkv"), 0, 2*time.Minute, func(s core.Segment) { lines = append(lines, s.Text) })
+	// The first stretch's speech is heard; the rest's cannot be found, which fails the run rather than hearing it whole and handing the first stretch's lines on again.
+	if err == nil || errors.Is(err, errNoSpeechSearch) || !slices.Equal(lines, []string{"chunk-0-0000.wav"}) {
+		t.Fatalf("heard %q (%v)", lines, err)
 	}
 }

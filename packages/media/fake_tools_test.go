@@ -38,10 +38,11 @@ type fakeTool struct {
 	// Act is what the fake does as the tool: "" nothing more; "download" downloads a split-format video as yt-dlp does (fakeDownload); "update" answers --version and -U as the standalone yt-dlp does (fakeUpdate); "extract-audio" writes an empty file where its last argument says, as ffmpeg writes the audio track; "subtitles" writes Files in the folder -P names; "transcribe" writes Transcript where -of says, with .json added, as whisper-cli -oj does; "extract-wav" writes a silent 16 kHz WAV as long as -t says where its last argument says, as ffmpeg writes the audio of part of a film; "speech" is a whisper-cli that finds speech (fakeSpeech).
 	Act        string
 	Transcript string
-	// Speech is where the "speech" fake says the speech is, in seconds into each sound it is given, and Told the languages it tells its sounds as, in turn; with NoVAD it prints nothing of the speech it finds, as a whisper-cli whose VAD failed.
-	Speech [][2]float64 `json:",omitempty"`
-	Told   []string     `json:",omitempty"`
-	NoVAD  bool         `json:",omitempty"`
+	// Speech is where the "speech" fake says the speech is, in seconds into each sound it is given, and Told the languages it tells its sounds as, in turn; with NoVAD it prints nothing of the speech it finds, as a whisper-cli whose VAD failed, and with NoVADAgain only the first time it is asked in a folder.
+	Speech     [][2]float64 `json:",omitempty"`
+	Told       []string     `json:",omitempty"`
+	NoVAD      bool         `json:",omitempty"`
+	NoVADAgain bool         `json:",omitempty"`
 	// Files are what Act "subtitles" writes in the folder -P names, by file name, as yt-dlp --skip-download --write-subs writes the subtitles it fetched.
 	Files map[string]string `json:",omitempty"`
 	// Stdout and Stderr are printed on the two streams, and then the contents of StdoutFile and StderrFile, as a real run of the tool printed them.
@@ -293,6 +294,15 @@ func (f fakeTool) fakeSpeech(args []string) error {
 	case slices.Contains(args, "--vad"):
 		if f.NoVAD {
 			return nil
+		}
+		if f.NoVADAgain && len(files) > 0 {
+			marker := filepath.Join(filepath.Dir(files[0]), "vad-asked")
+			if _, err := os.Stat(marker); err == nil {
+				return nil
+			}
+			if err := os.WriteFile(marker, nil, 0o644); err != nil {
+				return err
+			}
 		}
 		for i, s := range f.Speech {
 			fmt.Fprintf(os.Stderr, "whisper_vad_segments_from_probs: VAD segment %d: start = %.2f, end = %.2f (duration: %.2f)\n", i, s[0], s[1], s[1]-s[0])
