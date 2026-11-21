@@ -2,6 +2,19 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.46.0 - 2026-11-21
+
+### Features
+
+- Hear only the speech, and tell the language from it (#418)
+- List the parts of a film being made that have no lines yet (#417)
+- Show a film's new lines where a redo has made them (#415)
+- Time each line by its words, and cut long lines where the speech pauses (#420)
+
+### Fixes
+
+- Keep the subtitle list's rows in place as lines come in before them (#414)
+
 ## 0.45.0 - 2026-11-21
 
 ### Features
