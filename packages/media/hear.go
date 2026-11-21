@@ -18,7 +18,7 @@ type Hearer interface {
 	Hear(ctx context.Context, videoPath string, from, to time.Duration, heard func(core.Segment)) (string, error)
 }
 
-// Hear recognizes the speech of the video at videoPath from from to to, handing heard each line, in the film's time, as whisper-cli prints it, and returns the language it heard, as its code, "" when it does not say. Only that part of the sound is taken from the video, so hearing starts at once wherever it is in the film; to of 0, or past the end, hears to the end. The language heard is the one the context names for the film (withSpeechLanguage), else the one Tools names, else the one whisper finds.
+// Hear recognizes the speech of the video at videoPath from from to to, handing heard each line, in the film's time, as whisper-cli prints it, and returns the language it heard, as its code, "" when it does not say. Only that part of the sound is taken from the video, so hearing starts at once wherever it is in the film; to of 0, or past the end, hears to the end. The language heard is the one the context names for the film (withSpeechLanguage), else the one Tools names, else the one whisper finds. Where whisper-cli can find speech, only the speech is heard and the language is told from it (hearSpeech); else the whole of the sound is.
 func (t Tools) Hear(ctx context.Context, videoPath string, from, to time.Duration, heard func(core.Segment)) (string, error) {
 	if strings.TrimSpace(videoPath) == "" {
 		return "", errors.New("video path is empty")
@@ -42,6 +42,12 @@ func (t Tools) Hear(ctx context.Context, videoPath string, from, to time.Duratio
 		}
 		return "", err
 	}
+	if t.hearsSpeech(ctx) {
+		language, err := t.hearSpeech(ctx, dir, audio, videoPath, from, to, heard)
+		if !errors.Is(err, errNoSpeechSearch) {
+			return language, err
+		}
+	}
 	_, language := t.hearing(ctx)
 	if language == "" {
 		language = "auto"
@@ -55,7 +61,7 @@ func (t Tools) Hear(ctx context.Context, videoPath string, from, to time.Duratio
 			heard(s)
 		}
 	}
-	if _, _, err := runFollowing(ctx, false, follow, t.Whisper, t.WhisperArgs(language, out, audio)...); err != nil {
+	if _, _, err := runFollowing(ctx, followStdout, follow, t.Whisper, t.WhisperArgs(language, out, audio)...); err != nil {
 		return "", err
 	}
 	data, err := os.ReadFile(out + ".json")

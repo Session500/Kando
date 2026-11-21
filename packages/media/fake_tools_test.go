@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -33,9 +35,14 @@ type fakeTool struct {
 	Jar, Mode string
 	// Cookies, when set, is what the fake saves to the cookies file it is given with --cookies, as yt-dlp saves there the cookies it read from a browser.
 	Cookies string
-	// Act is what the fake does as the tool: "" nothing more; "download" downloads a split-format video as yt-dlp does (fakeDownload); "update" answers --version and -U as the standalone yt-dlp does (fakeUpdate); "extract-audio" writes an empty file where its last argument says, as ffmpeg writes the audio track; "subtitles" writes Files in the folder -P names; "transcribe" writes Transcript where -of says, with .json added, as whisper-cli -oj does.
+	// Act is what the fake does as the tool: "" nothing more; "download" downloads a split-format video as yt-dlp does (fakeDownload); "update" answers --version and -U as the standalone yt-dlp does (fakeUpdate); "extract-audio" writes an empty file where its last argument says, as ffmpeg writes the audio track; "subtitles" writes Files in the folder -P names; "transcribe" writes Transcript where -of says, with .json added, as whisper-cli -oj does; "extract-wav" writes a silent 16 kHz WAV as long as -t says where its last argument says, as ffmpeg writes the audio of part of a film; "speech" is a whisper-cli that finds speech (fakeSpeech).
 	Act        string
 	Transcript string
+	// Speech is where the "speech" fake says the speech is, in seconds into each sound it is given, and Told the languages it tells its sounds as, in turn; with NoVAD it prints nothing of the speech it finds, as a whisper-cli whose VAD failed, and with NoVADAgain only the first time it is asked in a folder.
+	Speech     [][2]float64 `json:",omitempty"`
+	Told       []string     `json:",omitempty"`
+	NoVAD      bool         `json:",omitempty"`
+	NoVADAgain bool         `json:",omitempty"`
 	// Files are what Act "subtitles" writes in the folder -P names, by file name, as yt-dlp --skip-download --write-subs writes the subtitles it fetched.
 	Files map[string]string `json:",omitempty"`
 	// Stdout and Stderr are printed on the two streams, and then the contents of StdoutFile and StderrFile, as a real run of the tool printed them.
@@ -252,8 +259,71 @@ func (f fakeTool) act(args []string) error {
 			return errors.New("no -of")
 		}
 		return os.WriteFile(out+".json", []byte(f.Transcript), 0o644)
+	case "extract-wav":
+		if len(args) == 0 {
+			return errors.New("no output file")
+		}
+		length := time.Minute
+		if t, ok := argAfterIn(args, "-t"); ok {
+			secs, err := strconv.ParseFloat(t, 64)
+			if err != nil {
+				return err
+			}
+			length = time.Duration(secs * float64(time.Second))
+		}
+		return writePCM(args[len(args)-1], make([]byte, int(length.Seconds()*16000)*2))
+	case "speech":
+		return f.fakeSpeech(args)
 	}
 	return fmt.Errorf("unknown act %q", f.Act)
+}
+
+// fakeSpeech acts as a whisper-cli with --vad: it answers -h with its options; with --vad and -dl it prints where the speech is in the sound it is given (Speech), as its VAD does; with -dl alone, the language it tells each sound it is given as (Told); otherwise, for each file, a line naming the file and then that it saves what it heard, as it hears files one after another, or, given -of, writes Transcript as "transcribe" does.
+func (f fakeTool) fakeSpeech(args []string) error {
+	if slices.Equal(args, []string{"-h"}) {
+		fmt.Fprintln(os.Stderr, "  -vm FNAME, --vad-model FNAME [       ] VAD model path")
+		return nil
+	}
+	var files []string
+	for i := 0; i+1 < len(args); i++ {
+		if args[i] == "-f" {
+			files = append(files, args[i+1])
+		}
+	}
+	switch {
+	case slices.Contains(args, "--vad"):
+		if f.NoVAD {
+			return nil
+		}
+		if f.NoVADAgain && len(files) > 0 {
+			marker := filepath.Join(filepath.Dir(files[0]), "vad-asked")
+			if _, err := os.Stat(marker); err == nil {
+				return nil
+			}
+			if err := os.WriteFile(marker, nil, 0o644); err != nil {
+				return err
+			}
+		}
+		for i, s := range f.Speech {
+			fmt.Fprintf(os.Stderr, "whisper_vad_segments_from_probs: VAD segment %d: start = %.2f, end = %.2f (duration: %.2f)\n", i, s[0], s[1], s[1]-s[0])
+		}
+		fmt.Fprintf(os.Stderr, "whisper_vad_segments_from_probs: Final speech segments after filtering: %d\n", len(f.Speech))
+	case slices.Contains(args, "-dl"):
+		for i, file := range files {
+			fmt.Fprintf(os.Stderr, "main: processing '%s'\n", file)
+			fmt.Fprintf(os.Stderr, "whisper_full_with_state: auto-detected language: %s (p = 0.900000)\n", f.Told[i%len(f.Told)])
+		}
+	case slices.Contains(args, "-of"):
+		out, _ := argAfterIn(args, "-of")
+		fmt.Println("[00:00:01.000 --> 00:00:02.000]  heard whole")
+		return os.WriteFile(out+".json", []byte(f.Transcript), 0o644)
+	default:
+		for _, file := range files {
+			fmt.Printf("[00:00:00.200 --> 00:00:01.000]  %s\n", filepath.Base(file))
+			fmt.Fprintf(os.Stderr, "output_json: saving output to '%s.json'\n", file)
+		}
+	}
+	return nil
 }
 
 // argAfterIn is the argument after flag in args.

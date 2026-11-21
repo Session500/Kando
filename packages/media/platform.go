@@ -251,7 +251,7 @@ func (t Tools) fetchSubtitles(ctx context.Context, source, language string, whic
 			args = append(args, "--user-agent", userAgent)
 		}
 	}
-	if _, _, err := runFollowing(ctx, false, func(string) {}, t.YTDLP, append(args, "--", source)...); err != nil {
+	if _, _, err := runFollowing(ctx, followStdout, func(string) {}, t.YTDLP, append(args, "--", source)...); err != nil {
 		return nil, err
 	}
 	return readPlatformSubtitles(dir, language)

@@ -133,7 +133,7 @@ func fakeProgram(t *testing.T, fake fakeTool) string {
 func TestRunFollowingHandsOverLinesAsTheyCome(t *testing.T) {
 	// A carriage return ends a line as a newline does, as whisper-cli and ffmpeg redraw one line.
 	var lines []string
-	stdout, stderr, err := runFollowing(context.Background(), true, func(l string) { lines = append(lines, l) }, fakeProgram(t, fakeTool{Stdout: "out\n", Stderr: "a\rb\nc"}))
+	stdout, stderr, err := runFollowing(context.Background(), followStderr, func(l string) { lines = append(lines, l) }, fakeProgram(t, fakeTool{Stdout: "out\n", Stderr: "a\rb\nc"}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,7 +143,7 @@ func TestRunFollowingHandsOverLinesAsTheyCome(t *testing.T) {
 }
 
 func TestRunFollowingKeepsTheErrorLines(t *testing.T) {
-	_, _, err := runFollowing(context.Background(), false, func(string) {}, fakeProgram(t, fakeTool{Stderr: "WARNING: slow\nERROR: [youtube] x: Private video\n", Exit: 1}))
+	_, _, err := runFollowing(context.Background(), followStdout, func(string) {}, fakeProgram(t, fakeTool{Stderr: "WARNING: slow\nERROR: [youtube] x: Private video\n", Exit: 1}))
 	if err == nil || !strings.Contains(err.Error(), "ERROR: [youtube] x: Private video") || strings.Contains(err.Error(), "WARNING") {
 		t.Fatalf("err = %v", err)
 	}
@@ -170,7 +170,7 @@ func TestRunFollowingLogsTheWholeStderrOfAFailedTool(t *testing.T) {
 		stderr += fmt.Sprintf("noise line %d\n", i)
 	}
 	tool := fakeProgram(t, fakeTool{Stderr: stderr + "ERROR: [youtube] x: Private video\n", Exit: 1})
-	_, _, err := runFollowing(context.Background(), false, func(string) {}, tool)
+	_, _, err := runFollowing(context.Background(), followStdout, func(string) {}, tool)
 	if err == nil || strings.Contains(err.Error(), "WARNING: first of many") {
 		t.Fatalf("err = %v", err)
 	}
@@ -224,7 +224,7 @@ func TestRunDoesNotLogAStoppedTool(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 		var err error
 		if stream {
-			_, _, err = runFollowing(ctx, true, func(string) {}, tool)
+			_, _, err = runFollowing(ctx, followStderr, func(string) {}, tool)
 		} else {
 			_, err = runStage(ctx, tool)
 		}

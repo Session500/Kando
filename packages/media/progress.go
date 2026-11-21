@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
@@ -161,8 +162,18 @@ func whisperFraction(line string) (float64, bool) {
 	return float64(percent) / 100, true
 }
 
-// runFollowing runs a tool and hands each line it prints on one stream, stdout or stderr as fromStderr says, to onLine on the calling goroutine as it comes, a carriage return ending a line as a newline does. It returns what the tool printed on each stream, the followed one's last 64 KiB, and, on failure, an error with what stderr says went wrong (toolError).
-func runFollowing(ctx context.Context, fromStderr bool, onLine func(string), name string, args ...string) (stdout, stderr string, err error) {
+// stream is which of a tool's output streams runFollowing follows.
+type stream int
+
+const (
+	followStdout stream = iota
+	followStderr
+	// followBoth follows stdout and stderr as one stream, in the order the tool writes them, as whisper-cli prints a file's lines on stdout and then, on stderr, that it is done with the file (hearSpeech).
+	followBoth
+)
+
+// runFollowing runs a tool and hands each line it prints on the stream follow names to onLine on the calling goroutine as it comes, a carriage return ending a line as a newline does. It returns what the tool printed on each stream, the followed one's last 64 KiB (both, when it follows both), and, on failure, an error with what stderr says went wrong (toolError).
+func runFollowing(ctx context.Context, follow stream, onLine func(string), name string, args ...string) (stdout, stderr string, err error) {
 	var cmd *exec.Cmd
 	var otherBuf, followed bytes.Buffer
 	var pipe io.ReadCloser
@@ -170,10 +181,28 @@ func runFollowing(ctx context.Context, fromStderr bool, onLine func(string), nam
 	err = retryBusy(ctx, func() error {
 		otherBuf.Reset()
 		cmd = Command(ctx, name, args...)
-		if fromStderr {
+		switch follow {
+		case followStderr:
 			cmd.Stdout = &otherBuf
 			pipe, piped = cmd.StderrPipe()
-		} else {
+		case followBoth:
+			// One pipe for both streams keeps the order the tool wrote them in, which two pipes read apart would lose.
+			var w *os.File
+			var r *os.File
+			r, w, piped = os.Pipe()
+			if piped != nil {
+				return piped
+			}
+			cmd.Stdout, cmd.Stderr = w, w
+			if err := cmd.Start(); err != nil {
+				r.Close()
+				w.Close()
+				return err
+			}
+			w.Close()
+			pipe = r
+			return nil
+		default:
 			cmd.Stderr = &otherBuf
 			pipe, piped = cmd.StdoutPipe()
 		}
@@ -197,9 +226,15 @@ func runFollowing(ctx context.Context, fromStderr bool, onLine func(string), nam
 	// Whatever the tool still prints after a line too long to scan is read and dropped, so it does not block writing it.
 	_, _ = io.Copy(io.Discard, pipe)
 	waitErr := cmd.Wait()
+	if follow == followBoth {
+		pipe.Close()
+	}
 	stdout, stderr = followed.String(), otherBuf.String()
-	if fromStderr {
+	switch follow {
+	case followStderr:
 		stdout, stderr = otherBuf.String(), followed.String()
+	case followBoth:
+		stderr = stdout
 	}
 	if waitErr != nil {
 		if ctxErr := ctx.Err(); ctxErr != nil {
