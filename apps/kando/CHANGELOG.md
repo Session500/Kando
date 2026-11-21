@@ -2,6 +2,12 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.48.0 - 2026-11-21
+
+### Features
+
+- Give the translator the earlier translations and the title, and keep translating through a cell or a service that fails (#423)
+
 ## 0.47.0 - 2026-11-21
 
 ### Features
