@@ -2,6 +2,17 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.45.0 - 2026-11-21
+
+### Features
+
+- Add SMB media sources in Settings, with their passwords in the system's secure store (#412)
+- Browse SMB sources and copy their videos into the library (#413)
+
+### Fixes
+
+- Give a detached image's disk its own time to eject, and run the vault tests one package at a time (#416)
+
 ## 0.44.0 - 2026-11-21
 
 ### Features
