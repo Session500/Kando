@@ -87,8 +87,9 @@ type subtitleView struct {
 	redo subtitlesRedo
 }
 
-// subtitlesRedo is a redo of the open film being made, as its lines are read with it: the generation it makes (core.Job.RedoGen), whether the film keeps the language it is translated into (track.Doc.Redoing), and how far the job has gone, which moves as it makes more of the film. The zero value is none.
+// subtitlesRedo is a redo of the open film being made, as its lines are read with it: which redo it is, the generation it makes (core.Job.RedoGen), whether the film keeps the language it is translated into (track.Doc.Redoing), and how far the job has gone, which moves as it makes more of the film. The zero value is none.
 type subtitlesRedo struct {
+	kind     core.Redo
 	gen      string
 	keep     bool
 	fraction float64
@@ -105,7 +106,7 @@ func (a *app) subtitlesRedoOf(key string) subtitlesRedo {
 	if !ok || job.RedoGen == "" || job.Stage.Done() || job.Redo != core.RedoAll && job.Redo != core.RedoTranslation {
 		return subtitlesRedo{}
 	}
-	return subtitlesRedo{gen: job.RedoGen, keep: subtitlesSameTarget(job.Language, job.RedoLanguage), fraction: job.Progress.Fraction, lines: job.Progress.Lines}
+	return subtitlesRedo{kind: job.Redo, gen: job.RedoGen, keep: subtitlesSameTarget(job.Language, job.RedoLanguage), fraction: job.Progress.Fraction, lines: job.Progress.Lines}
 }
 
 // subtitlesSameTarget reports whether a film translated into was is translated into redo again: redo names no language, or the same one as was.

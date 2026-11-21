@@ -2384,6 +2384,8 @@ const (
 	textFilmsQueuePaused
 	textFilmsRemoveManyMessage
 	textFilmsReprocessManyOwnMessage
+	textFilmStatusReprocessing
+	textFilmStatusRetranslating
 	textFilmStyleColor
 	textFilmStyleFont
 	textFilmStyleMenuItem
@@ -4228,6 +4230,8 @@ var keyOfText = [numTexts]string{
 	"filmsQueuePaused",
 	"filmsRemoveManyMessage",
 	"filmsReprocessManyOwnMessage",
+	"filmStatusReprocessing",
+	"filmStatusRetranslating",
 	"filmStyleColor",
 	"filmStyleFont",
 	"filmStyleMenuItem",
@@ -6070,6 +6074,8 @@ var textsEn = i18n.NewTexts(""+
 	"Queued · queue paused"+
 	"Their folders, or their videos and subtitles where a folder holds other files too, will be moved to the Trash, where you can get them back. Videos kept outside the library only leave it."+
 	"Their speech will be transcribed again and every line translated into the language each is translated into now, which uses your AI service."+
+	"Processing again"+
+	"Translating again"+
 	"Color"+
 	"Font"+
 	"Style…"+
@@ -7909,6 +7915,8 @@ var textsEn = i18n.NewTexts(""+
 		22,
 		186,
 		139,
+		16,
+		17,
 		5,
 		4,
 		8,
@@ -9751,6 +9759,8 @@ var textsJa = i18n.NewTexts(""+
 	"待機中 · キューを一時停止中"+
 	"それぞれのフォルダがゴミ箱に入ります。フォルダにほかのファイルもあるときは、動画と字幕だけが入ります。ゴミ箱から戻せます。ライブラリの外にある動画はライブラリから外れるだけです。"+
 	"音声をもう一度文字起こしし、すべての行をそれぞれ今の言語に翻訳し直します。AI サービスを使います。"+
+	"再処理中"+
+	"再翻訳中"+
 	"色"+
 	"フォント"+
 	"スタイル…"+
@@ -11590,6 +11600,8 @@ var textsJa = i18n.NewTexts(""+
 		40,
 		267,
 		144,
+		12,
+		12,
 		3,
 		12,
 		15,
@@ -13432,6 +13444,8 @@ var textsKo = i18n.NewTexts(""+
 	"대기 중 · 대기열 일시 정지됨"+
 	"각 폴더가 휴지통으로 이동합니다. 폴더에 다른 파일도 있으면 동영상과 자막만 이동합니다. 휴지통에서 되돌릴 수 있습니다. 라이브러리 밖에 있는 동영상은 라이브러리에서만 빠집니다."+
 	"음성을 다시 받아쓰고 모든 줄을 각자 지금의 언어로 다시 번역합니다. AI 서비스를 사용합니다."+
+	"다시 처리하는 중"+
+	"다시 번역하는 중"+
 	"색상"+
 	"글꼴"+
 	"스타일…"+
@@ -15271,6 +15285,8 @@ var textsKo = i18n.NewTexts(""+
 		40,
 		249,
 		127,
+		23,
+		23,
 		6,
 		6,
 		12,
@@ -17113,6 +17129,8 @@ var textsZhHans = i18n.NewTexts(""+
 	"排队中 · 队列已暂停"+
 	"它们的文件夹会移到废纸篓；文件夹里还有别的文件时，只移走视频和字幕。可以从废纸篓找回。资料库外的视频只从资料库移除。"+
 	"会重新识别它们的语音，并把每一句按各自现在的语言重新翻译，这会用到你的 AI 服务。"+
+	"正在重新处理"+
+	"正在重新翻译"+
 	"颜色"+
 	"字体"+
 	"样式…"+
@@ -18952,6 +18970,8 @@ var textsZhHans = i18n.NewTexts(""+
 		28,
 		174,
 		118,
+		18,
+		18,
 		6,
 		6,
 		9,
@@ -20794,6 +20814,8 @@ var textsZhHant = i18n.NewTexts(""+
 	"排隊中 · 佇列已暫停"+
 	"它們的資料夾會移到垃圾桶；資料夾裡還有別的檔案時，只移走影片和字幕。可以從垃圾桶找回。資料庫外的影片只從資料庫移除。"+
 	"會重新辨識它們的語音，並把每一句按各自現在的語言重新翻譯，這會用到你的 AI 服務。"+
+	"正在重新處理"+
+	"正在重新翻譯"+
 	"顏色"+
 	"字體"+
 	"樣式…"+
@@ -22633,6 +22655,8 @@ var textsZhHant = i18n.NewTexts(""+
 		28,
 		174,
 		118,
+		18,
+		18,
 		6,
 		6,
 		9,
@@ -34986,6 +35010,24 @@ func (msgs Messages) FilmStatusDraft(percent int) string {
 		}
 	}
 }
+
+// FilmStatusReprocessing says "Processing again"
+// in the language the app shows under cx.
+//
+// Line under the film's title in the player, in place of how much is translated, while the open film is processed again (Process Entire Film Again): the lines show the new ones where they are made and the film's own elsewhere. How far it is shows beside Cancel.
+func FilmStatusReprocessing(cx *core.Scope) string { return For(cx).FilmStatusReprocessing() }
+
+// FilmStatusReprocessing is the package's FilmStatusReprocessing in the language of msgs.
+func (msgs Messages) FilmStatusReprocessing() string { return msgs.text(textFilmStatusReprocessing) }
+
+// FilmStatusRetranslating says "Translating again"
+// in the language the app shows under cx.
+//
+// Line under the film's title in the player, in place of how much is translated, while the open film is translated again: the lines show the new translation where it is made and the film's own lines elsewhere. How far it is shows beside Cancel.
+func FilmStatusRetranslating(cx *core.Scope) string { return For(cx).FilmStatusRetranslating() }
+
+// FilmStatusRetranslating is the package's FilmStatusRetranslating in the language of msgs.
+func (msgs Messages) FilmStatusRetranslating() string { return msgs.text(textFilmStatusRetranslating) }
 
 // FilmStatusTranslated says "{percent}% translated"
 // in the language the app shows under cx.

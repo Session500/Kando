@@ -272,6 +272,8 @@ type Subs struct {
 	// Gaps are the parts of a film being made that have no lines yet (Gaps), in the order they come, which the subtitle list shows as rows of their own; none for a film done or made again, which shows its own lines there. Making is true while its job works on it rather than waiting, so the gap the film plays in says it is being made.
 	Gaps   []Gap
 	Making bool
+	// Redoing is how the open film is made again while its lines show the new ones where they are made (core.RedoAll, core.RedoTranslation), "" while it is not.
+	Redoing core.Redo
 }
 
 // Draft reports whether cue i is a draft.

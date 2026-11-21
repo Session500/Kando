@@ -578,6 +578,8 @@ filmsRetranslateConfirmMany: "{count} 本を{language}に翻訳し直します�
 filmsRetranslateManyMessage: "そのうち {count} 本のほかの言語の翻訳が置き換わります。すべての行を翻訳し直すので、AI サービスを使います。"
 filmsSelectedCount: "{count} 本を選択中"
 filmStatusDraft: "下書き字幕 · 最終校正 {percent}%"
+filmStatusReprocessing: "再処理中"
+filmStatusRetranslating: "再翻訳中"
 filmStatusTranslated: "字幕 {percent}% 翻訳済み"
 filmStyleColor: "色"
 filmStyleFont: "フォント"

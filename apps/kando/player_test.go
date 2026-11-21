@@ -2900,6 +2900,10 @@ func TestAFilmTranslatedAgainShowsItsNewLinesAsTheyCome(t *testing.T) {
 	if got, err := os.ReadFile(base + ".bilingual.srt"); err != nil || string(got) != bilingual {
 		t.Fatalf("while it is translated again the subtitles beside the video read %q, %v", got, err)
 	}
+	// The line under the title says the film is translated again, not how much of the mixed lines is.
+	if got := tt.Find("id:film-status").Text; !strings.Contains(got, testlocale.Messages().FilmStatusRetranslating()) {
+		t.Fatalf("while it is translated again the film's status reads %q", got)
+	}
 	a.Cancel("talk")
 	settle(t, a, tt, updates)
 	waitUntil(t, tt, a, updates, shown("你好。\nHello.", "再见。\nBye."))
@@ -2915,6 +2919,9 @@ func TestAFilmTranslatedAgainShowsItsNewLinesAsTheyCome(t *testing.T) {
 	close(p.later)
 	settle(t, a, tt, updates)
 	waitUntil(t, tt, a, updates, shown("简体中文:Hello.\nHello.", "简体中文:Bye.\nBye."))
+	if got := tt.Find("id:film-status").Text; strings.Contains(got, testlocale.Messages().FilmStatusRetranslating()) {
+		t.Fatalf("done, the film's status reads %q", got)
+	}
 }
 
 // TestALineOnScreenCutOtherwiseIsHeld reads a film's lines again cut otherwise where the playhead is, as a film processed again shows the part it heard anew: the line on screen shows as it was, in place of the new lines over it, until the playhead leaves it; lines away from it show as they are now.

@@ -2037,6 +2037,12 @@ filmStatusDraft:
   description: "Line under the film's title in the player, in place of how much is translated, while the subtitles of a film made as it plays are not all proofread as a whole yet: how many of its lines are."
   placeholders:
     percent: { type: "int", example: "63" }
+filmStatusReprocessing:
+  message: "Processing again"
+  description: "Line under the film's title in the player, in place of how much is translated, while the open film is processed again (Process Entire Film Again): the lines show the new ones where they are made and the film's own elsewhere. How far it is shows beside Cancel."
+filmStatusRetranslating:
+  message: "Translating again"
+  description: "Line under the film's title in the player, in place of how much is translated, while the open film is translated again: the lines show the new translation where it is made and the film's own lines elsewhere. How far it is shows beside Cancel."
 filmStatusTranslated:
   message: "{percent}% translated"
   description: "Line under the film's title in the player: how much of its subtitles is translated."
