@@ -115,15 +115,18 @@ func subtitlesSameTarget(was, redo string) bool {
 	return redo == "" || redo == was || core.TargetTag(redo) != "" && core.TargetTag(redo) == core.TargetTag(was)
 }
 
-// subtitlesFollowRedo reads the open film's lines again once a redo of it being made has made more of them, or has ended, so the film shows the new lines where they are made and the ones it had again once the redo is stopped or fails. A redo writes nothing out beside the video until it is done, so its job's reports, not the film's files, say when.
-func (a *app) subtitlesFollowRedo() {
+// subtitlesFollowRedo reads the open film's lines again once a redo of it being made has made more of them, or has ended, so the film shows the new lines where they are made and the ones it had again once the redo is stopped or fails. A redo writes nothing out beside the video until it is done, so its job's reports, not the film's files, say when. It reports whether the redo the film's status reads (film.Subs.Redoing) changed, as it does when the redo begins or ends.
+func (a *app) subtitlesFollowRedo() bool {
 	subs := &a.player.subs
 	if subs.key == "" || subs.path == "" || !subs.ready || subs.reading || a.update == nil {
-		return
+		return false
 	}
-	if a.subtitlesRedoOf(subs.key) != subs.redo {
-		a.subtitlesRead()
+	if a.subtitlesRedoOf(subs.key) == subs.redo {
+		return false
 	}
+	kind := subs.redo.kind
+	a.subtitlesRead()
+	return subs.redo.kind != kind
 }
 
 // loadSubtitles reads the lines of the film whose video is at video off the engine's goroutine: its subtitle document, with path, the subtitle file it shows, taken in where it changed (media.ReadTrack), and the user's corrections of the film (media.LoadCorrections), and the frames of the 片段 its lines cut the film into once read (loadClipFrames). An empty path means this film has no subtitle yet; a file that is gone or cannot be read says so, as the film's lines come from that file until its subtitles are made into the document itself.
