@@ -295,6 +295,7 @@ func (a *app) playerAfterChange() bool {
 	drafts := a.playerDraftsFollow()
 	gaps := a.playerGapsFollow()
 	next := a.playerNextFollow()
+	a.subtitlesFollowRedo()
 	return changed || tip || stream || drafts || gaps || next
 }
 

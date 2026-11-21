@@ -2618,6 +2618,10 @@ type retranslatePipeline struct {
 	language                  string
 	translateErr              error
 	hold                      bool
+	// later, when set, holds every batch of the translation after the first until it is closed, so a test sees the film while part of it is translated.
+	later   chan struct{}
+	mu      sync.Mutex
+	batches int
 	// video is the film's video, which Download gives for a link; silent hears no speech in it.
 	video  string
 	silent bool
@@ -2649,7 +2653,18 @@ func (p *retranslatePipeline) Hear(_ context.Context, _ string, from, _ time.Dur
 }
 
 func (p *retranslatePipeline) Translate(ctx context.Context, segments []core.Segment, language string) ([]core.Segment, error) {
+	p.mu.Lock()
 	p.language = language
+	p.batches++
+	first := p.batches == 1
+	p.mu.Unlock()
+	if p.later != nil && !first {
+		select {
+		case <-p.later:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
 	if p.hold {
 		<-ctx.Done()
 		return nil, ctx.Err()
@@ -2657,6 +2672,8 @@ func (p *retranslatePipeline) Translate(ctx context.Context, segments []core.Seg
 	if p.translateErr != nil {
 		return nil, p.translateErr
 	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	out := make([]core.Segment, len(segments))
 	for i, s := range segments {
 		p.sent = append(p.sent, s.Text)

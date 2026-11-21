@@ -2857,3 +2857,85 @@ func TestAFilmBeingMadeListsThePartsNotHeardYet(t *testing.T) {
 		t.Fatalf("done, the film has gaps %+v", got)
 	}
 }
+
+// TestAFilmTranslatedAgainShowsItsNewLinesAsTheyCome translates an open film again while its first part is translated and the rest waits: the film shows the new translation where it is made and the film as it was elsewhere, without its old translation when it goes into another language now and with it when it goes into the same one, while the files beside the video keep the subtitles they had. Stopped, the film shows the lines it had again; done, every new line.
+func TestAFilmTranslatedAgainShowsItsNewLinesAsTheyCome(t *testing.T) {
+	p := &retranslatePipeline{later: make(chan struct{})}
+	lib := filepath.Join(t.TempDir(), "我的影片.kando")
+	video := filepath.Join(lib, "Talk", "video.mp4")
+	a, tt, updates := retranslateLibraryAt(t, p, lib, video)
+	// One line at the start, the other in the film's second half minute.
+	base := strings.TrimSuffix(video, ".mp4")
+	bilingual := "1\n00:00:01,000 --> 00:00:02,000\n你好。\nHello.\n\n2\n00:00:41,000 --> 00:00:42,000\n再见。\nBye.\n\n"
+	for path, body := range map[string]string{
+		base + ".srt":           "1\n00:00:01,000 --> 00:00:02,000\nHello.\n\n2\n00:00:41,000 --> 00:00:42,000\nBye.\n\n",
+		base + ".bilingual.srt": bilingual,
+	} {
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	film, _ := a.JobFilm("talk")
+	a.Open(film)
+	shown := func(want ...string) func() bool {
+		return func() bool {
+			cues := a.player.subs.cues
+			if !a.player.subs.ready || a.player.subs.reading || len(cues) != len(want) {
+				return false
+			}
+			for i, c := range cues {
+				if c.Text != want[i] {
+					return false
+				}
+			}
+			return true
+		}
+	}
+	waitUntil(t, tt, a, updates, shown("你好。\nHello.", "再见。\nBye."))
+
+	a.TranslateAgain(film, "日本語")
+	a.Retranslate()
+	refresh(tt, a)
+	waitUntil(t, tt, a, updates, shown("日本語:Hello.\nHello.", "Bye."))
+	if got, err := os.ReadFile(base + ".bilingual.srt"); err != nil || string(got) != bilingual {
+		t.Fatalf("while it is translated again the subtitles beside the video read %q, %v", got, err)
+	}
+	a.Cancel("talk")
+	settle(t, a, tt, updates)
+	waitUntil(t, tt, a, updates, shown("你好。\nHello.", "再见。\nBye."))
+
+	// Into the language it is in, the part not translated again keeps its translation.
+	p.mu.Lock()
+	p.batches = 0
+	p.mu.Unlock()
+	a.TranslateAgain(film, "简体中文")
+	a.Retranslate()
+	refresh(tt, a)
+	waitUntil(t, tt, a, updates, shown("简体中文:Hello.\nHello.", "再见。\nBye."))
+	close(p.later)
+	settle(t, a, tt, updates)
+	waitUntil(t, tt, a, updates, shown("简体中文:Hello.\nHello.", "简体中文:Bye.\nBye."))
+}
+
+// TestALineOnScreenCutOtherwiseIsHeld reads a film's lines again cut otherwise where the playhead is, as a film processed again shows the part it heard anew: the line on screen shows as it was, in place of the new lines over it, until the playhead leaves it; lines away from it show as they are now.
+func TestALineOnScreenCutOtherwiseIsHeld(t *testing.T) {
+	ms := func(n int) time.Duration { return time.Duration(n) * time.Millisecond }
+	was := []core.Segment{{Start: ms(1000), End: ms(3000), Text: "你好。\nHello."}}
+	cues := []core.Segment{
+		{Start: ms(0), End: ms(900), Text: "前。\nBefore."},
+		{Start: ms(1200), End: ms(2000), Text: "你。\nHel"},
+		{Start: ms(2500), End: ms(4000), Text: "好。\nlo."},
+		{Start: ms(5000), End: ms(6000), Text: "后。\nAfter."},
+	}
+	held := subtitlesHold(was, cues, ms(1500))
+	if held == nil || held.span != (core.Span{Start: ms(1000), End: ms(3000)}) {
+		t.Fatalf("held %+v, want the line on screen", held)
+	}
+	var got []string
+	for _, c := range subtitlesShown(cues, held) {
+		got = append(got, c.Text)
+	}
+	if want := []string{"前。\nBefore.", "你好。\nHello.", "后。\nAfter."}; !slices.Equal(got, want) {
+		t.Fatalf("shown %q, want %q", got, want)
+	}
+}
