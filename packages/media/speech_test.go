@@ -48,6 +48,9 @@ func TestPlaceLineStartsItWhereItsSpeechDoes(t *testing.T) {
 		// whisper starts the line after the pause in the pause.
 		{"in the pause before its speech", 2.5, 8, [2]float64{15, 18}},
 		{"in a pause with no speech after it", 9.8, 12, [2]float64{19.8, 20}},
+		// whisper starts the line where the one before it ended, in that one's speech.
+		{"well into the speech before its own", 0.9, 8, [2]float64{15, 18}},
+		{"near the end of the speech before a short line", 1.5, 5.2, [2]float64{11.5, 15.2}},
 	} {
 		s := placeLine(core.Segment{Start: sec(tc.start), End: sec(tc.end)}, c)
 		if s.Start != sec(tc.want[0]) || s.End != sec(tc.want[1]) {
@@ -136,10 +139,10 @@ func TestHearHearsOnlyTheSpeechAChunkAtATime(t *testing.T) {
 	if language != "ja" {
 		t.Fatalf("language %q", language)
 	}
-	// Speech a second apart is heard as one chunk, from 2.7 s, and the speech 13 s later as another, to the end of the sound; each line is placed in the film where its speech starts.
+	// Speech a second apart is heard as one chunk, from 2.7 s, and the speech 13 s later as another, to the end of the sound; each line is placed in the film where its speech starts, and stays up a second.
 	want := []core.Segment{
-		{Start: 63 * time.Second, End: 63700 * time.Millisecond, Text: "chunk-0-0000.wav"},
-		{Start: 80 * time.Second, End: 80700 * time.Millisecond, Text: "chunk-0-0001.wav"},
+		{Start: 63 * time.Second, End: 64 * time.Second, Text: "chunk-0-0000.wav"},
+		{Start: 80 * time.Second, End: 81 * time.Second, Text: "chunk-0-0001.wav"},
 	}
 	if !slices.Equal(lines, want) {
 		t.Fatalf("lines %+v, want %+v", lines, want)
@@ -159,21 +162,53 @@ func TestHearHearsTheWholeSoundWhenTheSpeechCannotBeFound(t *testing.T) {
 	}
 }
 
-func TestCollapseRepeatsMakesALineSaidOverAndOverOne(t *testing.T) {
-	lines := []core.Segment{
-		{Start: sec(0), End: sec(1), Text: "a"},
-		{Start: sec(1), End: sec(2.3), Text: "b"},
-		{Start: sec(2.3), End: sec(2.36), Text: "b"},
-		{Start: sec(2.36), End: sec(4), Text: "b"},
-		{Start: sec(5), End: sec(6), Text: "a"},
+// writeModelHeader writes the header of a ggml speech model of the base size at path.
+func writeModelHeader(t *testing.T, path string) {
+	t.Helper()
+	header := []int32{51865, 1500, 512, 8, 6, 448, 512, 8, 6, 80, 1}
+	data := append([]byte("lmgg"), make([]byte, 4*len(header))...)
+	for i, v := range header {
+		binary.LittleEndian.PutUint32(data[4+4*i:], uint32(v))
 	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestHearTimesEachLineByItsWords(t *testing.T) {
+	tools := speechTools(t, fakeTool{Timing: true, Speech: [][2]float64{{3, 5}, {6, 7}, {20, 30}}})
+	writeModelHeader(t, tools.WhisperModel)
+	var lines []core.Segment
+	if _, err := tools.Hear(withSpeechLanguage(context.Background(), "ja"), filepath.Join(t.TempDir(), "film.mkv"), time.Minute, 90*time.Second, func(s core.Segment) { lines = append(lines, s) }); err != nil {
+		t.Fatal(err)
+	}
+	// Each chunk is heard as "Hi! Bye", its words 0.4 s and 3.6 s in. In the first, from 2.7 s, the speech pauses between them, so the line is cut after "Hi!"; each piece starts at its speech and ends 0.6 s after its last word, within its speech, staying up a second. In the second, from 19.7 s, the speech goes on, so it is one line.
 	want := []core.Segment{
-		{Start: sec(0), End: sec(1), Text: "a"},
-		{Start: sec(1), End: sec(4), Text: "b"},
-		{Start: sec(5), End: sec(6), Text: "a"},
+		{Start: 63 * time.Second, End: 64 * time.Second, Text: "Hi!"},
+		{Start: 66 * time.Second, End: 67 * time.Second, Text: "Bye"},
+		{Start: 80 * time.Second, End: 83900 * time.Millisecond, Text: "Hi! Bye"},
 	}
-	if got := collapseRepeats(lines); !slices.Equal(got, want) {
-		t.Fatalf("collapsed to %+v", got)
+	if !slices.Equal(lines, want) {
+		t.Fatalf("lines %+v, want %+v", lines, want)
+	}
+}
+
+func TestHearHearsAgainWithoutWordTimesWhenWhisperCannotTimeThem(t *testing.T) {
+	tools := speechTools(t, fakeTool{FailTiming: true, Speech: [][2]float64{{3, 5}}})
+	writeModelHeader(t, tools.WhisperModel)
+	var lines []string
+	if _, err := tools.Hear(withSpeechLanguage(context.Background(), "ja"), filepath.Join(t.TempDir(), "film.mkv"), 0, 30*time.Second, func(s core.Segment) { lines = append(lines, s.Text) }); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(lines, []string{"chunk-0-0000.wav"}) {
+		t.Fatalf("heard %q", lines)
+	}
+	// Once it failed, whisper-cli is not asked to time words with this model again.
+	if preset := tools.timesWords(context.Background()); preset != "" {
+		t.Fatalf("times words with %q", preset)
 	}
 }
 

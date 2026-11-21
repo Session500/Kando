@@ -38,11 +38,13 @@ type fakeTool struct {
 	// Act is what the fake does as the tool: "" nothing more; "download" downloads a split-format video as yt-dlp does (fakeDownload); "update" answers --version and -U as the standalone yt-dlp does (fakeUpdate); "extract-audio" writes an empty file where its last argument says, as ffmpeg writes the audio track; "subtitles" writes Files in the folder -P names; "transcribe" writes Transcript where -of says, with .json added, as whisper-cli -oj does; "extract-wav" writes a silent 16 kHz WAV as long as -t says where its last argument says, as ffmpeg writes the audio of part of a film; "speech" is a whisper-cli that finds speech (fakeSpeech).
 	Act        string
 	Transcript string
-	// Speech is where the "speech" fake says the speech is, in seconds into each sound it is given, and Told the languages it tells its sounds as, in turn; with NoVAD it prints nothing of the speech it finds, as a whisper-cli whose VAD failed, and with NoVADAgain only the first time it is asked in a folder.
+	// Speech is where the "speech" fake says the speech is, in seconds into each sound it is given, and Told the languages it tells its sounds as, in turn; with NoVAD it prints nothing of the speech it finds, as a whisper-cli whose VAD failed, and with NoVADAgain only the first time it is asked in a folder. With Timing it has -dtw and times each word; with FailTiming it fails to start when asked to time words, as a whisper-cli given a preset that does not fit its model.
 	Speech     [][2]float64 `json:",omitempty"`
 	Told       []string     `json:",omitempty"`
 	NoVAD      bool         `json:",omitempty"`
 	NoVADAgain bool         `json:",omitempty"`
+	Timing     bool         `json:",omitempty"`
+	FailTiming bool         `json:",omitempty"`
 	// Files are what Act "subtitles" writes in the folder -P names, by file name, as yt-dlp --skip-download --write-subs writes the subtitles it fetched.
 	Files map[string]string `json:",omitempty"`
 	// Stdout and Stderr are printed on the two streams, and then the contents of StdoutFile and StderrFile, as a real run of the tool printed them.
@@ -278,10 +280,14 @@ func (f fakeTool) act(args []string) error {
 	return fmt.Errorf("unknown act %q", f.Act)
 }
 
-// fakeSpeech acts as a whisper-cli with --vad: it answers -h with its options; with --vad and -dl it prints where the speech is in the sound it is given (Speech), as its VAD does; with -dl alone, the language it tells each sound it is given as (Told); otherwise, for each file, a line naming the file and then that it saves what it heard, as it hears files one after another, or, given -of, writes Transcript as "transcribe" does.
+// fakeSpeech acts as a whisper-cli with --vad: it answers -h with its options, with -dtw among them given Timing; with --vad and -dl it prints where the speech is in the sound it is given (Speech), as its VAD does; with -dl alone, the language it tells each sound it is given as (Told); given -of, it writes Transcript as "transcribe" does; otherwise it hears each file in turn, as whisper-cli does: it says on stderr it reads the file, prints a line naming the file on stdout, says on stderr it saves what it heard and then writes it as JSON beside the file. With -dtw the line is "Hi! Bye", its words timed 0.4 s and 3.6 s into the file.
 func (f fakeTool) fakeSpeech(args []string) error {
 	if slices.Equal(args, []string{"-h"}) {
 		fmt.Fprintln(os.Stderr, "  -vm FNAME, --vad-model FNAME [       ] VAD model path")
+		if f.Timing || f.FailTiming {
+			fmt.Fprintln(os.Stderr, "  -dtw MODEL --dtw MODEL            [       ] compute token-level timestamps")
+			fmt.Fprintln(os.Stderr, "  -nfa,      --no-flash-attn        [false  ] disable flash attention")
+		}
 		return nil
 	}
 	var files []string
@@ -290,6 +296,7 @@ func (f fakeTool) fakeSpeech(args []string) error {
 			files = append(files, args[i+1])
 		}
 	}
+	timed := slices.Contains(args, "-dtw")
 	switch {
 	case slices.Contains(args, "--vad"):
 		if f.NoVAD {
@@ -317,10 +324,20 @@ func (f fakeTool) fakeSpeech(args []string) error {
 		out, _ := argAfterIn(args, "-of")
 		fmt.Println("[00:00:01.000 --> 00:00:02.000]  heard whole")
 		return os.WriteFile(out+".json", []byte(f.Transcript), 0o644)
+	case timed && f.FailTiming:
+		return errors.New("whisper_init_with_params_no_state: tried to set alignment head on text layer 6, but model only has 4 text layers")
 	default:
 		for _, file := range files {
+			fmt.Fprintf(os.Stderr, "read_audio_data: reading audio data from '%s' ...\n", file)
 			fmt.Printf("[00:00:00.200 --> 00:00:01.000]  %s\n", filepath.Base(file))
 			fmt.Fprintf(os.Stderr, "output_json: saving output to '%s.json'\n", file)
+			heard := fmt.Sprintf(`{"transcription":[{"offsets":{"from":200,"to":1000},"text":%q}]}`, filepath.Base(file))
+			if timed {
+				heard = `{"transcription":[{"offsets":{"from":0,"to":3800},"text":"Hi! Bye","tokens":[{"text":"[_BEG_]","t_dtw":-1},{"text":"Hi","t_dtw":40},{"text":"!","t_dtw":60},{"text":" Bye","t_dtw":360},{"text":"[_TT_190]","t_dtw":-1}]}]}`
+			}
+			if err := os.WriteFile(file+".json", []byte(heard), 0o644); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

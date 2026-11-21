@@ -58,26 +58,52 @@ type chunk struct {
 	speech []span
 }
 
-// speechSupport is, by whisper-cli path, whether that program finds speech (hearsSpeech).
-var speechSupport sync.Map
+// whisperHelps is, by whisper-cli path, what that program answers -h with (whisperHelp).
+var whisperHelps sync.Map
+
+// whisperHelp is what whisper-cli answers -h with, its options, asked once; "" when it does not answer.
+func (t Tools) whisperHelp(ctx context.Context) string {
+	if help, known := whisperHelps.Load(t.Whisper); known {
+		return help.(string)
+	}
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	out, _ := Command(ctx, t.Whisper, "-h").CombinedOutput()
+	if ctx.Err() != nil {
+		return ""
+	}
+	whisperHelps.Store(t.Whisper, string(out))
+	return string(out)
+}
 
 // hearsSpeech reports whether Hear hears only the speech of a video: whisper-cli has --vad and there is a speech model to run it with.
 func (t Tools) hearsSpeech(ctx context.Context) bool {
 	if t.Whisper == "" || t.WhisperModel == "" {
 		return false
 	}
-	if ok, known := speechSupport.Load(t.Whisper); known {
-		return ok.(bool)
+	return strings.Contains(t.whisperHelp(ctx), "--vad-model")
+}
+
+// wordTiming is, by whisper-cli and speech model, false once whisper-cli heard too slowly or failed while it timed each word (timesWords).
+var wordTiming sync.Map
+
+// wordTimingSpeed is how many seconds of the film whisper-cli must hear in a second while it times each word, else it hears without: timing words turns flash attention off, which slows a slow computer down below what playing the film needs.
+const (
+	wordTimingSpeed = 3
+	// wordTimingMeasured is the least of the film a run must hear for its speed to count, as loading the model takes part of a short one.
+	wordTimingMeasured = 2 * time.Minute
+)
+
+// timesWords is the DTW preset hearChunks has whisper-cli time each word with, "" when it does not: whisper-cli has -dtw and can turn flash attention off, which DTW needs; the model's sizes name a preset (dtwPreset); and whisper-cli has not heard too slowly or failed with it.
+func (t Tools) timesWords(ctx context.Context) string {
+	if ok, known := wordTiming.Load(t.Whisper + "\x00" + t.WhisperModel); known && !ok.(bool) {
+		return ""
 	}
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-	out, _ := Command(ctx, t.Whisper, "-h").CombinedOutput()
-	if ctx.Err() != nil {
-		return false
+	help := t.whisperHelp(ctx)
+	if !strings.Contains(help, "--dtw") || !strings.Contains(help, "--no-flash-attn") {
+		return ""
 	}
-	ok := strings.Contains(string(out), "--vad-model")
-	speechSupport.Store(t.Whisper, ok)
-	return ok
+	return dtwPreset(t.WhisperModel)
 }
 
 // sileroPath writes the VAD model Kando carries beside the speech model, or in the temporary folder when that folder cannot be written, unless it is there already, and returns where it is.
@@ -165,7 +191,7 @@ func (t Tools) findSpeech(ctx context.Context, dir, silero string, pcm []byte, s
 		}
 	}
 	args := append(t.whisperBase("auto"), "--vad", "-vm", silero, "-vt", speechThreshold, "-vp", speechPadMs, "-vmsd", speechMaxSeconds, "-dl", "-f", path)
-	if _, _, err := runFollowing(ctx, followStderr, follow, t.Whisper, args...); err != nil {
+	if _, _, err := runFollowing(ctx, true, follow, t.Whisper, args...); err != nil {
 		if ctx.Err() != nil {
 			return nil, err
 		}
@@ -273,7 +299,7 @@ func (t Tools) tellLanguage(ctx context.Context, dir, silero, videoPath string, 
 			told = append(told, m[1])
 		}
 	}
-	if _, _, err := runFollowing(ctx, followStderr, follow, t.Whisper, args...); err != nil {
+	if _, _, err := runFollowing(ctx, true, follow, t.Whisper, args...); err != nil {
 		return "", err
 	}
 	return mostOf(told), nil
@@ -317,86 +343,104 @@ func mostOf(told []string) string {
 	return best
 }
 
-// hearChunks hears chunks of the sound pcm, of a run from from in the film, in language, with one whisper-cli run that is given each as a file of its own: whisper reads each file with no text before it, so a line made up in one is not carried into the next. stage names the chunks' files apart from another stage's. whisper-cli prints a file's lines on stdout and, once it has heard the file, that it saves what it heard; the lines are handed on then, in the film's time.
+// hearChunks hears chunks of the sound pcm, of a run from from in the film, in language, handing heard each line in the film's time as soon as its chunk is heard. It has whisper-cli time each word when it can (timesWords), and hears the chunks left again without once that fails.
 func (t Tools) hearChunks(ctx context.Context, dir string, stage int, pcm []byte, chunks []chunk, from time.Duration, language string, heard func(core.Segment)) error {
 	if len(chunks) == 0 {
 		return nil
 	}
-	byPath := map[string]chunk{}
-	args := append(t.whisperBase(cmpOr(language, "auto")), "-np", "-oj")
+	preset := t.timesWords(ctx)
+	began := time.Now()
+	done, err := t.decodeChunks(ctx, dir, stage, pcm, chunks, from, language, preset, heard)
+	if preset == "" || ctx.Err() != nil {
+		return err
+	}
+	key := t.Whisper + "\x00" + t.WhisperModel
+	if err != nil {
+		// A whisper-cli that cannot time the words of this model, as when its sizes name the wrong preset, does not start: the chunks it did not hear are heard again without.
+		wordTiming.Store(key, false)
+		_, err = t.decodeChunks(ctx, dir, stage, pcm, chunks[done:], from, language, "", heard)
+		return err
+	}
+	if heardOf := chunks[len(chunks)-1].to - chunks[0].from; heardOf >= wordTimingMeasured && time.Since(began)*wordTimingSpeed > heardOf {
+		wordTiming.Store(key, false)
+	}
+	return nil
+}
+
+// decodeChunks has one whisper-cli run hear chunks, each as a file of its own: whisper reads each file with no text before it, so a line made up in one is not carried into the next. preset, when not "", has it time each word with DTW. It returns how many of the chunks were heard and handed on, in order.
+//
+// The lines are read from the JSON whisper-cli writes for each file, not from its stdout: with DTW, whisper-cli 1.9.5 prints some lines on stdout twice and leaves others out. whisper-cli says it saves a file's lines on stderr as it opens the file, before it writes them; the file is whole once whisper-cli says anything more on stderr, as it starts on the next file, or exits. stdout is not followed, as a program buffers what it writes there and it may come at any time.
+func (t Tools) decodeChunks(ctx context.Context, dir string, stage int, pcm []byte, chunks []chunk, from time.Duration, language, preset string, heard func(core.Segment)) (int, error) {
+	if len(chunks) == 0 {
+		return 0, nil
+	}
+	byPath := map[string]int{}
+	args := append(t.whisperBase(cmpOr(language, "auto")), "-np")
+	if preset != "" {
+		args = append(args, "-ojf", "-dtw", preset, "-nfa")
+	} else {
+		args = append(args, "-oj")
+	}
 	for i, c := range chunks {
 		path := filepath.Join(dir, fmt.Sprintf("chunk-%d-%04d.wav", stage, i))
 		if err := writePCM(path, pcmSlice(pcm, c.span)); err != nil {
-			return err
+			return 0, err
 		}
-		byPath[path] = c
+		byPath[path] = i
 		args = append(args, "-f", path)
 	}
-	var lines []core.Segment
-	follow := func(line string) {
-		if s, ok := parseWhisperLine(line); ok {
-			lines = append(lines, s)
+	pending, done := "", 0
+	// hand reads the file whisper-cli last said it saves, unless it cannot be read yet; ended says whisper-cli exited, so the file is as whole as it will be.
+	hand := func(ended bool) {
+		i, ok := byPath[strings.TrimSuffix(pending, ".json")]
+		if !ok {
+			pending = ""
 			return
 		}
+		data, err := os.ReadFile(pending)
+		var lines []decodedLine
+		if err == nil {
+			lines, err = parseHeard(data)
+		}
+		if err != nil && !ended {
+			return
+		}
+		pending = ""
+		if err != nil {
+			return
+		}
+		for _, s := range timeLines(lines, chunks[i], preset != "") {
+			s.Start += from
+			s.End += from
+			heard(s)
+		}
+		done = i + 1
+	}
+	follow := func(line string) {
+		if pending != "" {
+			hand(false)
+		}
 		if m := savedLine.FindStringSubmatch(line); m != nil {
-			if c, ok := byPath[strings.TrimSuffix(m[1], ".json")]; ok {
-				for _, s := range collapseRepeats(lines) {
-					s = placeLine(s, c)
-					s.Start += from
-					s.End += from
-					heard(s)
-				}
-			}
-			lines = nil
-		} else if strings.HasPrefix(line, "error: failed to read audio file") {
-			lines = nil
+			pending = m[1]
 		}
 	}
-	_, _, err := runFollowing(ctx, followBoth, follow, t.Whisper, args...)
+	_, _, err := runFollowing(ctx, true, follow, t.Whisper, args...)
+	if pending != "" && ctx.Err() == nil {
+		hand(true)
+	}
 	var exit *exec.ExitError
 	if errors.As(err, &exit) && exit.ExitCode() == whisperSomeFilesFailed && ctx.Err() == nil {
 		// A chunk that could not be read is left out; the others were heard.
-		return nil
+		return done, nil
 	}
-	return err
-}
-
-// collapseRepeats is lines with each run of the same line said again and again made one line, from the first's start to the last's end: within a chunk whisper may still say a line over a few times, some of them for a split second, where it was said once.
-func collapseRepeats(lines []core.Segment) []core.Segment {
-	var out []core.Segment
-	for _, s := range lines {
-		if n := len(out); n > 0 && out[n-1].Text == s.Text {
-			out[n-1].End = max(out[n-1].End, s.End)
-			continue
-		}
-		out = append(out, s)
-	}
-	return out
+	return done, err
 }
 
 // whisperSomeFilesFailed is whisper-cli's exit status when some of the files it was given could not be read, after it heard the rest.
 const whisperSomeFilesFailed = 11
 
-// savedLine is what whisper-cli prints once it heard a file, naming where it saves what it heard: "output_json: saving output to '/tmp/kando-1/chunk-0-0003.wav.json'".
+// savedLine is what whisper-cli prints on stderr as it opens the file it saves what it heard in, before it writes it: "output_json: saving output to '/tmp/kando-1/chunk-0-0003.wav.json'".
 var savedLine = regexp.MustCompile(`saving output to '(.*)'$`)
-
-// placeLine is line s, heard in the time of chunk c's file, in the time of the sound: within c, and starting where its speech does when whisper starts it in a pause before it, as it may start the first line after a pause at the pause.
-func placeLine(s core.Segment, c chunk) core.Segment {
-	s.Start = min(c.from+s.Start, c.to)
-	s.End = min(c.from+s.End, c.to)
-	for _, sp := range c.speech {
-		if s.Start >= sp.from && s.Start < sp.to {
-			break
-		}
-		if sp.from > s.Start {
-			if sp.from < s.End {
-				s.Start = sp.from
-			}
-			break
-		}
-	}
-	return s
-}
 
 // whisperBase is the arguments every run of whisper-cli takes: the speech model, the threads, language, and the hints typed in the speech settings.
 func (t Tools) whisperBase(language string) []string {
