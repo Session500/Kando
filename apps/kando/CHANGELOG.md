@@ -2,6 +2,12 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.43.1 - 2026-11-21
+
+### Fixes
+
+- Proofread a film heard in the language its subtitles are for (#387)
+
 ## 0.43.0 - 2026-11-21
 
 ### Features
