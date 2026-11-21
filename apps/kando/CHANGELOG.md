@@ -2,6 +2,12 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.48.2 - 2026-11-22
+
+### Fixes
+
+- Read a pairing QR code that gozxing only reads turned (#433)
+
 ## 0.48.1 - 2026-11-22
 
 ### Fixes
