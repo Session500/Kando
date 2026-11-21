@@ -2,6 +2,12 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.43.2 - 2026-11-21
+
+### Fixes
+
+- Keep a file of the plugins folder saved while it is being read on Windows (#403)
+
 ## 0.43.1 - 2026-11-21
 
 ### Fixes
