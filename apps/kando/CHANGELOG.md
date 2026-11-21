@@ -2,6 +2,12 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.48.1 - 2026-11-22
+
+### Fixes
+
+- Keep the lines of a batch whose reply was cut off or written wrong, and go on past a missing batch that fails (#430)
+
 ## 0.48.0 - 2026-11-21
 
 ### Features
