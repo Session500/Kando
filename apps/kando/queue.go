@@ -626,7 +626,7 @@ func (a *app) queueRedoEnded(job core.Job) core.Job {
 	}
 	job.Stage = core.StageComplete
 	job.Err, job.FailKind, job.Progress = nil, "", core.Progress{}
-	job.Redo, job.RedoLanguage = "", ""
+	job.Redo, job.RedoLanguage, job.RedoGen = "", "", ""
 	return job
 }
 
@@ -923,7 +923,7 @@ func (a *app) queueRun(job core.Job) {
 				return
 			}
 			// A film made a part at a time shows its subtitles from the first lines written out, so a report that names them is shown as it comes.
-			onlyProgress := j.Stage == last.Stage && j.Title == last.Title && j.Thumbnail == last.Thumbnail && j.VideoPath == last.VideoPath && j.SubtitlePath == last.SubtitlePath && j.Err == nil
+			onlyProgress := j.Stage == last.Stage && j.Title == last.Title && j.Thumbnail == last.Thumbnail && j.VideoPath == last.VideoPath && j.SubtitlePath == last.SubtitlePath && j.RedoGen == last.RedoGen && j.Err == nil
 			last = j
 			if !onlyProgress {
 				latest.Store(nil)

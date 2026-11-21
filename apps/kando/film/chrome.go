@@ -59,7 +59,7 @@ func (s *screen) barStart() ns.Points {
 	return 20
 }
 
-// status is the line under the title: the library, then how much of the film's subtitles is translated, as the prototype says it ("字幕 94%"), or, for a film made while it plays, that its subtitles are drafts and how much of them is proofread as a whole ("草稿字幕 · 终校 63%"), or how far its job is while it has no subtitles to show.
+// status is the line under the title: the library, then how much of the film's subtitles is translated, as the prototype says it ("字幕 94%"), or, for a film made while it plays, that its subtitles are drafts and how much of them is proofread as a whole ("草稿字幕 · 终校 63%"), or that the film is translated or processed again while its lines show the new ones as they come, or how far its job is while it has no subtitles to show.
 func (s *screen) status(cx *ns.Scope) string {
 	item := s.item()
 	parts := []string{}
@@ -69,7 +69,12 @@ func (s *screen) status(cx *ns.Scope) string {
 	// A film in its own language was not translated, so how much of it is says nothing.
 	if subs := s.a.Subs(); subs.Key == item.Key && subs.Ready && subs.Err == "" && len(subs.Cues) > 0 {
 		// A film made while it plays says how much of it is proofread as a whole until all of it is.
-		if final, drafts := subs.FinalPercent(); drafts {
+		// A film made again says so, in place of how much of its lines are translated, which mixes the new and the old; how far the redo is shows beside 取消.
+		if final, drafts := subs.FinalPercent(); subs.Redoing == core.RedoAll {
+			parts = append(parts, locales.FilmStatusReprocessing(cx))
+		} else if subs.Redoing != "" {
+			parts = append(parts, locales.FilmStatusRetranslating(cx))
+		} else if drafts {
 			parts = append(parts, locales.FilmStatusDraft(cx, final))
 		} else if !item.SameLanguage {
 			parts = append(parts, locales.FilmStatusTranslated(cx, translatedPercent(subs.Cues)))

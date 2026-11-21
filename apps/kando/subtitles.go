@@ -1,9 +1,11 @@
 package main
 
 import (
+	"cmp"
 	"errors"
 	"os"
 	"slices"
+	"strings"
 	"time"
 
 	"kando/apps/kando/film"
@@ -81,6 +83,50 @@ type subtitleView struct {
 	heard, givenUp map[int]bool
 	gaps           []film.Gap
 	making         bool
+	// redo is the redo of the film being made the lines were last read with (subtitlesRedoOf): a read again follows it as it makes more of them, and as it ends (subtitlesFollowRedo).
+	redo subtitlesRedo
+}
+
+// subtitlesRedo is a redo of the open film being made, as its lines are read with it: which redo it is, the generation it makes (core.Job.RedoGen), whether the film keeps the language it is translated into (track.Doc.Redoing), and how far the job has gone, which moves as it makes more of the film. The zero value is none.
+type subtitlesRedo struct {
+	kind     core.Redo
+	gen      string
+	keep     bool
+	fraction float64
+	lines    int
+}
+
+// subtitlesRedoOf is the redo of the open film whose lines are key's that its job is making, processing or translating it again (core.RedoAll, core.RedoTranslation), or none: none once it is done, failed or stopped (queueRedoEnded), so the film shows its lines as they were again. A job waiting, as one paused or put after an open film, still is one, so the lines it made do not come and go.
+func (a *app) subtitlesRedoOf(key string) subtitlesRedo {
+	item, ok := a.openFilm()
+	if !ok || item.Key != key {
+		return subtitlesRedo{}
+	}
+	job, ok := a.library.Find(item.JobID)
+	if !ok || job.RedoGen == "" || job.Stage.Done() || job.Redo != core.RedoAll && job.Redo != core.RedoTranslation {
+		return subtitlesRedo{}
+	}
+	return subtitlesRedo{kind: job.Redo, gen: job.RedoGen, keep: subtitlesSameTarget(job.Language, job.RedoLanguage), fraction: job.Progress.Fraction, lines: job.Progress.Lines}
+}
+
+// subtitlesSameTarget reports whether a film translated into was is translated into redo again: redo names no language, or the same one as was.
+func subtitlesSameTarget(was, redo string) bool {
+	was, redo = strings.TrimSpace(was), strings.TrimSpace(redo)
+	return redo == "" || redo == was || core.TargetTag(redo) != "" && core.TargetTag(redo) == core.TargetTag(was)
+}
+
+// subtitlesFollowRedo reads the open film's lines again once a redo of it being made has made more of them, or has ended, so the film shows the new lines where they are made and the ones it had again once the redo is stopped or fails. A redo writes nothing out beside the video until it is done, so its job's reports, not the film's files, say when. It reports whether the redo the film's status reads (film.Subs.Redoing) changed, as it does when the redo begins or ends.
+func (a *app) subtitlesFollowRedo() bool {
+	subs := &a.player.subs
+	if subs.key == "" || subs.path == "" || !subs.ready || subs.reading || a.update == nil {
+		return false
+	}
+	if a.subtitlesRedoOf(subs.key) == subs.redo {
+		return false
+	}
+	kind := subs.redo.kind
+	a.subtitlesRead()
+	return subs.redo.kind != kind
 }
 
 // loadSubtitles reads the lines of the film whose video is at video off the engine's goroutine: its subtitle document, with path, the subtitle file it shows, taken in where it changed (media.ReadTrack), and the user's corrections of the film (media.LoadCorrections), and the frames of the 片段 its lines cut the film into once read (loadClipFrames). An empty path means this film has no subtitle yet; a file that is gone or cannot be read says so, as the film's lines come from that file until its subtitles are made into the document itself.
@@ -115,6 +161,8 @@ func (a *app) subtitlesRead() {
 	subs.reading = subs.ready
 	subs.readGen++
 	gen := subs.readGen
+	subs.redo = a.subtitlesRedoOf(key)
+	redo := subs.redo
 	// Which lines are drafts is told by the language the film is translated into, which its final proofread is made for.
 	language := ""
 	if item, ok := a.openFilm(); ok && item.Key == key {
@@ -136,7 +184,7 @@ func (a *app) subtitlesRead() {
 		} else if doc, err := media.ReadTrack(video, path, subtitlesTranscript(video)); err != nil {
 			msg = playerErrSubsUnreadable
 		} else {
-			cues = track.Bilingual(doc.View())
+			cues = track.Bilingual(doc.Redoing(redo.gen, redo.keep))
 			drafts = media.DraftSpans(doc, language)
 			heard, givenUp = doc.Heard(doc.Shown())
 		}
@@ -187,7 +235,7 @@ type heldCue struct {
 	text string
 }
 
-// subtitlesHold is the line of cues, a film's lines read again, to keep on screen at at as it was in was, the lines read before, when the machine rewrote it there, or nil: a line rewritten while it is read is distracting, so it shows its new text once it is left (subtitlesLetGo). A line that had no translation takes the one that came at once, as a gap filled is not a line rewritten.
+// subtitlesHold is the line of cues, a film's lines read again, to keep on screen at at as it was in was, the lines read before, when the machine rewrote it there, or nil: a line rewritten while it is read is distracting, so it shows its new text once it is left (subtitlesLetGo). A line that had no translation takes the one that came at once, as a gap filled is not a line rewritten. A line cues cut otherwise, as a film processed again shows the cells it heard anew in place of the film's own (track.Doc.Redoing), is kept as it was too, in place of the lines over it (subtitlesShown).
 func subtitlesHold(was, cues []core.Segment, at time.Duration) *heldCue {
 	_, cur, _ := film.CueNear(was, at)
 	if cur < 0 || at < was[cur].Start || at >= was[cur].End {
@@ -205,10 +253,10 @@ func subtitlesHold(was, cues []core.Segment, at time.Duration) *heldCue {
 			return &heldCue{span: core.Span{Start: c.Start, End: c.End}, text: shown.Text}
 		}
 	}
-	return nil
+	return &heldCue{span: core.Span{Start: shown.Start, End: shown.End}, text: shown.Text}
 }
 
-// subtitlesShown is machine, the machine's lines, as they show: the line held on screen (held) with the text it shows.
+// subtitlesShown is machine, the machine's lines, as they show: the line held on screen (held) with the text it shows, and, when machine cut that part of the film otherwise, in place of the lines over it.
 func subtitlesShown(machine []core.Segment, held *heldCue) []core.Segment {
 	if held == nil {
 		return machine
@@ -217,9 +265,12 @@ func subtitlesShown(machine []core.Segment, held *heldCue) []core.Segment {
 	for i, c := range out {
 		if c.Start == held.span.Start && c.End == held.span.End {
 			out[i].Text = held.text
+			return out
 		}
 	}
-	return out
+	out = slices.DeleteFunc(out, func(c core.Segment) bool { return c.Start < held.span.End && c.End > held.span.Start })
+	at, _ := slices.BinarySearchFunc(out, held.span.Start, func(c core.Segment, start time.Duration) int { return cmp.Compare(c.Start, start) })
+	return slices.Insert(out, at, core.Segment{Start: held.span.Start, End: held.span.End, Text: held.text})
 }
 
 // subtitlesLetGo shows the line held on screen with its new text once the playhead is off it (subtitlesHold), and reports whether that changed the lines.

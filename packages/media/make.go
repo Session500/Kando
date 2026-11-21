@@ -294,7 +294,7 @@ func downloadVideo(ctx context.Context, p Pipeline, job *core.Job, report func(c
 		job.Err, job.Stage = failedAt(StageDownload, err), core.StageFailed
 	} else {
 		job.VideoPath, job.SubtitlesOnly = video, false
-		job.Redo, job.RedoLanguage = "", ""
+		job.Redo, job.RedoLanguage, job.RedoGen = "", "", ""
 		job.Stage = core.StageComplete
 	}
 	job.Progress = core.Progress{}
@@ -394,6 +394,10 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 	}
 	if err != nil {
 		return m.fail(StageTranscribe, err)
+	}
+	// A redo says which generation it makes, with its next report, so the player shows its lines as they come while the film's files stay as they were.
+	if m.redo {
+		job.RedoGen = gen
 	}
 	m.transcript = TranscriptOf(m.video)
 	if _, onDisk := localVideoPath(job.Source); (onDisk || IsSourceRef(job.Source)) && !job.Transcribed && foreignTranscript(m.video) {
@@ -741,7 +745,7 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 	job.SubtitlePath = m.bilingual
 	job.CompletedAt = time.Now()
 	job.Language, job.Untranslated, job.TranslationErr, job.TranslationSource = language, untranslated, notTranslated, notTranslatedBy
-	job.Redo, job.RedoLanguage = "", ""
+	job.Redo, job.RedoLanguage, job.RedoGen = "", "", ""
 	job.Progress = core.Progress{}
 	job.Stage = core.StageComplete
 	m.report(*job)
@@ -1205,7 +1209,7 @@ func fillMissing(ctx context.Context, p Pipeline, job *core.Job, language, devic
 	job.SubtitlePath, job.SameLanguage = bilingual, same
 	job.CompletedAt = time.Now()
 	job.Language, job.Untranslated, job.TranslationErr, job.TranslationSource = language, left, "", ""
-	job.Redo, job.RedoLanguage = "", ""
+	job.Redo, job.RedoLanguage, job.RedoGen = "", "", ""
 	job.Stage, job.Progress = core.StageComplete, core.Progress{}
 	report(*job)
 	return *job

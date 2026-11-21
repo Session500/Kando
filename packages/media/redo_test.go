@@ -600,3 +600,23 @@ func TestMakeTranslatesAgainALineThatEndsLast(t *testing.T) {
 		}
 	}
 }
+
+// Every report of a film translated again names the generation it makes, which the player shows where it is made while the film's files keep their subtitles, and the job done names none.
+func TestMakeTranslatingAgainNamesItsGeneration(t *testing.T) {
+	job := doneFilm(t, "你好。", "", "再见。")
+	job.Redo = core.RedoTranslation
+	var gens []string
+	final := Make(context.Background(), &redoPipeline{t: t}, job, "日本語", "mac", nil, func(j core.Job) {
+		if j.Stage != core.StageComplete {
+			gens = append(gens, j.RedoGen)
+		}
+	})
+	if final.Stage != core.StageComplete || len(gens) == 0 || gens[0] == "" || final.RedoGen != "" {
+		t.Fatalf("reports named generations %q, the job done %q at %s: %v", gens, final.RedoGen, final.Stage, final.Err)
+	}
+	for _, g := range gens {
+		if g != gens[0] {
+			t.Fatalf("reports named generations %q, want one", gens)
+		}
+	}
+}

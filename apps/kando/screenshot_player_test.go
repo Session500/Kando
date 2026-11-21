@@ -24,7 +24,7 @@ func srtClock(d time.Duration) string {
 	return fmt.Sprintf("%02d:%02d:%02d,%03d", ms/3600000, ms/60000%60, ms/1000%60, ms%1000)
 }
 
-// TestScreenshotsPlayer renders the prototype's film, How Rivers Shape Landscapes (j1), from the library every scene starts from (screenshot_helpers_test.go), in the states the prototype's player screenshots show: opened and held at the start with the side panel on 字幕 (01), playing on the first line with the controls showing (02), the 片段 and 信息 tabs (04, 08), the 信息 tab with another spoken language named than the one heard, the subtitle mode menu (09), the film's reference layer with the menu that hides it, the style view (10), playing with the controls faded (11), playing with the subtitles dragged up, playing muted, the speed menu, playing at 1.5× and playing with its line looped, and, beyond the prototype, a line of the subtitle list right-clicked for its menu, the picture saying ⇧⌘C copied the playing line, the lines under the pointer showing they can be taken hold of, and the once-only tip that they can be dragged, and the film being made with the parts that have no lines yet listed as rows of their own. It also renders the film on its first line (film), the film opened from the YouTube page, the film whose video the system's player cannot play, and a video no job has processed playing with the subtitles exported beside it.
+// TestScreenshotsPlayer renders the prototype's film, How Rivers Shape Landscapes (j1), from the library every scene starts from (screenshot_helpers_test.go), in the states the prototype's player screenshots show: opened and held at the start with the side panel on 字幕 (01), playing on the first line with the controls showing (02), the 片段 and 信息 tabs (04, 08), the 信息 tab with another spoken language named than the one heard, the subtitle mode menu (09), the film's reference layer with the menu that hides it, the style view (10), playing with the controls faded (11), playing with the subtitles dragged up, playing muted, the speed menu, playing at 1.5× and playing with its line looped, and, beyond the prototype, a line of the subtitle list right-clicked for its menu, the picture saying ⇧⌘C copied the playing line, the lines under the pointer showing they can be taken hold of, and the once-only tip that they can be dragged, and the film being made with the parts that have no lines yet listed as rows of their own. It also renders the film on its first line (film), the film translated again into Japanese with its first minute done (player-translating-again), the film opened from the YouTube page, the film whose video the system's player cannot play, and a video no job has processed playing with the subtitles exported beside it.
 func TestScreenshotsPlayer(t *testing.T) {
 	f := newScreenshotFixture(t)
 	// open opens film id at at and has the system's player report it loaded, held there.
@@ -45,6 +45,17 @@ func TestScreenshotsPlayer(t *testing.T) {
 		}
 	}
 	f.shoot(t, "player-opened", held(nil))
+	// The film translated again into Japanese while it is watched, its first minute done (screenshotTranslatingAgain): those lines show the new translation, the rest the film's lines untranslated, and the line under the title says it is translated again.
+	f.shoot(t, "player-translating-again", func(t *testing.T, a *app, tt *nsgotest.App, updates chan func()) {
+		screenshotTranslatingAgain(t, a, f.job(t, "j1"))
+		open(t, a, tt, updates, "j1", protoCues[5].Start)
+		if got := tt.Find("id:film-status").Text; !strings.Contains(got, testlocale.Messages().FilmStatusRetranslating()) {
+			t.Fatalf("the film's status reads %q while it is translated again", got)
+		}
+		if cues := a.player.subs.cues; len(cues) != len(protoCues) || !strings.HasPrefix(cues[1].Text, "水は") || cues[6].Text != protoCues[6].Original {
+			t.Fatalf("while it is translated again the film shows %q", cues)
+		}
+	})
 	// The film played to its end, and the next of the list it was added from counting down on the Up Next card.
 	f.shoot(t, "player-next", func(t *testing.T, a *app, tt *nsgotest.App, updates chan func()) {
 		for i, job := range a.library.Jobs {
@@ -360,4 +371,48 @@ func screenshotProgress(tt *nsgotest.App, a *app, position time.Duration) {
 		return
 	}
 	onEngine(a, func() { a.VideoProgress(position, a.PlayLength()) })
+}
+
+// screenshotTranslatingAgain has j1, the fixture's film job, translate the film again into Japanese, its run having drafted the first two cells of the new generation (the first six lines, track.Cell each), as a redo nearest the playhead first does: the film's document is written beside its video as the run's media.Make writes it, the lines its files hold taken in and done, then the new generation's lines, translated where drafted, and the job is set as a run reports it, translating a third of the film.
+func screenshotTranslatingAgain(t *testing.T, a *app, job core.Job) {
+	t.Helper()
+	japanese := []string{
+		"どの川も、山の高いところを流れる細い水から始まります。",
+		"水は下り坂を流れながら、砂や石を運んでいきます。",
+		"その粒は紙やすりのように川底を削ります。",
+		"何千年もかけて、流路はさらに深く刻まれます。",
+		"こうして急な V 字谷ができるのです。",
+		"下流では土地が平らになり、川の流れも緩やかになります。",
+	}
+	doc, err := media.ReadTrack(job.VideoPath, job.SubtitlePath, media.TranscriptOf(job.VideoPath))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := track.Append(job.VideoPath, "mac", doc.Events...); err != nil {
+		t.Fatal(err)
+	}
+	gen := track.NewID()
+	events := []track.Event{{Kind: track.KindGen, Gen: gen, Source: "make", Key: "copy " + doc.Shown()}}
+	for i, cue := range protoCues {
+		id := track.NewID()
+		events = append(events,
+			track.Event{Kind: track.KindLine, Gen: gen, Line: id, Start: cue.Start.Milliseconds(), End: cue.End.Milliseconds()},
+			track.Event{Kind: track.KindRev, Line: id, Side: track.Original, Layer: track.LayerHeard, Text: cue.Original},
+		)
+		if i < len(japanese) {
+			events = append(events, track.Event{Kind: track.KindRev, Line: id, Side: track.Translation, Layer: track.LayerDraft, Text: japanese[i]})
+		}
+	}
+	for cell := range 2 {
+		events = append(events, track.Unit{Work: track.WorkDraft, Gen: gen, Cell: cell, Key: "screenshot"}.Made())
+	}
+	if _, err := track.Append(job.VideoPath, "mac", events...); err != nil {
+		t.Fatal(err)
+	}
+	for i := range a.library.Jobs {
+		if j := &a.library.Jobs[i]; j.ID == job.ID {
+			j.Stage, j.Redo, j.RedoLanguage, j.RedoGen = core.StageTranslating, core.RedoTranslation, "日本語", gen
+			j.Progress = core.Progress{Fraction: float64(len(japanese)) / float64(len(protoCues)), Known: true, Lines: len(japanese), Of: len(protoCues)}
+		}
+	}
 }

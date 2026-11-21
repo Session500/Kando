@@ -201,6 +201,7 @@ func (a *app) Subs() film.Subs {
 		subs.Drafts = a.player.subs.drafts
 	}
 	subs.Gaps, subs.Making = a.player.subs.gaps, a.player.subs.making
+	subs.Redoing = a.player.subs.redo.kind
 	return subs
 }
 

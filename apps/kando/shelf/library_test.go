@@ -735,7 +735,8 @@ func TestStoredJobKeepsEveryField(t *testing.T) {
 	got := reflect.ValueOf(loaded.Jobs[0])
 	for i := range v.NumField() {
 		name := v.Type().Field(i).Name
-		if name == "Progress" {
+		// Neither is saved: a job read back starts its stage again, and a redo shows the film as it was until it runs again.
+		if name == "Progress" || name == "RedoGen" {
 			continue
 		}
 		if name == "Err" {
