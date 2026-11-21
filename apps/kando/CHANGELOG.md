@@ -2,6 +2,13 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.44.0 - 2026-11-21
+
+### Features
+
+- Serve any Reader from the loopback proxy, check its Host and revoke a film's URL (#410)
+- Add the registry of media source kinds, source addresses, Local and placeholder paths (#411)
+
 ## 0.43.2 - 2026-11-21
 
 ### Fixes
