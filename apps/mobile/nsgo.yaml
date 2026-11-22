@@ -6,6 +6,8 @@ version: 0.1.0
 icon:
   png: assets/Icon.png
 i18n: { dir: locales, source: en }
+# The app's own links (package widgets, widgets.Scheme): a tap on a widget opens the review or the film it shows with one, which iOS and Android hand to mobile.OnOpenLinks. Kando on a computer has kando://.
+url_schemes: [kando-mobile]
 
 build:
   output: build
@@ -19,19 +21,27 @@ apple:
     NSCameraUsageDescription: Kando uses the camera to read the QR code your computer shows, to pair with it.
     # App Store Connect asks every upload whether the app uses encryption that export rules restrict; until it is answered, TestFlight testers cannot install the build. The app encrypts only with standard HTTPS/TLS (Go's crypto/tls, to the computers it pairs with), which is exempt, so the answer is no, given here once for every build.
     ITSAppUsesNonExemptEncryption: false
+  # Settings › Offline Films shows the films' share of the device and about how much of it is free (session/space.go, NSGo's Scope.DiskSpace), which Apple lets an app read only with a reason in its privacy manifest: 85F4.1, to show the user the space. The reading stays on the device.
+  privacy:
+    accessed_apis: { NSPrivacyAccessedAPICategoryDiskSpace: [85F4.1] }
 # Android: the runtime's manifest asks for INTERNET, which the app reaches the computer with; HTTPS to the computer needs no cleartext exception. CAMERA lets the pairing page read the computer's QR code from the camera's live picture (Scope.ScanCode, which NSGo offers on Android only to an app whose manifest lists it); Android asks the user for it the first time the page scans. POST_NOTIFICATIONS lets the daily review reminder (session/learning.go) ask to show notifications from Android 13, where the system refuses an app whose manifest does not list it. target_sdk is the API level Google Play requires of new apps and updates, above the runtime's 34.
 android:
   permissions: [CAMERA, POST_NOTIFICATIONS]
   target_sdk: 35
 
-# The widgets of iPhones and iPads (package widgets, yldm-tech/Kando#225): the streak with what is due for review, on the Home Screen and as a ring on the Lock Screen, and the film to go on with. Android has none of NSGo's yet (nsgo#657).
-# TODO(nsgo#744): a kind's name and description, which the system's gallery of widgets shows, are one string each (cmd/nsgo/widgets.go:108-118, Kinds.swift's Text(verbatim:)), so they are in English whatever the phone's language; say them in the catalog's languages once nsgo.yaml can take them from the app's locales https://github.com/nsgo-dev/nsgo/issues/744
+# Kando's own modules of go.work, which nsgo build checks as third-party dependencies when it collects the license notices; core passes only because it embeds a third-party license file (the segmenter's dictionary).
+# TODO(nsgo#1814): nsgo build counts a go.work module (Module.Main) as a third-party dependency, so one with no recognized license file stops the build; drop this list once it counts them as the app's own https://github.com/nsgo-dev/nsgo/issues/1814
+licenses:
+  allow: [kando/packages/study, kando/packages/sync]
+
+# The widgets of iPhones and iPads (package widgets, yldm-tech/Kando#225): the streak with what is due for review, on the Home Screen and as a ring on the Lock Screen, and the film to go on with. Android has none of NSGo's yet (nsgo#1469).
+# A kind's name and description name messages of the catalogs, which the system's gallery of widgets shows in the phone's language (the widget extension's Localizable.strings).
 widgets:
   - kind: study
-    name: Kando Streak
-    description: Days in a row you watched, and what is waiting for review.
+    name: widgetStudyName
+    description: widgetStudyDescription
     families: [small, circular]
   - kind: continue
-    name: Kando Continue Watching
-    description: The film you left partway, and the line you left it on.
+    name: widgetContinueName
+    description: widgetContinueDescription
     families: [small, medium]

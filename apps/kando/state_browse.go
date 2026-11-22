@@ -23,13 +23,13 @@ type browseUI struct {
 	// source is the address the web view loads (browse.App.BrowseSource): "" until the first web page opens, which makes the web view, and the web view loads its page again only when it changes. view is the web view's Ref, through which the browser drives its page; the web view lives as long as the browser's column, hidden behind the start after home, so back finds the pages before it.
 	source string
 	view   *core.Ref
-	// clear deletes what the pages stored; nil where it cannot be done, which leaves 清除登录信息… out. The tests set a fake.
-	clear func() error
+	// clear deletes what the pages stored, cookies and storage, and calls done on the engine's goroutine once it is gone (core.Scope.ClearWebsiteData, which browseHooks' ready sets); nil before then, which leaves 清除登录信息… out. The tests set fakes.
+	clear func(done func(error))
 	// url is the page's address, "" or about:blank on the start; loading, canBack and canForward are the page's as the web view last reported them (browseNavigated).
 	url                 string
 	loading             bool
 	canBack, canForward bool
-	// title is the title of the page at titleURL, as the web view reported it once the page loaded or the page said it changed (browse.TitleMessage); it names the page's video while titleURL is the page shown.
+	// title is the title of the page at titleURL, as the web view reported it once the page loaded or the page changed it, as a site that is one page does; it names the page's video while titleURL is the page shown.
 	title, titleURL string
 	// address is the address field's text. shown is the address the field last showed of the page: the field follows the page while it does not have the keyboard or still shows that, and keeps what the user is typing otherwise. focus asks for the keyboard in the field; focused is whether it has it.
 	address string
@@ -48,9 +48,10 @@ type browseUI struct {
 	clearOpen bool
 	release   func()
 	clearing  bool
-	// agent keeps the pages' user agent for the downloads, which read it from the pipeline's goroutine.
-	agent *browseAgent
-	// quiet is whether the page's videos and sounds are paused and muted, as they are while another page of the window shows (browseAfterChange).
+	// agent keeps the pages' user agent for the downloads, which read it from the pipeline's goroutine; agentAsked is set while a page is asked for it (browseReadAgent).
+	agent      *browseAgent
+	agentAsked bool
+	// quiet is whether the page's videos are paused and the web view muted, as they are while another page of the window shows (browseAfterChange, BrowseMuted).
 	quiet bool
 	// buttons is what the page's own buttons were told (state_browse_buttons.go).
 	buttons browseButtons
@@ -62,13 +63,11 @@ type browseUI struct {
 }
 
 func newBrowseUI() browseUI {
-	agent := &browseAgent{}
-	agent.set(browse.UserAgent())
 	script := browse.Script()
-	return browseUI{view: &core.Ref{}, agent: agent, script: script, next: script}
+	return browseUI{view: &core.Ref{}, agent: &browseAgent{}, script: script, next: script}
 }
 
-// browseAgent is the user agent of the browser's pages, which a download sends with their cookies so the site sees the same browser that signed in. It is "" where the pages keep the platform's own, which the app does not know.
+// browseAgent is the user agent of the browser's pages, the platform's own with browse.UserAgentSuffix after it, which a download sends with their cookies so the site sees the same browser that signed in. It is "" until a page has told it (browseReadAgent), and a download then sends yt-dlp's own.
 type browseAgent struct {
 	mu sync.Mutex
 	ua string
@@ -89,16 +88,16 @@ func (b *browseAgent) get() string {
 // browseBlank is the page home loads, which shows the start; the page's history keeps the pages before it, so back returns to them.
 const browseBlank = "about:blank"
 
-// browseHooks: once the window exists the browser removes the cookies folders of downloads that never finished, as none runs yet, and every download asks the pages' cookies for its site (media.Tools.SiteCookies); its ready runs before the queue's (areas), which starts the first job left waiting, so that job gets the cookies too. It reads nothing of the chosen browser's sign-in then: that waits for the browser's page to show (browseSignInOnOpen). After each change the confirmation closes when the window went to another page, the page's videos are paused and its sound off while another page shows, and the first time the browser's page shows in a launch its pages take the chosen browser's sign-in.
+// browseHooks: once the window exists the browser can clear its pages' data (清除登录信息…), it removes the cookies folders of downloads that never finished, as none runs yet, and every download asks the pages' cookies for its site (media.Tools.SiteCookies); its ready runs before the queue's (areas), which starts the first job left waiting, so that job gets the cookies too. It reads nothing of the chosen browser's sign-in then: that waits for the browser's page to show (browseSignInOnOpen). After each change the confirmation closes when the window went to another page, the page's videos are paused and its sound off while another page shows, and the first time the browser's page shows in a launch its pages take the chosen browser's sign-in.
 func (a *app) browseHooks() areaHooks {
 	return areaHooks{
 		ready: func() {
+			a.browse.clear = a.cx.ClearWebsiteData
 			if tools, ok := a.pipeline.(media.Tools); ok {
 				media.SweepCookieDirs(tools.CookieDir)
 				tools.SiteCookies = browse.CookieSource(a.browseListCookies, a.browse.agent.get)
 				a.pipeline = tools
 			}
-			// TODO(nsgo#114): clear the pages' cookies and storage (a.browse.clear), as MyGo's App.ClearBrowsingData did; until then 清除登录信息… is left out of the start and the File menu https://github.com/nsgo-dev/nsgo/issues/114
 		},
 		afterChange: a.browseAfterChange,
 	}
@@ -218,7 +217,7 @@ func (a *app) browseNavigate(rawURL string) {
 	a.browse.view.Load(core.WebSrc(rawURL))
 }
 
-// browseAfterChange closes the confirmation, giving back the window's modal flag, when the window went to another page, which no longer draws it, pauses the page's videos and turns its sound off while another page shows, and turns the sound on again without playing them once the browser's shows, as the hidden web view keeps its page and a video in it plays on, keeps the message bar about what is still so (browseFollowNotice), tells the page's own buttons what changed for them (browsePagePush) reads the chosen browser's sign-in into the pages the first time the browser's page shows (browseSignInOnOpen) and gives the web view the page script of the sites the user allowed meanwhile once it shows (browseTakeScript). It reports whether it closed the confirmation, changed the bar, started reading the sign-in or changed the script.
+// browseAfterChange closes the confirmation, giving back the window's modal flag, when the window went to another page, which no longer draws it, pauses the page's videos and mutes the web view while another page shows, and turns the sound on again without playing them once the browser's shows, as the hidden web view keeps its page and a video in it plays on, keeps the message bar about what is still so (browseFollowNotice), tells the page's own buttons what changed for them (browsePagePush) reads the chosen browser's sign-in into the pages the first time the browser's page shows (browseSignInOnOpen) and gives the web view the page script of the sites the user allowed meanwhile once it shows (browseTakeScript). It reports whether it closed the confirmation, muted the web view or turned its sound on, changed the bar, started reading the sign-in or changed the script.
 func (a *app) browseAfterChange() bool {
 	changed := a.browseFollowNotice()
 	if a.browseTakeScript() {
@@ -233,9 +232,9 @@ func (a *app) browseAfterChange() bool {
 	}
 	if quiet := a.page != pageBrowse; a.browse.quiet != quiet {
 		a.browse.quiet = quiet
-		if a.browse.source != "" {
-			// TODO(nsgo#114): turn the page's sound off and on with the web view's own switch, as MyGo's Page.SetAudioMuted did, which also silences what plays in the page's frames and what starts while it is muted https://github.com/nsgo-dev/nsgo/issues/114
-			a.browse.view.InjectJavaScript(browse.QuietScript(quiet))
+		changed = true
+		if quiet && a.browse.source != "" {
+			a.browse.view.InjectJavaScript(browse.PauseScript)
 		}
 	}
 	a.browsePagePush()
@@ -269,11 +268,11 @@ func (a *app) browseColumnGone() {
 		a.browse.source = browseBlank
 	}
 	a.browse.loading, a.browse.canBack, a.browse.canForward = false, false, false
-	a.browse.focused, a.browse.quiet, a.browse.cutShort = false, false, false
+	a.browse.focused, a.browse.quiet, a.browse.cutShort, a.browse.agentAsked = false, false, false, false
 	a.browse.buttons = browseButtons{}
 }
 
-// browseNavigated follows the page's address and history as the web view reports them: as a page starts loading, finishes and navigates. The address field follows the page unless the user is typing in it. A page of the page's own making (data:, blob:, about: other than the start's blank page), where the web view lets it go (browse/page.go), keeps the last web address, which 下载视频 then adds. A load that starts takes away the message that a page did not load.
+// browseNavigated follows the page's address, title and history as the web view reports them: as a page starts loading, finishes and navigates, and as it changes its address or its title without loading another page, as a site that is one page does. The address field follows the page unless the user is typing in it. A page of the page's own making (data:, blob:, about: other than the start's blank page), where the web view lets it go (browse/page.go), keeps the last web address, which 下载视频 then adds. A load that starts takes away the message that a page did not load.
 func (a *app) browseNavigated(nav core.WebNavigation) {
 	// A page the web view went to by itself while offline mode is on, as one a swipe through the history or a script opened, is left for the start at once (browseOffline).
 	if a.privacy.offline && browse.Allowed(nav.URL) && a.browse.source != "" {
@@ -284,9 +283,14 @@ func (a *app) browseNavigated(nav core.WebNavigation) {
 	if nav.URL == browseBlank || browse.Allowed(nav.URL) {
 		a.browse.url = nav.URL
 	}
-	// The page's title is its own once it has loaded; as it starts loading the web view may still report the title of the page before it.
-	if !nav.Loading && browse.Allowed(nav.URL) {
-		a.browse.title, a.browse.titleURL = strings.TrimSpace(nav.Title), nav.URL
+	// The page's title is its own once it has loaded; as it starts loading the web view may still report the title of the page before it, and so may a page that moved to another address within the document until it sets its own, as a site that is one page sets the title of the video it moved to after its address: the same title for another address names nothing.
+	if title := strings.TrimSpace(nav.Title); !nav.Loading && browse.Allowed(nav.URL) {
+		if nav.URL != a.browse.titleURL && title == a.browse.title {
+			a.browse.titleURL = ""
+		} else {
+			a.browse.title, a.browse.titleURL = title, nav.URL
+		}
+		a.browseReadAgent()
 	}
 	a.browse.loading, a.browse.canBack, a.browse.canForward = nav.Loading, nav.CanGoBack, nav.CanGoForward
 	if nav.Loading {
@@ -296,6 +300,20 @@ func (a *app) browseNavigated(nav core.WebNavigation) {
 		}
 	}
 	a.browseFollow()
+}
+
+// browseReadAgent asks the page that loaded for the pages' user agent, the platform's own with browse.UserAgentSuffix after it, which the app is not told otherwise, until one has answered (browseAgent).
+func (a *app) browseReadAgent() {
+	if a.browse.agent.get() != "" || a.browse.agentAsked {
+		return
+	}
+	a.browse.agentAsked = true
+	a.browse.view.Evaluate(browse.AgentQuestion, func(raw string, err error) {
+		a.browse.agentAsked = false
+		if ua, ok := browse.PageAgent(raw); err == nil && ok {
+			a.browse.agent.set(ua)
+		}
+	})
 }
 
 // browseFollow takes away a failure to load once a page shows, and has the address field follow the page's address unless the user is typing in it.
@@ -311,10 +329,10 @@ func (a *app) browseFollow() {
 	a.browse.shown = shown
 }
 
-// browseFailed says in the message bar that a page did not load, and why, as the web view reports it; the web view reports no load the page itself cut short by starting another, nor one that turned into a file. A navigation the web view refused, to a file, the app's own schemes or another app's, says nothing, as it never started; nor does a load the app cut short (cutShort), whose failure the platform reports as cancelled, or any failure while the start shows.
+// browseFailed says in the message bar that a page did not load, and why, as the web view reports it; the web view reports no load the page itself cut short by starting another, nor one that turned into a file. A navigation the web view refused, to a file, the app's own schemes or another app's, says nothing, as it never started, nor does a window a page asked for without a web address, as window.open() with none or about:blank, which the web view refuses without an error of the platform's (no Domain); nor does a load the app cut short (cutShort), whose failure the platform reports as cancelled, or any failure while the start shows.
 func (a *app) browseFailed(err error) {
 	var failed *core.WebError
-	if errors.As(err, &failed) && failed.URL != "" && failed.URL != browseBlank && !browse.Allowed(failed.URL) {
+	if errors.As(err, &failed) && !browse.Allowed(failed.URL) && (failed.Domain == "" || (failed.URL != "" && failed.URL != browseBlank)) {
 		return
 	}
 	if a.browse.cutShort || !a.browseShowing() {
@@ -331,7 +349,14 @@ func (a *app) browseCutShort() {
 	}
 }
 
-// browseHeard is what a page posted: that it changed its address without loading another page, or its title (browse.Script), as the web view reports nothing then, or what its own buttons ask and add (browsePageAsk, browsePageAdd). The address and the title are read from the page itself rather than taken from what it posted, which any page could fill with another site's address. A page that pushed an address has the one it left to go back to, and none to go forward to.
+// browseOpenWindow is a window a page asked to open, which the web view never opens itself: a link or a script that opens one loads its http or https address in the same view when the user clicked it, and does nothing otherwise, as a pop-up a script opens by itself, so the page never opens a window of the app.
+func (a *app) browseOpenWindow(req core.WebWindowRequest) {
+	if req.UserInitiated && browse.Allowed(req.URL) {
+		a.browseLoad(req.URL)
+	}
+}
+
+// browseHeard is what a page posted: what its own buttons ask and add (browsePageAsk, browsePageAdd).
 func (a *app) browseHeard(msg core.WebMessage) {
 	data := msg.Data
 	if links, ok := browse.ParseAskWith(data, a.browsePageVideo); ok {
@@ -340,35 +365,7 @@ func (a *app) browseHeard(msg core.WebMessage) {
 	}
 	if link, title, ok := browse.ParseAddWith(data, a.browsePageVideo); ok {
 		a.browsePageAdd(msg.Origin, link, title, browse.AddedAt(data))
-		return
 	}
-	if data == browse.TitleMessage {
-		a.browse.view.Evaluate("[location.href, document.title]", func(raw string, err error) {
-			var page []string
-			if err != nil || json.Unmarshal([]byte(raw), &page) != nil || len(page) != 2 || !browse.Allowed(page[0]) {
-				return
-			}
-			a.browse.title, a.browse.titleURL = strings.TrimSpace(page[1]), page[0]
-			a.Changed()
-		})
-		return
-	}
-	kind, ok := strings.CutPrefix(data, browse.HistoryMessage)
-	if !ok {
-		return
-	}
-	a.browse.view.Evaluate("location.href", func(raw string, err error) {
-		var u string
-		if err != nil || json.Unmarshal([]byte(raw), &u) != nil || !browse.Allowed(u) {
-			return
-		}
-		a.browse.url = u
-		if kind == "push" {
-			a.browse.canBack, a.browse.canForward = true, false
-		}
-		a.browseFollow()
-		a.Changed()
-	})
 }
 
 // browseGo opens what the address field holds, an address or a search for it in the interface's language.
@@ -526,26 +523,27 @@ func (a *app) browseCancelClear() {
 	}
 }
 
-// browseClear closes the confirmation and deletes the cookies and storage of the browser's pages off the engine's goroutine, as it waits for the web engine, then says how it went and loads the page shown again, which keeps what it held until it does.
+// browseClear closes the confirmation and deletes the cookies and storage of the browser's pages, which the web engine answers later on the engine's goroutine, then says how it went and loads the page shown again, which keeps what it held until it does.
 func (a *app) browseClear() {
 	a.browseCancelClear()
 	if a.browse.clearing || a.browse.clear == nil {
 		return
 	}
 	a.browse.clearing = true
-	clear, update := a.browse.clear, a.update
-	go func() {
-		err := clear()
-		update(func() { a.browseCleared(err) })
-	}()
+	a.browse.clear(func(err error) {
+		a.browseCleared(err)
+		a.Changed()
+	})
 }
 
+// browseCleared says how clearing went. The pages hold no browser's sign-in any more once it worked, which 刷新登录 puts back (browseSignIn).
 func (a *app) browseCleared(err error) {
 	a.browse.clearing = false
 	if err != nil {
 		a.browseWarn(a.messages().BrowseClearFailed(err.Error()), "")
 		return
 	}
+	a.browse.signin.signedIn = ""
 	a.browseTell(a.messages().BrowseCleared(), "")
 	if a.browseShowing() {
 		a.browseCutShort()

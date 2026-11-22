@@ -22,6 +22,7 @@ const (
 	roleWarnBody = "warnBody"
 	roleGlyph    = "glyph"
 	roleNoteText = "noteText"
+	rolePill     = "pill"
 )
 
 // Kando is NSGo's default theme in the design's palette: the page is the grouped list's grey and a card (Surface) is white, black under #1C1C1E in the dark; ink, muted text, hairlines and fills are the system's; danger is the destructive red and warning the system's orange, with warnText the orange that reads as text.
@@ -33,6 +34,9 @@ func Kando() *core.Theme {
 		p.Selection, p.Focus = Accent.Faded(0.22), Accent.Faded(0.55)
 		p.Danger, p.Warning = core.RGB(0xD70015), BadgeOrange
 		p.SetColor("accentFill", Accent)
+		// Android's navigation bar (core.TabBar): its idle tabs grey, the selected tab's pill the accent at M3NavIndicator.
+		p.SetColor("tabBarIdle", TabInactive)
+		p.SetColor("tabBarIndicator", Accent.Faded(M3NavIndicator))
 	}
 	l, d := &t.Light, &t.Dark
 	l.Background, l.Surface, l.Text, l.TextMuted = core.RGB(0xF2F2F7), core.RGB(0xFFFFFF), core.RGB(0x1D1D1F), core.RGB(0x6A6A70)
@@ -52,6 +56,8 @@ func Kando() *core.Theme {
 	l.SetColor(roleWarnBody, core.RGB(0x6B4A1F))
 	l.SetColor(roleGlyph, core.RGB(0x3A3A3F))
 	l.SetColor(roleNoteText, core.RGB(0x6B5300))
+	l.SetColor(rolePill, core.RGBA(0x1D1D1F, 0.94))
+	l.SetColor("tabBarSelected", M3NavActive)
 	d.Background, d.Surface, d.Text, d.TextMuted = core.RGB(0x000000), core.RGB(0x1C1C1E), core.RGB(0xF5F5F7), core.RGB(0xA1A1A6)
 	d.SurfacePressed, d.Border = core.RGBA(0x767680, 0.32), core.RGBA(0x545458, 0.65)
 	d.SetColor("line", core.RGBA(0x545458, 0.65))
@@ -72,6 +78,10 @@ func Kando() *core.Theme {
 	d.SetColor(roleWarnBody, core.RGB(0xE3C9A3))
 	d.SetColor(roleGlyph, core.RGB(0xD1D1D6))
 	d.SetColor(roleNoteText, core.RGB(0xFFE066))
+	// The ink's pill would be lost on the black page, so the dark's is the raised grey.
+	d.SetColor(rolePill, core.RGBA(0x2C2C2E, 0.94))
+	// M3NavActive's navy would be lost on the dark bar, so the dark's selected tab is the accent.
+	d.SetColor("tabBarSelected", Accent)
 	return t
 }
 
@@ -120,6 +130,9 @@ func (c Colors) Glyph() core.Color { return c.role(roleGlyph) }
 // NoteText is the ink of a learner's note on its yellow box (NoteBox).
 func (c Colors) NoteText() core.Color { return c.role(roleNoteText) }
 
+// Pill is the dark pill of a short confirmation (a brief toast), under OnMark's white: the ink in the light, the raised grey in the dark.
+func (c Colors) Pill() core.Color { return c.role(rolePill) }
+
 // BarBlur is what a bar's fill frosts behind it.
 var BarBlur = []core.Filter{core.Blur(24), core.Saturate(1.8)}
 
@@ -144,7 +157,7 @@ var (
 	PlayerSheet = core.RGB(0x1C1C1E)
 	// PlayerGlass is the fill of the frosted controls over the picture of a phone on its side, faded so the picture shows through.
 	PlayerGlass = core.RGB(0x1E1E20)
-	// PlayerOnLight is the player's ink on its light fills: on PlayerInk, as the play button's glyph, and on SubtitleYellow, as a word marked.
+	// PlayerOnLight is the player's ink on its light fills: on PlayerInk, as the play button's glyph, and on SubtitleYellow, as a saved word's check.
 	PlayerOnLight = core.RGB(0x000000)
 	// FixedInk is the text of the chip that says the learner fixed a line's translation, on StatusOK's tint.
 	FixedInk = core.RGB(0x6EE7A0)
@@ -201,9 +214,9 @@ var (
 	PictureBlack = core.RGB(0x000000)
 	OnPicture    = core.RGB(0xFFFFFF)
 	PictureGlass = core.RGBA(0x000000, 0.3)
-	// The Material pieces of Android: M3NavActive the selected tab's icon and name on the navigation bar (the accent in the dark, where this navy would be lost) and M3NavIndicator how opaque the accent is in the pill behind it; the bar cannot take them yet (shell.go).
-	M3NavActive    = core.RGB(0x0A3D7A)
-	M3NavIndicator = 0.16
+	// The Material pieces of Android: M3NavActive the selected tab's icon and name on the navigation bar (the accent in the dark, where this navy would be lost) and M3NavIndicator how opaque the accent is in the pill behind it, which Kando gives the bar as its palette roles.
+	M3NavActive            = core.RGB(0x0A3D7A)
+	M3NavIndicator float32 = 0.16
 	// The laptop drawn for a computer: its body's gradient and its screen's.
 	LaptopTop, LaptopBottom = core.RGB(0x3A3A3F), core.RGB(0x1D1D1F)
 	// LaptopBase is the base tucked under the larger laptop's lid (look.LaptopFront).

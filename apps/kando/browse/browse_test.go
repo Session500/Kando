@@ -29,7 +29,7 @@ type fakeApp struct {
 	state      State
 	source     string
 	web        core.Ref
-	agent      string
+	muted      bool
 	script     string
 	address    string
 	focus      bool
@@ -37,6 +37,7 @@ type fakeApp struct {
 	notice     Notice
 	clearOpen  bool
 	navs       []core.WebNavigation
+	windows    []core.WebWindowRequest
 	failures   []error
 	messages   []core.WebMessage
 	calls      []string
@@ -48,33 +49,36 @@ func (f *fakeApp) call(name string) { f.calls = append(f.calls, name) }
 func (f *fakeApp) BrowseState() State                     { return f.state }
 func (f *fakeApp) BrowseSource() string                   { return f.source }
 func (f *fakeApp) BrowseWeb() *core.Ref                   { return &f.web }
-func (f *fakeApp) BrowseUserAgent() string                { return f.agent }
+func (f *fakeApp) BrowseMuted() bool                      { return f.muted }
 func (f *fakeApp) BrowseScript() string                   { return f.script }
 func (f *fakeApp) BrowseNavigated(nav core.WebNavigation) { f.navs = append(f.navs, nav) }
-func (f *fakeApp) BrowseFailed(err error)                 { f.failures = append(f.failures, err) }
-func (f *fakeApp) BrowseMessage(msg core.WebMessage)      { f.messages = append(f.messages, msg) }
-func (f *fakeApp) BrowseAddress() *string                 { return &f.address }
-func (f *fakeApp) BrowseAddressFocus() *bool              { return &f.focus }
-func (f *fakeApp) BrowseAddressFocused(focused bool)      { f.focused = focused }
-func (f *fakeApp) BrowseGo()                              { f.call("go " + f.address) }
-func (f *fakeApp) BrowseBack()                            { f.call("back") }
-func (f *fakeApp) BrowseForward()                         { f.call("forward") }
-func (f *fakeApp) BrowseReload()                          { f.call("reload") }
-func (f *fakeApp) BrowseStop()                            { f.call("stop") }
-func (f *fakeApp) BrowseHome()                            { f.call("home") }
-func (f *fakeApp) BrowseDownload()                        { f.call("download") }
-func (f *fakeApp) BrowseShowFilm(id string)               { f.call("show " + id) }
-func (f *fakeApp) BrowseNotice() *Notice                  { return &f.notice }
-func (f *fakeApp) BrowseAddList(source string)            { f.call("add list " + source) }
-func (f *fakeApp) BrowseClearOpen() bool                  { return f.clearOpen }
-func (f *fakeApp) BrowseAskClear()                        { f.call("ask clear"); f.clearOpen = true }
-func (f *fakeApp) BrowseClear()                           { f.call("clear"); f.clearOpen = false }
-func (f *fakeApp) BrowseCancelClear()                     { f.call("cancel clear"); f.clearOpen = false }
-func (f *fakeApp) BrowseRefreshSignIn()                   { f.call("refresh sign-in") }
-func (f *fakeApp) OpenSettings(section string)            { f.settingsAt = section }
-func (f *fakeApp) SiteLogo(s catalog.Site) []byte         { return catalog.Logo(s) }
-func (f *fakeApp) OpenSite(s catalog.Site)                { f.call("open " + s.Domain) }
-func (f *fakeApp) OpenSites()                             { f.call("sites") }
+func (f *fakeApp) BrowseOpenWindow(req core.WebWindowRequest) {
+	f.windows = append(f.windows, req)
+}
+func (f *fakeApp) BrowseFailed(err error)            { f.failures = append(f.failures, err) }
+func (f *fakeApp) BrowseMessage(msg core.WebMessage) { f.messages = append(f.messages, msg) }
+func (f *fakeApp) BrowseAddress() *string            { return &f.address }
+func (f *fakeApp) BrowseAddressFocus() *bool         { return &f.focus }
+func (f *fakeApp) BrowseAddressFocused(focused bool) { f.focused = focused }
+func (f *fakeApp) BrowseGo()                         { f.call("go " + f.address) }
+func (f *fakeApp) BrowseBack()                       { f.call("back") }
+func (f *fakeApp) BrowseForward()                    { f.call("forward") }
+func (f *fakeApp) BrowseReload()                     { f.call("reload") }
+func (f *fakeApp) BrowseStop()                       { f.call("stop") }
+func (f *fakeApp) BrowseHome()                       { f.call("home") }
+func (f *fakeApp) BrowseDownload()                   { f.call("download") }
+func (f *fakeApp) BrowseShowFilm(id string)          { f.call("show " + id) }
+func (f *fakeApp) BrowseNotice() *Notice             { return &f.notice }
+func (f *fakeApp) BrowseAddList(source string)       { f.call("add list " + source) }
+func (f *fakeApp) BrowseClearOpen() bool             { return f.clearOpen }
+func (f *fakeApp) BrowseAskClear()                   { f.call("ask clear"); f.clearOpen = true }
+func (f *fakeApp) BrowseClear()                      { f.call("clear"); f.clearOpen = false }
+func (f *fakeApp) BrowseCancelClear()                { f.call("cancel clear"); f.clearOpen = false }
+func (f *fakeApp) BrowseRefreshSignIn()              { f.call("refresh sign-in") }
+func (f *fakeApp) OpenSettings(section string)       { f.settingsAt = section }
+func (f *fakeApp) SiteLogo(s catalog.Site) []byte    { return catalog.Logo(s) }
+func (f *fakeApp) OpenSite(s catalog.Site)           { f.call("open " + s.Domain) }
+func (f *fakeApp) OpenSites()                        { f.call("sites") }
 
 // show shows the browser of a across the window, on a Mac, in testlocale's language.
 func show(t *testing.T, a *fakeApp) *nsgotest.App {
@@ -131,13 +135,13 @@ func TestStartShowsBeforeAPage(t *testing.T) {
 	}
 }
 
-// Once a page is asked for, the web view shows it, held to the web, with the app's user agent and script; what it reports reaches the app. After home the start shows over the web view, which keeps its page.
+// Once a page is asked for, the web view shows it, held to the web, with the platform's user agent and Safari's version after it where the pages add it, and the app's script; what it reports reaches the app, and it keeps its pages quiet while the app says so. After home the start shows over the web view, which keeps its page.
 func TestPageShowsTheWebView(t *testing.T) {
-	a := &fakeApp{agent: "Kando-Test", script: "window.kando = 1"}
+	a := &fakeApp{script: "window.kando = 1"}
 	app := show(t, a)
 	change(app, a, func() { onPage(a, "https://example.com/") })
 	web := app.Find("id:browse-page")
-	if web.Web.Source.Src != "https://example.com/" || web.Web.UserAgent != "Kando-Test" || web.Web.InjectedJavaScriptBeforeContent != "window.kando = 1" {
+	if web.Web.Source.Src != "https://example.com/" || web.Web.UserAgent != "" || web.Web.UserAgentSuffix != UserAgentSuffix() || web.Web.Muted || web.Web.InjectedJavaScriptBeforeContent != "window.kando = 1" {
 		t.Fatalf("web view %+v", web.Web)
 	}
 	if !web.Web.Restricted || web.Web.Hosts != "*" || web.Web.Navigable("file:///etc/passwd") || web.Web.Navigable("kando://open") || !web.Web.Navigable("https://www.bilibili.com/video/BV1") {
@@ -151,14 +155,27 @@ func TestPageShowsTheWebView(t *testing.T) {
 		t.Fatalf("navigations %+v", a.navs)
 	}
 	app.Report(nsgotest.Event{Kind: nsgotest.EventError, ID: web.ID, Text: "A server with the specified hostname could not be found.", Navigation: &core.WebNavigation{URL: "https://nowhere.example/"}})
-	app.PostMessage("id:browse-page", "kando-history:push")
+	// nsgotest names no kind for a page's new-window request, which shares a video's EventEnd (the web view and the video use the same bit).
+	app.Report(nsgotest.Event{Kind: nsgotest.EventEnd, ID: web.ID, Data: core.WebWindowRequest{URL: "https://example.com/popup", UserInitiated: true}})
+	app.PostMessage("id:browse-page", "kando-hello")
 	// A page the user went on to, of another site, reaches the app too, with its origin, and the app checks what it asks.
 	app.PostMessageFrom("id:browse-page", "https://www.youtube.com/watch?v=jNQXAC9IVRw", true, "kando-ask:[]")
 	app.Settle()
 	var we *core.WebError
-	want := []core.WebMessage{{Data: "kando-history:push", Origin: "https://example.com"}, {Data: "kando-ask:[]", Origin: "https://www.youtube.com"}}
+	want := []core.WebMessage{{Data: "kando-hello", Origin: "https://example.com"}, {Data: "kando-ask:[]", Origin: "https://www.youtube.com"}}
 	if len(a.failures) != 1 || !errors.As(a.failures[0], &we) || we.URL != "https://nowhere.example/" || !slices.Equal(a.messages, want) {
 		t.Fatalf("failures %v, messages %q", a.failures, a.messages)
+	}
+	if len(a.windows) != 1 || a.windows[0] != (core.WebWindowRequest{URL: "https://example.com/popup", UserInitiated: true}) {
+		t.Fatalf("windows %+v", a.windows)
+	}
+	change(app, a, func() { a.muted = true })
+	if !app.Find("id:browse-page").Web.Muted {
+		t.Fatal("the web view is not muted")
+	}
+	change(app, a, func() { a.muted = false })
+	if app.Find("id:browse-page").Web.Muted {
+		t.Fatal("the web view stayed muted")
 	}
 	change(app, a, func() { a.state.Page = false })
 	if !app.Exists(whole(testlocale.Messages().BrowseEmptyTitle())) || len(app.QueryMounted("id:browse-page")) != 1 {
@@ -382,14 +399,30 @@ func TestStartOpensSites(t *testing.T) {
 	}
 }
 
-// While another page shows, the page's videos pause as well as go silent, so they stop downloading and autoplay does not move on; coming back turns on only the sound the browser turned off, and plays nothing.
-func TestQuietScriptPausesWithoutResuming(t *testing.T) {
-	quiet, heard := QuietScript(true), QuietScript(false)
-	if !strings.Contains(quiet, "m.pause()") || !strings.Contains(quiet, "m.muted = true") || !strings.Contains(quiet, "kandoMuted") {
-		t.Fatalf("quieting does not pause and mute: %s", quiet)
+// While another page shows, the page's videos pause, so they stop downloading and autoplay does not move on, and nothing plays them again; the web view's own switch keeps the sound off (BrowseMuted).
+func TestPauseScriptOnlyPauses(t *testing.T) {
+	if !strings.Contains(PauseScript, "m.pause()") || strings.Contains(PauseScript, "play(") || strings.Contains(PauseScript, "muted") {
+		t.Fatalf("the pause script does more than pause: %s", PauseScript)
 	}
-	if strings.Contains(heard, "play(") || strings.Contains(heard, "pause") || !strings.Contains(heard, "[data-kando-muted]") {
-		t.Fatalf("coming back does more than unmute what it muted: %s", heard)
+}
+
+// The pages' user agent is read from a page only as a header's value that ends in Safari's version where the pages add it, whatever else a page's script says it is.
+func TestPageAgent(t *testing.T) {
+	ua := "Mozilla/5.0 (Kando Test) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+	if suffix := UserAgentSuffix(); suffix != "" {
+		ua += " " + suffix
+	}
+	if got, ok := PageAgent(`"` + ua + `"`); !ok || got != ua {
+		t.Fatalf("PageAgent(%q) = %q, %v", ua, got, ok)
+	}
+	bad := []string{``, `""`, `42`, `"Mozilla/5.0\r\nCookie: x"`, `"` + strings.Repeat("a", 600) + `"`, `"Mozilla/5.0 ünicode"`}
+	if UserAgentSuffix() != "" {
+		bad = append(bad, `"Mozilla/5.0 (Kando Test)"`)
+	}
+	for _, raw := range bad {
+		if got, ok := PageAgent(raw); ok {
+			t.Errorf("PageAgent(%s) took %q", raw, got)
+		}
 	}
 }
 

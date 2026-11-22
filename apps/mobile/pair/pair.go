@@ -153,8 +153,7 @@ func New(cx *core.Scope, s *session.Session, done func(store.Desktop), top func(
 		confirmed.Set(true)
 		send(answer.Get(), target)
 	}
-	// canScan is whether the phone can read the computer's QR code: from the camera's live picture, or else from a photo of it.
-	canScan := func() bool { return cx.Env().CanScanCode() || cx.Env().CanTakePhoto() }
+	canScan := func() bool { return CanScan(cx) }
 	// read goes on with the text of a QR code as with a link pasted, when it is a pairing link.
 	read := func(text string) {
 		if _, err := sync.ParsePairURL(text); err != nil {
@@ -258,13 +257,17 @@ func CardFill(cx *core.Scope, intro bool) func() core.Color {
 	return colors.Inset
 }
 
-// Steps is how to pair, as a card of numbered steps in fill: open Kando on the computer, its Settings › Phone Sync, and the address and code it shows there.
-// TODO(nsgo#429): no camera QR scanner, so the card has no QR code beside the steps and they end in typing what the computer shows; add the scanner, QR card and waiting state once it exists https://github.com/nsgo-dev/nsgo/issues/429
+// Steps is how to pair, as a card of numbered steps in fill: open Kando on the computer, its Settings › Phone Sync, and scan the QR code it shows there, beside a picture of one, as the design draws it, on a phone that can read it (CanScan); else enter the address and code it shows. The phone reads the computer's code, so the design's waiting for the computer to scan is the card that says the phone is reaching the computer once it has (connecting).
 func Steps(cx *core.Scope, fill func() core.Color) core.Node {
 	colors := ui.ColorsOf(cx)
 	// The design's steps are a grey between the ink and the muted text (#3A3A3F on white).
 	ink := func() core.Color { return ui.Mix(colors.Text(), colors.Muted(), 0.38) }
-	lines := []func(*core.Scope) string{locales.PairStepOpen, locales.PairStepSettings, locales.PairStepEnter}
+	scans := CanScan(cx)
+	last := locales.PairStepEnter
+	if scans {
+		last = locales.PairStepScan
+	}
+	lines := []func(*core.Scope) string{locales.PairStepOpen, locales.PairStepSettings, last}
 	var rows []core.Node
 	for i, line := range lines {
 		text := look.Caption.Merge(core.Style{LineHeight: 21})
@@ -273,9 +276,22 @@ func Steps(cx *core.Scope, fill func() core.Color) core.Node {
 			core.Text{ContentFunc: func() string { return line(cx) }, Style: text.Merge(core.Style{FlexShrink: 1}), StyleFunc: ui.Colored(ink)},
 		}})
 	}
+	steps := core.View{Style: core.Style{FlexGrow: 1, FlexShrink: 1, JustifyContent: core.JustifyCenter}, Children: rows}
+	children := []core.Node{steps}
+	if scans {
+		// The picture of a QR code is the design's 96-point white tile: the steps say what it is, so assistive technology skips it.
+		code := core.View{TestID: "pair-steps-qr", AccessibilityElementsHidden: func() bool { return true },
+			Style: core.Style{Width: core.Pt(96), Height: core.Pt(96), CornerRadius: 12, BorderCurve: core.BorderCurveContinuous, Background: core.RGB(0xFFFFFF),
+				AlignItems: core.AlignCenter, JustifyContent: core.JustifyCenter, FlexShrink: 0},
+			Children: []core.Node{ui.Icon(lucide.QrCode, 80, func() core.Color { return core.RGB(0x000000) })}}
+		children = []core.Node{code, steps}
+	}
 	return core.View{TestID: "pair-steps", Role: core.RoleGroup, LabelFunc: func() string { return locales.PairSteps(cx) },
-		Style: core.Style{Padding: core.All(14), CornerRadius: 16, BorderCurve: core.BorderCurveContinuous}, StyleFunc: ui.Filled(fill), Children: rows}
+		Style: core.Style{Direction: core.Row, AlignItems: core.AlignCenter, Gap: 16, Padding: core.All(14), CornerRadius: 16, BorderCurve: core.BorderCurveContinuous}, StyleFunc: ui.Filled(fill), Children: children}
 }
+
+// CanScan is whether the phone can read the computer's QR code: from the camera's live picture (Scope.ScanCode), or else from a photo of it.
+func CanScan(cx *core.Scope) bool { return cx.Env().CanScanCode() || cx.Env().CanTakePhoto() }
 
 // connecting is the card in fill that says the phone is reaching the computer, while it does.
 func connecting(cx *core.Scope, fill func() core.Color) core.Node {
@@ -297,21 +313,11 @@ func field(cx *core.Scope, label string, control core.Node) core.Node {
 	}}
 }
 
-// codeInput is the field of the pairing code, in cells a phone's thumb and eye find at once.
-// TODO(nsgo#1075): ui.OtpInput now takes its cells' side (Size, nsgo#482), but its cells are square, in the body's type, RadiusControl round, under a 16pt caret (ui/otpinput.go:44-50), where the design's are 44 by 52, 22pt semibold tabular digits, 10 round, under a 24pt caret, so the code is base.OtpInput in the app's own cells; use ui.OtpInput once it takes a cell's width and height, type and corner radius and the caret's height https://github.com/nsgo-dev/nsgo/issues/1075
+// codeInput is the field of the pairing code, in cells a phone's thumb and eye find at once: the design's 44 by 52, 22pt semibold tabular digits, 10 round, under a 24pt caret.
 func codeInput(cx *core.Scope, value func() string, change func(string), disabled func() bool) core.Node {
-	colors := ui.ColorsOf(cx)
-	return base.OtpInput{TestID: "pair-code", Label: locales.PairCode(cx), Length: sync.CodeDigits, Groups: 2, Value: value, OnChange: change, Disabled: disabled,
-		Style:      core.Style{Direction: core.Row, AlignItems: core.AlignCenter, AlignSelf: core.AlignStart, Gap: 12},
-		GroupStyle: core.Style{Direction: core.Row, Gap: 6},
-		CellStyle: core.Style{Width: core.Pt(44), Height: core.Pt(52), CornerRadius: 10, BorderCurve: core.BorderCurveContinuous, BorderWidth: 1,
-			FontSize: 22, FontWeight: core.FontWeightSemibold, FontVariant: core.FontTabularNums, AlignItems: core.AlignCenter, JustifyContent: core.JustifyCenter,
-			Disabled: ui.Dimmed()},
-		CellStyleFunc: func() core.Style {
-			return core.Style{Color: colors.Text(), Background: colors.Field(), BorderColor: colors.FieldBorder(), Focus: &core.Style{BorderColor: colors.Accent()}}
-		},
-		CaretStyle:     core.Style{Width: core.Pt(1.5), Height: core.Pt(24)},
-		CaretStyleFunc: ui.Filled(colors.Accent)}
+	return ui.OtpInput{TestID: "pair-code", Label: locales.PairCode(cx), Length: sync.CodeDigits, Groups: 2, Value: value, OnChange: change, Disabled: disabled,
+		CellWidth: 44, CellHeight: 52, CornerRadius: 10, CaretHeight: 24,
+		TextStyle: core.Style{FontSize: 22, FontWeight: core.FontWeightSemibold, FontVariant: core.FontTabularNums}}
 }
 
 // found is a computer that answered: where, and its certificate's fingerprint.

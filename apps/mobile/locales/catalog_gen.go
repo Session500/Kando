@@ -651,6 +651,7 @@ var Parameters = map[string][]string{
 	"SettingsGoalValue":              {"count"},
 	"SettingsOfflineCount":           {"count"},
 	"SettingsOfflineDelete":          {"title"},
+	"SettingsOfflineFree":            {"size"},
 	"SettingsProfileDetail":          {"name", "target"},
 	"SettingsProfileUnpaired":        {"target"},
 	"SettingsRemindDetail":           {"hour"},
@@ -865,6 +866,7 @@ type Translation struct {
 	SettingsGoalValue              func(count int) string
 	SettingsOfflineCount           func(count int) string
 	SettingsOfflineDelete          func(title string) string
+	SettingsOfflineFree            func(size string) string
 	SettingsProfileDetail          func(name string, target string) string
 	SettingsProfileUnpaired        func(target string) string
 	SettingsRemindDetail           func(hour int) string
@@ -1181,6 +1183,7 @@ const (
 	textPairScan
 	textPairScanning
 	textPairStepEnter
+	textPairStepScan
 	textPairStepOpen
 	textPairStepSettings
 	textPairSteps
@@ -1331,6 +1334,7 @@ const (
 	textSettingsRemind
 	textSettingsShortcuts
 	textSettingsShortcutsNote
+	textSettingsShortcutsNoteHold
 	textSettingsShortcutsValue
 	textSettingsSource
 	textSettingsSubtitleStyle
@@ -1349,9 +1353,12 @@ const (
 	textSettingsWidgetsLockScreen
 	textShortcutsAdd
 	textShortcutsExplain
+	textShortcutsGroupGo
+	textShortcutsGroupPlayback
 	textShortcutsJoin
 	textShortcutsLines
 	textShortcutsLoop
+	textShortcutsNextMode
 	textShortcutsPlayPause
 	textShortcutsReplay
 	textShortcutsSave
@@ -1383,10 +1390,14 @@ const (
 	textVocabEmpty
 	textVocabRemoveMessage
 	textWidgetContinue
+	textWidgetContinueDescription
+	textWidgetContinueName
 	textWidgetDueShort
 	textWidgetNoFilm
 	textWidgetNoFilmHint
 	textWidgetStreak
+	textWidgetStudyDescription
+	textWidgetStudyName
 	textWidgetTapToReview
 	textPlayerCannotAddWord
 	textPlayerMini
@@ -1721,6 +1732,7 @@ var keyOfText = [numTexts]string{
 	"pairScan",
 	"pairScanning",
 	"pairStepEnter",
+	"pairStepScan",
 	"pairStepOpen",
 	"pairStepSettings",
 	"pairSteps",
@@ -1871,6 +1883,7 @@ var keyOfText = [numTexts]string{
 	"settingsRemind",
 	"settingsShortcuts",
 	"settingsShortcutsNote",
+	"settingsShortcutsNoteHold",
 	"settingsShortcutsValue",
 	"settingsSource",
 	"settingsSubtitleStyle",
@@ -1889,9 +1902,12 @@ var keyOfText = [numTexts]string{
 	"settingsWidgetsLockScreen",
 	"shortcutsAdd",
 	"shortcutsExplain",
+	"shortcutsGroupGo",
+	"shortcutsGroupPlayback",
 	"shortcutsJoin",
 	"shortcutsLines",
 	"shortcutsLoop",
+	"shortcutsNextMode",
 	"shortcutsPlayPause",
 	"shortcutsReplay",
 	"shortcutsSave",
@@ -1923,10 +1939,14 @@ var keyOfText = [numTexts]string{
 	"vocabEmpty",
 	"vocabRemoveMessage",
 	"widgetContinue",
+	"widgetContinueDescription",
+	"widgetContinueName",
 	"widgetDueShort",
 	"widgetNoFilm",
 	"widgetNoFilmHint",
 	"widgetStreak",
+	"widgetStudyDescription",
+	"widgetStudyName",
 	"widgetTapToReview",
 	"playerCannotAddWord",
 	"playerMini",
@@ -2259,6 +2279,7 @@ var textsEn = i18n.NewTexts(""+
 	"Scan QR Code"+
 	"Reading the QR code…"+
 	"Enter the address and code it shows"+
+	"Scan the QR code it shows with this phone"+
 	"Open Kando on your computer"+
 	"Settings › Phone Sync"+
 	"How to pair"+
@@ -2409,6 +2430,7 @@ var textsEn = i18n.NewTexts(""+
 	"Review Reminder"+
 	"Keyboard Shortcuts"+
 	"These work while a hardware keyboard is connected."+
+	"These work while a hardware keyboard is connected. Hold ⌘ to see them on screen."+
 	"Hardware Keyboard"+
 	"Source Code"+
 	"Subtitle Style"+
@@ -2427,9 +2449,12 @@ var textsEn = i18n.NewTexts(""+
 	"Lock Screen"+
 	"Add a Video"+
 	"Explain This Line"+
+	"Go"+
+	"Playback"+
 	", "+
 	"Previous / Next Line"+
 	"Loop This Line"+
+	"Next Subtitle Mode"+
 	"Play / Pause"+
 	"Replay This Line"+
 	"Save This Line"+
@@ -2461,10 +2486,14 @@ var textsEn = i18n.NewTexts(""+
 	"Words you look up and save while you watch show here"+
 	"It leaves the vocabulary on every device."+
 	"Continue"+
+	"The film you left partway, and the line you left it on."+
+	"Kando Continue Watching"+
 	"to review"+
 	"Nothing to continue"+
 	"Films you leave partway show here."+
 	"Streak"+
+	"Days in a row you watched, and what is waiting for review."+
+	"Kando Streak"+
 	"Tap to review"+
 	"Open this film once while its computer is reachable to add its words to the vocabulary."+
 	"Now Playing"+
@@ -2794,6 +2823,7 @@ var textsEn = i18n.NewTexts(""+
 		12,
 		22,
 		35,
+		41,
 		27,
 		23,
 		11,
@@ -2944,6 +2974,7 @@ var textsEn = i18n.NewTexts(""+
 		15,
 		18,
 		50,
+		82,
 		17,
 		11,
 		14,
@@ -2963,8 +2994,11 @@ var textsEn = i18n.NewTexts(""+
 		11,
 		17,
 		2,
+		8,
+		2,
 		20,
 		14,
+		18,
 		12,
 		16,
 		14,
@@ -2996,10 +3030,14 @@ var textsEn = i18n.NewTexts(""+
 		52,
 		41,
 		8,
+		55,
+		23,
 		9,
 		19,
 		34,
 		6,
+		58,
+		12,
 		13,
 		87,
 		11,
@@ -3332,6 +3370,7 @@ var textsJa = i18n.NewTexts(""+
 	"QR コードをスキャン"+
 	"QR コードを読み取り中…"+
 	"表示されたアドレスとペアリングコードを入力"+
+	"表示された QR コードをこのスマートフォンでスキャン"+
 	"コンピュータで Kando を開く"+
 	"設定 › スマートフォン同期"+
 	"ペアリングの手順"+
@@ -3482,6 +3521,7 @@ var textsJa = i18n.NewTexts(""+
 	"復習リマインダー"+
 	"キーボードショートカット"+
 	"外付けキーボードを接続しているときに使えます。"+
+	"外付けキーボードを接続しているときに使えます。⌘ を押し続けると画面に一覧が表示されます。"+
 	"外付けキーボード"+
 	"ソースコード"+
 	"字幕のスタイル"+
@@ -3500,9 +3540,12 @@ var textsJa = i18n.NewTexts(""+
 	"ロック画面"+
 	"動画を追加"+
 	"AI でこの文を解説"+
+	"移動"+
+	"再生"+
 	"、"+
 	"前の文 / 次の文"+
 	"この文をくり返す"+
+	"次の字幕モード"+
 	"再生 / 一時停止"+
 	"この文をもう一度"+
 	"この文を保存"+
@@ -3534,10 +3577,14 @@ var textsJa = i18n.NewTexts(""+
 	"視聴中に調べて保存した単語がここに表示されます"+
 	"すべての端末の単語帳から削除されます。"+
 	"続きを見る"+
+	"途中まで見た映画と、止めたところのセリフ。"+
+	"Kando 続きを見る"+
 	"復習待ち"+
 	"途中の映画はありません"+
 	"途中まで見た映画がここに表示されます。"+
 	"連続学習"+
+	"連続で見た日数と、復習待ちの項目。"+
+	"Kando 連続学習"+
 	"タップして復習"+
 	"パソコンにつながる場所で一度この映像を開くと、単語を単語帳に追加できるようになります。"+
 	"再生中"+
@@ -3867,6 +3914,7 @@ var textsJa = i18n.NewTexts(""+
 		27,
 		33,
 		63,
+		73,
 		37,
 		38,
 		24,
@@ -4017,6 +4065,7 @@ var textsJa = i18n.NewTexts(""+
 		24,
 		36,
 		69,
+		133,
 		24,
 		18,
 		21,
@@ -4035,9 +4084,12 @@ var textsJa = i18n.NewTexts(""+
 		15,
 		15,
 		24,
+		6,
+		6,
 		3,
 		21,
 		24,
+		21,
 		21,
 		24,
 		18,
@@ -4069,10 +4121,14 @@ var textsJa = i18n.NewTexts(""+
 		69,
 		57,
 		15,
+		63,
+		21,
 		12,
 		33,
 		57,
 		12,
+		51,
+		18,
 		21,
 		129,
 		9,
@@ -4405,6 +4461,7 @@ var textsKo = i18n.NewTexts(""+
 	"QR 코드 스캔"+
 	"QR 코드 읽는 중…"+
 	"표시된 주소와 페어링 코드 입력"+
+	"표시된 QR 코드를 이 휴대폰으로 스캔"+
 	"컴퓨터에서 Kando 열기"+
 	"설정 › 휴대폰 동기화"+
 	"페어링 방법"+
@@ -4555,6 +4612,7 @@ var textsKo = i18n.NewTexts(""+
 	"복습 알림"+
 	"키보드 단축키"+
 	"외장 키보드를 연결하면 사용할 수 있어요."+
+	"외장 키보드를 연결하면 사용할 수 있어요. ⌘를 길게 누르면 화면에서 볼 수 있어요."+
 	"외장 키보드"+
 	"소스 코드"+
 	"자막 스타일"+
@@ -4573,9 +4631,12 @@ var textsKo = i18n.NewTexts(""+
 	"잠금 화면"+
 	"동영상 추가"+
 	"AI로 이 문장 설명"+
+	"이동"+
+	"재생"+
 	", "+
 	"이전 문장 / 다음 문장"+
 	"이 문장 반복"+
+	"다음 자막 모드"+
 	"재생 / 일시정지"+
 	"이 문장 다시 듣기"+
 	"이 문장 저장"+
@@ -4607,10 +4668,14 @@ var textsKo = i18n.NewTexts(""+
 	"보면서 찾아 저장한 단어가 여기에 표시돼요"+
 	"모든 기기의 단어장에서 삭제됩니다."+
 	"이어 보기"+
+	"보다 만 영화와 멈춘 곳의 대사를 보여줘요."+
+	"Kando 이어 보기"+
 	"복습"+
 	"이어 볼 영화가 없어요"+
 	"보다 만 영화가 여기에 표시돼요."+
 	"연속 학습"+
+	"연속으로 본 날수와 복습할 항목을 보여줘요."+
+	"Kando 연속 학습"+
 	"탭하여 복습"+
 	"컴퓨터에 연결된 상태에서 이 영상을 한 번 열면 단어를 단어장에 추가할 수 있습니다."+
 	"재생 중"+
@@ -4940,6 +5005,7 @@ var textsKo = i18n.NewTexts(""+
 		16,
 		23,
 		43,
+		49,
 		28,
 		30,
 		16,
@@ -5090,6 +5156,7 @@ var textsKo = i18n.NewTexts(""+
 		13,
 		19,
 		57,
+		113,
 		16,
 		13,
 		16,
@@ -5108,9 +5175,12 @@ var textsKo = i18n.NewTexts(""+
 		13,
 		16,
 		23,
+		6,
+		6,
 		2,
 		29,
 		17,
+		20,
 		21,
 		24,
 		17,
@@ -5142,10 +5212,14 @@ var textsKo = i18n.NewTexts(""+
 		59,
 		49,
 		13,
+		58,
+		19,
 		6,
 		30,
 		44,
 		13,
+		60,
+		19,
 		16,
 		115,
 		10,
@@ -5478,6 +5552,7 @@ var textsZhHans = i18n.NewTexts(""+
 	"扫描二维码"+
 	"正在读取二维码…"+
 	"输入那里显示的地址和配对码"+
+	"用这台手机扫描那里显示的二维码"+
 	"在电脑上打开看懂"+
 	"设置 › 手机同步"+
 	"配对步骤"+
@@ -5628,6 +5703,7 @@ var textsZhHans = i18n.NewTexts(""+
 	"复习提醒"+
 	"键盘快捷键"+
 	"接上外接键盘时可用。"+
+	"接上外接键盘时可用。按住 ⌘ 可在屏幕上查看。"+
 	"外接键盘"+
 	"源代码"+
 	"字幕样式"+
@@ -5646,9 +5722,12 @@ var textsZhHans = i18n.NewTexts(""+
 	"锁屏小组件"+
 	"添加视频"+
 	"AI 解释这一句"+
+	"前往"+
+	"播放"+
 	"、"+
 	"上一句 / 下一句"+
 	"单句循环"+
+	"下一种字幕模式"+
 	"播放 / 暂停"+
 	"重听这一句"+
 	"收藏这一句"+
@@ -5680,10 +5759,14 @@ var textsZhHans = i18n.NewTexts(""+
 	"看片时查过并收藏的生词会出现在这里"+
 	"它会从所有设备的生词本里移除。"+
 	"继续看"+
+	"看到一半的影片，以及停下时的那句台词。"+
+	"看懂 继续看"+
 	"待复习"+
 	"没有看到一半的影片"+
 	"看到一半的影片会显示在这里。"+
 	"连续学习"+
+	"连续观看的天数，以及等待复习的内容。"+
+	"看懂 连续学习"+
 	"轻点开始复习"+
 	"在能连上电脑时打开一次这部影片，就能把它的词加入生词本。"+
 	"正在播放"+
@@ -6013,6 +6096,7 @@ var textsZhHans = i18n.NewTexts(""+
 		15,
 		24,
 		39,
+		45,
 		24,
 		23,
 		12,
@@ -6163,6 +6247,7 @@ var textsZhHans = i18n.NewTexts(""+
 		12,
 		15,
 		30,
+		65,
 		12,
 		9,
 		12,
@@ -6181,9 +6266,12 @@ var textsZhHans = i18n.NewTexts(""+
 		15,
 		12,
 		18,
+		6,
+		6,
 		3,
 		21,
 		12,
+		21,
 		15,
 		15,
 		15,
@@ -6215,10 +6303,14 @@ var textsZhHans = i18n.NewTexts(""+
 		51,
 		45,
 		9,
+		57,
+		16,
 		9,
 		27,
 		42,
 		12,
+		54,
+		19,
 		18,
 		84,
 		12,
@@ -6551,6 +6643,7 @@ var textsZhHant = i18n.NewTexts(""+
 	"掃描 QR 碼"+
 	"正在讀取 QR 碼…"+
 	"輸入那裡顯示的位址和配對碼"+
+	"用這支手機掃描那裡顯示的 QR 碼"+
 	"在電腦上開啟看懂"+
 	"設定 › 手機同步"+
 	"配對步驟"+
@@ -6701,6 +6794,7 @@ var textsZhHant = i18n.NewTexts(""+
 	"複習提醒"+
 	"鍵盤快速鍵"+
 	"接上外接鍵盤時可用。"+
+	"接上外接鍵盤時可用。按住 ⌘ 可在螢幕上查看。"+
 	"外接鍵盤"+
 	"原始碼"+
 	"字幕樣式"+
@@ -6719,9 +6813,12 @@ var textsZhHant = i18n.NewTexts(""+
 	"鎖定畫面小工具"+
 	"新增影片"+
 	"AI 解釋這一句"+
+	"前往"+
+	"播放"+
 	"、"+
 	"上一句 / 下一句"+
 	"單句循環"+
+	"下一種字幕模式"+
 	"播放 / 暫停"+
 	"重聽這一句"+
 	"收藏這一句"+
@@ -6753,10 +6850,14 @@ var textsZhHant = i18n.NewTexts(""+
 	"看片時查過並收藏的生詞會出現在這裡"+
 	"它會從所有裝置的生詞本裡移除。"+
 	"繼續看"+
+	"看到一半的影片，以及停下時的那句台詞。"+
+	"看懂 繼續看"+
 	"待複習"+
 	"沒有看到一半的影片"+
 	"看到一半的影片會顯示在這裡。"+
 	"連續學習"+
+	"連續觀看的天數，以及等待複習的內容。"+
+	"看懂 連續學習"+
 	"輕點開始複習"+
 	"在能連上電腦時打開一次這部影片，就能把它的詞加入生詞本。"+
 	"正在播放"+
@@ -7086,6 +7187,7 @@ var textsZhHant = i18n.NewTexts(""+
 		13,
 		22,
 		39,
+		43,
 		24,
 		23,
 		12,
@@ -7236,6 +7338,7 @@ var textsZhHant = i18n.NewTexts(""+
 		12,
 		15,
 		30,
+		65,
 		12,
 		9,
 		12,
@@ -7254,9 +7357,12 @@ var textsZhHant = i18n.NewTexts(""+
 		21,
 		12,
 		18,
+		6,
+		6,
 		3,
 		21,
 		12,
+		21,
 		15,
 		15,
 		15,
@@ -7288,10 +7394,14 @@ var textsZhHant = i18n.NewTexts(""+
 		51,
 		45,
 		9,
+		57,
+		16,
 		9,
 		27,
 		42,
 		12,
+		54,
+		19,
 		18,
 		84,
 		12,
@@ -7957,6 +8067,9 @@ func Supply(lang string, t Translation) {
 	}
 	if t.SettingsOfflineDelete != nil {
 		s.SettingsOfflineDelete = t.SettingsOfflineDelete
+	}
+	if t.SettingsOfflineFree != nil {
+		s.SettingsOfflineFree = t.SettingsOfflineFree
 	}
 	if t.SettingsProfileDetail != nil {
 		s.SettingsProfileDetail = t.SettingsProfileDetail
@@ -15553,6 +15666,15 @@ func PairStepEnter(cx *core.Scope) string { return For(cx).PairStepEnter() }
 // PairStepEnter is the package's PairStepEnter in the language of msgs.
 func (msgs Messages) PairStepEnter() string { return msgs.text(textPairStepEnter) }
 
+// PairStepScan says "Scan the QR code it shows with this phone"
+// in the language the app shows under cx.
+//
+// Third of the numbered steps over the pairing form, on a phone that can read the QR code the computer shows (the Scan QR Code button under the steps).
+func PairStepScan(cx *core.Scope) string { return For(cx).PairStepScan() }
+
+// PairStepScan is the package's PairStepScan in the language of msgs.
+func (msgs Messages) PairStepScan() string { return msgs.text(textPairStepScan) }
+
 // PairStepOpen says "Open Kando on your computer"
 // in the language the app shows under cx.
 //
@@ -16384,7 +16506,7 @@ func (msgs Messages) PlayerModeTranslation() string { return msgs.text(textPlaye
 // PlayerNextLine says "Next Line"
 // in the language the app shows under cx.
 //
-// Spoken name of the player's button that plays from the next line.
+// Spoken name of the player's button that plays from the next line, and on an iPad the name of its keyboard shortcut in the list shown while ⌘ is held.
 func PlayerNextLine(cx *core.Scope) string { return For(cx).PlayerNextLine() }
 
 // PlayerNextLine is the package's PlayerNextLine in the language of msgs.
@@ -16622,7 +16744,7 @@ func (msgs Messages) PlayerPosition() string { return msgs.text(textPlayerPositi
 // PlayerPrevLine says "Previous Line"
 // in the language the app shows under cx.
 //
-// Spoken name of the player's button that plays from the line before.
+// Spoken name of the player's button that plays from the line before, and on an iPad the name of its keyboard shortcut in the list shown while ⌘ is held.
 func PlayerPrevLine(cx *core.Scope) string { return For(cx).PlayerPrevLine() }
 
 // PlayerPrevLine is the package's PlayerPrevLine in the language of msgs.
@@ -18679,6 +18801,38 @@ func SettingsOfflineEmpty(cx *core.Scope) string { return For(cx).SettingsOfflin
 // SettingsOfflineEmpty is the package's SettingsOfflineEmpty in the language of msgs.
 func (msgs Messages) SettingsOfflineEmpty() string { return msgs.text(textSettingsOfflineEmpty) }
 
+// SettingsOfflineFree says "About {size} free on this device"
+// in the language the app shows under cx.
+//
+// On the Offline Films page, under the bar of the films' share of the device: about how much room is left, rounded to whole gigabytes or megabytes.
+func SettingsOfflineFree(cx *core.Scope, size string) string {
+	return For(cx).SettingsOfflineFree(size)
+}
+
+// SettingsOfflineFree is the package's SettingsOfflineFree in the language of msgs.
+func (msgs Messages) SettingsOfflineFree(size string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.SettingsOfflineFree(size))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].SettingsOfflineFree; f != nil {
+			return f(size)
+		}
+		switch lang {
+		case "", "en":
+			return "About " + msgs.arg(size) + " free on this device"
+		case "ja":
+			return "このデバイスの空き容量：約 " + size
+		case "ko":
+			return "이 기기의 남은 공간: 약 " + size
+		case "zh-Hans":
+			return "此设备约剩 " + size + " 可用"
+		case "zh-Hant":
+			return "此裝置約剩 " + size + " 可用"
+		}
+	}
+}
+
 // SettingsOfflineFilmSaved says "Saved"
 // in the language the app shows under cx.
 //
@@ -18846,6 +19000,17 @@ func SettingsShortcutsNote(cx *core.Scope) string { return For(cx).SettingsShort
 
 // SettingsShortcutsNote is the package's SettingsShortcutsNote in the language of msgs.
 func (msgs Messages) SettingsShortcutsNote() string { return msgs.text(textSettingsShortcutsNote) }
+
+// SettingsShortcutsNoteHold says "These work while a hardware keyboard is connected. Hold ⌘ to see them on screen."
+// in the language the app shows under cx.
+//
+// Over the list of keyboard shortcuts on an iPad, which lists those that work where you are while ⌘ is held.
+func SettingsShortcutsNoteHold(cx *core.Scope) string { return For(cx).SettingsShortcutsNoteHold() }
+
+// SettingsShortcutsNoteHold is the package's SettingsShortcutsNoteHold in the language of msgs.
+func (msgs Messages) SettingsShortcutsNoteHold() string {
+	return msgs.text(textSettingsShortcutsNoteHold)
+}
 
 // SettingsShortcutsValue says "Hardware Keyboard"
 // in the language the app shows under cx.
@@ -19041,6 +19206,24 @@ func ShortcutsExplain(cx *core.Scope) string { return For(cx).ShortcutsExplain()
 // ShortcutsExplain is the package's ShortcutsExplain in the language of msgs.
 func (msgs Messages) ShortcutsExplain() string { return msgs.text(textShortcutsExplain) }
 
+// ShortcutsGroupGo says "Go"
+// in the language the app shows under cx.
+//
+// iPadOS: the menu of the shortcuts that go to a section, the search and the Add sheet, in the menu bar and the list shown while ⌘ is held.
+func ShortcutsGroupGo(cx *core.Scope) string { return For(cx).ShortcutsGroupGo() }
+
+// ShortcutsGroupGo is the package's ShortcutsGroupGo in the language of msgs.
+func (msgs Messages) ShortcutsGroupGo() string { return msgs.text(textShortcutsGroupGo) }
+
+// ShortcutsGroupPlayback says "Playback"
+// in the language the app shows under cx.
+//
+// iPadOS: the menu of the player's shortcuts, in the menu bar and the list shown while ⌘ is held.
+func ShortcutsGroupPlayback(cx *core.Scope) string { return For(cx).ShortcutsGroupPlayback() }
+
+// ShortcutsGroupPlayback is the package's ShortcutsGroupPlayback in the language of msgs.
+func (msgs Messages) ShortcutsGroupPlayback() string { return msgs.text(textShortcutsGroupPlayback) }
+
 // ShortcutsJoin says ", "
 // in the language the app shows under cx.
 //
@@ -19067,6 +19250,15 @@ func ShortcutsLoop(cx *core.Scope) string { return For(cx).ShortcutsLoop() }
 
 // ShortcutsLoop is the package's ShortcutsLoop in the language of msgs.
 func (msgs Messages) ShortcutsLoop() string { return msgs.text(textShortcutsLoop) }
+
+// ShortcutsNextMode says "Next Subtitle Mode"
+// in the language the app shows under cx.
+//
+// iPadOS: a keyboard shortcut in the list shown while ⌘ is held: show the subtitles in the next mode (bilingual, original, translation, hidden).
+func ShortcutsNextMode(cx *core.Scope) string { return For(cx).ShortcutsNextMode() }
+
+// ShortcutsNextMode is the package's ShortcutsNextMode in the language of msgs.
+func (msgs Messages) ShortcutsNextMode() string { return msgs.text(textShortcutsNextMode) }
 
 // ShortcutsPlayPause says "Play / Pause"
 // in the language the app shows under cx.
@@ -19377,6 +19569,26 @@ func WidgetContinue(cx *core.Scope) string { return For(cx).WidgetContinue() }
 // WidgetContinue is the package's WidgetContinue in the language of msgs.
 func (msgs Messages) WidgetContinue() string { return msgs.text(textWidgetContinue) }
 
+// WidgetContinueDescription says "The film you left partway, and the line you left it on."
+// in the language the app shows under cx.
+//
+// iOS: the description of the Continue widget in the system's gallery of widgets (nsgo.yaml's widgets).
+func WidgetContinueDescription(cx *core.Scope) string { return For(cx).WidgetContinueDescription() }
+
+// WidgetContinueDescription is the package's WidgetContinueDescription in the language of msgs.
+func (msgs Messages) WidgetContinueDescription() string {
+	return msgs.text(textWidgetContinueDescription)
+}
+
+// WidgetContinueName says "Kando Continue Watching"
+// in the language the app shows under cx.
+//
+// iOS: the name of the Continue widget in the system's gallery of widgets (nsgo.yaml's widgets), after the app's name.
+func WidgetContinueName(cx *core.Scope) string { return For(cx).WidgetContinueName() }
+
+// WidgetContinueName is the package's WidgetContinueName in the language of msgs.
+func (msgs Messages) WidgetContinueName() string { return msgs.text(textWidgetContinueName) }
+
 // WidgetContinuePercent says "Continue · {percent}%"
 // in the language the app shows under cx.
 //
@@ -19619,6 +19831,24 @@ func WidgetStreak(cx *core.Scope) string { return For(cx).WidgetStreak() }
 
 // WidgetStreak is the package's WidgetStreak in the language of msgs.
 func (msgs Messages) WidgetStreak() string { return msgs.text(textWidgetStreak) }
+
+// WidgetStudyDescription says "Days in a row you watched, and what is waiting for review."
+// in the language the app shows under cx.
+//
+// iOS: the description of the streak widget in the system's gallery of widgets (nsgo.yaml's widgets).
+func WidgetStudyDescription(cx *core.Scope) string { return For(cx).WidgetStudyDescription() }
+
+// WidgetStudyDescription is the package's WidgetStudyDescription in the language of msgs.
+func (msgs Messages) WidgetStudyDescription() string { return msgs.text(textWidgetStudyDescription) }
+
+// WidgetStudyName says "Kando Streak"
+// in the language the app shows under cx.
+//
+// iOS: the name of the streak widget in the system's gallery of widgets (nsgo.yaml's widgets), after the app's name.
+func WidgetStudyName(cx *core.Scope) string { return For(cx).WidgetStudyName() }
+
+// WidgetStudyName is the package's WidgetStudyName in the language of msgs.
+func (msgs Messages) WidgetStudyName() string { return msgs.text(textWidgetStudyName) }
 
 // WidgetTapToReview says "Tap to review"
 // in the language the app shows under cx.

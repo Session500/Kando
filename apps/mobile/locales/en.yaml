@@ -1609,6 +1609,9 @@ pairScanning:
 pairStepEnter:
   message: "Enter the address and code it shows"
   description: "Third of the numbered steps over the pairing form."
+pairStepScan:
+  message: "Scan the QR code it shows with this phone"
+  description: "Third of the numbered steps over the pairing form, on a phone that can read the QR code the computer shows (the Scan QR Code button under the steps)."
 pairStepOpen:
   message: "Open Kando on your computer"
   description: "First of the numbered steps over the pairing form."
@@ -1826,7 +1829,7 @@ playerModeTranslation:
   description: "Subtitle mode: the translation alone, the original where a line is not translated."
 playerNextLine:
   message: "Next Line"
-  description: "Spoken name of the player's button that plays from the next line."
+  description: "Spoken name of the player's button that plays from the next line, and on an iPad the name of its keyboard shortcut in the list shown while ⌘ is held."
 playerNoLines:
   message: "This film has no subtitles."
   description: "In place of the line list for a film without subtitles."
@@ -1893,7 +1896,7 @@ playerPosition:
   description: "Spoken name of the player's slider of where the film is."
 playerPrevLine:
   message: "Previous Line"
-  description: "Spoken name of the player's button that plays from the line before."
+  description: "Spoken name of the player's button that plays from the line before, and on an iPad the name of its keyboard shortcut in the list shown while ⌘ is held."
 playerRecapBusy:
   message: "Summing up what you watched on {computer}…"
   description: "In the recap sheet while the computer's AI service sums up the part of the film watched."
@@ -2301,6 +2304,11 @@ settingsOfflineDelete:
 settingsOfflineEmpty:
   message: "No films saved on this device yet."
   description: "The Offline Films page when no film is saved on this device."
+settingsOfflineFree:
+  message: "About {size} free on this device"
+  description: "On the Offline Films page, under the bar of the films' share of the device: about how much room is left, rounded to whole gigabytes or megabytes."
+  placeholders:
+    size: { type: "String", example: "38 GB" }
 settingsOfflineFilmSaved:
   message: "Saved"
   description: "On a row of Settings › Offline Films, after the film's size: the film is kept whole on the device."
@@ -2341,6 +2349,9 @@ settingsShortcuts:
 settingsShortcutsNote:
   message: "These work while a hardware keyboard is connected."
   description: "Over the list of keyboard shortcuts."
+settingsShortcutsNoteHold:
+  message: "These work while a hardware keyboard is connected. Hold ⌘ to see them on screen."
+  description: "Over the list of keyboard shortcuts on an iPad, which lists those that work where you are while ⌘ is held."
 settingsShortcutsValue:
   message: "Hardware Keyboard"
   description: "At the end of the Keyboard Shortcuts row: what they are for."
@@ -2400,6 +2411,12 @@ shortcutsAdd:
 shortcutsExplain:
   message: "Explain This Line"
   description: "A keyboard shortcut: have the computer's AI explain the line."
+shortcutsGroupGo:
+  message: "Go"
+  description: "iPadOS: the menu of the shortcuts that go to a section, the search and the Add sheet, in the menu bar and the list shown while ⌘ is held."
+shortcutsGroupPlayback:
+  message: "Playback"
+  description: "iPadOS: the menu of the player's shortcuts, in the menu bar and the list shown while ⌘ is held."
 shortcutsJoin:
   message: ", "
   description: "Between the names of the sections in the row of the shortcuts that go to them, as Library, Learn, Jobs, Settings."
@@ -2409,6 +2426,9 @@ shortcutsLines:
 shortcutsLoop:
   message: "Loop This Line"
   description: "A keyboard shortcut: loop the line, or stop looping."
+shortcutsNextMode:
+  message: "Next Subtitle Mode"
+  description: "iPadOS: a keyboard shortcut in the list shown while ⌘ is held: show the subtitles in the next mode (bilingual, original, translation, hidden)."
 shortcutsPlayPause:
   message: "Play / Pause"
   description: "A keyboard shortcut: start or hold the film."
@@ -2507,6 +2527,12 @@ vocabRemoveTitle:
 widgetContinue:
   message: "Continue"
   description: "Over the film of the Continue widget."
+widgetContinueDescription:
+  message: "The film you left partway, and the line you left it on."
+  description: "iOS: the description of the Continue widget in the system's gallery of widgets (nsgo.yaml's widgets)."
+widgetContinueName:
+  message: "Kando Continue Watching"
+  description: "iOS: the name of the Continue widget in the system's gallery of widgets (nsgo.yaml's widgets), after the app's name."
 widgetContinuePercent:
   message: "Continue · {percent}%"
   description: "Over the film of the wide Continue widget: how far it was watched."
@@ -2540,6 +2566,12 @@ widgetNoFilmHint:
 widgetStreak:
   message: "Streak"
   description: "Top of the streak widget, beside a flame."
+widgetStudyDescription:
+  message: "Days in a row you watched, and what is waiting for review."
+  description: "iOS: the description of the streak widget in the system's gallery of widgets (nsgo.yaml's widgets)."
+widgetStudyName:
+  message: "Kando Streak"
+  description: "iOS: the name of the streak widget in the system's gallery of widgets (nsgo.yaml's widgets), after the app's name."
 widgetTapToReview:
   message: "Tap to review"
   description: "Foot of the streak widget."
