@@ -2,6 +2,21 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.49.0 - 2026-11-23
+
+### Features
+
+- Sort a library's films into categories (#440)
+- Put the film you watch first, from redos to a link still downloading (#435)
+- Log where a film is left untranslated, and why (#446)
+
+### Fixes
+
+- Keep the user's files and films when they move or their folder is gone (#438)
+- Let the subtitle list and the picture's lines follow a drag of the scrubber (#439)
+- List the speeds fastest at the top of the speed menu (#443)
+- Stop a plugin whose JS keeps the window busy outside its calls (#445)
+
 ## 0.48.2 - 2026-11-22
 
 ### Fixes
