@@ -303,8 +303,7 @@ func (s *screen) termAdder(cx *ns.Scope) ns.Node {
 	add := live.Do(a, a.AddTerm)
 	writable := live.Func(a, a.TermsWritable)
 	field := func(id string, label, placeholder func() string, value func() *string) ns.Node {
-		// TODO(nsgo#145): give core.Input (base.Input, ui.Input) LabelFunc and AccessibilityDescriptionFunc twins, so the field's accessible name follows the interface language as it changes; it is read once here, and a Dynamic would take the focus and the typed text with it https://github.com/nsgo-dev/nsgo/issues/145
-		return base.Input{TestID: id, Label: label(), PlaceholderFunc: placeholder,
+		return base.Input{TestID: id, LabelFunc: label, PlaceholderFunc: placeholder,
 			Value:          live.Func(a, func() string { return *value() }),
 			OnChange:       live.On(a, func(text string) { *value() = text }),
 			Disabled:       func() bool { return !writable() },
@@ -317,7 +316,7 @@ func (s *screen) termAdder(cx *ns.Scope) ns.Node {
 		return a.TermsWritable() && strings.TrimSpace(*a.NewTermSource()) != "" && strings.TrimSpace(*a.NewTermTarget()) != ""
 	})
 	return ns.View{TestID: "film-terms-add", Role: ns.RoleGroup, LabelFunc: func() string { return locales.GlossaryAddGroup(cx) }, Style: ns.Style{Gap: 6}, Children: []ns.Node{
-		panelHeading(locales.GlossaryAddGroup(cx)),
+		panelHeading(func() string { return locales.GlossaryAddGroup(cx) }),
 		ns.View{Style: ns.Style{Direction: ns.Row, Gap: 6, AlignItems: ns.AlignCenter}, Children: []ns.Node{
 			field("film-term-source", func() string { return locales.GlossarySource(cx) }, func() string { return locales.GlossarySourceHint(cx) }, a.NewTermSource),
 			ns.Text{Content: "→", Role: ns.RoleNone, Style: ns.Style{FontSize: 12, Color: onGlass, Opacity: ns.Alpha(0.45)}},

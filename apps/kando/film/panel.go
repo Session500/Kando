@@ -218,13 +218,12 @@ func (s *screen) panelTabBar(cx *ns.Scope) ns.Node {
 		tab := chosen()
 		ns.Untracked(cx, func() struct{} { reveal(tab); return struct{}{} })
 	})
-	// TODO(nsgo#145): give base.Tabs' Label a LabelFunc twin, so the tab list's accessible name follows the interface language as it changes; it is read once here https://github.com/nsgo-dev/nsgo/issues/145
 	return ns.Scroll{TestID: "film-tabs-scroll", Ref: scroll, Horizontal: true, HideIndicator: true, Style: ns.Style{Height: ns.Pt(32), FlexGrow: 0, FlexShrink: 0, CornerRadius: 12},
 		OnLayout: func(b ns.Bounds) {
 			bar = b.Size.Width
 			reveal(ns.Untracked(cx, chosen))
 		},
-		Children: []ns.Node{base.Tabs{TestID: "film-tabs", Label: locales.FilmSidebar(cx),
+		Children: []ns.Node{base.Tabs{TestID: "film-tabs", LabelFunc: func() string { return locales.FilmSidebar(cx) },
 			Style:    ns.Style{Direction: ns.Row, Height: ns.Pt(32), MinWidth: ns.Pt(panelWidth - 28), Padding: ns.All(3), CornerRadius: 12, Background: ns.RGBA(0xFFFFFF, 0.1)},
 			Children: tabs}}}
 }
@@ -510,10 +509,9 @@ func (s *screen) searchField(cx *ns.Scope, step func(back bool)) ns.Node {
 		cx.OnKeyWith("shift+enter", ns.KeyOptions{When: ns.KeyAlways}, live.Do(a, func() { step(true) }))
 		return nil
 	}}
-	// TODO(nsgo#145): give core.Input (base.Input, ui.Input) LabelFunc and AccessibilityDescriptionFunc twins, so the field's accessible name follows the interface language as it changes; it is read once here, and a Dynamic would take the focus and the typed text with it https://github.com/nsgo-dev/nsgo/issues/145
 	input := base.Input{
 		Ref: field, TestID: "film-search", Role: ns.RoleSearchField,
-		Label:           locales.FilmSearchLines(cx),
+		LabelFunc:       func() string { return locales.FilmSearchLines(cx) },
 		Value:           query,
 		PlaceholderFunc: func() string { return locales.FilmSearchLines(cx) + "  " + cx.KeyLabel("mod+f") },
 		OnChange:        live.On(a, func(text string) { *a.Search() = text }),
@@ -1144,20 +1142,20 @@ func (s *screen) infoTab(cx *ns.Scope) ns.Node {
 			}},
 		}})}
 		if st.speech {
-			groups = append(groups, panelHeading(locales.FilmSpokenLanguage(cx)), panelGroup(s.speechLanguage(cx, st.spoken)))
+			groups = append(groups, panelHeading(func() string { return locales.FilmSpokenLanguage(cx) }), panelGroup(s.speechLanguage(cx, st.spoken)))
 		}
 		if line := originalLines(cx, st); line != "" {
-			groups = append(groups, panelHeading(locales.FilmOriginalLines(cx)), panelGroup(ns.View{Style: ns.Style{Padding: ns.Symmetric(10, 12)}, Children: []ns.Node{
+			groups = append(groups, panelHeading(func() string { return locales.FilmOriginalLines(cx) }), panelGroup(ns.View{Style: ns.Style{Padding: ns.Symmetric(10, 12)}, Children: []ns.Node{
 				ns.Text{TestID: "film-info-original", Content: line, Style: ns.Style{FontSize: 12, LineHeight: 17, Color: onGlass, Opacity: ns.Alpha(0.9)}},
 			}}))
 		}
 		if line := chapterInfo(cx, st.chapters, st.cut, st.source); line != "" {
-			groups = append(groups, panelHeading(locales.FilmChapters(cx)), panelGroup(ns.View{Style: ns.Style{Padding: ns.Symmetric(10, 12)}, Children: []ns.Node{
+			groups = append(groups, panelHeading(func() string { return locales.FilmChapters(cx) }), panelGroup(ns.View{Style: ns.Style{Padding: ns.Symmetric(10, 12)}, Children: []ns.Node{
 				ns.Text{TestID: "film-info-chapters", Content: line, Style: ns.Style{FontSize: 12, LineHeight: 17, Color: onGlass, Opacity: ns.Alpha(0.9)}},
 			}}))
 		}
 		if st.folder != "" {
-			groups = append(groups, panelHeading(locales.FilmFolder(cx)), panelGroup(ns.View{Style: ns.Style{Padding: ns.Symmetric(10, 12), Gap: 8}, Children: []ns.Node{
+			groups = append(groups, panelHeading(func() string { return locales.FilmFolder(cx) }), panelGroup(ns.View{Style: ns.Style{Padding: ns.Symmetric(10, 12), Gap: 8}, Children: []ns.Node{
 				ns.View{Selectable: true, Children: []ns.Node{ns.Text{Content: displayPath(st.folder), Style: monoStyle(11, 16, 0.9)}}},
 				ns.View{Style: ns.Style{AlignSelf: ns.AlignStart}, Children: []ns.Node{
 					ui.Button{TestID: "film-info-reveal", Text: locales.FilmShowInFinder(cx, desktop.Platform(cx)), Variant: ui.ButtonSecondary, Size: ui.SizeSmall,
@@ -1174,7 +1172,7 @@ func (s *screen) infoTab(cx *ns.Scope) ns.Node {
 					}
 				})))
 			}
-			groups = append(groups, panelHeading(locales.FilmFiles(cx)), panelGroup(rows...))
+			groups = append(groups, panelHeading(func() string { return locales.FilmFiles(cx) }), panelGroup(rows...))
 		}
 		if card := s.streamInfo(cx, st); card != nil {
 			groups = append(groups, card)
@@ -1188,7 +1186,7 @@ func (s *screen) infoTab(cx *ns.Scope) ns.Node {
 				copyInfoButton(cx, st.source),
 			}}
 		}
-		groups = append(groups, panelHeading(locales.FilmSource(cx)), panelGroup(ns.View{Style: ns.Style{Padding: ns.Symmetric(10, 12), Gap: 6}, Children: []ns.Node{
+		groups = append(groups, panelHeading(func() string { return locales.FilmSource(cx) }), panelGroup(ns.View{Style: ns.Style{Padding: ns.Symmetric(10, 12), Gap: 6}, Children: []ns.Node{
 			source,
 			ns.Text{Content: locales.FilmJobRecord(cx), Style: ns.Style{FontSize: 11, LineHeight: 14, Color: onGlass, Opacity: ns.Alpha(0.55)}},
 			ns.View{Style: ns.Style{Direction: ns.Row, Gap: 6, AlignItems: ns.AlignStart}, Children: []ns.Node{
@@ -1407,9 +1405,9 @@ func fileSize(cx *ns.Scope, n int64) string {
 	return locales.FilmBytes(cx, int(n))
 }
 
-// panelHeading is a heading over a card of the panel.
-func panelHeading(text string) ns.Node {
-	return ns.Text{Content: text, Style: ns.Style{FontSize: 11, LineHeight: 14, FontWeight: ns.FontWeightBold, Color: onGlass, Opacity: ns.Alpha(0.6), Padding: ns.Symmetric(0, 4)}}
+// panelHeading is a heading over a card of the panel, its words bound so they follow the interface's language.
+func panelHeading(text func() string) ns.Node {
+	return ns.Text{ContentFunc: text, Style: ns.Style{FontSize: 11, LineHeight: 14, FontWeight: ns.FontWeightBold, Color: onGlass, Opacity: ns.Alpha(0.6), Padding: ns.Symmetric(0, 4)}}
 }
 
 // panelGroup is a card of the panel, a lighter glass holding rows.

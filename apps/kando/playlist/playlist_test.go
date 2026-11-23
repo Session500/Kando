@@ -99,3 +99,72 @@ func TestConfirmShowsWhatWasRead(t *testing.T) {
 		t.Fatalf("answers %q", answers)
 	}
 }
+
+// What the dialog says follows the interface's language as it changes while the dialog is open, and the dialog is not built again for it; Add's words follow the number it adds without building it again.
+func TestConfirmFollowsTheLanguage(t *testing.T) {
+	env := core.Environment{OS: core.OSMacOS, Idiom: core.IdiomDesktop}
+	var adding *core.Signal[int]
+	app := nsgotest.Start(t, func(cx *core.Scope) core.Node {
+		adding = core.NewSignal(cx, 3)
+		return Confirm{
+			Open:     func() bool { return true },
+			Look:     func() Look { return Look{Lists: 1, Channels: 1, Title: "Veritasium", Videos: 50, Have: 2} },
+			Adding:   adding.Get,
+			OnAdd:    func() {},
+			OnCancel: func() {},
+		}
+	}, nsgotest.Size(800, 600), nsgotest.Environment(testlocale.Environment(env)))
+	dialog, add := app.Find("id:playlist-confirm").ID, app.Find("id:playlist-add").ID
+	adding.Set(10)
+	app.Settle()
+	if !app.Exists(`text:"`+testlocale.Messages().PlaylistAdd(10)+`"`) || app.Find("id:playlist-add").ID != add {
+		t.Fatalf("Add does not say the number it adds in place: %q", app.Texts())
+	}
+	testlocale.Use(t, "en")
+	app.SetEnvironment(testlocale.Environment(env))
+	en := testlocale.Messages()
+	for _, want := range []string{"Veritasium", en.PlaylistVideos(50), en.PlaylistHave(2), en.PlaylistCancel(), en.PlaylistAdd(10)} {
+		if !app.Exists(`text:"` + want + `"`) {
+			t.Errorf("no %q in English: %q", want, app.Texts())
+		}
+	}
+	if app.Find("id:playlist-confirm").ID != dialog || app.Find("id:playlist-add").ID != add {
+		t.Fatal("the dialog or its Add was built again for the language")
+	}
+}
+
+// The rows keep their views, and with them the focus, while the videos are counted and the language changes: only a change of which rows there are builds them again.
+func TestConfirmRowsStayWhileTheCountAndLanguageChange(t *testing.T) {
+	env := core.Environment{OS: core.OSMacOS, Idiom: core.IdiomDesktop}
+	var look *core.Signal[Look]
+	app := nsgotest.Start(t, func(cx *core.Scope) core.Node {
+		look = core.NewSignal(cx, Look{Lists: 1, Channels: 1, Title: "Veritasium", Videos: 40, Have: 1})
+		subscribe, recent := core.NewSignal(cx, false), core.NewSignal(cx, 3)
+		return Confirm{
+			Open: func() bool { return true }, Look: look.Get, OnAdd: func() {}, OnCancel: func() {},
+			Subscribe: subscribe.Get, OnSubscribe: subscribe.Set,
+			Recent: recent.Get, OnRecent: recent.Set,
+		}
+	}, nsgotest.Size(800, 600), nsgotest.Environment(testlocale.Environment(env)))
+	sw, sel := app.Find("id:playlist-subscribe").ID, app.Find("id:playlist-recent").ID
+	look.Set(Look{Lists: 1, Channels: 1, Title: "Veritasium", Videos: 50, Have: 2})
+	app.Settle()
+	msgs := testlocale.Messages()
+	if !app.Exists(`text:"`+msgs.PlaylistVideos(50)+`"`) || !app.Exists(`text:"`+msgs.PlaylistHave(2)+`"`) {
+		t.Fatalf("the count does not follow: %q", app.Texts())
+	}
+	if app.Find("id:playlist-subscribe").ID != sw || app.Find("id:playlist-recent").ID != sel {
+		t.Fatal("the rows were built again for a new count")
+	}
+	testlocale.Use(t, "en")
+	app.SetEnvironment(testlocale.Environment(env))
+	en := testlocale.Messages()
+	for _, want := range []string{en.PlaylistVideos(50), en.PlaylistRecent(), en.PlaylistRecentHint(), en.PlaylistSubscribeHint()} {
+		if !app.Exists(`text:"` + want + `"`) {
+			t.Errorf("no %q in English: %q", want, app.Texts())
+		}
+	}
+	if app.Find("id:playlist-subscribe").ID != sw || app.Find("id:playlist-recent").ID != sel {
+		t.Fatal("the rows were built again for the language")
+	}
+}
