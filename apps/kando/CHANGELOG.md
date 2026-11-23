@@ -2,6 +2,13 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.50.0 - 2026-11-23
+
+### Features
+
+- Add whole folders, asking first when they hold many new videos (#444)
+- List films being made to phones and make first the one a phone watches (#436)
+
 ## 0.49.0 - 2026-11-23
 
 ### Features
