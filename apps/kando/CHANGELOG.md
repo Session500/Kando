@@ -2,6 +2,12 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.51.0 - 2026-11-23
+
+### Features
+
+- Play a film the computer is still making, its lines made from where it is watched (#437)
+
 ## 0.50.0 - 2026-11-23
 
 ### Features
