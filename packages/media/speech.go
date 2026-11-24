@@ -1,6 +1,7 @@
 package media
 
 import (
+	"cmp"
 	"context"
 	_ "embed"
 	"encoding/binary"
@@ -10,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -27,9 +29,13 @@ var sileroModel []byte
 const sileroFile = "ggml-silero-v5.1.2.bin"
 
 const (
-	// speechThreshold is how sure the VAD must be that a moment is speech, and speechPadMs how far it widens each stretch of speech on either side: below its default of 0.5 and 30 ms, as the faint start of a line is easily left out.
-	speechThreshold = "0.35"
-	speechPadMs     = "200"
+	// sureThreshold is how sure the VAD must be that a moment is speech for whisper's lines over it to be kept as they are, and for the language to be told from it; and speechPadMs how far it widens each stretch of speech on either side: below its default of 0.5 and 30 ms, as the faint start of a line is easily left out.
+	sureThreshold = "0.35"
+	speechPadMs   = "200"
+	// quietThreshold is how sure the VAD must be for a moment to be heard at all: a voice under a film's music or noise, as a woman speaking softly in a loud scene, is often told as speech below sureThreshold, and whisper hears it. The speech only quietThreshold finds is heard apart from the rest (withQuiet), and what whisper hears there is kept where a voice could say it (madeUp). It is not where the rest is cut into chunks and lines: below 0.16 the VAD ends a stretch only where it is nearly sure there is none, as whisper.cpp ends one 0.15 below the threshold, so the stretches it finds run together over pauses.
+	quietThreshold = "0.05"
+	// quietShortest is the least of the speech quietThreshold finds beyond sureThreshold's that is heard as a stretch of its own, as the VAD keeps no shorter stretch of speech.
+	quietShortest = 250 * time.Millisecond
 	// speechMaxSeconds splits a stretch of speech longer than a chunk may be.
 	speechMaxSeconds = "25"
 	// chunkGap is the longest pause within a chunk: stretches of speech closer than it are heard together, as a line heard alone, without the words around it, is more often misheard. chunkMax bounds a chunk below whisper's 30-second window, and chunkPad is the sound kept on either side of its speech.
@@ -52,10 +58,11 @@ var errNoSpeechSearch = errors.New("whisper-cli did not say where the speech is"
 // span is a stretch of a sound, from its start.
 type span struct{ from, to time.Duration }
 
-// chunk is a stretch of a sound heard as one file, and the stretches of speech in it.
+// chunk is a stretch of a sound heard as one file, and the stretches of speech in it; quiet when only quietThreshold finds the speech in it (withQuiet).
 type chunk struct {
 	span
 	speech []span
+	quiet  bool
 }
 
 // whisperHelps is, by whisper-cli path, what that program answers -h with (whisperHelp).
@@ -144,7 +151,7 @@ func (t Tools) hearSpeech(ctx context.Context, dir, audio, videoPath string, fro
 	var done time.Duration
 	for i, stretch := range stretches {
 		stretch.from = done
-		spans, err := t.findSpeech(ctx, dir, silero, pcm, stretch)
+		sure, loose, err := t.findVoices(ctx, dir, silero, pcm, stretch)
 		if err != nil {
 			if i == 0 {
 				return "", err
@@ -157,27 +164,103 @@ func (t Tools) hearSpeech(ctx context.Context, dir, audio, videoPath string, fro
 		}
 		if i == 0 && len(stretches) > 1 {
 			// The first stretch ends in the pause nearest its end, so a line is not cut in two between it and the rest.
-			done = pauseNear(spans, firstStretch, stretch.to)
-			spans = before(spans, done)
+			done = pauseNear(sure, firstStretch, stretch.to)
+			sure, loose = before(sure, done), before(loose, done)
 		} else {
 			done = stretch.to
 		}
 		if language == "" {
-			if language, err = t.tellLanguage(ctx, dir, silero, videoPath, pcm, spans, to); err != nil {
+			if language, err = t.tellLanguage(ctx, dir, silero, videoPath, pcm, sure, to); err != nil {
 				return "", err
 			}
 		}
 		// Each stretch's chunks stay within it, so speech either side of the cut is not heard twice.
-		if err := t.hearChunks(ctx, dir, i, pcm, packChunks(spans, span{stretch.from, done}), from, language, heard); err != nil {
+		bounds := span{stretch.from, done}
+		chunks := packChunks(sure, bounds)
+		if language != "" {
+			// What whisper hears over the quieter speech is told from what it says where no one speaks in the language, so it is heard only in one (Tools.noVoice).
+			chunks = withQuiet(chunks, loose, bounds)
+		}
+		if err := t.hearChunks(ctx, dir, i, pcm, chunks, from, language, heard); err != nil {
 			return language, err
 		}
 	}
 	return language, nil
 }
 
-// findSpeech has whisper-cli find the speech of stretch of the sound pcm, and returns where it is in the sound. -dl ends the run once the speech is found, with the language whisper tells from it, which hearSpeech does not use, as whisper pads less than 30 seconds of speech with silence to tell it.
-func (t Tools) findSpeech(ctx context.Context, dir, silero string, pcm []byte, stretch span) ([]span, error) {
-	path := filepath.Join(dir, "speech.wav")
+// findVoices finds the speech of stretch of the sound pcm as findSpeech does, sure of it (sureThreshold), and less sure of it (quietThreshold), the two at once. The speech it is less sure of is nil when it cannot be found, and the speech it is sure of is heard as before.
+func (t Tools) findVoices(ctx context.Context, dir, silero string, pcm []byte, stretch span) (sure, loose []span, err error) {
+	var looseErr error
+	var wg sync.WaitGroup
+	wg.Go(func() { loose, looseErr = t.findSpeech(ctx, dir, silero, quietThreshold, pcm, stretch) })
+	sure, err = t.findSpeech(ctx, dir, silero, sureThreshold, pcm, stretch)
+	wg.Wait()
+	if err != nil {
+		return nil, nil, err
+	}
+	if looseErr != nil {
+		if ctx.Err() != nil {
+			return nil, nil, looseErr
+		}
+		logf(ctx, "hear: finding the quieter speech failed: %v", looseErr)
+	}
+	return sure, loose, nil
+}
+
+// withQuiet is chunks, packed from the speech the VAD is sure of, with chunks of the speech of loose beyond them, quietShortest long at least, each packed within the sound between two of chunks, in order. The chunks of the speech it is sure of are heard as they would be without it; the others are quiet (chunk.quiet).
+func withQuiet(chunks []chunk, loose []span, bounds span) []chunk {
+	var heard []span
+	for _, c := range chunks {
+		heard = append(heard, c.span)
+	}
+	pieces := beyond(loose, heard, quietShortest)
+	out := slices.Clone(chunks)
+	from := bounds.from
+	for i := 0; i <= len(chunks); i++ {
+		gap := span{from, bounds.to}
+		if i < len(chunks) {
+			gap.to = chunks[i].from
+			from = chunks[i].to
+		}
+		var in []span
+		for _, p := range pieces {
+			if p.from >= gap.from && p.to <= gap.to {
+				in = append(in, p)
+			}
+		}
+		for _, q := range packChunks(in, gap) {
+			q.quiet = true
+			out = append(out, q)
+		}
+	}
+	slices.SortStableFunc(out, func(a, b chunk) int { return cmp.Compare(a.from, b.from) })
+	return out
+}
+
+// beyond is the parts of spans outside every one of others, which are in order, those shorter than shortest left out.
+func beyond(spans, others []span, shortest time.Duration) []span {
+	var out []span
+	for _, s := range spans {
+		from := s.from
+		for _, o := range others {
+			if o.to <= from || o.from >= s.to {
+				continue
+			}
+			if o.from-from >= shortest {
+				out = append(out, span{from, o.from})
+			}
+			from = max(from, o.to)
+		}
+		if s.to-from >= shortest {
+			out = append(out, span{from, s.to})
+		}
+	}
+	return out
+}
+
+// findSpeech has whisper-cli find the speech of stretch of the sound pcm, where the VAD is at least threshold sure of it, and returns where it is in the sound. -dl ends the run once the speech is found, with the language whisper tells from it, which hearSpeech does not use, as whisper pads less than 30 seconds of speech with silence to tell it.
+func (t Tools) findSpeech(ctx context.Context, dir, silero, threshold string, pcm []byte, stretch span) ([]span, error) {
+	path := filepath.Join(dir, "speech-"+threshold+".wav")
 	if err := writePCM(path, pcmSlice(pcm, stretch)); err != nil {
 		return nil, err
 	}
@@ -190,7 +273,7 @@ func (t Tools) findSpeech(ctx context.Context, dir, silero string, pcm []byte, s
 			searched = true
 		}
 	}
-	args := append(t.whisperBase("auto"), "--vad", "-vm", silero, "-vt", speechThreshold, "-vp", speechPadMs, "-vmsd", speechMaxSeconds, "-dl", "-f", path)
+	args := append(t.whisperBase("auto"), "--vad", "-vm", silero, "-vt", threshold, "-vp", speechPadMs, "-vmsd", speechMaxSeconds, "-dl", "-f", path)
 	if _, _, err := runFollowing(ctx, true, follow, t.Whisper, args...); err != nil {
 		if ctx.Err() != nil {
 			return nil, err
@@ -316,7 +399,7 @@ func (t Tools) speechAhead(ctx context.Context, dir, silero, videoPath string, t
 	if err != nil {
 		return nil, err
 	}
-	spans, err := t.findSpeech(ctx, dir, silero, pcm, span{0, pcmLength(pcm)})
+	spans, err := t.findSpeech(ctx, dir, silero, sureThreshold, pcm, span{0, pcmLength(pcm)})
 	if err != nil {
 		return nil, err
 	}
@@ -349,8 +432,13 @@ func (t Tools) hearChunks(ctx context.Context, dir string, stage int, pcm []byte
 		return nil
 	}
 	preset := t.timesWords(ctx)
+	// What whisper says where no one speaks is found beside the chunks heard before the first quiet one, so their lines do not wait for it.
+	noVoice := sync.OnceValue(func() map[string]bool { return t.noVoice(ctx, dir, language) })
+	if slices.ContainsFunc(chunks, func(c chunk) bool { return c.quiet }) {
+		go noVoice()
+	}
 	began := time.Now()
-	done, err := t.decodeChunks(ctx, dir, stage, pcm, chunks, from, language, preset, heard)
+	done, err := t.decodeChunks(ctx, dir, stage, pcm, chunks, from, language, preset, noVoice, heard)
 	if preset == "" || ctx.Err() != nil {
 		return err
 	}
@@ -358,7 +446,7 @@ func (t Tools) hearChunks(ctx context.Context, dir string, stage int, pcm []byte
 	if err != nil {
 		// A whisper-cli that cannot time the words of this model, as when its sizes name the wrong preset, does not start: the chunks it did not hear are heard again without.
 		wordTiming.Store(key, false)
-		_, err = t.decodeChunks(ctx, dir, stage, pcm, chunks[done:], from, language, "", heard)
+		_, err = t.decodeChunks(ctx, dir, stage, pcm, chunks[done:], from, language, "", noVoice, heard)
 		return err
 	}
 	if heardOf := chunks[len(chunks)-1].to - chunks[0].from; heardOf >= wordTimingMeasured && time.Since(began)*wordTimingSpeed > heardOf {
@@ -367,10 +455,10 @@ func (t Tools) hearChunks(ctx context.Context, dir string, stage int, pcm []byte
 	return nil
 }
 
-// decodeChunks has one whisper-cli run hear chunks, each as a file of its own: whisper reads each file with no text before it, so a line made up in one is not carried into the next. preset, when not "", has it time each word with DTW. It returns how many of the chunks were heard and handed on, in order.
+// decodeChunks has one whisper-cli run hear chunks, each as a file of its own: whisper reads each file with no text before it, so a line made up in one is not carried into the next. preset, when not "", has it time each word with DTW; noVoice is what whisper says where no one speaks, which the lines of a quiet chunk are told by. It returns how many of the chunks were heard and handed on, in order.
 //
 // The lines are read from the JSON whisper-cli writes for each file, not from its stdout: with DTW, whisper-cli 1.9.5 prints some lines on stdout twice and leaves others out. whisper-cli says it saves a file's lines on stderr as it opens the file, before it writes them; the file is whole once whisper-cli says anything more on stderr, as it starts on the next file, or exits. stdout is not followed, as a program buffers what it writes there and it may come at any time.
-func (t Tools) decodeChunks(ctx context.Context, dir string, stage int, pcm []byte, chunks []chunk, from time.Duration, language, preset string, heard func(core.Segment)) (int, error) {
+func (t Tools) decodeChunks(ctx context.Context, dir string, stage int, pcm []byte, chunks []chunk, from time.Duration, language, preset string, noVoice func() map[string]bool, heard func(core.Segment)) (int, error) {
 	if len(chunks) == 0 {
 		return 0, nil
 	}
@@ -409,7 +497,11 @@ func (t Tools) decodeChunks(ctx context.Context, dir string, stage int, pcm []by
 		if err != nil {
 			return
 		}
-		for _, s := range timeLines(lines, chunks[i], preset != "") {
+		var unsaid map[string]bool
+		if chunks[i].quiet {
+			unsaid = noVoice()
+		}
+		for _, s := range timeLines(lines, chunks[i], preset != "", unsaid) {
 			s.Start += from
 			s.End += from
 			heard(s)
