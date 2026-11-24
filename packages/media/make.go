@@ -388,6 +388,14 @@ type making struct {
 	videoErr error
 	// writeErr is why the film's log could not be written, which fails the job at once: what is not written is not made, and would be made again and again.
 	writeErr error
+	// waiting are the lines a run heard beside its cells whose cell no run had heard yet, kept until one does (commitHeard).
+	waiting []waitingLine
+}
+
+// waitingLine is a line a run heard beside its cells, in a cell not heard yet, of generation gen heard as hearing.
+type waitingLine struct {
+	gen, hearing string
+	line         core.Segment
 }
 
 // heardCell is a cell a run of the speech recognition heard, with its lines, and edges, the lines the run heard outside its cells, which it hands on with its first and last cell for the making to keep where no run has them (commitHeard).
@@ -1452,7 +1460,7 @@ func (m *making) hear(ctx context.Context, cells []int, heardCh chan<- heardCell
 	doneCh <- hearDone{language: language, err: err, heard: heard}
 }
 
-// commitHeard writes a cell's lines, then that it is heard, at once, so a run stopped never leaves part of a cell. With them go the lines the run heard beside its cells (heardCell.edges) that no run has: a line said across two cells can be placed in one by one run and in the other by the next, as each hears it cut differently, and kept by neither. One whose cell is heard and that shows over no line heard there for at least half its time is kept; one whose cell is not heard yet is left to the run that hears it.
+// commitHeard writes a cell's lines, then that it is heard, at once, so a run stopped never leaves part of a cell. With them go the lines the run heard beside its cells (heardCell.edges) that no run has: a line said across two cells can be placed in one by one run and in the other by the next, as each hears it cut differently, and kept by neither. One whose cell is heard and that shows over no line heard there for at least half its time is kept; one whose cell is not heard yet waits for the run that hears it (making.waiting), and is kept with that cell's lines the same way, as that run may hear it as part of the line before, placed in the cell before.
 func (m *making) commitHeard(gen, hearing string, c heardCell) {
 	var events []track.Event
 	// A cell heard again another way, as in another language, holds the lines it is heard as now in place of those it was heard as before.
@@ -1462,11 +1470,37 @@ func (m *making) commitHeard(gen, hearing string, c heardCell) {
 		}
 	}
 	lines := c.lines
-	if len(c.edges) > 0 {
-		have := m.doc.Lines(gen)
-		for _, s := range c.edges {
-			if m.heard(gen, hearing, int((s.Start+s.End)/2/track.Cell)) && !overlapsAny(s, have) {
+	edges := c.edges
+	waiting := m.waiting[:0]
+	for _, w := range m.waiting {
+		switch {
+		case w.gen != gen || w.hearing != hearing:
+		case int((w.line.Start+w.line.End)/2/track.Cell) == c.cell:
+			edges = append(edges, w.line)
+		default:
+			waiting = append(waiting, w)
+		}
+	}
+	m.waiting = waiting
+	if len(edges) > 0 {
+		// The lines kept: those of the other cells, and those this cell is heard as now.
+		var have []track.Line
+		for _, l := range m.doc.Lines(gen) {
+			if int((l.Start+l.End)/2/track.Cell) != c.cell {
+				have = append(have, l)
+			}
+		}
+		for _, s := range c.lines {
+			have = append(have, track.Line{Start: s.Start, End: s.End})
+		}
+		for _, s := range edges {
+			cell := int((s.Start + s.End) / 2 / track.Cell)
+			switch {
+			case cell != c.cell && !m.heard(gen, hearing, cell):
+				m.waiting = append(m.waiting, waitingLine{gen: gen, hearing: hearing, line: s})
+			case !overlapsAny(s, have):
 				lines = append(lines, s)
+				have = append(have, track.Line{Start: s.Start, End: s.End})
 			}
 		}
 	}

@@ -1451,3 +1451,38 @@ func TestMakeWaitsForTheServiceToComeBack(t *testing.T) {
 		t.Fatalf("job = %s %q untranslated %d after %d failures", done.Stage, done.TranslationErr, done.Untranslated, gone)
 	}
 }
+
+// splitFilm is makeFilm whose speech recognition hears the lines said at 50 s and 60 s, either side of the second cell's end, apart in a run that ends there, and as one line in the run after it, as the two may hear a line said across the end of a cell cut differently.
+type splitFilm struct{ *makeFilm }
+
+func (f splitFilm) Hear(ctx context.Context, video string, from, to time.Duration, heard func(core.Segment)) (string, error) {
+	return f.makeFilm.Hear(ctx, video, from, to, func(s core.Segment) {
+		if from > 0 && s.Start == 50*time.Second {
+			return
+		}
+		if from > 0 && s.Start == 60*time.Second {
+			s = core.Segment{Start: 50 * time.Second, End: 62 * time.Second, Text: "line 50s line 1m0s"}
+		}
+		heard(s)
+	})
+}
+
+// A line said across the end of a run, which the run hands on as heard after its cells and the next run hears as part of the line before it, is kept once the next run hears its cell.
+func TestMakeKeepsALineHeardAcrossTheEndOfARun(t *testing.T) {
+	prev := runCellsMax
+	runCellsMax = 2
+	t.Cleanup(func() { runCellsMax = prev })
+	job, video := makeJob(t)
+	job.SpeechLanguage = "ja"
+	if done, _ := makeFilmOf(t, splitFilm{&makeFilm{length: 120 * time.Second, language: "ja"}}, job, 0); done.Stage != core.StageComplete {
+		t.Fatalf("done %+v", done)
+	}
+	doc, _ := track.Read(video)
+	var texts []string
+	for _, l := range doc.View() {
+		texts = append(texts, l.Original.Text)
+	}
+	if !slices.Contains(texts, "line 50s") || !slices.Contains(texts, "line 1m0s") || slices.Contains(texts, "line 50s line 1m0s") {
+		t.Fatalf("lines %q", texts)
+	}
+}
