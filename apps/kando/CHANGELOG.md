@@ -2,6 +2,12 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.51.3 - 2026-11-24
+
+### Fixes
+
+- Build the phone app for Google Play's required target API again (#463)
+
 ## 0.51.2 - 2026-11-24
 
 ### Fixes
