@@ -360,7 +360,7 @@ func TestPluginScriptHungIsTurnedOff(t *testing.T) {
 // TestPluginScriptBackgroundHogIsTurnedOff checks that a plugin whose timers keep the window busy outside its calls, which no call's watchdog watches, is turned off by the runner's background watchdog as slow: it no longer runs, health.json records why, which keeps it from loading again, and the audit log has a line for it. The test's clock stands still but for what the test lets go by, which runs the plugin's interval once a millisecond, each run a loop well under tsx's budget, so the window is busy with it nearly all the time the test runs.
 func TestPluginScriptBackgroundHogIsTurnedOff(t *testing.T) {
 	key := newPluginsKey(t)
-	a, tt, updates, root := scriptsApp(t, key, pluginScriptFolder(t, key, "acme.anki", "1.0.0", pluginAnkiFields, pluginAnkiCode+"\nsetInterval(() => { let x = 0; for (let i = 0; i < 200000; i++) x += i }, 1)\n"))
+	a, tt, updates, root := scriptsApp(t, key, pluginScriptFolder(t, key, "acme.anki", "1.0.0", pluginAnkiFields, pluginAnkiCode+"\nsetInterval(() => { let x = 0; for (let i = 0; i < 50000; i++) x += i }, 1)\n"))
 	w := script.DefaultWatch
 	w.Stall = time.Minute
 	w.BgBeat, w.Burst, w.TotalBurst = 50*time.Millisecond, time.Second, 0
