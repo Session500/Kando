@@ -39,7 +39,7 @@ type fakeTool struct {
 	// Act is what the fake does as the tool: "" nothing more; "download" downloads a split-format video as yt-dlp does (fakeDownload); "update" answers --version and -U as the standalone yt-dlp does (fakeUpdate); "extract-audio" writes an empty file where its last argument says, as ffmpeg writes the audio track; "subtitles" writes Files in the folder -P names; "transcribe" writes Transcript where -of says, with .json added, as whisper-cli -oj does; "extract-wav" writes a silent 16 kHz WAV as long as -t says where its last argument says, as ffmpeg writes the audio of part of a film; "speech" is a whisper-cli that finds speech (fakeSpeech).
 	Act        string
 	Transcript string
-	// Speech is where the "speech" fake says the speech is, in seconds into each sound it is given, and Told the languages it tells its sounds as, in turn; with NoVAD it prints nothing of the speech it finds, as a whisper-cli whose VAD failed, and with NoVADAgain only the first time it is asked in a folder. With Timing it has -dtw and times each word; with FailTiming it fails to start when asked to time words, as a whisper-cli given a preset that does not fit its model.
+	// Speech is where the "speech" fake says the speech is, in seconds into each sound it is given, and Told the languages it tells its sounds as, in turn; with NoVAD it prints nothing of the speech it finds, as a whisper-cli whose VAD failed, and with NoVADAgain only the first time it is asked in a folder at a threshold. With Timing it has -dtw and times each word; with FailTiming it fails to start when asked to time words, as a whisper-cli given a preset that does not fit its model.
 	Speech [][2]float64 `json:",omitempty"`
 	// Quiet, when set, is where it says the speech is when asked at quietThreshold, as a VAD less sure finds more; Says, when set, is what it hears in each file in place of the file's name, and NoVoice what it hears in a file of noVoiceSounds.
 	Quiet      [][2]float64 `json:",omitempty"`
@@ -308,7 +308,9 @@ func (f fakeTool) fakeSpeech(args []string) error {
 			return nil
 		}
 		if f.NoVADAgain && len(files) > 0 {
-			marker := filepath.Join(filepath.Dir(files[0]), "vad-asked")
+			// Asked at each threshold once, as the speech is found at two at once (findVoices).
+			vt, _ := argAfterIn(args, "-vt")
+			marker := filepath.Join(filepath.Dir(files[0]), "vad-asked-"+vt)
 			if _, err := os.Stat(marker); err == nil {
 				return nil
 			}
