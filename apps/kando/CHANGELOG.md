@@ -2,6 +2,12 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.51.1 - 2026-11-24
+
+### Fixes
+
+- Keep a line said across the end of a run that the next run hears as part of the line before (#450)
+
 ## 0.51.0 - 2026-11-23
 
 ### Features
