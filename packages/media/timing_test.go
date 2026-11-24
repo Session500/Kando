@@ -30,7 +30,7 @@ func TestTimeLinesStartsALineAtItsFirstWord(t *testing.T) {
 		// whisper starts the next line where the last ended, but its words come after the pause.
 		words(1.8, 5.8, "How are you?", "How", 3.4, " are", 3.8, " you", 4.4, "?", 5.0),
 	}
-	got := timeLines(heard, c, true)
+	got := timeLines(heard, c, true, nil)
 	want := []core.Segment{
 		// 0.3 s before its first word, but not before the speech it is in starts; 0.6 s after its last word, but not past the speech it is in.
 		{Start: sec(10.3), End: sec(11.8), Text: "Good morning."},
@@ -46,7 +46,7 @@ func TestTimeLinesCutsALineWhereASentenceEndsAndTheSpeechPauses(t *testing.T) {
 	c := chunk{span: span{0, sec(20)}, speech: []span{{sec(1), sec(3)}, {sec(3), sec(6)}}}
 	// Two speakers whisper heard as one line: the first sentence ends, and the speech, though without a pause the VAD could hear, starts again.
 	heard := []decodedLine{words(1, 6, "Are you there? I am.", "Are", 1.2, " you", 1.6, " there", 2.2, "?", 2.6, " I", 3.4, " am", 4.0, ".", 4.2)}
-	got := timeLines(heard, c, true)
+	got := timeLines(heard, c, true, nil)
 	want := []core.Segment{
 		{Start: sec(1), End: sec(2.8), Text: "Are you there?"},
 		{Start: sec(3.1), End: sec(4.6), Text: "I am."},
@@ -56,7 +56,7 @@ func TestTimeLinesCutsALineWhereASentenceEndsAndTheSpeechPauses(t *testing.T) {
 	}
 	// Where the speech goes on through the sentence's end, the line stays one: one speaker says both.
 	c.speech = []span{{sec(1), sec(6)}}
-	if got := timeLines(heard, c, true); len(got) != 1 || got[0].Text != "Are you there? I am." {
+	if got := timeLines(heard, c, true, nil); len(got) != 1 || got[0].Text != "Are you there? I am." {
 		t.Fatalf("lines %+v", got)
 	}
 }
@@ -64,7 +64,7 @@ func TestTimeLinesCutsALineWhereASentenceEndsAndTheSpeechPauses(t *testing.T) {
 func TestTimeLinesCutsALongLineInItsLongestPause(t *testing.T) {
 	c := chunk{span: span{0, sec(25)}, speech: []span{{sec(1), sec(4)}, {sec(4.6), sec(7)}, {sec(8.5), sec(12)}}}
 	heard := []decodedLine{words(1, 12, "one two three four", "one", 1.5, " two", 5.0, " three", 9.0, " four", 11.5)}
-	got := timeLines(heard, c, true)
+	got := timeLines(heard, c, true, nil)
 	// 10 s of words is too long for a line; the longest pause, 1.5 s, cuts it, and each piece is short enough.
 	want := []core.Segment{
 		{Start: sec(1.2), End: sec(5.6), Text: "one two"},
@@ -79,7 +79,7 @@ func TestTimeLinesDoesNotCutALineItsTokensDoNotSpell(t *testing.T) {
 	c := chunk{span: span{0, sec(20)}, speech: []span{{sec(1), sec(3)}, {sec(4), sec(6)}}}
 	// An older whisper-cli may write half a character in a token, which reads as U+FFFD.
 	heard := []decodedLine{words(1, 6, "Yes. 犬", "Yes", 1.5, ".", 1.8, " �", 4.5, "�", 4.6)}
-	got := timeLines(heard, c, true)
+	got := timeLines(heard, c, true, nil)
 	if len(got) != 1 || got[0].Text != "Yes. 犬" || got[0].Start != sec(1.2) {
 		t.Fatalf("lines %+v", got)
 	}
@@ -89,7 +89,7 @@ func TestTimeLinesUsesWhispersTimesWithoutWordTimes(t *testing.T) {
 	c := chunk{span: span{sec(10), sec(20)}, speech: []span{{sec(10.3), sec(12)}, {sec(15), sec(19.7)}}}
 	heard := []decodedLine{words(2.5, 8, "Later.", "Later", 6.0, ".", 6.5)}
 	// Without DTW the tokens are not timed: whisper's own times are placed (placeLine).
-	got := timeLines(heard, c, false)
+	got := timeLines(heard, c, false, nil)
 	if want := (core.Segment{Start: sec(15), End: sec(18), Text: "Later."}); len(got) != 1 || got[0] != want {
 		t.Fatalf("lines %+v, want %v", got, want)
 	}
@@ -102,7 +102,7 @@ func TestTimeLinesKeepsALineUpLongEnoughToRead(t *testing.T) {
 		words(1.5, 3, "Well.", "Well", 1.9, ".", 2.0),
 		words(3, 6, "So.", "So", 5.0, ".", 5.1),
 	}
-	got := timeLines(heard, c, true)
+	got := timeLines(heard, c, true, nil)
 	// "Oh." stays up until the next line starts, "Well." a second though the next starts later.
 	want := []core.Segment{
 		{Start: sec(1.1), End: sec(1.6), Text: "Oh."},
@@ -128,7 +128,7 @@ func TestCollapseRepeatsMakesALineSaidOverAndOverOne(t *testing.T) {
 	}
 	// The line said over and over ends after the last time it was said.
 	c := chunk{span: span{0, sec(10)}, speech: []span{{0, sec(10)}}}
-	if lines := timeLines(heard, c, true); len(lines) != 3 || lines[1].End != sec(4.1) {
+	if lines := timeLines(heard, c, true, nil); len(lines) != 3 || lines[1].End != sec(4.1) {
 		t.Fatalf("lines %+v", lines)
 	}
 }

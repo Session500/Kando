@@ -1,6 +1,7 @@
 package media
 
 import (
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -38,8 +39,12 @@ type fakeTool struct {
 	// Act is what the fake does as the tool: "" nothing more; "download" downloads a split-format video as yt-dlp does (fakeDownload); "update" answers --version and -U as the standalone yt-dlp does (fakeUpdate); "extract-audio" writes an empty file where its last argument says, as ffmpeg writes the audio track; "subtitles" writes Files in the folder -P names; "transcribe" writes Transcript where -of says, with .json added, as whisper-cli -oj does; "extract-wav" writes a silent 16 kHz WAV as long as -t says where its last argument says, as ffmpeg writes the audio of part of a film; "speech" is a whisper-cli that finds speech (fakeSpeech).
 	Act        string
 	Transcript string
-	// Speech is where the "speech" fake says the speech is, in seconds into each sound it is given, and Told the languages it tells its sounds as, in turn; with NoVAD it prints nothing of the speech it finds, as a whisper-cli whose VAD failed, and with NoVADAgain only the first time it is asked in a folder. With Timing it has -dtw and times each word; with FailTiming it fails to start when asked to time words, as a whisper-cli given a preset that does not fit its model.
-	Speech     [][2]float64 `json:",omitempty"`
+	// Speech is where the "speech" fake says the speech is, in seconds into each sound it is given, and Told the languages it tells its sounds as, in turn; with NoVAD it prints nothing of the speech it finds, as a whisper-cli whose VAD failed, and with NoVADAgain only the first time it is asked in a folder at a threshold. With Timing it has -dtw and times each word; with FailTiming it fails to start when asked to time words, as a whisper-cli given a preset that does not fit its model.
+	Speech [][2]float64 `json:",omitempty"`
+	// Quiet, when set, is where it says the speech is when asked at quietThreshold, as a VAD less sure finds more; Says, when set, is what it hears in each file in place of the file's name, and NoVoice what it hears in a file of noVoiceSounds.
+	Quiet      [][2]float64 `json:",omitempty"`
+	Says       string       `json:",omitempty"`
+	NoVoice    string       `json:",omitempty"`
 	Told       []string     `json:",omitempty"`
 	NoVAD      bool         `json:",omitempty"`
 	NoVADAgain bool         `json:",omitempty"`
@@ -303,7 +308,9 @@ func (f fakeTool) fakeSpeech(args []string) error {
 			return nil
 		}
 		if f.NoVADAgain && len(files) > 0 {
-			marker := filepath.Join(filepath.Dir(files[0]), "vad-asked")
+			// Asked at each threshold once, as the speech is found at two at once (findVoices).
+			vt, _ := argAfterIn(args, "-vt")
+			marker := filepath.Join(filepath.Dir(files[0]), "vad-asked-"+vt)
 			if _, err := os.Stat(marker); err == nil {
 				return nil
 			}
@@ -311,10 +318,14 @@ func (f fakeTool) fakeSpeech(args []string) error {
 				return err
 			}
 		}
-		for i, s := range f.Speech {
+		speech := f.Speech
+		if vt, _ := argAfterIn(args, "-vt"); vt == quietThreshold && f.Quiet != nil {
+			speech = f.Quiet
+		}
+		for i, s := range speech {
 			fmt.Fprintf(os.Stderr, "whisper_vad_segments_from_probs: VAD segment %d: start = %.2f, end = %.2f (duration: %.2f)\n", i, s[0], s[1], s[1]-s[0])
 		}
-		fmt.Fprintf(os.Stderr, "whisper_vad_segments_from_probs: Final speech segments after filtering: %d\n", len(f.Speech))
+		fmt.Fprintf(os.Stderr, "whisper_vad_segments_from_probs: Final speech segments after filtering: %d\n", len(speech))
 	case slices.Contains(args, "-dl"):
 		for i, file := range files {
 			fmt.Fprintf(os.Stderr, "main: processing '%s'\n", file)
@@ -331,7 +342,11 @@ func (f fakeTool) fakeSpeech(args []string) error {
 			fmt.Fprintf(os.Stderr, "read_audio_data: reading audio data from '%s' ...\n", file)
 			fmt.Printf("[00:00:00.200 --> 00:00:01.000]  %s\n", filepath.Base(file))
 			fmt.Fprintf(os.Stderr, "output_json: saving output to '%s.json'\n", file)
-			heard := fmt.Sprintf(`{"transcription":[{"offsets":{"from":200,"to":1000},"text":%q}]}`, filepath.Base(file))
+			says := cmp.Or(f.Says, filepath.Base(file))
+			if strings.HasPrefix(filepath.Base(file), "novoice-") {
+				says = f.NoVoice
+			}
+			heard := fmt.Sprintf(`{"transcription":[{"offsets":{"from":200,"to":1000},"text":%q}]}`, says)
 			if timed {
 				heard = `{"transcription":[{"offsets":{"from":0,"to":3800},"text":"Hi! Bye","tokens":[{"text":"[_BEG_]","t_dtw":-1},{"text":"Hi","t_dtw":40},{"text":"!","t_dtw":60},{"text":" Bye","t_dtw":360},{"text":"[_TT_190]","t_dtw":-1}]}]}`
 			}

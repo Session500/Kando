@@ -224,3 +224,38 @@ func TestHearDoesNotHearTheWholeSoundAgainOnceTheFirstStretchIsHeard(t *testing.
 		t.Fatalf("heard %q (%v)", lines, err)
 	}
 }
+
+func TestBeyondIsTheSpeechOutsideTheOther(t *testing.T) {
+	spans := []span{{sec(1), sec(5)}, {sec(8), sec(9)}, {sec(12), sec(12.2)}}
+	others := []span{{sec(1.1), sec(2)}, {sec(3), sec(4.9)}, {sec(8), sec(9)}}
+	// Before, between and after the stretches of others; the 0.1 s before the first, the 0.1 s after the last and the 0.2 s on its own are too short to be heard as stretches of their own.
+	want := []span{{sec(2), sec(3)}}
+	if got := beyond(spans, others, quietShortest); !slices.Equal(got, want) {
+		t.Fatalf("beyond %v, want %v", got, want)
+	}
+}
+
+func TestWithQuietHearsTheQuieterSpeechApart(t *testing.T) {
+	sure := []span{{sec(3), sec(5)}, {sec(9), sec(10)}}
+	chunks := packChunks(sure, span{0, sec(30)})
+	// Less sure, the VAD finds speech from 1 s to 5.8 s, at 7–8.5 s and at 10.5–11.2 s, between and around what it is sure of, and at 20–22 s.
+	loose := []span{{sec(1), sec(5.8)}, {sec(7), sec(8.5)}, {sec(10.5), sec(11.2)}, {sec(20), sec(22)}}
+	got := withQuiet(chunks, loose, span{0, sec(30)})
+	// The chunks of the speech it is sure of are as they were; the speech beyond them is heard in chunks of its own, which keep out of them.
+	want := []chunk{
+		{span: span{sec(0.7), sec(2.7)}, speech: []span{{sec(1), sec(2.7)}}, quiet: true},
+		chunks[0],
+		{span: span{sec(5.3), sec(8.7)}, speech: []span{{sec(5.3), sec(5.8)}, {sec(7), sec(8.5)}}, quiet: true},
+		chunks[1],
+		{span: span{sec(10.3), sec(11.5)}, speech: []span{{sec(10.5), sec(11.2)}}, quiet: true},
+		{span: span{sec(19.7), sec(22.3)}, speech: []span{{sec(20), sec(22)}}, quiet: true},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("chunks %+v", got)
+	}
+	for i := range want {
+		if got[i].span != want[i].span || !slices.Equal(got[i].speech, want[i].speech) || got[i].quiet != want[i].quiet {
+			t.Errorf("chunk %d = %+v, want %+v", i, got[i], want[i])
+		}
+	}
+}

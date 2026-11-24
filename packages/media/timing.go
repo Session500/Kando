@@ -107,8 +107,8 @@ func (k decodedToken) word() bool {
 	return k.timed && !k.special() && strings.IndexFunc(k.text, func(r rune) bool { return unicode.IsLetter(r) || unicode.IsNumber(r) }) >= 0
 }
 
-// timeLines is the lines heard in chunk c, in the time of the sound, each timed by its words when DTW timed them (wordTimes), else by whisper's own times (placeLine).
-func timeLines(heard []decodedLine, c chunk, wordTimes bool) []core.Segment {
+// timeLines is the lines heard in chunk c, in the time of the sound, each timed by its words when DTW timed them (wordTimes), else by whisper's own times (placeLine). A line heard in a quiet chunk, whose speech only quietThreshold finds, is left out when no voice there says it (madeUp, with what whisper says where no one speaks, noVoice), as told by the time it is said in, before it is kept up.
+func timeLines(heard []decodedLine, c chunk, wordTimes bool, noVoice map[string]bool) []core.Segment {
 	var out []core.Segment
 	for _, l := range collapseRepeats(heard) {
 		var words []int
@@ -134,6 +134,9 @@ func timeLines(heard []decodedLine, c chunk, wordTimes bool) []core.Segment {
 				out = append(out, timeWords(l, q, pieces, c))
 			}
 		}
+	}
+	if c.quiet {
+		out = slices.DeleteFunc(out, func(s core.Segment) bool { return madeUp(s, noVoice) })
 	}
 	slices.SortStableFunc(out, func(a, b core.Segment) int { return cmp.Compare(a.Start, b.Start) })
 	return keepUp(out, c)
