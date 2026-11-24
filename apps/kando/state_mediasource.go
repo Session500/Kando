@@ -62,11 +62,13 @@ type mediaSourceTest struct {
 	err    func(locales.Messages) string
 }
 
-// mediaSourceAlert is the question a Test asks about an SFTP server's key: kind (account.AlertTrust at the first connection, account.AlertKeyChanged once the key changed), the source it is about (target, "" for the dialog's draft) and the server's error, which holds the key it offered.
+// mediaSourceAlert is the question a Test asks about an SFTP server's key, or about the certificate of a plugin's source's server that the system does not trust, as a NAS's own (docs/media-sources.md 17.5): kind (account.AlertTrust at the first connection, account.AlertKeyChanged once the key or the certificate trusted changed), the source it is about (target, "" for the dialog's draft) and the server's error, which holds the key it offered (hk), or the certificate's (cert, of the server host). One question at a time is open, whichever it is about.
 type mediaSourceAlert struct {
 	kind   account.AlertKind
 	target string
 	hk     *storage.HostKeyError
+	cert   *mediasource.CertError
+	host   string
 }
 
 func newMediaSourceUI() mediaSourceUI {
@@ -144,9 +146,12 @@ func cleanMediaSources(list []savedMediaSource, seen map[string]bool) []savedMed
 	return kept
 }
 
-// mediaSourceConfig is values kept to the fields of k that are not secret, each trimmed, without the empty ones; nil for none.
+// mediaSourceConfig is values kept to the fields of k that are not secret, each trimmed, without the empty ones, and for a plugin's kind the fingerprint of the certificate trusted for its endpoint (mediasource.PinKey); nil for none.
 func mediaSourceConfig(k mediasource.Kind, values map[string]string) map[string]string {
 	var out map[string]string
+	if pin := values[mediasource.PinKey]; pin != "" && !k.Origin.Builtin() {
+		out = map[string]string{mediasource.PinKey: pin}
+	}
 	for _, f := range k.Fields {
 		v := strings.TrimSpace(values[f.Key])
 		if f.Type == mediasource.FieldSecret || v == "" {
@@ -222,6 +227,10 @@ func (m mediaSourceUI) mediaSourceSecrets() []string {
 		for _, f := range k.Fields {
 			if f.Type == mediasource.FieldText || f.Type == mediasource.FieldURL {
 				out = append(out, s.Config[f.Key])
+			}
+			// A plugin's source's address is said by its host alone too, as an error of a connection does.
+			if f.Type == mediasource.FieldURL {
+				out = append(out, mediasource.Host(s))
 			}
 		}
 	}
@@ -350,6 +359,10 @@ func (a *app) mediaSourceDraftSource() (mediasource.Source, mediasource.Kind, ma
 		return mediasource.Source{}, mediasource.Kind{}, nil, false
 	}
 	s := mediasource.Source{ID: m.editID, Kind: k.ID, Name: strings.TrimSpace(m.draft.Name), Config: mediaSourceConfig(k, m.draft.Values)}
+	// The certificate trusted for the source's server is not one to trust for another.
+	if i := a.mediaSourceIndex(s.ID); i >= 0 && s.Config[mediasource.PinKey] != "" && mediaSourceOrigin(k, s) != mediaSourceOrigin(k, m.list[i]) {
+		delete(s.Config, mediasource.PinKey)
+	}
 	secrets := map[string]string{}
 	for _, key := range k.SecretKeys() {
 		if v := m.draft.Values[key]; v != "" {
@@ -361,6 +374,9 @@ func (a *app) mediaSourceDraftSource() (mediasource.Source, mediasource.Kind, ma
 
 // mediaSourceProblem is what keeps s, a source of kind k, from being tried or saved with the secrets typed, nil when nothing does. A WebDAV source needs a plain https:// or http:// address, as a storage location does. SMB and SFTP need a server, a port that is a number and a user. An SMB source needs a share of one name, and a share for a folder; its user is guest for a share open to anyone. A new SFTP source needs a password, a private key or both, which one saved keeps in the secure store while its fields are left empty.
 func mediaSourceProblem(k mediasource.Kind, s mediasource.Source, typed map[string]string) func(locales.Messages) string {
+	if !k.Origin.Builtin() {
+		return mediaSourcePluginProblem(s)
+	}
 	c := s.Config
 	switch k.ID {
 	case mediasource.KindWebDAV:
@@ -420,6 +436,19 @@ func (a *app) saveMediaSourceDraft() {
 		s.ID = a.mediaSourceRelinkID(s)
 	}
 	m.problem = nil
+	if origin := mediaSourceOrigin(k, s); origin != "" {
+		// A plugin's source's secrets are bound to its endpoint's origin: those typed are kept for it, and when the address moved to another server, those not typed again are emptied rather than sent there (docs/media-sources.md 3.1).
+		if i := a.mediaSourceIndex(s.ID); i >= 0 && mediaSourceOrigin(k, m.list[i]) != origin {
+			for _, key := range k.SecretKeys() {
+				if _, typed := secrets[key]; !typed {
+					secrets[key] = ""
+				}
+			}
+		}
+		if len(secrets) > 0 {
+			secrets[mediaSourceOriginKey] = origin
+		}
+	}
 	if len(secrets) == 0 {
 		a.mediaSourceCommit(s)
 		return
@@ -451,14 +480,19 @@ type mediaSourceSecretWrite struct {
 	prev  map[string]string
 }
 
-// set writes v as the secret key, first reading what the store held there to put back.
+// set writes v as the secret key, or forgets it when v is empty, first reading what the store held there to put back.
 func (w *mediaSourceSecretWrite) set(key, v string) error {
 	account := mediaSourceSecretAccount(w.id, key)
 	old, had, err := w.store.Get(account)
 	if err != nil {
 		return err
 	}
-	if err := w.store.Set(account, v); err != nil {
+	if v == "" {
+		err = w.store.Delete(account)
+	} else {
+		err = w.store.Set(account, v)
+	}
+	if err != nil {
 		return err
 	}
 	w.keys = append(w.keys, key)
@@ -577,7 +611,7 @@ func (a *app) answerRemoveMediaSource(yes bool) {
 	if k, ok := mediasource.Builtin(gone.Kind); ok {
 		keys = k.SecretKeys()
 	} else if k, ok := m.kinds.Kind(gone.Kind); ok {
-		keys = k.SecretKeys()
+		keys = append(k.SecretKeys(), mediaSourceOriginKey)
 	}
 	if len(keys) == 0 {
 		return
@@ -636,7 +670,7 @@ func (a *app) testMediaSource(target string) {
 	m.tests[target] = mediaSourceTest{busy: true, gen: gen}
 	open, store, update := m.open, a.mediaSourceSecretStore(), a.update
 	go func() {
-		secrets := mediaSourceReadSecrets(store, k, s.ID, typed)
+		secrets := mediaSourceReadSecrets(store, k, s, typed)
 		ctx, cancel := context.WithTimeout(context.Background(), mediaSourceTestTimeout)
 		defer cancel()
 		var entries []mediasource.Entry
@@ -649,11 +683,17 @@ func (a *app) testMediaSource(target string) {
 	}()
 }
 
-// mediaSourceReadSecrets are the secrets of the source id of kind k: those typed, else those the secure store keeps. It reads the store, which may make it wait, so it runs off the engine's goroutine; a secret it cannot read is left out, so the connection fails at signing in and says so.
-func mediaSourceReadSecrets(store ns.Secrets, k mediasource.Kind, id string, typed map[string]string) map[string]string {
+// mediaSourceReadSecrets are the secrets of the source s of kind k: those typed, else those the secure store keeps. A plugin's source's secrets kept for another origin than its endpoint's (mediaSourceOriginKey) are read as none. It reads the store, which may make it wait, so it runs off the engine's goroutine; a secret it cannot read is left out, so the connection fails at signing in and says so.
+func mediaSourceReadSecrets(store ns.Secrets, k mediasource.Kind, s mediasource.Source, typed map[string]string) map[string]string {
+	id := s.ID
 	secrets := maps.Clone(typed)
 	if secrets == nil {
 		secrets = map[string]string{}
+	}
+	if origin := mediaSourceOrigin(k, s); origin != "" && id != "" {
+		if kept, ok, err := store.Get(mediaSourceSecretAccount(id, mediaSourceOriginKey)); err != nil || !ok || kept != origin {
+			return secrets
+		}
 	}
 	for _, key := range k.SecretKeys() {
 		if secrets[key] != "" || id == "" {
@@ -700,6 +740,20 @@ func (a *app) mediaSourceTested(target string, gen int, s mediasource.Source, se
 	r, _ := mediasource.Remote(s, secrets)
 	// The row says what to do in the interface's language; the whole error goes to the log file, without the secrets and addresses the app holds.
 	log.Printf("media source: %s test failed: %s", s.Kind, feedback.Scrubber{Secrets: append(a.feedbackSecrets(), slices.Collect(maps.Values(secrets))...)}.NoSecrets(err.Error()))
+	if k, ok := m.kinds.Kind(s.Kind); ok && !k.Origin.Builtin() {
+		// A certificate the system does not trust, as a NAS's own, is asked about at once, as an SFTP server's key is.
+		if cert := (*mediasource.CertError)(nil); errors.As(err, &cert) {
+			delete(m.tests, target)
+			kind := account.AlertTrust
+			if cert.Pinned != "" {
+				kind = account.AlertKeyChanged
+			}
+			a.mediaSourceAsk(mediaSourceAlert{kind: kind, target: target, cert: cert, host: mediasource.Host(s)})
+			return
+		}
+		m.tests[target] = mediaSourceTest{err: func(msg locales.Messages) string { return a.mediaSourcePluginFailure(msg, k, err) }}
+		return
+	}
 	m.tests[target] = mediaSourceTest{err: func(msg locales.Messages) string { return mediaSourceFailure(msg, r, err) }}
 }
 
@@ -714,6 +768,9 @@ func mediaSourceFailure(m locales.Messages, r storage.Remote, err error) string 
 // mediaSourceWarnings are what the dialog says under the fields of the draft: for SMB, that it cannot prove which server it reached, and while the draft does without signing, what that risks; for WebDAV at an http:// address, that its password crosses the network unencrypted.
 func (a *app) mediaSourceWarnings() []string {
 	m := &a.sources
+	if k, ok := m.kinds.Kind(m.draft.Kind); m.editing && ok && !k.Origin.Builtin() {
+		return mediaSourcePluginWarnings(a.messages(), m.draft.Values)
+	}
 	if !m.editing {
 		return nil
 	}
@@ -738,10 +795,16 @@ func (a *app) mediaSourceWarnings() []string {
 func (a *app) mediaSourceSummary(s mediasource.Source) string {
 	msg := a.messages()
 	kind := s.Kind
-	if k, ok := a.sources.kinds.Kind(s.Kind); ok {
+	k, ok := a.sources.kinds.Kind(s.Kind)
+	if ok {
 		kind = k.Title(a.prefs.interfaceLanguage)
 	}
 	place := s.Config[mediasource.SMBHost]
+	if ok && !k.Origin.Builtin() {
+		if u, err := mediasource.ParseEndpoint(s.Config[mediasource.EndpointKey]); err == nil {
+			place = u.Host + strings.TrimSuffix(u.Path, "/")
+		}
+	}
 	// A whole SMB server, without a share, is its host alone.
 	if r, ok := mediasource.Remote(s, nil); ok && (r.Kind != storage.KindSMB || r.Share != "") {
 		place = account.Place(r)
@@ -776,11 +839,18 @@ func (a *app) answerMediaSourceAlert(yes bool) {
 		m.tests[q.target] = mediaSourceTest{err: locales.Messages.AccountLocationNotTrusted}
 		return
 	}
+	// A server's key is kept as the source's host key; a certificate by its fingerprint, which takes the place of the system's verification for the source's endpoint alone.
+	key, value := mediasource.SFTPHostKey, ""
+	if q.cert != nil {
+		key, value = mediasource.PinKey, q.cert.Fingerprint
+	} else {
+		value = q.hk.Key
+	}
 	if q.target == "" {
 		if m.draft.Values == nil {
 			m.draft.Values = map[string]string{}
 		}
-		m.draft.Values[mediasource.SFTPHostKey] = q.hk.Key
+		m.draft.Values[key] = value
 		a.testMediaSource("")
 		return
 	}
@@ -791,7 +861,7 @@ func (a *app) answerMediaSourceAlert(yes bool) {
 	if s.Config == nil {
 		s.Config = map[string]string{}
 	}
-	s.Config[mediasource.SFTPHostKey] = q.hk.Key
+	s.Config[key] = value
 	m.list[i] = s
 	if err := a.saveSettings(); err != nil {
 		m.list[i] = before
@@ -808,6 +878,9 @@ func (a *app) mediaSourceAlertView() account.Alert {
 	q := a.sources.alert
 	if q.kind == account.AlertNone {
 		return account.Alert{}
+	}
+	if q.cert != nil {
+		return account.Alert{Kind: q.kind, Host: q.host, Fingerprint: q.cert.Fingerprint, Trusted: q.cert.Pinned, Certificate: true}
 	}
 	return account.Alert{Kind: q.kind, Host: q.hk.Host, Fingerprint: q.hk.Fingerprint, Trusted: storage.Fingerprint(q.hk.Trusted)}
 }
