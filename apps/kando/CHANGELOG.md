@@ -2,6 +2,12 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.53.0 - 2026-11-24
+
+### Features
+
+- Make an indexed film's lines from its source (#462)
+
 ## 0.52.0 - 2026-11-24
 
 ### Features
