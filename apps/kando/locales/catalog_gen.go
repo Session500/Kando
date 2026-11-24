@@ -1088,6 +1088,7 @@ var Parameters = map[string][]string{
 	"SettingsPluginsAddsAnnotator":             {"name"},
 	"SettingsPluginsAddsTranslator":            {"name"},
 	"SettingsPluginsAddsPanel":                 {"name"},
+	"SettingsPluginsAddsSource":                {"name"},
 	"SettingsPluginsCredentialHosts":           {"hosts"},
 	"SettingsPluginsCredentialMismatch":        {"service"},
 	"SavedExportingPlugin":                     {"name"},
@@ -1844,6 +1845,7 @@ type Translation struct {
 	SettingsPluginsAddsAnnotator             func(name string) string
 	SettingsPluginsAddsTranslator            func(name string) string
 	SettingsPluginsAddsPanel                 func(name string) string
+	SettingsPluginsAddsSource                func(name string) string
 	SettingsPluginsCredentialHosts           func(hosts string) string
 	SettingsPluginsCredentialMismatch        func(service string) string
 	SavedExportingPlugin                     func(name string) string
@@ -3678,6 +3680,7 @@ const (
 	textSettingsPluginsPermGlossarySuggest
 	textSettingsPluginsPermLLMChat
 	textSettingsPluginsPermCredFetch
+	textSettingsPluginsPermSourceFetch
 	textSettingsPluginsNoSecretStore
 	textSettingsPluginsRevocationsStale
 	textSettingsPluginsAdds
@@ -3690,6 +3693,7 @@ const (
 	textSettingsPluginsStoppedHung
 	textPluginsErrUnknownPerm
 	textPluginsErrBadCapabilities
+	textPluginsErrSourceNetwork
 	textPluginsErrTampered
 	textPluginsErrUntrusted
 	textPluginsErrRevoked
@@ -5564,6 +5568,7 @@ var keyOfText = [numTexts]string{
 	"settingsPluginsPermGlossarySuggest",
 	"settingsPluginsPermLLMChat",
 	"settingsPluginsPermCredFetch",
+	"settingsPluginsPermSourceFetch",
 	"settingsPluginsNoSecretStore",
 	"settingsPluginsRevocationsStale",
 	"settingsPluginsAdds",
@@ -5576,6 +5581,7 @@ var keyOfText = [numTexts]string{
 	"settingsPluginsStoppedHung",
 	"pluginsErrUnknownPerm",
 	"pluginsErrBadCapabilities",
+	"pluginsErrSourceNetwork",
 	"pluginsErrTampered",
 	"pluginsErrUntrusted",
 	"pluginsErrRevoked",
@@ -7448,6 +7454,7 @@ var textsEn = i18n.NewTexts(""+
 	"Suggest terms for the glossary of the film playing, which you add or dismiss"+
 	"Ask your AI service, within its daily budget of tokens"+
 	"Send requests with the keys you enter below, only to the hosts listed with them"+
+	"List and read the files on the servers you fill in for its media sources; Kando alone sends your passwords there, and the plugin never sees them"+
 	"Turned off: this computer has no secure store for the plugin's keys"+
 	"Paused: Kando could not check recently whether this plugin was withdrawn"+
 	"Adds"+
@@ -7460,6 +7467,7 @@ var textsEn = i18n.NewTexts(""+
 	"Turned off: Kando stopped responding the last time it ran"+
 	"It asks for a permission this version of Kando doesn't have."+
 	"It asks for access Kando doesn't give plugins."+
+	"It adds media sources but also asks to reach other places, or to read the subtitles."+
 	"It was changed after it was signed."+
 	"It isn't signed by a key Kando trusts."+
 	"It was withdrawn."+
@@ -9329,6 +9337,7 @@ var textsEn = i18n.NewTexts(""+
 		76,
 		54,
 		79,
+		144,
 		67,
 		72,
 		4,
@@ -9341,6 +9350,7 @@ var textsEn = i18n.NewTexts(""+
 		57,
 		60,
 		46,
+		84,
 		35,
 		38,
 		17,
@@ -11213,6 +11223,7 @@ var textsJa = i18n.NewTexts(""+
 	"再生中の動画の用語を提案する（用語集に追加するかはあなたが決めます）"+
 	"1 日のトークン予算の範囲で AI サービスに質問する"+
 	"下に入力したキーを付けてリクエストを送る（それぞれに示されたホストだけ）"+
+	"メディアソースに入力したサーバー上のファイルを一覧・読み取りする（パスワードは Kando だけがそこへ送り、プラグインからは見えない）"+
 	"オフ：このコンピュータにはプラグインのキーを安全に保存する場所がありません"+
 	"一時停止：このプラグインが撤回されていないか最近確認できていません"+
 	"追加する機能"+
@@ -11225,6 +11236,7 @@ var textsJa = i18n.NewTexts(""+
 	"オフにしました：前回の実行中に Kando が応答しなくなりました"+
 	"この Kando にはない権限を求めています。"+
 	"Kando がプラグインに与えないアクセスを求めています。"+
+	"メディアソースを追加しながら、ほかの場所へのアクセスや字幕の読み取りも求めています。"+
 	"署名後に変更されています。"+
 	"Kando が信頼するキーで署名されていません。"+
 	"取り下げられました。"+
@@ -13094,6 +13106,7 @@ var textsJa = i18n.NewTexts(""+
 		102,
 		69,
 		108,
+		190,
 		111,
 		99,
 		18,
@@ -13106,6 +13119,7 @@ var textsJa = i18n.NewTexts(""+
 		85,
 		55,
 		75,
+		126,
 		39,
 		60,
 		30,
@@ -14978,6 +14992,7 @@ var textsKo = i18n.NewTexts(""+
 	"재생 중인 영상의 용어 제안(용어집에 추가할지는 직접 결정)"+
 	"하루 토큰 예산 안에서 AI 서비스에 질문하기"+
 	"아래에 입력한 키로 요청 보내기(각각 표시된 호스트로만)"+
+	"미디어 소스에 입력한 서버의 파일 목록 보기와 읽기(비밀번호는 Kando만 그곳으로 보내며 플러그인은 볼 수 없음)"+
 	"꺼짐: 이 컴퓨터에는 플러그인 키를 안전하게 보관할 곳이 없습니다"+
 	"일시 중지: 이 플러그인이 철회되었는지 최근에 확인하지 못했습니다"+
 	"추가하는 기능"+
@@ -14990,6 +15005,7 @@ var textsKo = i18n.NewTexts(""+
 	"꺼짐: 지난번 실행 중 Kando가 응답을 멈춤"+
 	"이 버전의 Kando에 없는 권한을 요청합니다."+
 	"Kando가 플러그인에 주지 않는 접근을 요청합니다."+
+	"미디어 소스를 추가하면서 다른 곳에 접근하거나 자막을 읽으려고 합니다."+
 	"서명 후 변경되었습니다."+
 	"Kando가 신뢰하는 키로 서명되지 않았습니다."+
 	"철회되었습니다."+
@@ -16859,6 +16875,7 @@ var textsKo = i18n.NewTexts(""+
 		81,
 		59,
 		77,
+		150,
 		90,
 		92,
 		19,
@@ -16871,6 +16888,7 @@ var textsKo = i18n.NewTexts(""+
 		54,
 		56,
 		65,
+		99,
 		33,
 		58,
 		22,
@@ -18743,6 +18761,7 @@ var textsZhHans = i18n.NewTexts(""+
 	"为正在播放的影片建议术语，由你决定加不加进术语表"+
 	"在每日 token 预算内询问你的 AI 服务"+
 	"用你在下面填写的密钥发送请求，只发往各自列出的主机"+
+	"列出、读取你在它的媒体来源里填写的服务器上的文件；密码只由看懂发到那里，插件看不到"+
 	"已停用：这台电脑没有可以安全保存插件密钥的地方"+
 	"已暂停：看懂最近没能确认这个插件是否已被撤回"+
 	"添加的功能"+
@@ -18755,6 +18774,7 @@ var textsZhHans = i18n.NewTexts(""+
 	"已停用：上次运行时让看懂停止响应"+
 	"它申请了这个版本的看懂没有的权限。"+
 	"它申请了看懂不给插件的访问能力。"+
+	"它添加了媒体来源，却还申请访问别的地方或读取字幕。"+
 	"它在签名之后被改动过。"+
 	"它不是由看懂信任的密钥签名的。"+
 	"它已被撤回。"+
@@ -20624,6 +20644,7 @@ var textsZhHans = i18n.NewTexts(""+
 		72,
 		47,
 		75,
+		123,
 		69,
 		66,
 		15,
@@ -20636,6 +20657,7 @@ var textsZhHans = i18n.NewTexts(""+
 		48,
 		51,
 		48,
+		75,
 		33,
 		45,
 		18,
@@ -22508,6 +22530,7 @@ var textsZhHant = i18n.NewTexts(""+
 	"為正在播放的影片建議術語，由你決定加不加進術語表"+
 	"在每日 token 預算內詢問你的 AI 服務"+
 	"用你在下面填寫的金鑰傳送請求，只傳往各自列出的主機"+
+	"列出、讀取你在它的媒體來源裡填寫的伺服器上的檔案；密碼只由看懂傳到那裡，外掛看不到"+
 	"已停用：這台電腦沒有可以安全保存外掛金鑰的地方"+
 	"已暫停：看懂最近沒能確認這個外掛是否已被撤回"+
 	"新增的功能"+
@@ -22520,6 +22543,7 @@ var textsZhHant = i18n.NewTexts(""+
 	"已停用：上次執行時讓看懂停止回應"+
 	"它申請了這個版本的看懂沒有的權限。"+
 	"它申請了看懂不給外掛的存取能力。"+
+	"它新增了媒體來源，卻還申請存取別的地方或讀取字幕。"+
 	"它在簽章之後被改動過。"+
 	"它不是由看懂信任的金鑰簽章的。"+
 	"它已被撤回。"+
@@ -24389,6 +24413,7 @@ var textsZhHant = i18n.NewTexts(""+
 		72,
 		47,
 		75,
+		123,
 		69,
 		66,
 		15,
@@ -24401,6 +24426,7 @@ var textsZhHant = i18n.NewTexts(""+
 		48,
 		51,
 		48,
+		75,
 		33,
 		45,
 		18,
@@ -26498,6 +26524,9 @@ func Supply(lang string, t Translation) {
 	}
 	if t.SettingsPluginsAddsPanel != nil {
 		s.SettingsPluginsAddsPanel = t.SettingsPluginsAddsPanel
+	}
+	if t.SettingsPluginsAddsSource != nil {
+		s.SettingsPluginsAddsSource = t.SettingsPluginsAddsSource
 	}
 	if t.SettingsPluginsCredentialHosts != nil {
 		s.SettingsPluginsCredentialHosts = t.SettingsPluginsCredentialHosts
@@ -65805,6 +65834,19 @@ func (msgs Messages) SettingsPluginsPermCredFetch() string {
 	return msgs.text(textSettingsPluginsPermCredFetch)
 }
 
+// SettingsPluginsPermSourceFetch says "List and read the files on the servers you fill in for its media sources; Kando alone sends your passwords there, and the plugin never sees them"
+// in the language the app shows under cx.
+//
+// Permission of a script plugin that adds media sources: Kando sends its requests only to the server address the user entered for each source, putting in the source's password itself.
+func SettingsPluginsPermSourceFetch(cx *core.Scope) string {
+	return For(cx).SettingsPluginsPermSourceFetch()
+}
+
+// SettingsPluginsPermSourceFetch is the package's SettingsPluginsPermSourceFetch in the language of msgs.
+func (msgs Messages) SettingsPluginsPermSourceFetch() string {
+	return msgs.text(textSettingsPluginsPermSourceFetch)
+}
+
 // SettingsPluginsNoSecretStore says "Turned off: this computer has no secure store for the plugin's keys"
 // in the language the app shows under cx.
 //
@@ -66028,6 +66070,38 @@ func (msgs Messages) SettingsPluginsAddsPanel(name string) string {
 			return "播放器「扩展」标签里的面板：" + name
 		case "zh-Hant":
 			return "播放器「擴充」標籤裡的面板：" + name
+		}
+	}
+}
+
+// SettingsPluginsAddsSource says "Media source: {name}"
+// in the language the app shows under cx.
+//
+// What a script plugin adds: a kind of media source (such as WebDAV) that Settings › Media Sources can add, to browse and import films from.
+func SettingsPluginsAddsSource(cx *core.Scope, name string) string {
+	return For(cx).SettingsPluginsAddsSource(name)
+}
+
+// SettingsPluginsAddsSource is the package's SettingsPluginsAddsSource in the language of msgs.
+func (msgs Messages) SettingsPluginsAddsSource(name string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.SettingsPluginsAddsSource(name))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].SettingsPluginsAddsSource; f != nil {
+			return f(name)
+		}
+		switch lang {
+		case "", "en":
+			return "Media source: " + msgs.arg(name)
+		case "ja":
+			return "メディアソース：" + name
+		case "ko":
+			return "미디어 소스: " + name
+		case "zh-Hans":
+			return "媒体来源：" + name
+		case "zh-Hant":
+			return "媒體來源：" + name
 		}
 	}
 }
@@ -66409,6 +66483,15 @@ func PluginsErrBadCapabilities(cx *core.Scope) string { return For(cx).PluginsEr
 func (msgs Messages) PluginsErrBadCapabilities() string {
 	return msgs.text(textPluginsErrBadCapabilities)
 }
+
+// PluginsErrSourceNetwork says "It adds media sources but also asks to reach other places, or to read the subtitles."
+// in the language the app shows under cx.
+//
+// Why a script plugin cannot be installed: a plugin with media sources may reach only the servers the user fills in for them.
+func PluginsErrSourceNetwork(cx *core.Scope) string { return For(cx).PluginsErrSourceNetwork() }
+
+// PluginsErrSourceNetwork is the package's PluginsErrSourceNetwork in the language of msgs.
+func (msgs Messages) PluginsErrSourceNetwork() string { return msgs.text(textPluginsErrSourceNetwork) }
 
 // PluginsErrTampered says "It was changed after it was signed."
 // in the language the app shows under cx.
