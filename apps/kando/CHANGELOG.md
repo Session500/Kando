@@ -2,6 +2,12 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.51.2 - 2026-11-24
+
+### Fixes
+
+- Hear a voice the VAD is less sure of too, keeping only what a voice there could say (#451)
+
 ## 0.51.1 - 2026-11-24
 
 ### Fixes
