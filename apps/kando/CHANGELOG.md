@@ -2,6 +2,21 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.52.0 - 2026-11-24
+
+### Features
+
+- Keep storage locations' passwords and keys in the system's secure store (#458)
+- Add SFTP media sources, trusting the server's key at the first connection (#457)
+- Let a script plugin declare media sources and kando.source.fetch (#456)
+- Add WebDAV as a built-in kind of media source (#459)
+- Index a media source's videos and play them from the source (#460)
+
+### Fixes
+
+- Keep a film's job going when its subtitles are being read on Windows (#455)
+- Retry a move's rename on Windows while something holds the film (#453)
+
 ## 0.51.3 - 2026-11-24
 
 ### Fixes
