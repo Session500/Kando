@@ -2,6 +2,15 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.58.0 - 2026-11-25
+
+### Features
+
+- Add the official WebDAV media-source plugin, kando.webdav (#475)
+- Stream a source's video through the loopback server (#476)
+- Ask where the films are in the onboarding, and add a NAS there (#477)
+- Add the official Alist media-source plugin, kando.alist (#478)
+
 ## 0.57.0 - 2026-11-25
 
 ### Features
