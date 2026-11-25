@@ -2,6 +2,16 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.55.0 - 2026-11-25
+
+### Features
+
+- Pair a phone away from the computer's network through the storage relay (#470)
+
+### Fixes
+
+- Go on through the relay after one connection's time, not iOS's 30-second wait (#471)
+
 ## 0.54.0 - 2026-11-25
 
 ### Features
