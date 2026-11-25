@@ -2,6 +2,18 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.60.0 - 2026-11-25
+
+### Features
+
+- List a NAS film matched to a computer's film once (#484)
+
+### Fixes
+
+- Stop a removed source's stream before forgetting the source (#487)
+- Read Bilibili's HTTP 567 as a rate limit (#485)
+- Keep a Jellyfin or Emby listing from hanging when tsx cuts it (#490)
+
 ## 0.59.0 - 2026-11-25
 
 ### Features
