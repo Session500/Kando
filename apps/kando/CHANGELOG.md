@@ -2,6 +2,18 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.59.0 - 2026-11-25
+
+### Features
+
+- Add the official Jellyfin media-source plugin, kando.jellyfin (#480)
+- Add the official Emby media-source plugin, kando.emby (#483)
+- Take a computer's subtitles for a NAS film by its source key (#482)
+
+### Fixes
+
+- Keep the step's button above the software keyboard on a phone (#481)
+
 ## 0.58.0 - 2026-11-25
 
 ### Features
