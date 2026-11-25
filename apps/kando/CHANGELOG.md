@@ -2,6 +2,16 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.54.0 - 2026-11-25
+
+### Features
+
+- Read a plugin's media sources through kando.source.fetch (#464)
+
+### Fixes
+
+- Wait out iOS's local network question and try the computer's addresses at once (#469)
+
 ## 0.53.0 - 2026-11-24
 
 ### Features
