@@ -2,6 +2,10 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.55.1 - 2026-11-25
+
+No changes to the app worth listing: this version only carries maintenance.
+
 ## 0.55.0 - 2026-11-25
 
 ### Features
