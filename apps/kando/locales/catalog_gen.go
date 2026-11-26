@@ -554,6 +554,8 @@ var Parameters = map[string][]string{
 	"FilmNotesRemoveWord":                      {"word"},
 	"FilmNotesReviewLabel":                     {"count"},
 	"FilmNotesWords":                           {"count"},
+	"LibraryAdopted":                           {"name"},
+	"LibraryAdoptFailed":                       {"name", "error_"},
 	"LibraryAddedOnly":                         {"count"},
 	"LibraryDropDisguised":                     {"text", "name", "count"},
 	"LibraryMakingSome":                        {"done", "total", "reason"},
@@ -697,6 +699,7 @@ var Parameters = map[string][]string{
 	"LibraryMovedSome":                         {"done", "total", "library", "reason"},
 	"LibraryMoveFailed":                        {"name", "library", "error_"},
 	"LibraryMoveLinesUnread":                   {"library"},
+	"LibraryMoveHomeToFolder":                  {"name"},
 	"LibraryMoveNoVideo":                       {"name"},
 	"LibraryMoveOutFailed":                     {"error_"},
 	"LibraryMoveProcessing":                    {"name"},
@@ -1340,6 +1343,8 @@ type Translation struct {
 	FilmNotesRemoveWord                      func(word string) string
 	FilmNotesReviewLabel                     func(count int) string
 	FilmNotesWords                           func(count int) string
+	LibraryAdopted                           func(name string) string
+	LibraryAdoptFailed                       func(name string, error_ string) string
 	LibraryAddedOnly                         func(count int) string
 	LibraryDropDisguised                     func(text string, name string, count int) string
 	LibraryMakingSome                        func(done int, total int, reason string) string
@@ -1483,6 +1488,7 @@ type Translation struct {
 	LibraryMovedSome                         func(done int, total int, library string, reason string) string
 	LibraryMoveFailed                        func(name string, library string, error_ string) string
 	LibraryMoveLinesUnread                   func(library string) string
+	LibraryMoveHomeToFolder                  func(name string) string
 	LibraryMoveNoVideo                       func(name string) string
 	LibraryMoveOutFailed                     func(error_ string) string
 	LibraryMoveProcessing                    func(name string) string
@@ -2619,6 +2625,7 @@ const (
 	textFilmsRemoveFolder
 	textFilmsRemoveFromLibrary
 	textFilmsRemoveOutside
+	textFilmsRemoveOutsideHome
 	textFilmsRename
 	textFilmsRenameField
 	textFilmsRenameNote
@@ -4550,6 +4557,7 @@ var keyOfText = [numTexts]string{
 	"filmsRemoveFolder",
 	"filmsRemoveFromLibrary",
 	"filmsRemoveOutside",
+	"filmsRemoveOutsideHome",
 	"filmsRename",
 	"filmsRenameField",
 	"filmsRenameNote",
@@ -6479,6 +6487,7 @@ var textsEn = i18n.NewTexts(""+
 	"The film's folder will be moved to the Trash. You can get its video, cover and subtitles back from there."+
 	"Remove from Library…"+
 	"The video isn't in the library folder. It stays where it is and no longer appears in the library."+
+	"The video isn't in the library folder. It stays where it is; its subtitles and the other files Kando keeps for it in the library will be moved to the Trash, where you can get them back."+
 	"Rename…"+
 	"Title"+
 	"Only the title Kando shows changes; the files on disk keep their names. Leave it empty to show the original title again."+
@@ -8405,6 +8414,7 @@ var textsEn = i18n.NewTexts(""+
 		105,
 		22,
 		97,
+		185,
 		9,
 		5,
 		120,
@@ -10334,6 +10344,7 @@ var textsJa = i18n.NewTexts(""+
 	"動画のフォルダはゴミ箱に移動されます。中の動画、カバー、字幕はゴミ箱から戻せます。"+
 	"ライブラリから取り除く…"+
 	"動画はライブラリのフォルダにないため、そのまま残り、ライブラリに表示されなくなるだけです。"+
+	"動画はライブラリのフォルダにないため、そのまま残ります。ライブラリ内に保存している字幕などのファイルはゴミ箱に入ります。ゴミ箱から戻せます。"+
 	"名前を変更…"+
 	"タイトル"+
 	"変わるのは Kando に表示されるタイトルだけで、ディスク上のファイル名はそのままです。空にすると元のタイトルに戻ります。"+
@@ -12260,6 +12271,7 @@ var textsJa = i18n.NewTexts(""+
 		123,
 		36,
 		135,
+		210,
 		18,
 		12,
 		172,
@@ -14189,6 +14201,7 @@ var textsKo = i18n.NewTexts(""+
 	"영상 폴더가 휴지통으로 이동됩니다. 안의 동영상, 표지, 자막은 휴지통에서 되살릴 수 있습니다."+
 	"라이브러리에서 제거…"+
 	"동영상이 라이브러리 폴더 밖에 있으므로 그대로 남고, 라이브러리에만 더 이상 표시되지 않습니다."+
+	"동영상이 라이브러리 폴더 밖에 있으므로 그대로 남습니다. 라이브러리 안에 보관한 자막과 기타 파일은 휴지통으로 이동하며, 휴지통에서 되돌릴 수 있습니다."+
 	"이름 변경…"+
 	"제목"+
 	"Kando에 표시되는 제목만 바뀌고 디스크의 파일 이름은 그대로입니다. 비워 두면 원래 제목으로 돌아갑니다."+
@@ -16115,6 +16128,7 @@ var textsKo = i18n.NewTexts(""+
 		129,
 		31,
 		133,
+		213,
 		16,
 		6,
 		142,
@@ -18044,6 +18058,7 @@ var textsZhHans = i18n.NewTexts(""+
 	"影片文件夹会移到废纸篓，里面的视频、封面和字幕都可以从废纸篓找回。"+
 	"从资料库移除…"+
 	"视频不在资料库文件夹里，会留在原处，只是不再出现在资料库中。"+
+	"视频不在资料库文件夹里，会留在原处；看懂在资料库里为它保存的字幕和其他文件会移到废纸篓，可以从废纸篓找回。"+
 	"重命名…"+
 	"标题"+
 	"只改看懂里显示的标题，磁盘上的文件名不变。留空就恢复原来的标题。"+
@@ -19970,6 +19985,7 @@ var textsZhHans = i18n.NewTexts(""+
 		99,
 		21,
 		90,
+		159,
 		12,
 		6,
 		96,
@@ -21899,6 +21915,7 @@ var textsZhHant = i18n.NewTexts(""+
 	"影片檔案夾會移到垃圾桶，裡面的影片、封面和字幕都可以從垃圾桶找回。"+
 	"從資料庫移除…"+
 	"影片不在資料庫檔案夾中，會留在原處，只是不再出現在資料庫裡。"+
+	"影片不在資料庫檔案夾中，會留在原處；看懂在資料庫裡為它保存的字幕和其他檔案會移到垃圾桶，可以從垃圾桶找回。"+
 	"重新命名…"+
 	"標題"+
 	"只改看懂裡顯示的標題，磁碟上的檔名不變。留空就恢復原本的標題。"+
@@ -23825,6 +23842,7 @@ var textsZhHant = i18n.NewTexts(""+
 		99,
 		21,
 		90,
+		159,
 		15,
 		6,
 		93,
@@ -25465,6 +25483,12 @@ func Supply(lang string, t Translation) {
 	if t.FilmNotesWords != nil {
 		s.FilmNotesWords = t.FilmNotesWords
 	}
+	if t.LibraryAdopted != nil {
+		s.LibraryAdopted = t.LibraryAdopted
+	}
+	if t.LibraryAdoptFailed != nil {
+		s.LibraryAdoptFailed = t.LibraryAdoptFailed
+	}
 	if t.LibraryAddedOnly != nil {
 		s.LibraryAddedOnly = t.LibraryAddedOnly
 	}
@@ -25893,6 +25917,9 @@ func Supply(lang string, t Translation) {
 	}
 	if t.LibraryMoveLinesUnread != nil {
 		s.LibraryMoveLinesUnread = t.LibraryMoveLinesUnread
+	}
+	if t.LibraryMoveHomeToFolder != nil {
+		s.LibraryMoveHomeToFolder = t.LibraryMoveHomeToFolder
 	}
 	if t.LibraryMoveNoVideo != nil {
 		s.LibraryMoveNoVideo = t.LibraryMoveNoVideo
@@ -32396,6 +32423,68 @@ func FilmTabNotes(cx *core.Scope) string { return For(cx).FilmTabNotes() }
 
 // FilmTabNotes is the package's FilmTabNotes in the language of msgs.
 func (msgs Messages) FilmTabNotes() string { return msgs.text(textFilmTabNotes) }
+
+// LibraryAdopted says "Kando now keeps the subtitles of “{name}” in the library. The subtitle files beside its video won't be updated; to use them in another player, choose Export Subtitles… › Export to the Film’s Folder."
+// in the language the app shows under cx.
+//
+// Message bar, once per film, when Kando first copies the subtitles and other files it had written beside a video kept outside the library into the library, where it writes them from then on. The files beside the video are left as they were.
+func LibraryAdopted(cx *core.Scope, name string) string { return For(cx).LibraryAdopted(name) }
+
+// LibraryAdopted is the package's LibraryAdopted in the language of msgs.
+func (msgs Messages) LibraryAdopted(name string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.LibraryAdopted(name))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].LibraryAdopted; f != nil {
+			return f(name)
+		}
+		switch lang {
+		case "", "en":
+			return "Kando now keeps the subtitles of “" + msgs.arg(name) + "” in the library. The subtitle files beside its video won't be updated; to use them in another player, choose Export Subtitles… › Export to the Film’s Folder."
+		case "ja":
+			return "「" + name + "」の字幕をライブラリに取り込みました。動画の横にある古い字幕ファイルは今後更新されません。ほかのプレーヤーで使うには「字幕を書き出す…」›「作品のフォルダに書き出す」を使ってください。"
+		case "ko":
+			return "‘" + name + "’의 자막을 라이브러리로 가져왔습니다. 동영상 옆의 이전 자막 파일은 더 이상 업데이트되지 않습니다. 다른 플레이어에서 쓰려면 ‘자막 내보내기…’ › ‘영상 폴더로 내보내기’를 사용하세요."
+		case "zh-Hans":
+			return "看懂已把「" + name + "」的字幕收进资料库。视频旁的旧字幕文件不再更新；要给别的播放器用，请用「导出字幕…」›「导出到影片文件夹」。"
+		case "zh-Hant":
+			return "看懂已把「" + name + "」的字幕收進資料庫。影片旁的舊字幕檔不再更新；要給其他播放器用，請用「匯出字幕…」›「匯出到影片資料夾」。"
+		}
+	}
+}
+
+// LibraryAdoptFailed says "Couldn't move the subtitles of “{name}” into the library, so they stay beside its video: {error}"
+// in the language the app shows under cx.
+//
+// Message bar when copying a film's subtitles from beside its video into the library failed as the film opened; the film opens with the subtitles beside its video.
+func LibraryAdoptFailed(cx *core.Scope, name string, error_ string) string {
+	return For(cx).LibraryAdoptFailed(name, error_)
+}
+
+// LibraryAdoptFailed is the package's LibraryAdoptFailed in the language of msgs.
+func (msgs Messages) LibraryAdoptFailed(name string, error_ string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.LibraryAdoptFailed(name, error_))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].LibraryAdoptFailed; f != nil {
+			return f(name, error_)
+		}
+		switch lang {
+		case "", "en":
+			return "Couldn't move the subtitles of “" + msgs.arg(name) + "” into the library, so they stay beside its video: " + msgs.arg(error_)
+		case "ja":
+			return "「" + name + "」の字幕をライブラリに取り込めなかったため、字幕は動画の横のままです：" + error_
+		case "ko":
+			return "‘" + name + "’의 자막을 라이브러리로 가져오지 못해 자막이 동영상 옆에 그대로 있습니다: " + error_
+		case "zh-Hans":
+			return "没能把「" + name + "」的字幕收进资料库，字幕仍在视频旁：" + error_
+		case "zh-Hant":
+			return "沒能把「" + name + "」的字幕收進資料庫，字幕仍在影片旁：" + error_
+		}
+	}
+}
 
 // LibraryAddedOnly says "Added {count, plural, one {# film} other {# films}} to the library. Open one to make its subtitles."
 // in the language the app shows under cx.
@@ -39523,6 +39612,15 @@ func FilmsRemoveOutside(cx *core.Scope) string { return For(cx).FilmsRemoveOutsi
 // FilmsRemoveOutside is the package's FilmsRemoveOutside in the language of msgs.
 func (msgs Messages) FilmsRemoveOutside() string { return msgs.text(textFilmsRemoveOutside) }
 
+// FilmsRemoveOutsideHome says "The video isn't in the library folder. It stays where it is; its subtitles and the other files Kando keeps for it in the library will be moved to the Trash, where you can get them back."
+// in the language the app shows under cx.
+//
+// What removing a film does when its video is outside the library folder and Kando keeps its subtitles in a folder of the library: that folder goes to the Trash, the video stays.
+func FilmsRemoveOutsideHome(cx *core.Scope) string { return For(cx).FilmsRemoveOutsideHome() }
+
+// FilmsRemoveOutsideHome is the package's FilmsRemoveOutsideHome in the language of msgs.
+func (msgs Messages) FilmsRemoveOutsideHome() string { return msgs.text(textFilmsRemoveOutsideHome) }
+
 // FilmsRename says "Rename…"
 // in the language the app shows under cx.
 //
@@ -41051,6 +41149,38 @@ func (msgs Messages) LibraryMoveLinesUnread(library string) string {
 			return "无法读取「" + library + "」收藏的句子，所以什么都没有移动。"
 		case "zh-Hant":
 			return "無法讀取「" + library + "」收藏的句子，所以什麼都沒有移動。"
+		}
+	}
+}
+
+// LibraryMoveHomeToFolder says "“{name}” can't move to a library that's a folder of your own: its video is outside the library, so Kando keeps its subtitles in the library, which only a .kando library can hold."
+// in the language the app shows under cx.
+//
+// Error when a film whose video is kept outside the library (Kando keeps its subtitles inside the .kando library) is to be moved to a library that is an ordinary folder opened as a library; Kando does not move it.
+func LibraryMoveHomeToFolder(cx *core.Scope, name string) string {
+	return For(cx).LibraryMoveHomeToFolder(name)
+}
+
+// LibraryMoveHomeToFolder is the package's LibraryMoveHomeToFolder in the language of msgs.
+func (msgs Messages) LibraryMoveHomeToFolder(name string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.LibraryMoveHomeToFolder(name))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].LibraryMoveHomeToFolder; f != nil {
+			return f(name)
+		}
+		switch lang {
+		case "", "en":
+			return "“" + msgs.arg(name) + "” can't move to a library that's a folder of your own: its video is outside the library, so Kando keeps its subtitles in the library, which only a .kando library can hold."
+		case "ja":
+			return "「" + name + "」は普通のフォルダのライブラリには移動できません。動画がライブラリの外にあるため字幕はライブラリ内に保存しており、それができるのは .kando ライブラリだけです。"
+		case "ko":
+			return "‘" + name + "’은(는) 일반 폴더 라이브러리로 옮길 수 없습니다. 동영상이 라이브러리 밖에 있어 자막을 라이브러리 안에 보관하는데, 이는 .kando 라이브러리만 할 수 있습니다."
+		case "zh-Hans":
+			return "「" + name + "」不能移到普通文件夹资料库：它的视频在资料库外，看懂把它的字幕存在资料库里，只有 .kando 资料库能存放。"
+		case "zh-Hant":
+			return "「" + name + "」不能移到一般資料夾資料庫：它的影片在資料庫外，看懂把它的字幕存在資料庫裡，只有 .kando 資料庫能存放。"
 		}
 	}
 }

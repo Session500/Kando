@@ -19,38 +19,38 @@ import (
 // phoneGlossary is the films' glossaries a paired phone reads and adds terms to over protocol v2 (psync.GlossaryService): a film's own terms, kept beside its video, its series' and every film's, from glossary.json, as the player's 术语 tab lists them. A phone that corrects a line can add a term while it does; a term for words the film's glossary has already takes the phone's translation in the scope it is in, so a series' or every film's term stays where it is. A film of a locked library is not found.
 type phoneGlossary struct{ a *app }
 
-// film is the film of library the call names, as the app files it; a film the desktop does not serve, a locked library's among them, is not found.
-func (g phoneGlossary) film(ctx context.Context, library, film string) (films.Film, error) {
+// film is the film of library the call names, as the app files it, with the library's folder; a film the desktop does not serve, a locked library's among them, is not found.
+func (g phoneGlossary) film(ctx context.Context, library, film string) (films.Film, string, error) {
 	src := phoneSource{g.a}
 	libs, err := src.Libraries(ctx)
 	if err != nil {
-		return films.Film{}, err
+		return films.Film{}, "", err
 	}
 	i := slices.IndexFunc(libs, func(l phonesync.Library) bool { return l.ID == library })
 	if i < 0 {
-		return films.Film{}, psync.Errorf(psync.CodeNotFound, "no library %q", library)
+		return films.Film{}, "", psync.Errorf(psync.CodeNotFound, "no library %q", library)
 	}
 	list, _, err := src.items(ctx, libs[i])
 	if errors.Is(err, phonesync.ErrNotFound) {
-		return films.Film{}, psync.Errorf(psync.CodeNotFound, "no library %q", library)
+		return films.Film{}, "", psync.Errorf(psync.CodeNotFound, "no library %q", library)
 	}
 	if err != nil {
-		return films.Film{}, err
+		return films.Film{}, "", err
 	}
 	j := slices.IndexFunc(list, func(item films.Film) bool { return phoneFilmID(item) == film })
 	if j < 0 || list[j].VideoPath == "" {
-		return films.Film{}, psync.Errorf(psync.CodeNotFound, "no film %q in library %q", film, library)
+		return films.Film{}, "", psync.Errorf(psync.CodeNotFound, "no film %q in library %q", film, library)
 	}
-	return list[j], nil
+	return list[j], libs[i].Dir, nil
 }
 
 func (g phoneGlossary) Terms(ctx context.Context, _ psync.Caller, req psync.GlossaryRef) (psync.Glossary, error) {
-	item, err := g.film(ctx, req.Library, req.Film)
+	item, _, err := g.film(ctx, req.Library, req.Film)
 	if err != nil {
 		return psync.Glossary{}, err
 	}
 	// The film's own terms are read off the engine's goroutine; the open film's are the ones the 术语 tab holds.
-	own, readErr := media.LoadTerms(media.TermsPath(item.VideoPath))
+	own, readErr := media.LoadTerms(media.TermsPath(item.FileBase()))
 	a := g.a
 	return remote.OnUI(ctx, a.update, func() (psync.Glossary, error) {
 		return a.phoneGlossaryOf(req, item, own, readErr == nil), nil
@@ -63,13 +63,13 @@ func (g phoneGlossary) PutTerm(ctx context.Context, caller psync.Caller, req psy
 	if !t.Valid() {
 		return psync.Glossary{}, psync.Errorf(psync.CodeInvalid, "a term needs the words and their translation")
 	}
-	item, err := g.film(ctx, req.Library, req.Film)
+	item, dir, err := g.film(ctx, req.Library, req.Film)
 	if err != nil {
 		return psync.Glossary{}, err
 	}
 	a := g.a
 	return remote.OnUI(ctx, a.update, func() (psync.Glossary, error) {
-		own, err := a.phoneGlossaryPut(item, t)
+		own, err := a.phoneGlossaryPut(dir, item, t)
 		if err != nil {
 			log.Printf("phonesync: keep the term %s added: %v", caller.Name, err)
 			return psync.Glossary{}, err
@@ -109,9 +109,14 @@ func (a *app) phoneGlossaryOf(ref psync.GlossaryRef, item films.Film, own []core
 }
 
 // phoneGlossaryPut puts t in item's glossary, as glossaryPut does for the open film: a term for the same words already in the film's glossary keeps its scope and takes t's translation and lock; another goes into the film's own terms. It returns the film's own terms as kept. A glossary.json that could not be read, or a terms file a newer Kando wrote, is not written over. UI thread only.
-func (a *app) phoneGlossaryPut(item films.Film, t core.Term) ([]core.Term, error) {
+func (a *app) phoneGlossaryPut(dir string, item films.Film, t core.Term) ([]core.Term, error) {
 	open := a.gloss.video != "" && filepath.Clean(a.gloss.video) == filepath.Clean(item.VideoPath)
-	path := media.TermsPath(item.VideoPath)
+	// A video kept outside the library has its folder there before its terms are written (library_home.go).
+	base, err := a.phoneAdopt(dir, phoneFilmID(item), item.VideoPath)
+	if err != nil {
+		return nil, err
+	}
+	path := media.TermsPath(base)
 	var old []core.Term
 	switch {
 	case open && !a.gloss.filmRead:

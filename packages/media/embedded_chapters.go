@@ -33,17 +33,17 @@ type EmbeddedChapterer interface {
 	EmbeddedChapters(ctx context.Context, path string) []core.Chapter
 }
 
-// KeepEmbeddedChapters is the chapters of the film whose file is at path, those kept beside it, else the ones it marks in itself, read with ffmpeg and kept beside it from then on (keepChapters), as for a film made before Kando read them, whose cut and titles then work as a site's chapters do. ok false for a film with none.
-func KeepEmbeddedChapters(ffmpeg, path string) (FilmChapters, bool) {
-	if kept, ok := ReadChapters(path); ok {
+// KeepEmbeddedChapters is the chapters of the film whose file is at path and whose files are named after base (core.FileBase), those kept with them, else the ones its file marks in itself, read with ffmpeg and kept with its files from then on (keepChapters), as for a film made before Kando read them, whose cut and titles then work as a site's chapters do. ok false for a film with none.
+func KeepEmbeddedChapters(ffmpeg, path, base string) (FilmChapters, bool) {
+	if kept, ok := ReadChapters(base); ok {
 		return kept, true
 	}
 	found := core.CleanChapters(EmbeddedChapters(ffmpeg, path))
 	if len(found) == 0 {
 		return FilmChapters{}, false
 	}
-	keepChapters(path, found, "")
-	if kept, ok := ReadChapters(path); ok {
+	keepChapters(base, found, "")
+	if kept, ok := ReadChapters(base); ok {
 		return kept, true
 	}
 	// A folder that cannot be written to keeps nothing, and the film shows the chapters it marks all the same.

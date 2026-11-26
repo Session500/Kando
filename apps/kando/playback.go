@@ -13,6 +13,7 @@ import (
 	"kando/apps/kando/film"
 	"kando/apps/kando/locales"
 	"kando/apps/kando/nowplaying"
+	kcore "kando/packages/core"
 	"kando/packages/media"
 
 	ns "github.com/nsgo-dev/nsgo/core"
@@ -400,13 +401,18 @@ func (a *app) playerStopRemux() {
 	}
 }
 
-// readFilmInfo lists the folder of the video at path off the engine's goroutine, for the player's 信息 tab, and reads the chapters its site marks, which its job kept beside it, or its file marks in itself (media.KeepEmbeddedChapters), for the 片段 tab, and the captions its site made itself (media.ReadReference), the picture's reference layer. A film without a video has nothing to list.
+// readFilmInfo lists the folder of the video at path off the engine's goroutine, for the player's 信息 tab, or for a video kept outside the library the folder of its files there (core.Job.Home), and reads the chapters its site marks, which its job kept beside it, or its file marks in itself (media.KeepEmbeddedChapters), for the 片段 tab, and the captions its site made itself (media.ReadReference), the picture's reference layer. A film without a video has nothing to list.
 func (a *app) readFilmInfo(path string) {
 	if path == "" || a.update == nil {
 		return
 	}
-	dir := filepath.Dir(path)
-	a.player.film.infoFor = path
+	// The film's own files are named after base (core.FileBase), its video or video.<ext> in its folder in the library.
+	base := path
+	if item, ok := a.openFilm(); ok {
+		base = kcore.FileBase(path, item.Home)
+	}
+	dir := filepath.Dir(base)
+	a.player.film.infoFor, a.player.film.infoBase = path, base
 	update := a.update
 	ffmpeg := a.ffmpegPath()
 	go func() {
@@ -422,8 +428,8 @@ func (a *app) readFilmInfo(path string) {
 			}
 			files = append(files, film.File{Name: entry.Name(), Size: info.Size()})
 		}
-		chapters, kept := media.ReadChapters(path)
-		reference := media.ReadReference(path)
+		chapters, kept := media.ReadChapters(base)
+		reference := media.ReadReference(base)
 		update(func() {
 			if a.player.film.infoFor != path {
 				return
@@ -438,7 +444,7 @@ func (a *app) readFilmInfo(path string) {
 		if kept || ffmpeg == "" {
 			return
 		}
-		marked, ok := media.KeepEmbeddedChapters(ffmpeg, path)
+		marked, ok := media.KeepEmbeddedChapters(ffmpeg, path, base)
 		if !ok {
 			return
 		}

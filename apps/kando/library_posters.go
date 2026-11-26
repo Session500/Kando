@@ -40,7 +40,7 @@ func (a *app) ensurePoster(item films.Film) {
 	if video == "" || a.update == nil || libraryHasImage(a.lib.posters[video]) || a.lib.posterMiss[video] || a.lib.posterBusy[video] {
 		return
 	}
-	dest := posterDest(a.lib.posterDir, video)
+	dest := posterFor(a.lib.posterDir, video, item.Home)
 	if dest == "" {
 		a.markPosterMiss(video)
 		return
@@ -238,6 +238,16 @@ func posterDest(posterDir, video string) string {
 		return ""
 	}
 	return filepath.Join(posterDir, posterKey(video)+".jpg")
+}
+
+// posterFor is where the poster of the film whose video is at video is kept, home being the folder of its files in its library for a video kept outside it (core.Job.Home): cover.jpg there, as for a film the bundle holds, once that folder is there, else where posterDest keeps it. Finding a poster never makes the folder, nor the library it is in.
+func posterFor(posterDir, video, home string) string {
+	if home != "" {
+		if info, err := os.Stat(home); err == nil && info.IsDir() {
+			return filepath.Join(home, "cover.jpg")
+		}
+	}
+	return posterDest(posterDir, video)
 }
 
 // inBundle reports whether path is inside a library bundle of Kando's own (media.LibraryExt).

@@ -515,7 +515,7 @@ func (a *app) startFilm(item films.Film) {
 	if a.openKey != "" && (a.openKey == item.Key || a.openKey == id) {
 		a.openKey = id
 		job, _ := a.library.Find(id)
-		a.loadSubtitles(id, job.VideoPath, job.SubtitlePath)
+		a.loadSubtitles(id, job.FileBase(), job.SubtitlePath)
 	}
 }
 
@@ -569,6 +569,8 @@ func (a *app) remove(id string) {
 	for _, job := range a.library.Jobs {
 		if job.ID != id {
 			kept = append(kept, job)
+		} else {
+			a.libraryHomeUnmade(job)
 		}
 	}
 	a.library.Jobs = kept
@@ -673,7 +675,8 @@ func (a *app) queueFromFolder(item films.Film) (string, error) {
 
 // queueFolderJob makes job, a new job for item, a video found in the library's folder that no job holds, the job that processes it as the folder's film it is (queueFromFolder).
 func (a *app) queueFolderJob(job *core.Job, item films.Film) {
-	job.FromFolder, job.VideoPath = true, item.VideoPath
+	// A video added without a job brings the folder of its film's files in the library (shelf.Added.Home), which the job keeps, its subtitles in it.
+	job.FromFolder, job.VideoPath, job.Home = true, item.VideoPath, item.Home
 	if item.SubtitlePath != "" {
 		job.SubtitlePath = item.SubtitlePath
 		job.Redo, job.RedoLanguage = core.RedoAll, job.Language
@@ -707,7 +710,7 @@ func (a *app) queueFolderEnded(job core.Job) {
 	a.queue.folderEnded[job.ID] = job
 	if following {
 		if item, ok := films.Find(a.films(), job.VideoPath); ok {
-			a.loadSubtitles(item.Key, item.VideoPath, item.SubtitlePath)
+			a.loadSubtitles(item.Key, item.FileBase(), item.SubtitlePath)
 		} else {
 			a.closeFilm()
 		}
@@ -877,6 +880,13 @@ func (a *app) queueElsewhere(job core.Job) bool {
 func (a *app) queueRun(job core.Job) {
 	if job.LibraryDir == "" {
 		job.LibraryDir = a.snap().LibraryDir
+	}
+	// A video kept outside the library has its folder there before the job writes anything of it (library_home.go); a job that cannot have it fails rather than write beside the video.
+	if err := a.libraryAdopt(&job); err != nil {
+		job.Stage, job.Err = core.StageFailed, &media.StageError{Stage: media.StageCheck, Err: err}
+		a.show(job)
+		a.pump()
+		return
 	}
 	// A download that borrows no browser's sign-in of its own, as one a failed card's remedy chose, borrows the one Settings › 通用 › 浏览器登录 names, from its first run, and keeps it on its card, whose remedies name it. A link from a site pack's site borrows none (core.Job.PluginSite, queuePipeline).
 	if job.Cookies == "" && job.PluginSite == "" {
@@ -1073,6 +1083,13 @@ func (a *app) show(job core.Job) {
 	// The series is the user's, as the glossary's 术语 tab changes it while the job runs (core.Job.Series): the pipeline's copy of a job the library holds does not change it.
 	if was.ID != "" {
 		job.Series = was.Series
+		// So is the folder of the film's files in the library (core.Job.Home), which a move of the library or the film, or one renamed in Finder, changes while the job runs, with the subtitles' path in it: the pipeline's copy, made before, names them where they were.
+		if ran := job.Home; was.Home != ran {
+			job.Home = was.Home
+			if next, ok := replacePathPrefix(ran, was.Home, job.SubtitlePath); ok && was.Home != "" {
+				job.SubtitlePath = next
+			}
+		}
 		// So is the list it was added from (core.Job.List), which the app writes once the queue has the job.
 		job.List, job.ListIndex = was.List, was.ListIndex
 		// A film indexed from a media source that was copied into the library while the job ran (linkedCopied) is the library's from then on: the running pipeline's copy, made before, does not make it indexed again.
@@ -1134,7 +1151,7 @@ func (a *app) show(job core.Job) {
 		if rewritten && a.player.subs.key == job.ID {
 			a.player.subs.path = ""
 		}
-		a.loadSubtitles(job.ID, job.VideoPath, job.SubtitlePath)
+		a.loadSubtitles(job.ID, job.FileBase(), job.SubtitlePath)
 		// The job translated the chapters' titles before it completed (media.Make), so the open film's 片段 and info tab read them again.
 		if rewritten && a.player.film.infoFor != "" {
 			a.readFilmInfo(a.player.film.infoFor)

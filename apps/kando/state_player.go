@@ -138,8 +138,10 @@ type filmUI struct {
 	searchFocused bool
 	uploadNote    bool
 	// info is the film's folder as readFilmInfo read it for the video at infoFor, and reference the captions its site made itself, which its job kept beside it (media.ReadReference).
-	info      film.Info
-	infoFor   string
+	info    film.Info
+	infoFor string
+	// infoBase is what the film's files at infoFor are named after (core.FileBase), where its chapters are kept.
+	infoBase  string
 	reference []kcore.Segment
 	// clipFrames are the JPEG frames of the 片段 tab by the start of each (film_clips.go), and clipBusy those being read.
 	clipFrames map[time.Duration][]byte

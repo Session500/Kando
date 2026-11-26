@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -19,11 +20,12 @@ import (
 
 // The glossary: how the user wants names and terms translated (core.Term), for the open film alone, for the films of its series or for every film. A film's own terms are kept beside its video (media.TermsPath), the series' and the global ones in glossary.json beside settings.json (package glossary). A job translates with its film's glossary (glossaryOfJob), the terms its lines hold sent with each batch (media.WithGlossary). The player's 术语 tab lists the open film's and changes them (film.Glossary). A film is in a series when its job names one (core.Job.Series): the videos a subscription that is a series adds are (subscribe.Rules.Series).
 
-// glossaryUI is the glossary's state. store is what glossary.json holds; storeErr says why it could not be read, which keeps it from being written over. video is the open film's video, whose own terms film holds once read (filmRead), filmGen telling the read of the film open from one of a film opened before it. source and target are the fields a new term is typed in.
+// glossaryUI is the glossary's state. store is what glossary.json holds; storeErr says why it could not be read, which keeps it from being written over. video is the open film's video, and base what its files are named after (core.FileBase), whose own terms film holds once read (filmRead), filmGen telling the read of the film open from one of a film opened before it. source and target are the fields a new term is typed in.
 type glossaryUI struct {
 	store    glossary.Store
 	storeErr error
 	video    string
+	base     string
 	film     []core.Term
 	filmRead bool
 	filmGen  int
@@ -74,22 +76,26 @@ func (a *app) glossaryWrite(store glossary.Store) bool {
 
 // glossaryFollow reads the own terms of the film open once another one is, off the engine's goroutine, and reports whether it dropped the ones it held.
 func (a *app) glossaryFollow() bool {
-	video := ""
+	video, base := "", ""
 	if a.openKey != "" {
-		video = a.player.film.video
+		video, base = a.player.film.video, a.player.film.video
+		// A video kept outside the library keeps its terms in its folder there (core.Job.Home).
+		if item, ok := a.openFilm(); ok && video != "" {
+			base = core.FileBase(video, item.Home)
+		}
 	}
 	g := &a.gloss
-	if video == g.video {
+	if video == g.video && base == g.base {
 		return false
 	}
-	g.video, g.film, g.filmRead, g.source, g.target = video, nil, false, "", ""
+	g.video, g.base, g.film, g.filmRead, g.source, g.target = video, base, nil, false, "", ""
 	g.filmGen++
 	if video == "" {
 		return true
 	}
 	gen, update := g.filmGen, a.update
 	go func() {
-		terms, err := media.LoadTerms(media.TermsPath(video))
+		terms, err := media.LoadTerms(media.TermsPath(base))
 		update(func() {
 			if a.gloss.filmGen != gen {
 				return
@@ -119,7 +125,7 @@ func (a *app) glossaryStart(job core.Job) (core.Job, []core.Term) {
 	}
 	var own []core.Term
 	if job.VideoPath != "" {
-		own, _ = media.LoadTerms(media.TermsPath(job.VideoPath))
+		own, _ = media.LoadTerms(media.TermsPath(job.FileBase()))
 	}
 	series, global := a.gloss.store.Terms(job.Series)
 	return job, plugins.AddTerms(core.MergeTerms(own, series, global), a.pluginTerms(job))
@@ -139,11 +145,17 @@ func (a *app) glossarySubscriptionOf(job core.Job) (subscribe.Sub, bool) {
 	return subscribe.Sub{}, false
 }
 
-// glossaryJob is the job of the film open, found by its video.
+// glossaryBase is what the open film's files are named after (glossaryUI.base), its video until that was read.
+func (a *app) glossaryBase() string { return cmp.Or(a.gloss.base, a.gloss.video) }
+
+// glossaryJob is the job of the film open: the one it is open on (openKey), or for a film opened by its video, as one added without a job, the job of that video.
 func (a *app) glossaryJob() (core.Job, bool) {
 	video := a.gloss.video
 	if video == "" {
 		return core.Job{}, false
+	}
+	if job, ok := a.library.Find(a.openKey); ok && a.openKey != "" {
+		return job, true
 	}
 	for _, job := range a.library.Jobs {
 		if job.VideoPath != "" && filepath.Clean(job.VideoPath) == filepath.Clean(video) {
@@ -367,7 +379,7 @@ func (a *app) glossarySetFilm(terms []core.Term) bool {
 	if !a.TermsWritable() {
 		return false
 	}
-	if err := media.SaveTerms(media.TermsPath(a.gloss.video), terms); err != nil {
+	if err := media.SaveTerms(media.TermsPath(a.glossaryBase()), terms); err != nil {
 		if errors.Is(err, media.ErrTermsNewer) {
 			a.flash(a.messages().GlossaryNewer())
 		} else {

@@ -54,6 +54,16 @@ func transcriptPath(videoPath string) string {
 	return strings.TrimSuffix(videoPath, filepath.Ext(videoPath)) + ".srt"
 }
 
+// BilingualPath is the bilingual subtitles a job exports for the film whose files are named after base (core.FileBase): "<base>.bilingual.srt". It need not exist.
+func BilingualPath(base string) string {
+	return strings.TrimSuffix(base, filepath.Ext(base)) + ".bilingual.srt"
+}
+
+// SubtitleNames are the subtitle files Kando reads and writes by the name of the film whose files are named after base (core.FileBase), whether they exist or not: its transcript, the one it keeps aside beside subtitles of the user's, and its bilingual subtitles (<base>.srt, <base>.kando.srt, <base>.bilingual.srt).
+func SubtitleNames(base string) []string {
+	return []string{transcriptPath(base), asideTranscriptPath(base), BilingualPath(base)}
+}
+
 // asideTranscriptPath is where Kando keeps the original speech of the video at videoPath when a "<video>.srt" it did not write lies beside the video, as subtitles the user brought with it: "<video>.kando.srt". GatherVideos moves it with the video.
 func asideTranscriptPath(videoPath string) string {
 	return strings.TrimSuffix(videoPath, filepath.Ext(videoPath)) + ".kando.srt"
@@ -72,8 +82,7 @@ func foreignTranscript(videoPath string) bool {
 	if !fileExists(transcriptPath(videoPath)) || fileExists(asideTranscriptPath(videoPath)) {
 		return false
 	}
-	base := strings.TrimSuffix(videoPath, filepath.Ext(videoPath))
-	return !fileExists(base+".bilingual.srt") && !fileExists(translationCheckpointPath(videoPath))
+	return !fileExists(BilingualPath(videoPath)) && !fileExists(translationCheckpointPath(videoPath))
 }
 
 // pendingTranscriptPath, pendingHeardPath, proofreadTranscriptPath and translationCheckpointPath are hidden files an older Kando kept beside a video while it processed it whole: the speech a redo heard, how it heard it, the transcript a translation again proofread, and the batches a translation had done. Kando no longer writes them; one left beside a video still moves with it (Companions), and the checkpoint still says the "<video>.srt" beside it is Kando's (foreignTranscript).
@@ -130,7 +139,6 @@ func readExported(videoPath string, withTranslation bool) (original, translated 
 	if videoPath == "" {
 		return nil, nil, ErrNoTranscript
 	}
-	base := strings.TrimSuffix(videoPath, filepath.Ext(videoPath))
 	data, err := os.ReadFile(TranscriptOf(videoPath))
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, nil, ErrNoTranscript
@@ -148,7 +156,7 @@ func readExported(videoPath string, withTranslation bool) (original, translated 
 	if !withTranslation {
 		return original, translated, nil
 	}
-	data, err = os.ReadFile(base + ".bilingual.srt")
+	data, err = os.ReadFile(BilingualPath(videoPath))
 	if errors.Is(err, fs.ErrNotExist) {
 		return original, translated, nil
 	}

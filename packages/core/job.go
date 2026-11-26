@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"net/url"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -83,6 +84,8 @@ type Job struct {
 	SubtitlePath string
 	// LibraryDir is the library that owns this job. Empty means it was saved before libraries were separate.
 	LibraryDir string
+	// Home is the folder in the job's library, a .kando bundle, that Kando writes the film's own files in (its subtitles, its document's logs, the files kept beside them, its cover) for a video kept outside the library where the user picked it, which Kando never writes beside: they are named there after video.<ext> as a film the bundle holds is (FileBase). It is "" for every other film, whose files are beside its video, and for one whose files were written beside its video by a Kando before this one until they are taken into the folder (the app's libraryAdopt), which then sets it. The video's path stays the film's key whatever Home is.
+	Home string
 	// CompletedAt is when the job reached StageComplete; zero until then. A job processing or translating a done film again (Redo) keeps the film's until it completes again.
 	CompletedAt time.Time
 	Err         error
@@ -143,6 +146,17 @@ type Job struct {
 	// PluginSite is the id of the site pack, a plugin, whose site the built-in browser's 下载视频 added the link from; empty for any other job. Its download borrows no browser's sign-in and none of the browser pages' cookies, whatever Cookies says, as which sites a site pack names is a third party's word, not Kando's. It stays when the job is run again.
 	PluginSite string
 }
+
+// FileBase is the path the files of the film whose video is at video are named after, as its subtitles <base>.bilingual.srt and its logs .<base>.track.<device>.jsonl beside it: the video itself, or video.<ext> in home, the folder Kando keeps them in for a video outside the library (Job.Home), when home is not "". No video is at that path.
+func FileBase(video, home string) string {
+	if home == "" {
+		return video
+	}
+	return filepath.Join(home, "video"+filepath.Ext(video))
+}
+
+// FileBase is the path the job's film's own files are named after (FileBase): its video, or video.<ext> in its Home.
+func (j Job) FileBase() string { return FileBase(j.VideoPath, j.Home) }
 
 // CookiesNone is Job.Cookies for a download the user chose to borrow no browser's sign-in for, as the Add sheet's 未登录 does, so the queue does not give it the one Settings › 通用 › 浏览器登录 names as it first runs.
 const CookiesNone = "none"

@@ -1,0 +1,54 @@
+package shelf
+
+import (
+	"path/filepath"
+	"testing"
+	"time"
+
+	"kando/packages/core"
+)
+
+// The folder of a film's files kept for a video outside the library is saved with its job, and with a video added without a job beside the time it was added, which an older Kando still reads; both follow the library's folder as it is renamed.
+func TestHomesAreSavedAndFollowTheLibrary(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "library.json")
+	lib, _ := Load(path)
+	root := "/films/a.kando"
+	at := time.Date(2026, 11, 26, 9, 0, 0, 0, time.UTC)
+	lib.Jobs = []core.Job{{ID: "j1", Source: "file:///videos/a.mp4", Stage: core.StageComplete, VideoPath: "/videos/a.mp4", LibraryDir: root, Home: root + "/a [j1]"}}
+	lib.AddVideos(root, at, "/videos/b.mp4", "/videos/c.mp4")
+	lib.SetAddedHome(root, "/videos/b.mp4", root+"/b [12345678]")
+	if err := lib.Save(); err != nil {
+		t.Fatal(err)
+	}
+	back, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if back.Jobs[0].Home != root+"/a [j1]" {
+		t.Fatalf("the job's folder read back as %q", back.Jobs[0].Home)
+	}
+	added := back.AddedIn(root)
+	if added["/videos/b.mp4"] != (Added{At: at, Home: root + "/b [12345678]"}) || added["/videos/c.mp4"] != (Added{At: at}) {
+		t.Fatalf("the added videos read back as %+v", added)
+	}
+	if !back.MoveAdded(root, "/films/b.kando") || back.AddedIn("/films/b.kando")["/videos/b.mp4"].Home != filepath.Join("/films/b.kando", "b [12345678]") {
+		t.Fatalf("moved, the added videos are %+v", back.Added)
+	}
+	if !back.MoveAddedVideo("/films/b.kando", "/films/c.kando", "/videos/b.mp4", "/films/c.kando/b [12345678]") || back.AddedIn("/films/c.kando")["/videos/b.mp4"].Home != "/films/c.kando/b [12345678]" {
+		t.Fatalf("moved to another library, the added videos are %+v", back.Added)
+	}
+}
+
+// The folder of a film's files is named after its video, or its video's folder for a video.<ext>, with the first 8 characters of its key.
+func TestHomeFor(t *testing.T) {
+	if got := HomeFor("/lib.kando", "/videos/My Talk.mp4", "0123456789abcdef"); got != filepath.Join("/lib.kando", "My Talk [01234567]") {
+		t.Fatal(got)
+	}
+	if got := HomeFor("/lib.kando", "/videos/Course/video.mkv", "abc"); got != filepath.Join("/lib.kando", "Course [abc]") {
+		t.Fatal(got)
+	}
+	if AddedKey("/videos/a.mp4") == AddedKey("/videos/b.mp4") || AddedKey("/videos/a.mp4") != AddedKey("/videos/./a.mp4") {
+		t.Fatal("AddedKey does not tell videos apart by their cleaned paths")
+	}
+}

@@ -96,7 +96,7 @@ func (a *app) playerNowPlayingTitle(path string) string {
 
 // playerNowPlayingArtwork reads the poster of the video at path off the engine's goroutine and shows it with the film, while the system still shows that film. A video without a poster on disk shows without one.
 func (a *app) playerNowPlayingArtwork(path string) {
-	dest := posterDest(a.lib.posterDir, path)
+	dest := posterFor(a.lib.posterDir, path, a.playerHomeOf(path))
 	if dest == "" || a.update == nil {
 		return
 	}

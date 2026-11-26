@@ -134,7 +134,8 @@ func (a *app) libraryTrashIn(root string, items []films.Film, m locales.Messages
 		a.libraryTrash(files, func(err error) {
 			switch {
 			case err == nil:
-				trashed = trashed || len(files) > 0
+				// A video outside the library stays where it is, though the folder of its files there went (films.Film.Home): its film only left the library.
+				trashed = trashed || (len(files) > 0 && unit.Items[0].Home == "")
 				gone = append(gone, unit.Items...)
 			case reason == "":
 				name := films.Name(unit.Items[0])

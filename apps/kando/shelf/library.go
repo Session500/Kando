@@ -45,8 +45,8 @@ type Library struct {
 	Stored map[string]Stored
 	// Linked is the films indexed from a media source rather than copied into the library (Linked), by the placeholder path in the library's folder their video is said to be at (mediasource.Placeholder), which their subtitles and the other files beside them are named after; the video itself stays on the source, which Kando only reads. Unlike Stored, nothing removes, moves or writes the file it names. A title kept here follows its placeholder's path when the folder moves (MoveVideos).
 	Linked map[string]Linked
-	// Added is the videos kept outside a library that were added to it without a job, by the library folder's cleaned path, then by the video's path, with when each was added, as a large folder dropped adds its films only into the library (AddVideos): each shows as a film without subtitles, where it is, until its 生成字幕 makes them, when its job holds it and it leaves here (Unadd). library.json is the machine's, so this follows the library as its folder is renamed (MoveAdded).
-	Added map[string]map[string]time.Time
+	// Added is the videos kept outside a library that were added to it without a job, by the library folder's cleaned path, then by the video's path, with when each was added and the folder in the library its files are kept in once one is given (Added), as a large folder dropped adds its films only into the library (AddVideos): each shows as a film without subtitles, where it is, until its 生成字幕 makes them, when its job holds it and it leaves here (Unadd). library.json is the machine's, so this follows the library as its folder is renamed (MoveAdded).
+	Added map[string]map[string]Added
 	// unread is why Load could not read the file in full. While it is set Save does not write, as the file may hold jobs this library lacks; AllowSave clears it once a copy of the file is kept.
 	unread error
 }
@@ -77,7 +77,7 @@ func (l Library) Path() string { return l.path }
 
 // Load reads the library at path. A missing file is an empty library. A file that is there but cannot be read is empty too, and the error says why. A file that is not a library in full returns a *DamagedError with the file's bytes, and the library keeps what could be read: a value of another type leaves only that field out, as encoding/json goes on with the rest, and a file that is not JSON at all reads as empty. After either error Save returns ErrUnread rather than write over the file, until AllowSave. A job the app was still working on when it quit is read back as queued, so the queue runs it again from the start. A file written before positions were kept, a bare list of jobs, still reads.
 func Load(path string) (Library, error) {
-	lib := Library{path: path, Positions: map[string]time.Duration{}, Furthest: map[string]time.Duration{}, Played: map[string]time.Time{}, Delays: map[string]time.Duration{}, Lifts: map[string]float32{}, Names: map[string]string{}, Locks: map[string]Lock{}, Stored: map[string]Stored{}, Linked: map[string]Linked{}, Added: map[string]map[string]time.Time{}}
+	lib := Library{path: path, Positions: map[string]time.Duration{}, Furthest: map[string]time.Duration{}, Played: map[string]time.Time{}, Delays: map[string]time.Duration{}, Lifts: map[string]float32{}, Names: map[string]string{}, Locks: map[string]Lock{}, Stored: map[string]Stored{}, Linked: map[string]Linked{}, Added: map[string]map[string]Added{}}
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -154,8 +154,8 @@ func Load(path string) (Library, error) {
 	}
 	for dir, videos := range stored.Added {
 		for path, at := range videos {
-			if dir = strings.TrimSpace(dir); dir != "" && path != "" {
-				lib.addOne(dir, path, at)
+			if clean := strings.TrimSpace(dir); clean != "" && path != "" {
+				lib.addOne(clean, path, Added{At: at, Home: stored.AddedHomes[dir][path]})
 			}
 		}
 	}
@@ -270,44 +270,62 @@ func (l *Library) MoveVideos(move func(path string) (string, bool)) bool {
 	return positions || furthest || played || delays || lifts || names || stored || linked || added
 }
 
+// Added is a video added to a library without a job (Library.Added): when it was added, and the folder in the library Kando keeps its film's own files in (core.Job.Home), "" until one is given (SetAddedHome). A job made for the video takes the folder with it.
+type Added struct {
+	At   time.Time
+	Home string
+}
+
 // AddVideos adds the videos at paths to the library at dir without a job, as added at at, and returns how many it added: a video added before keeps when it was.
 func (l *Library) AddVideos(dir string, at time.Time, paths ...string) int {
 	n := 0
 	for _, path := range paths {
-		if path != "" && l.addOne(dir, path, at) {
+		if path != "" && l.addOne(dir, path, Added{At: at}) {
 			n++
 		}
 	}
 	return n
 }
 
-// addOne adds the video at path to the library at dir, as added at at, and reports whether it was not there before.
-func (l *Library) addOne(dir, path string, at time.Time) bool {
+// addOne adds the video at path to the library at dir, as added, and reports whether it was not there before.
+func (l *Library) addOne(dir, path string, added Added) bool {
 	dir = filepath.Clean(dir)
 	if l.Added == nil {
-		l.Added = map[string]map[string]time.Time{}
+		l.Added = map[string]map[string]Added{}
 	}
 	if _, ok := l.Added[dir][path]; ok {
 		return false
 	}
 	if l.Added[dir] == nil {
-		l.Added[dir] = map[string]time.Time{}
+		l.Added[dir] = map[string]Added{}
 	}
-	l.Added[dir][path] = at
+	l.Added[dir][path] = added
+	return true
+}
+
+// SetAddedHome gives the video at path, added to the library at dir without a job, home as the folder its film's own files are kept in (Added.Home), and reports whether it was added there.
+func (l *Library) SetAddedHome(dir, path, home string) bool {
+	dir = filepath.Clean(dir)
+	added, ok := l.Added[dir][path]
+	if !ok {
+		return false
+	}
+	added.Home = home
+	l.Added[dir][path] = added
 	return true
 }
 
 // AddedCopy is a copy of Added, which a reading off the engine's goroutine takes with it.
-func (l Library) AddedCopy() map[string]map[string]time.Time {
-	out := make(map[string]map[string]time.Time, len(l.Added))
+func (l Library) AddedCopy() map[string]map[string]Added {
+	out := make(map[string]map[string]Added, len(l.Added))
 	for dir, videos := range l.Added {
 		out[dir] = maps.Clone(videos)
 	}
 	return out
 }
 
-// AddedIn is the videos added to the library at dir without a job, by path, with when each was added. It is the library's own map; the caller does not change it.
-func (l Library) AddedIn(dir string) map[string]time.Time { return l.Added[filepath.Clean(dir)] }
+// AddedIn is the videos added to the library at dir without a job, by path, with when each was added and its folder (Added). It is the library's own map; the caller does not change it.
+func (l Library) AddedIn(dir string) map[string]Added { return l.Added[filepath.Clean(dir)] }
 
 // Unadd takes the video at path out of the videos added to the library at dir, as its job now holds it or it left the library, and reports whether it was there.
 func (l *Library) Unadd(dir, path string) bool {
@@ -322,6 +340,20 @@ func (l *Library) Unadd(dir, path string) bool {
 	return true
 }
 
+// MoveAddedVideo moves the video at path, added to the library at from without a job, to the one at to, keeping when it was added, with home as the folder its film's own files are kept in there (Added.Home), and reports whether it was added at from.
+func (l *Library) MoveAddedVideo(from, to, path, home string) bool {
+	from = filepath.Clean(from)
+	added, ok := l.Added[from][path]
+	if !ok {
+		return false
+	}
+	l.Unadd(from, path)
+	added.Home = home
+	delete(l.Added[filepath.Clean(to)], path)
+	l.addOne(to, path, added)
+	return true
+}
+
 // MoveAdded keeps the videos added to the library at from under to, its folder's new path, and reports whether it had any.
 func (l *Library) MoveAdded(from, to string) bool {
 	from, to = filepath.Clean(from), filepath.Clean(to)
@@ -330,8 +362,12 @@ func (l *Library) MoveAdded(from, to string) bool {
 		return false
 	}
 	delete(l.Added, from)
-	for path, at := range videos {
-		l.addOne(to, path, at)
+	for path, added := range videos {
+		// The folder of its files is in the library's folder, and moved with it.
+		if rel, err := filepath.Rel(from, filepath.Clean(added.Home)); added.Home != "" && err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			added.Home = filepath.Join(to, rel)
+		}
+		l.addOne(to, path, added)
 	}
 	return true
 }
@@ -434,7 +470,20 @@ func (l Library) Save() error {
 		if stored.Added == nil {
 			stored.Added = map[string]map[string]time.Time{}
 		}
-		stored.Added[dir] = maps.Clone(videos)
+		stored.Added[dir] = make(map[string]time.Time, len(videos))
+		for path, added := range videos {
+			stored.Added[dir][path] = added.At
+			if added.Home == "" {
+				continue
+			}
+			if stored.AddedHomes == nil {
+				stored.AddedHomes = map[string]map[string]string{}
+			}
+			if stored.AddedHomes[dir] == nil {
+				stored.AddedHomes[dir] = map[string]string{}
+			}
+			stored.AddedHomes[dir][path] = added.Home
+		}
 	}
 	data, err := json.MarshalIndent(stored, "", "  ")
 	if err != nil {
@@ -461,6 +510,8 @@ type storedLibrary struct {
 	Stored    map[string]storedVideo          `json:"stored,omitempty"`
 	Linked    map[string]linkedVideo          `json:"linked,omitempty"`
 	Added     map[string]map[string]time.Time `json:"added,omitempty"`
+	// AddedHomes is the Home of each video of Added that has one (Added.Home), by the same keys. It is kept beside Added rather than in it so an older Kando, which knows Added as times, still reads the file; one drops it on its next save, and the video is given the same folder again when it is next written to (the app's libraryAdopt).
+	AddedHomes map[string]map[string]string `json:"addedHomes,omitempty"`
 }
 
 type storedJob struct {
@@ -473,6 +524,7 @@ type storedJob struct {
 	VideoPath    string     `json:"videoPath,omitempty"`
 	SubtitlePath string     `json:"subtitlePath,omitempty"`
 	LibraryDir   string     `json:"libraryDir,omitempty"`
+	Home         string     `json:"home,omitempty"`
 	CompletedAt  time.Time  `json:"completedAt,omitzero"`
 	Error        string     `json:"error,omitempty"`
 	// ErrorStage is the step a failed job failed at (media.StageError.Stage), and ErrorSource the translation source whose failure stopped it (media.StageError.Source), both kept beside Error, whose text still starts with the step as it always has, so an older Kando, which reads the step from the text and knows neither field, reads the job as before. A library saved before them has neither, and its Error is read for the step (media.ReadStageError).
@@ -534,7 +586,7 @@ func storeJob(job core.Job) storedJob {
 	stored := storedJob{
 		ID: job.ID, Source: job.Source, Language: job.Language, Stage: job.Stage,
 		Title: job.Title, Thumbnail: job.Thumbnail,
-		VideoPath: job.VideoPath, SubtitlePath: job.SubtitlePath, LibraryDir: job.LibraryDir,
+		VideoPath: job.VideoPath, SubtitlePath: job.SubtitlePath, LibraryDir: job.LibraryDir, Home: job.Home,
 		CompletedAt: job.CompletedAt, FailKind: job.FailKind, Cookies: job.Cookies, Untranslated: job.Untranslated, TranslationError: job.TranslationErr, TranslationSource: job.TranslationSource,
 		Transcribed: job.Transcribed, Proofread: job.Proofread, SameLanguage: job.SameLanguage, Redo: job.Redo, RedoLanguage: job.RedoLanguage, SpokenLanguage: job.SpokenLanguage, SpeechLanguage: job.SpeechLanguage, FromFolder: job.FromFolder, Device: job.Device,
 	}
@@ -577,7 +629,7 @@ func (s storedJob) job() core.Job {
 	job := core.Job{
 		ID: s.ID, Source: s.Source, Language: s.Language, Stage: s.Stage,
 		Title: s.Title, Thumbnail: s.Thumbnail,
-		VideoPath: s.VideoPath, SubtitlePath: s.SubtitlePath, LibraryDir: s.LibraryDir,
+		VideoPath: s.VideoPath, SubtitlePath: s.SubtitlePath, LibraryDir: s.LibraryDir, Home: s.Home,
 		CompletedAt: s.CompletedAt, FailKind: s.FailKind, Cookies: s.Cookies, Untranslated: s.Untranslated, TranslationErr: s.TranslationError, TranslationSource: s.TranslationSource,
 		Transcribed: s.Transcribed, Proofread: s.Proofread, SameLanguage: s.SameLanguage, Redo: s.Redo, RedoLanguage: s.RedoLanguage, SpokenLanguage: s.SpokenLanguage, SpeechLanguage: s.SpeechLanguage, FromFolder: s.FromFolder, Device: s.Device,
 	}

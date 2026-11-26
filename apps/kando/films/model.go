@@ -14,6 +14,7 @@ import (
 	"kando/apps/kando/films/sitename"
 	"kando/apps/kando/jobfailure"
 	"kando/apps/kando/locales"
+	kandoshelf "kando/apps/kando/shelf"
 	"kando/apps/kando/sidebar"
 	"kando/packages/core"
 	"kando/packages/media"
@@ -26,6 +27,8 @@ type Film struct {
 	Key, Title, Name, Source, Detail string
 	Stage                            core.Stage
 	JobID, VideoPath, SubtitlePath   string
+	// Home is the folder in the library Kando keeps the film's own files in for a video kept outside it (core.Job.Home, shelf.Added.Home), "" for a film whose files are beside its video. FileBase names them.
+	Home string
 	// Language is what the job translates into, such as 简体中文; empty for a video no job has processed.
 	Language string
 	// List is the list the film was added from and ListIndex its place in it (core.Job.List), which play goes on in (Next).
@@ -112,7 +115,7 @@ func List(root string, jobs []core.Job, videos []media.Video, names map[string]s
 		if given := names[video.Path]; given != "" {
 			name = given
 		}
-		f := Film{Key: video.Path, Title: Shorten(name, 22), Name: name, Detail: video.Path, VideoPath: video.Path, SubtitlePath: video.Subtitles, Added: video.Added}
+		f := Film{Key: video.Path, Title: Shorten(name, 22), Name: name, Detail: video.Path, VideoPath: video.Path, SubtitlePath: video.Subtitles, Home: video.Home, Added: video.Added}
 		if video.Added.IsZero() {
 			found = append(found, f)
 		} else {
@@ -137,7 +140,7 @@ func List(root string, jobs []core.Job, videos []media.Video, names map[string]s
 }
 
 // Videos is the videos the shelf of the library at root lists beside its jobs: those of its folder (media.ListVideos), then those no job holds that were moved to a storage location (MovedVideos), whose paths are moved, then those added to it without a job (AddedVideos), by path with when each was added. The open library's shelf, the libraries' counts, the paired phone and the control socket all list a library's films from it.
-func Videos(root string, jobs []core.Job, moved []string, added map[string]time.Time) ([]media.Video, error) {
+func Videos(root string, jobs []core.Job, moved []string, added map[string]kandoshelf.Added) ([]media.Video, error) {
 	videos, err := media.ListVideos(root)
 	if err != nil {
 		return nil, err
@@ -145,8 +148,8 @@ func Videos(root string, jobs []core.Job, moved []string, added map[string]time.
 	return AddedVideos(root, jobs, MovedVideos(root, jobs, videos, moved), added), nil
 }
 
-// AddedVideos is videos and then the videos of added, those added to the library at root without a job, by path with when each was added (shelf.Library.Added), that neither a job of that library (InLibrary) nor videos holds, the newest first. A job of another library for the same video does not hide it, as that job is on the other library's shelf, not this one. Each shows the bilingual subtitles beside it, as a video of the folder does, and is named after its file, or after its folder for a video.<ext>. One whose file is not there now is listed all the same, as its drive may be taken out; the shelf marks it (Film.Missing).
-func AddedVideos(root string, jobs []core.Job, videos []media.Video, added map[string]time.Time) []media.Video {
+// AddedVideos is videos and then the videos of added, those added to the library at root without a job, by path with when each was added and its folder (shelf.Library.Added), that neither a job of that library (InLibrary) nor videos holds, the newest first. A job of another library for the same video does not hide it, as that job is on the other library's shelf, not this one. Each shows its bilingual subtitles, beside it as a video of the folder does or in its folder (kandoshelf.Added.Home), and is named after its file, or after its folder for a video.<ext>. One whose file is not there now is listed all the same, as its drive may be taken out; the shelf marks it (Film.Missing).
+func AddedVideos(root string, jobs []core.Job, videos []media.Video, added map[string]kandoshelf.Added) []media.Video {
 	if len(added) == 0 {
 		return videos
 	}
@@ -170,8 +173,8 @@ func AddedVideos(root string, jobs []core.Job, videos []media.Video, added map[s
 			// The shelf names a film by its file's name without its extension, so the folder's keeps a dot in it.
 			name = filepath.Base(filepath.Dir(path)) + filepath.Ext(path)
 		}
-		v := media.Video{Path: path, Name: name, Added: at}
-		if sub := strings.TrimSuffix(path, filepath.Ext(path)) + ".bilingual.srt"; fileThere(sub) {
+		v := media.Video{Path: path, Name: name, Added: at.At, Home: at.Home}
+		if sub := media.BilingualPath(core.FileBase(path, at.Home)); fileThere(sub) {
 			v.Subtitles = sub
 		}
 		extra = append(extra, v)
@@ -203,7 +206,7 @@ func MovedVideos(root string, jobs []core.Job, videos []media.Video, moved []str
 		}
 		held[filepath.Clean(path)] = true
 		v := media.Video{Path: path, Name: filepath.Base(path)}
-		if sub := strings.TrimSuffix(path, filepath.Ext(path)) + ".bilingual.srt"; fileThere(sub) {
+		if sub := media.BilingualPath(path); fileThere(sub) {
 			v.Subtitles = sub
 		}
 		extra = append(extra, v)
@@ -240,7 +243,7 @@ func FromJob(job core.Job, name, detail string) Film {
 	return Film{
 		Key: job.ID, Title: Shorten(name, 22), Name: name, Source: job.Source,
 		Detail: detail, Stage: job.Stage, JobID: job.ID,
-		VideoPath: job.VideoPath, SubtitlePath: job.SubtitlePath, Language: job.Language, Spoken: job.SpokenLanguage, SpeechLanguage: job.SpeechLanguage,
+		VideoPath: job.VideoPath, SubtitlePath: job.SubtitlePath, Home: job.Home, Language: job.Language, Spoken: job.SpokenLanguage, SpeechLanguage: job.SpeechLanguage,
 		Progress: job.Progress, Thumbnail: job.Thumbnail, Untranslated: job.Untranslated, TranslationErr: job.TranslationErr, TranslationSource: job.TranslationSource, SameLanguage: job.SameLanguage,
 		Stopped: errors.Is(job.Err, context.Canceled), Failure: jobfailure.Of(job), Target: jobTarget(job), Device: job.Device, PausedBy: job.PausedBy,
 		PlatformSubtitles: job.PlatformSubtitles, LocalLines: job.LocalLines,
@@ -761,3 +764,6 @@ func posterColor(key string) ns.Color {
 	}
 	return colors[n%len(colors)]
 }
+
+// FileBase is the path the film's own files are named after (core.FileBase): its video, or video.<ext> in its Home.
+func (f Film) FileBase() string { return core.FileBase(f.VideoPath, f.Home) }

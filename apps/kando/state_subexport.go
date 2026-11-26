@@ -91,6 +91,15 @@ func (a *app) subexportVideo() string {
 	return item.VideoPath
 }
 
+// subexportBase is what the open film's own files are named after (films.Film.FileBase), its video or video.<ext> in its folder in the library, "" while none is open.
+func (a *app) subexportBase() string {
+	item, ok := a.openFilm()
+	if !ok || item.VideoPath == "" {
+		return ""
+	}
+	return item.FileBase()
+}
+
 // subexportAs is the export the user chose, of the open film with its subtitle delay, a placeholder in the interface's language standing in for a missing translation.
 func (a *app) subexportAs() core.Export {
 	return a.export.choice.Export(a.player.film.delay, a.messages().SubexportPlaceholder())
@@ -232,7 +241,8 @@ func (a *app) SubexportSaveAs() {
 
 // subexportSave asks where to save data, the export, under the name of path, as SubexportSaveAs does.
 func (a *app) subexportSave(path string, data []byte) {
-	video := a.subexportVideo()
+	// Kando's own files of the film are those named after its base: for a video kept outside the library, those in its folder there, not the ones an earlier Kando left beside the video, which an export may write over (library_home.go).
+	video := a.subexportBase()
 	kept := subexportKeep(video, a.player.subs.path)
 	busy := a.subexportJobRunning()
 	release := a.holdModal()
@@ -275,7 +285,7 @@ type subexportKept struct {
 	companions map[string][]byte
 }
 
-// subexportKeep is what the subtitle files of the film whose video is video and whose subtitles the player reads from subtitles hold now: its transcript, the one it keeps beside subtitles of the user's and its bilingual subtitles (<video>.srt, <video>.kando.srt, <video>.bilingual.srt), whether they exist or not, as a save under a name that is not there yet would make them the film's, and subtitles.
+// subexportKeep is what the subtitle files of the film whose files are named after video (films.Film.FileBase) and whose subtitles the player reads from subtitles hold now: its transcript, the one it keeps beside subtitles of the user's and its bilingual subtitles (media.SubtitleNames), whether they exist or not, as a save under a name that is not there yet would make them the film's, and subtitles.
 func subexportKeep(video, subtitles string) subexportKept {
 	kept := subexportKept{names: map[string][]byte{}, companions: map[string][]byte{}}
 	var paths []string
@@ -283,8 +293,7 @@ func subexportKeep(video, subtitles string) subexportKept {
 		paths = append(paths, subtitles)
 	}
 	if video != "" {
-		base := strings.TrimSuffix(video, filepath.Ext(video))
-		paths = append(paths, base+".srt", base+".kando.srt", base+".bilingual.srt")
+		paths = append(paths, media.SubtitleNames(video)...)
 		for _, p := range subexportCompanions(video) {
 			if data, err := os.ReadFile(p); err == nil {
 				kept.companions[subexportKey(p)] = data

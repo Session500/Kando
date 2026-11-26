@@ -365,6 +365,11 @@ func (a *app) libraryMoveUnitStart(run *libraryMoveRun, unit films.Unit) (bool, 
 		if err := a.libraryMoveCheck(m, item, from); err != nil {
 			return false, err
 		}
+		// A video kept outside the library has its files in its folder there (core.Job.Home), which only a library bundle keeps: a folder of the user's would have them beside the video.
+		if item.Home != "" && !shelfBundle(to) {
+			itemName := films.Name(item)
+			return false, a.libraryMoveRefusal(m, remote.CodeInvalid, func(m locales.Messages) string { return m.LibraryMoveHomeToFolder(itemName) })
+		}
 	}
 	source, err := a.libraryMoveBook(from)
 	if err != nil {
@@ -382,6 +387,12 @@ func (a *app) libraryMoveUnitStart(run *libraryMoveRun, unit films.Unit) (bool, 
 	case films.InDir(from, first.VideoPath):
 		p := libraryMovePlan(from, to, first, a.awayPaths())
 		plan = &p
+	// A video kept outside the library stays where it is, and the folder of its files in the library moves to the other one.
+	case first.Home != "" && films.InDir(from, first.Home):
+		if _, err := os.Stat(first.Home); err == nil {
+			p := media.PlanFilmMove([]string{first.Home}, true, to)
+			plan = &p
+		}
 	}
 	for _, item := range unit.Items {
 		if a.openKey == item.Key {
@@ -512,6 +523,10 @@ func (a *app) libraryMoveCommit(items []films.Film, from, to string, plan *media
 		keys = append(keys, key)
 		if item.JobID != "" {
 			jobs[item.JobID] = true
+		} else if !item.Added.IsZero() {
+			// A video added without a job is the other library's added video from now on, with the folder of its files there.
+			home, _ := move(item.Home)
+			a.library.MoveAddedVideo(from, to, item.VideoPath, home)
 		}
 	}
 	a.moveVideos(move)
@@ -525,6 +540,9 @@ func (a *app) libraryMoveCommit(items []films.Film, from, to string, plan *media
 		if next, ok := move(job.SubtitlePath); ok {
 			a.library.Jobs[i].SubtitlePath = next
 		}
+		// The folder of the film's files moves with its subtitles, and is always in the job's library (core.Job.Home); one that was not there to move is given again in the other library when the film is next written to (libraryAdopt).
+		home, _ := move(job.Home)
+		a.library.Jobs[i].Home = home
 		a.library.Jobs[i].LibraryDir = to
 	}
 	if err := a.library.Save(); err != nil {

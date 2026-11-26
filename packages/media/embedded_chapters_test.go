@@ -58,7 +58,7 @@ func TestKeepEmbeddedChapters(t *testing.T) {
 	if _, err := run(context.Background(), ffmpeg, "-nostdin", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "sine=d=8", "-i", meta, "-map", "0", "-map_chapters", "1", "-c:a", "aac", "-f", "mp4", book); err != nil {
 		skipWithoutFFmpeg(t, "ffmpeg could not make an audiobook: %v", err)
 	}
-	got, ok := KeepEmbeddedChapters(ffmpeg, book)
+	got, ok := KeepEmbeddedChapters(ffmpeg, book, book)
 	want := []core.Chapter{chapter(0, "One", ""), chapter(4, "Two", "")}
 	if !ok || !reflect.DeepEqual(got.Chapters, want) {
 		t.Fatalf("chapters %+v %v", got, ok)
@@ -69,14 +69,14 @@ func TestKeepEmbeddedChapters(t *testing.T) {
 	if err := SetChapterUse(book, core.ChaptersEven); err != nil {
 		t.Fatal(err)
 	}
-	if again, _ := KeepEmbeddedChapters(ffmpeg, book); again.Use != core.ChaptersEven {
+	if again, _ := KeepEmbeddedChapters(ffmpeg, book, book); again.Use != core.ChaptersEven {
 		t.Fatalf("the cut picked was lost: %+v", again)
 	}
 	plain := filepath.Join(dir, "plain.m4a")
 	if _, err := run(context.Background(), ffmpeg, "-nostdin", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "sine=d=2", "-c:a", "aac", plain); err != nil {
 		skipWithoutFFmpeg(t, "ffmpeg could not make a sound: %v", err)
 	}
-	if _, ok := KeepEmbeddedChapters(ffmpeg, plain); ok {
+	if _, ok := KeepEmbeddedChapters(ffmpeg, plain, plain); ok {
 		t.Fatal("a file without chapters has some")
 	}
 	if _, err := os.Stat(ChaptersPath(plain)); !os.IsNotExist(err) {
