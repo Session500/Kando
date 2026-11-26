@@ -2,6 +2,12 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.61.0 - 2026-11-26
+
+### Features
+
+- Add the official Plex media-source plugin, kando.plex (#491)
+
 ## 0.60.0 - 2026-11-25
 
 ### Features
