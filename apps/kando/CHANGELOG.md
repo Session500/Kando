@@ -2,6 +2,12 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.69.0 - 2026-11-26
+
+### Features
+
+- Read fansubs' episode names, and name bare-numbered films' folders after their show (#514)
+
 ## 0.68.0 - 2026-11-26
 
 ### Features
