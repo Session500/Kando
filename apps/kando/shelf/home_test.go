@@ -60,6 +60,19 @@ func TestHomeFor(t *testing.T) {
 	if len(got) > 255 || !strings.HasSuffix(got, " [01234567]") || !utf8.ValidString(got) {
 		t.Fatalf("a long name's folder is %q, %d bytes", got, len(got))
 	}
+	// A video named by its episode's number alone takes its folder's name before it, and a season's folder its show's, the folder's name cut short before the video's.
+	for video, want := range map[string]string{
+		"/videos/River Walk/01.mkv":                      "River Walk 01 [abc]",
+		"/videos/[BD] River Walk/第3话.mp4":                "River Walk 第3话 [abc]",
+		"/videos/River Walk/Season 2/EP05.mkv":           "River Walk Season 2 EP05 [abc]",
+		"/videos/River Walk/02/video.mkv":                "River Walk 02 [abc]",
+		"/videos/River Walk/01 Opening.mkv":              "01 Opening [abc]",
+		"/videos/" + strings.Repeat("長", 60) + "/01.mkv": strings.Repeat("長", 39) + " 01 [abc]",
+	} {
+		if got := filepath.Base(HomeFor("/lib.kando", filepath.FromSlash(video), "abc")); got != want {
+			t.Errorf("HomeFor(%q) = %q, want %q", video, got, want)
+		}
+	}
 	if AddedKey("/videos/a.mp4") == AddedKey("/videos/b.mp4") || AddedKey("/videos/a.mp4") != AddedKey("/videos/./a.mp4") {
 		t.Fatal("AddedKey does not tell videos apart by their cleaned paths")
 	}
