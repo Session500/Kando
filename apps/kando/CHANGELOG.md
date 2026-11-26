@@ -2,6 +2,12 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.71.0 - 2026-11-27
+
+### Features
+
+- Fold a show's episodes into one card (#516)
+
 ## 0.70.0 - 2026-11-27
 
 ### Features
