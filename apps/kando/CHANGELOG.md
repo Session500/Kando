@@ -2,6 +2,12 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.66.2 - 2026-11-26
+
+### Fixes
+
+- Keep writing an outside video's files into the library while it is open (#508)
+
 ## 0.66.1 - 2026-11-26
 
 ### Fixes
