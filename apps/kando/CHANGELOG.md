@@ -2,6 +2,17 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.68.0 - 2026-11-26
+
+### Features
+
+- Export the subtitles of every film of a library at once (#511)
+
+### Fixes
+
+- Leave the films a category hides out of the selection (#512)
+- Play a show's folders in one order, its seasons by number (#513)
+
 ## 0.67.0 - 2026-11-26
 
 ### Features
