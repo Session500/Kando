@@ -134,7 +134,7 @@ func TestWorksAreRunsOfASequence(t *testing.T) {
 	}
 }
 
-// A large library's works are had at once: 2000 films, 300 shows of them, in well under the time of a frame's update: about 5 ms on the machine this was written on, 50 at most on a test machine.
+// A large library's works are had at once: 2000 films, 300 shows of them, in about 5 ms on the machine this was written on, and about ten times that on a slow test machine. The library works them out again only when its films change (WorksCache), so what the test keeps out is a way of working them out that grows with the square of the films, as reading each film's sequence apart did (2 s for these).
 func TestWorksOfALargeLibrary(t *testing.T) {
 	all := largeLibrary()
 	// The quickest of three, so a test machine busy with others does not count.
@@ -146,7 +146,7 @@ func TestWorksOfALargeLibrary(t *testing.T) {
 		took = min(took, time.Since(start))
 	}
 	// The race detector makes every step many times slower, so only what Works finds is checked under it.
-	if took > 50*time.Millisecond && !raceOn {
+	if took > 250*time.Millisecond && !raceOn {
 		t.Fatalf("2000 films' works took %v", took)
 	}
 	if len(works) < 1500 {
