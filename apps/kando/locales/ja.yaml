@@ -2628,6 +2628,7 @@ storedStoppedBackMany: "動画をライブラリに戻すのを止めました�
 accountLocationRemoveStored: "{count} 本の作品の動画がこの保存場所にあります。同じアドレスで追加し直すまで、これらの動画は再生できません。再生できるようにしておくには、先にそれらの作品で「動画をライブラリに戻す」を選んでください。パスワードと鍵も消去されます。サーバ上のファイルは削除されません。"
 playerRemuxing: "プレーヤー用に動画を準備しています… {percent}%"
 playerRemuxingFrom: "「{place}」からプレーヤー用に動画を準備しています… {percent}%"
+filmNextInWork: "{work} · {film}"
 filmNextUp: "次はこちら"
 filmNextIn: "{seconds} 秒後に再生"
 filmNextPlay: "今すぐ再生"

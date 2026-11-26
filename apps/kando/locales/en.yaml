@@ -9630,6 +9630,12 @@ playerRemuxingFrom:
   placeholders:
     place: { type: "String", example: "Home NAS" }
     percent: { type: "int", example: "42" }
+filmNextInWork:
+  message: "{work} · {film}"
+  description: "Title of the Up Next card when the next film is of another work than the one playing (a show, a course or a playlist the library shows as one card): the work's name, then the film's."
+  placeholders:
+    work: { type: "String", example: "Python" }
+    film: { type: "String", example: "Lesson 01" }
 filmNextUp:
   message: "Up Next"
   description: "Heading of the card that shows once a film ends and another plays after it, as a course's next lesson or a playlist's next video; also the card's name for assistive technology."

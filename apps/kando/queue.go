@@ -1118,6 +1118,9 @@ func (a *app) show(job core.Job) {
 	if job.Stage.Done() {
 		delete(a.queue.refills, job.ID)
 	}
+	// A film made new by a job, not one made again, nor a video of the folder's or one added without a job that had a card already, goes into the categories its work's episodes before it are all in (worksInherit).
+	_, added := a.library.AddedIn(job.LibraryDir)[job.VideoPath]
+	inherit := job.Stage == core.StageComplete && was.Stage != "" && was.Stage != core.StageComplete && job.Redo == "" && !job.FromFolder && !added
 	// A job that has completed is a film of its own, no longer a video of the folder's to put back.
 	if job.Stage == core.StageComplete {
 		job.FromFolder = false
@@ -1136,6 +1139,9 @@ func (a *app) show(job core.Job) {
 		}
 	}
 	a.library.Upsert(job)
+	if inherit {
+		a.worksInherit(job)
+	}
 	// While a batch is queued, the one queueing saves the shelf once it is all queued.
 	if !a.queue.batching {
 		if err := a.library.Save(); err != nil {

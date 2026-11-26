@@ -276,7 +276,7 @@ func (a *app) UpNext() film.UpNext {
 	if !ok {
 		return film.UpNext{}
 	}
-	up := film.UpNext{Open: true, Title: films.Name(item), Due: n.due, Countdown: nextAfter}
+	up := film.UpNext{Open: true, Title: a.nextTitle(item), Due: n.due, Countdown: nextAfter}
 	up.Poster = a.posterOf(item.VideoPath)
 	if item.VideoPath == "" {
 		up.Poster = a.thumbnailOf(item)
@@ -333,4 +333,17 @@ func (a *app) ToggleAutoNext() {
 		a.playerNextClose()
 	}
 	a.playerSaveSettings()
+}
+
+// nextTitle is what the Up Next card calls item: its name, after its work's when play goes on into another work than the open film's, as from a course's last lesson into the folder beside it, so the card says it is leaving the work.
+func (a *app) nextTitle(item films.Film) string {
+	works := a.libraryWorks()
+	next, ok := works.Of(item.Key)
+	if !ok {
+		return films.Name(item)
+	}
+	if open, ok := works.Of(a.openKey); ok && open == next {
+		return films.Name(item)
+	}
+	return a.messages().FilmNextInWork(next.Name, films.Name(item))
 }

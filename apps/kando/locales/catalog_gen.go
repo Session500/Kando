@@ -1241,6 +1241,7 @@ var Parameters = map[string][]string{
 	"AccountLocationRemoveStored":              {"count"},
 	"PlayerRemuxing":                           {"percent"},
 	"PlayerRemuxingFrom":                       {"place", "percent"},
+	"FilmNextInWork":                           {"work", "film"},
 	"FilmNextIn":                               {"seconds"},
 	"SettingsSourcesBrowseLabel":               {"name"},
 	"SettingsSourcesKindOffered":               {"name"},
@@ -2053,6 +2054,7 @@ type Translation struct {
 	AccountLocationRemoveStored              func(count int) string
 	PlayerRemuxing                           func(percent int) string
 	PlayerRemuxingFrom                       func(place string, percent int) string
+	FilmNextInWork                           func(work string, film string) string
 	FilmNextIn                               func(seconds int) string
 	SettingsSourcesBrowseLabel               func(name string) string
 	SettingsSourcesKindOffered               func(name string) string
@@ -27877,6 +27879,9 @@ func Supply(lang string, t Translation) {
 	}
 	if t.PlayerRemuxingFrom != nil {
 		s.PlayerRemuxingFrom = t.PlayerRemuxingFrom
+	}
+	if t.FilmNextInWork != nil {
+		s.FilmNextInWork = t.FilmNextInWork
 	}
 	if t.FilmNextIn != nil {
 		s.FilmNextIn = t.FilmNextIn
@@ -73725,6 +73730,38 @@ func (msgs Messages) PlayerRemuxingFrom(place string, percent int) string {
 			return "正在从「" + place + "」为播放器准备视频… " + i18n.FormatNumber("zh-Hans", float64(percent)) + "%"
 		case "zh-Hant":
 			return "正在從「" + place + "」為播放器準備影片… " + i18n.FormatNumber("zh-Hant", float64(percent)) + "%"
+		}
+	}
+}
+
+// FilmNextInWork says "{work} · {film}"
+// in the language the app shows under cx.
+//
+// Title of the Up Next card when the next film is of another work than the one playing (a show, a course or a playlist the library shows as one card): the work's name, then the film's.
+func FilmNextInWork(cx *core.Scope, work string, film string) string {
+	return For(cx).FilmNextInWork(work, film)
+}
+
+// FilmNextInWork is the package's FilmNextInWork in the language of msgs.
+func (msgs Messages) FilmNextInWork(work string, film string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.FilmNextInWork(work, film))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].FilmNextInWork; f != nil {
+			return f(work, film)
+		}
+		switch lang {
+		case "", "en":
+			return msgs.arg(work) + " · " + msgs.arg(film)
+		case "ja":
+			return work + " · " + film
+		case "ko":
+			return work + " · " + film
+		case "zh-Hans":
+			return work + " · " + film
+		case "zh-Hant":
+			return work + " · " + film
 		}
 	}
 }
