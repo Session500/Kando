@@ -407,10 +407,7 @@ func (a *app) readFilmInfo(path string) {
 		return
 	}
 	// The film's own files are named after base (core.FileBase), its video or video.<ext> in its folder in the library.
-	base := path
-	if item, ok := a.openFilm(); ok {
-		base = kcore.FileBase(path, item.Home)
-	}
+	base := kcore.FileBase(path, a.player.home)
 	dir := filepath.Dir(base)
 	a.player.film.infoFor, a.player.film.infoBase = path, base
 	update := a.update

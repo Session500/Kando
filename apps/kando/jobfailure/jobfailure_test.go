@@ -44,6 +44,14 @@ func TestHintOfAJoinedCheck(t *testing.T) {
 	}
 }
 
+// A job of a video kept outside a library whose folder is not there says so, not that a tool failed.
+func TestHintOfALibraryGone(t *testing.T) {
+	failed := &media.StageError{Stage: media.StageCheck, Err: core.ErrLibraryGone}
+	if reason, section := hint(failed); reason != en.LibraryFolderGone() || section != "" {
+		t.Fatalf("%q %q", reason, section)
+	}
+}
+
 // checkless is a translation source that always fails.
 type checkless struct{}
 

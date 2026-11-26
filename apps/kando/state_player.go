@@ -14,6 +14,8 @@ import (
 
 // playerUI is the state of the open film: the picture, the subtitle file and how subtitles look. The settings in it are saved with the app's settings (savedSettings).
 type playerUI struct {
+	// home is the folder in the library of the open film's files (core.Job.Home, shelf.Added.Home) its lines, its info and its terms are read from and written to, "" for one whose files are beside its video. It is the film's as it opened, and follows it only to a folder it is given, or one it has renamed (playerHomeFollow): never back to beside the video.
+	home string
 	// next is the card that plays the next film once the open one ends, and nextOff is set while 自动播放下一部 is off (player_next.go).
 	next    playerNext
 	nextOff bool
@@ -301,7 +303,8 @@ func (a *app) playerAfterChange() bool {
 	gaps := a.playerGapsFollow()
 	next := a.playerNextFollow()
 	redo := a.subtitlesFollowRedo()
-	return changed || tip || stream || coming || drafts || gaps || next || redo
+	home := a.playerHomeFollow()
+	return home || changed || tip || stream || coming || drafts || gaps || next || redo
 }
 
 // playerTipFor is how long the tip that the subtitles can be dragged shows.

@@ -52,6 +52,10 @@ func Hint(m locales.Messages, detail string, failed *media.StageError) (reason, 
 		if failed.Source != "" {
 			return SourceHint(m, failed.Source, rest)
 		}
+		// A video kept outside its library is not made while the library's folder, where its files go, is not there.
+		if errors.Is(failed.Err, core.ErrLibraryGone) {
+			return m.LibraryFolderGone(), ""
+		}
 	}
 	switch {
 	case strings.Contains(detail, "KANDO_WHISPER_MODEL"), strings.Contains(detail, "whisper model"):

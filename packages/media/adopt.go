@@ -55,32 +55,49 @@ func kandoBeside(video, base string) [][2]string {
 
 // AdoptFiles copies the files Kando wrote beside the video at video, as a Kando before this one did (kandoBeside), into the folder of base, the path the film's files are named after from now on (core.FileBase), under base's names, and returns where each went, by its path beside the video. It never changes, moves or removes a file beside the video: those are the user's folder's, and another computer that shares it may still read them.
 //
-// Each file is copied to a hidden name in base's folder first and checked against the one it was copied from, size and hash, before it takes its name, so a copy cut short by a crash or a full disk never stands under a film's name. A file already there under that name is kept as it is and not written over, as one a copy before a crash left; it still counts as where its file went. The folder is made with os.Mkdir, so a library folder that is not there is not made again; it is not made at all when there is nothing to copy. The device's log of the film is told of each subtitle file it took in or wrote out under its old name that holds the same now under its new one (track.KindFile), so it is not taken in again as a file another editor wrote (ReadTrack); one edited outside Kando since is taken in under its new name, as it would have been under its old one. An error leaves what was copied in base's folder, unused, and nothing beside the video changed: the caller does not name the film's files after base then, and a later try copies again, keeping what is there.
-func AdoptFiles(video, base, device string) (map[string]string, error) {
+// Each file is copied to a hidden name in base's folder first and checked against the one it was copied from, size and hash, before it takes its name, so a copy cut short by a crash or a full disk never stands under a film's name. A file already there under that name is kept as it is and not written over, as one a copy before a crash left; it still counts as where its file went. The folder is made with os.Mkdir, so a library folder that is not there is not made again; it is not made at all when there is nothing to copy. The device's log of the film is told of each subtitle file it took in or wrote out under its old name that holds the same now under its new one (track.KindFile), so it is not taken in again as a file another editor wrote (ReadTrack); one edited outside Kando since is taken in under its new name, as it would have been under its old one.
+//
+// An error takes back the copies this call made, and nothing beside the video changed: the caller does not name the film's files after base then, and goes on reading and writing them beside the video, so a later try must copy what is there then, not keep a copy of what was there before. undo takes them back too, for a caller that cannot name the film's files after base once they are copied, as one whose library.json cannot be saved: a copy left would hide what is written beside the video until the next try.
+func AdoptFiles(video, base, device string) (placed map[string]string, undo func(), err error) {
 	files := kandoBeside(video, base)
 	if len(files) == 0 {
-		return nil, nil
+		return nil, func() {}, nil
 	}
 	if err := os.Mkdir(filepath.Dir(base), 0o755); err != nil && !errors.Is(err, fs.ErrExist) {
-		return nil, err
+		return nil, nil, err
 	}
 	before, err := track.Read(video)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	placed := make(map[string]string, len(files))
+	var made []string
+	takeBack := func() {
+		for _, path := range made {
+			os.Remove(path)
+		}
+	}
+	defer func() {
+		if err != nil {
+			takeBack()
+		}
+	}()
+	placed = make(map[string]string, len(files))
 	for _, f := range files {
-		if err := copyChecked(f[0], f[1]); err != nil {
-			return nil, fmt.Errorf("%s: %w", filepath.Base(f[0]), err)
+		copied, err := copyChecked(f[0], f[1])
+		if err != nil {
+			return nil, nil, fmt.Errorf("%s: %w", filepath.Base(f[0]), err)
+		}
+		if copied {
+			made = append(made, f[1])
 		}
 		placed[f[0]] = f[1]
 	}
 	if device == "" {
-		return placed, nil
+		return placed, takeBack, nil
 	}
 	after, err := track.Read(base)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	var events []track.Event
 	transcript := TranscriptOf(base)
@@ -105,44 +122,48 @@ func AdoptFiles(video, base, device string) (map[string]string, error) {
 	}
 	if len(events) > 0 {
 		if _, err := track.Append(base, device, events...); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
-	return placed, nil
+	return placed, takeBack, nil
 }
 
-// copyChecked copies the file at from to to through a hidden file beside to, which takes to's name only once it holds what from holds, size and hash; a file already at to is left as it is.
-func copyChecked(from, to string) error {
+// copyChecked copies the file at from to to through a hidden file beside to, which takes to's name only once it holds what from holds, size and hash, readable by every account as a file Kando writes is (writeFileAtomic), so a library on a disk shared with another computer reads it there; a file already at to is left as it is. It reports whether it copied one.
+func copyChecked(from, to string) (bool, error) {
 	if _, err := os.Lstat(to); err == nil {
-		return nil
+		return false, nil
 	}
 	data, err := os.ReadFile(from)
 	if err != nil {
-		return err
+		return false, err
 	}
 	temp, err := os.CreateTemp(filepath.Dir(to), "."+filepath.Base(to)+".*.adopting")
 	if err != nil {
-		return err
+		return false, err
 	}
 	defer os.Remove(temp.Name())
 	if _, err := temp.Write(data); err != nil {
 		temp.Close()
-		return err
+		return false, err
+	}
+	if err := temp.Chmod(0o644); err != nil {
+		temp.Close()
+		return false, err
 	}
 	if err := temp.Sync(); err != nil {
 		temp.Close()
-		return err
+		return false, err
 	}
 	if err := temp.Close(); err != nil {
-		return err
+		return false, err
 	}
 	if err := sameFile(temp.Name(), data); err != nil {
-		return err
+		return false, err
 	}
 	if _, err := os.Lstat(to); err == nil {
-		return nil
+		return false, nil
 	}
-	return os.Rename(temp.Name(), to)
+	return true, os.Rename(temp.Name(), to)
 }
 
 // errCopyDiffers is a copy that does not hold what it was copied from.

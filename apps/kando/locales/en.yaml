@@ -1134,6 +1134,9 @@ libraryAdoptFailed:
   placeholders:
     name: { type: "String", example: "Lesson 1" }
     error: { type: "String", example: "permission denied" }
+libraryFolderGone:
+  message: "The library's folder isn't there, as when the disk it's on isn't connected. Connect it, then try again."
+  description: "Why a film of a video kept outside its library could not be made or written to: the library's folder, where Kando keeps the film's subtitles, is missing, as on a disk that is not connected. Shown as a failed job's reason, and in the message bar as a film opens."
 libraryAddedOnly:
   message: "Added {count, plural, one {# film} other {# films}} to the library. Open one to make its subtitles."
   description: "Message bar after films found in folders dropped were only added to the library, without subtitles."

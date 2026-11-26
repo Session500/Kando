@@ -74,7 +74,7 @@ func TestAdoptFilesCopiesKandosFilesAlone(t *testing.T) {
 	}
 
 	base := core.FileBase(video, home)
-	placed, err := AdoptFiles(video, base, "dev")
+	placed, _, err := AdoptFiles(video, base, "dev")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +111,7 @@ func TestAdoptFilesCopiesKandosFilesAlone(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(home, ".video.edits.json"), []byte(`{"kept":true}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := AdoptFiles(video, base, "dev"); err != nil {
+	if _, _, err := AdoptFiles(video, base, "dev"); err != nil {
 		t.Fatal(err)
 	}
 	if data, _ := os.ReadFile(filepath.Join(home, ".video.edits.json")); string(data) != `{"kept":true}` {
@@ -120,7 +120,7 @@ func TestAdoptFilesCopiesKandosFilesAlone(t *testing.T) {
 
 	// A library folder that is not there is not made again.
 	gone := filepath.Join(t.TempDir(), "gone.kando", "talk [12345678]")
-	if _, err := AdoptFiles(video, core.FileBase(video, gone), "dev"); err == nil {
+	if _, _, err := AdoptFiles(video, core.FileBase(video, gone), "dev"); err == nil {
 		t.Fatal("copied into a library that is not there")
 	}
 	if _, err := os.Stat(filepath.Dir(gone)); err == nil {
@@ -142,7 +142,7 @@ func TestAdoptFilesCopiesLogsQuickly(t *testing.T) {
 		}
 	}
 	start := time.Now()
-	placed, err := AdoptFiles(video, core.FileBase(video, filepath.Join(root, "talk [12345678]")), "")
+	placed, _, err := AdoptFiles(video, core.FileBase(video, filepath.Join(root, "talk [12345678]")), "")
 	took := time.Since(start)
 	if err != nil || len(placed) != 5 {
 		t.Fatalf("placed %v: %v", placed, err)
@@ -150,5 +150,52 @@ func TestAdoptFilesCopiesLogsQuickly(t *testing.T) {
 	t.Logf("copying 5 logs of 1 MB took %v", took)
 	if took > 2*time.Second {
 		t.Fatalf("copying 5 logs of 1 MB took %v", took)
+	}
+}
+
+// A copy that fails partway takes back what it copied, as does undo once the caller cannot use them, so what is written beside the video in the meantime is what a later try copies, not a copy of what was there before; what it copies is readable by every account.
+func TestAdoptFilesTakesBackWhatItCopied(t *testing.T) {
+	user, root := t.TempDir(), t.TempDir()
+	video := filepath.Join(user, "talk.mp4")
+	for path, data := range map[string]string{video: "v", BilingualPath(video): "1\n00:00:00,000 --> 00:00:01,000\n你好\nhello\n\n", CorrectionsPath(video): "[]", ReferencePath(video): "ref"} {
+		if err := os.WriteFile(path, []byte(data), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	home := filepath.Join(root, "talk [12345678]")
+	base := core.FileBase(video, home)
+	if err := os.Chmod(ReferencePath(video), 0); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.ReadFile(ReferencePath(video)); err == nil {
+		t.Skip("a file of no permissions is read here")
+	}
+	if _, _, err := AdoptFiles(video, base, "dev"); err == nil {
+		t.Fatal("a file that cannot be read was copied")
+	}
+	if entries, _ := os.ReadDir(home); len(entries) != 0 {
+		t.Fatalf("a copy that failed left %d files in the film's folder", len(entries))
+	}
+	if err := os.Chmod(ReferencePath(video), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// A file kept there, as one a copy before a crash left, stays as it was after undo.
+	if err := os.WriteFile(TermsPath(base), []byte("kept"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(TermsPath(video), []byte("[]"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	placed, undo, err := AdoptFiles(video, base, "dev")
+	if err != nil || placed[CorrectionsPath(video)] != CorrectionsPath(base) {
+		t.Fatalf("placed %v: %v", placed, err)
+	}
+	if info, err := os.Stat(CorrectionsPath(base)); err != nil || info.Mode().Perm() != 0o644 {
+		t.Fatalf("the copy is %v: %v", info.Mode(), err)
+	}
+	undo()
+	entries, _ := os.ReadDir(home)
+	if len(entries) != 1 || entries[0].Name() != filepath.Base(TermsPath(base)) {
+		t.Fatalf("after undo the film's folder holds %v", entries)
 	}
 }

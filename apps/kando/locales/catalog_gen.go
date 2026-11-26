@@ -2317,6 +2317,7 @@ const (
 	textFilmNotesReviewEmpty
 	textFilmNotesSoundKept
 	textFilmTabNotes
+	textLibraryFolderGone
 	textLibraryDropReading
 	textSettingsAIBatchSize
 	textSettingsAIBatchSizeHint
@@ -4249,6 +4250,7 @@ var keyOfText = [numTexts]string{
 	"filmNotesReviewEmpty",
 	"filmNotesSoundKept",
 	"filmTabNotes",
+	"libraryFolderGone",
 	"libraryDropReading",
 	"settingsAIBatchSize",
 	"settingsAIBatchSizeHint",
@@ -6179,6 +6181,7 @@ var textsEn = i18n.NewTexts(""+
 	"Saved lines and words show up here"+
 	"Each line's audio is cut when you save it, so the review does not need the video."+
 	"Notes"+
+	"The library's folder isn't there, as when the disk it's on isn't connected. Connect it, then try again."+
 	"Looking through the folder…"+
 	"Lines per Request"+
 	"More lines take fewer requests; fewer suit a small model."+
@@ -8106,6 +8109,7 @@ var textsEn = i18n.NewTexts(""+
 		34,
 		81,
 		5,
+		103,
 		29,
 		17,
 		57,
@@ -10036,6 +10040,7 @@ var textsJa = i18n.NewTexts(""+
 	"保存したセリフと単語がここに表示されます"+
 	"保存したときにセリフの音声を切り出すので、復習に元の動画は要りません。"+
 	"ノート"+
+	"ライブラリのフォルダが見つかりません。フォルダのあるディスクが接続されていない可能性があります。接続してからもう一度お試しください。"+
 	"フォルダを確認しています…"+
 	"1 回あたりの行数"+
 	"多いほどリクエストが減ります。小さなモデルには少なめが向いています。"+
@@ -11963,6 +11968,7 @@ var textsJa = i18n.NewTexts(""+
 		60,
 		105,
 		9,
+		198,
 		39,
 		23,
 		102,
@@ -13893,6 +13899,7 @@ var textsKo = i18n.NewTexts(""+
 	"저장한 대사와 단어가 여기에 나타납니다"+
 	"저장할 때 대사의 원음을 잘라 두므로 복습에 원본 영상이 필요 없습니다."+
 	"노트"+
+	"라이브러리 폴더가 없습니다. 폴더가 있는 디스크가 연결되어 있지 않을 수 있습니다. 연결한 뒤 다시 시도하세요."+
 	"폴더를 살펴보는 중…"+
 	"요청당 줄 수"+
 	"많을수록 요청 수가 줄고, 작은 모델에는 적게 두는 편이 좋습니다."+
@@ -15820,6 +15827,7 @@ var textsKo = i18n.NewTexts(""+
 		55,
 		98,
 		6,
+		152,
 		29,
 		17,
 		89,
@@ -17750,6 +17758,7 @@ var textsZhHans = i18n.NewTexts(""+
 	"存下句子和生词后会出现在这里"+
 	"存下时就切好这句的原声，以后复习不需要原视频。"+
 	"笔记"+
+	"资料库文件夹不在了，可能是它所在的磁盘没有连接。接上后再试一次。"+
 	"正在查看文件夹…"+
 	"每批句数"+
 	"句数多，请求就少；小模型适合少一些。"+
@@ -19677,6 +19686,7 @@ var textsZhHans = i18n.NewTexts(""+
 		42,
 		69,
 		6,
+		96,
 		24,
 		12,
 		54,
@@ -21607,6 +21617,7 @@ var textsZhHant = i18n.NewTexts(""+
 	"存下句子和生詞後會出現在這裡"+
 	"存下時就切好這句的原聲，以後複習不需要原影片。"+
 	"筆記"+
+	"資料庫資料夾不在了，可能是它所在的磁碟沒有連接。接上後再試一次。"+
 	"正在查看資料夾…"+
 	"每批句數"+
 	"句數多，請求就少；小模型適合少一些。"+
@@ -23534,6 +23545,7 @@ var textsZhHant = i18n.NewTexts(""+
 		42,
 		69,
 		6,
+		96,
 		24,
 		12,
 		54,
@@ -32515,6 +32527,15 @@ func (msgs Messages) LibraryAdoptFailed(name string, error_ string) string {
 		}
 	}
 }
+
+// LibraryFolderGone says "The library's folder isn't there, as when the disk it's on isn't connected. Connect it, then try again."
+// in the language the app shows under cx.
+//
+// Why a film of a video kept outside its library could not be made or written to: the library's folder, where Kando keeps the film's subtitles, is missing, as on a disk that is not connected. Shown as a failed job's reason, and in the message bar as a film opens.
+func LibraryFolderGone(cx *core.Scope) string { return For(cx).LibraryFolderGone() }
+
+// LibraryFolderGone is the package's LibraryFolderGone in the language of msgs.
+func (msgs Messages) LibraryFolderGone() string { return msgs.text(textLibraryFolderGone) }
 
 // LibraryAddedOnly says "Added {count, plural, one {# film} other {# films}} to the library. Open one to make its subtitles."
 // in the language the app shows under cx.

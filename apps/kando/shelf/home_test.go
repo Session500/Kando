@@ -2,8 +2,10 @@ package shelf
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"kando/packages/core"
 )
@@ -47,6 +49,16 @@ func TestHomeFor(t *testing.T) {
 	}
 	if got := HomeFor("/lib.kando", "/videos/Course/video.mkv", "abc"); got != filepath.Join("/lib.kando", "Course [abc]") {
 		t.Fatal(got)
+	}
+	// A name a folder on a Windows, exFAT or SMB disk cannot have is made one it can.
+	if got := HomeFor("/lib.kando", `/videos/Q&A: why? <part "1"> a|b*c.mp4`, "abc"); got != filepath.Join("/lib.kando", "Q&A_ why_ _part _1__ a_b_c [abc]") {
+		t.Fatal(got)
+	}
+	// One too long for a folder's name, with its [id], is cut where a character ends.
+	long := strings.Repeat("長", 200) + ".mp4"
+	got := filepath.Base(HomeFor("/lib.kando", "/videos/"+long, "0123456789abcdef"))
+	if len(got) > 255 || !strings.HasSuffix(got, " [01234567]") || !utf8.ValidString(got) {
+		t.Fatalf("a long name's folder is %q, %d bytes", got, len(got))
 	}
 	if AddedKey("/videos/a.mp4") == AddedKey("/videos/b.mp4") || AddedKey("/videos/a.mp4") != AddedKey("/videos/./a.mp4") {
 		t.Fatal("AddedKey does not tell videos apart by their cleaned paths")
