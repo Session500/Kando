@@ -2,6 +2,16 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.66.0 - 2026-11-26
+
+### Features
+
+- Keep a video's own files in the library, not beside a video kept outside it (#506)
+
+### Fixes
+
+- Drop Mica on Windows until NSGo hides DWM's caption buttons (#504)
+
 ## 0.65.0 - 2026-11-26
 
 ### Features
