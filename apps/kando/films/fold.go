@@ -40,6 +40,10 @@ func fold(done, all []Film, works WorkIndex, apart func(*Work) bool, p Played, o
 			shown[w] = append(shown[w], f)
 		}
 	}
+	byKey := make(map[string]Film, len(all))
+	for _, f := range all {
+		byKey[f.Key] = f
+	}
 	out := make([]card, 0, len(done))
 	placed := map[*Work]bool{}
 	for _, f := range done {
@@ -54,7 +58,7 @@ func fold(done, all []Film, works WorkIndex, apart func(*Work) bool, p Played, o
 		placed[w] = true
 		films := shown[w]
 		slices.SortStableFunc(films, func(a, b Film) int { return slices.Index(w.Films, a.Key) - slices.Index(w.Films, b.Key) })
-		next, _ := Continue(p, w, all)
+		next, _ := continueAmong(p, workFilms(w, byKey))
 		out = append(out, card{Key: workCardKey(w), Film: next, Work: w, Films: films})
 	}
 	if o.Valid().By == SortTitle && len(out) > 1 {
@@ -113,12 +117,26 @@ const (
 
 // Continue is the film of w, among all, a work goes on with, and how (GoOnResume and the others): the film played last when it was stopped partway; else the one after the film played last, a film that failed passed over; else its first. Every film of the work counts, those the page does not show too, so a card under 未看 goes on where the work does.
 func Continue(p Played, w *Work, all []Film) (Film, int) {
+	byKey := make(map[string]Film, len(all))
+	for _, f := range all {
+		byKey[f.Key] = f
+	}
+	return continueAmong(p, workFilms(w, byKey))
+}
+
+// workFilms is the films of w, in its order, as byKey has them by key.
+func workFilms(w *Work, byKey map[string]Film) []Film {
 	films := make([]Film, 0, len(w.Films))
 	for _, key := range w.Films {
-		if f, ok := Find(all, key); ok {
+		if f, ok := byKey[key]; ok {
 			films = append(films, f)
 		}
 	}
+	return films
+}
+
+// continueAmong is Continue among films, a work's in its order.
+func continueAmong(p Played, films []Film) (Film, int) {
 	if len(films) == 0 {
 		return Film{}, GoOnStart
 	}

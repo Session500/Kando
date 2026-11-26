@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"kando/apps/kando/sidebar"
 	"kando/apps/kando/locales/testlocale"
+	"kando/apps/kando/sidebar"
 	"kando/packages/core"
 
 	ns "github.com/nsgo-dev/nsgo/core"
@@ -149,4 +149,25 @@ func TestContinue(t *testing.T) {
 	if f, how := Continue(a, w, a.items); f.Key != eps[0].Key || how != GoOnAgain {
 		t.Fatalf("a work watched whole goes on with %s, %d", f.Key, how)
 	}
+}
+
+// In the list a work is a row of its name and how many episodes it holds, selected while they all are, which Return opens the page of.
+func TestAWorkIsARowOfTheList(t *testing.T) {
+	a := newFakeApp()
+	eps := withShow(a)
+	a.view = ViewList
+	app := start(t, a)
+	msgs := testlocale.Messages()
+	row := "id:films-list >> " + whole(msgs.FilmsWorkLabel("River Walk", 3))
+	if !app.Exists(row) || app.Exists("id:films-list >> "+whole(eps[0].Name)) {
+		t.Fatalf("the list has no row for the work: %q", app.Texts())
+	}
+	app.PressWith(row, ns.Modifiers{Platform: true})
+	if !slices.Equal(a.selection.Keys, Keys(eps)) {
+		t.Fatalf("selecting the work's row selected %q", a.selection.Keys)
+	}
+	a.calls = nil
+	app.Key("enter")
+	w, _ := a.Works().Of(eps[0].Key)
+	wantCalls(t, a, "show-work "+w.Key)
 }
