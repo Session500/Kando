@@ -40,6 +40,8 @@ type Book struct {
 	Categories []Category
 	// members is the IDs of the categories each film is in, by its key, each list in the order the film was put in them. A film in none has no entry.
 	members map[string][]string
+	// apart is the works of the library the user showed a card a film each rather than one card (films.Work), by the key the app gives each (Apart), in the order they were split. They are the library's too, so they go with it as its categories do.
+	apart []string
 	// unread is why Load could not read the file in full; while it is set Save leaves it as it is.
 	unread error
 }
@@ -50,6 +52,7 @@ var ErrUnread = errors.New("categories.json could not be read, so it is not writ
 type storedBook struct {
 	Categories []Category          `json:"categories"`
 	Members    map[string][]string `json:"members,omitempty"`
+	Apart      []string            `json:"apart,omitempty"`
 }
 
 // Load reads the categories of the library folder dir. A library with no file has none. A file that is there but cannot be read gives the error, and a book that Save will not write until the file can be read.
@@ -96,6 +99,27 @@ func (b *Book) load(stored storedBook) {
 			b.members[key] = kept
 		}
 	}
+	for _, work := range stored.Apart {
+		if work != "" && !slices.Contains(b.apart, work) {
+			b.apart = append(b.apart, work)
+		}
+	}
+}
+
+// Apart reports whether the user showed the work keyed work a card a film each.
+func (b Book) Apart(work string) bool { return slices.Contains(b.apart, work) }
+
+// SetApart shows the work keyed work a card a film each, or one card again, and reports whether that changed anything.
+func (b *Book) SetApart(work string, apart bool) bool {
+	if work == "" || b.Apart(work) == apart {
+		return false
+	}
+	if apart {
+		b.apart = append(slices.Clone(b.apart), work)
+	} else {
+		b.apart = slices.DeleteFunc(slices.Clone(b.apart), func(w string) bool { return w == work })
+	}
+	return true
 }
 
 // Dir is the library folder the book is of.
@@ -112,7 +136,7 @@ func (b Book) Save() error {
 	if b.unread != nil {
 		return ErrUnread
 	}
-	stored := storedBook{Categories: b.Categories, Members: b.members}
+	stored := storedBook{Categories: b.Categories, Members: b.members, Apart: b.apart}
 	if stored.Categories == nil {
 		stored.Categories = []Category{}
 	}

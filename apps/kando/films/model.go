@@ -362,29 +362,29 @@ func MatchesTitle(item Film, query string) bool {
 	return query == "" || strings.Contains(strings.ToLower(filmName(item)), query)
 }
 
-// ByTitle keeps the films whose names hold query (MatchesTitle); an empty query keeps them all.
-func ByTitle(items []Film, query string) []Film {
+// ByTitle keeps the films whose names hold query, or the names of the works they are in among works (MatchesWork); an empty query keeps them all.
+func ByTitle(items []Film, query string, works WorkIndex) []Film {
 	if strings.TrimSpace(query) == "" {
 		return items
 	}
 	var out []Film
 	for _, item := range items {
-		if MatchesTitle(item, query) {
+		if MatchesWork(item, query, works) {
 			out = append(out, item)
 		}
 	}
 	return out
 }
 
-// Shown is the films of items the library page's grid shows, in their order: the done ones, no longer in 处理中, from source (BySource), heard in spoken (BySpoken), watched as far as watch says (ByWatch, by what p knows) and whose names hold query (ByTitle). Return in the sidebar's search field acts on the same films, so it never opens one the grid hides, and the sidebar counts the films each watch state would show among those of the others (sidebar.WatchAll).
-func Shown(items []Film, p Progress, source, spoken, watch, query string) []Film {
+// Shown is the films of items the library page's grid shows, in their order: the done ones, no longer in 处理中, from source (BySource), heard in spoken (BySpoken), watched as far as watch says (ByWatch, by what p knows) and whose names, or their works' among works, hold query (ByTitle). Return in the sidebar's search field acts on the same films, so it never opens one the grid hides, and the sidebar counts the films each watch state would show among those of the others (sidebar.WatchAll).
+func Shown(items []Film, p Progress, works WorkIndex, source, spoken, watch, query string) []Film {
 	var done []Film
 	for _, item := range BySource(items, source) {
 		if !InQueue(item) {
 			done = append(done, item)
 		}
 	}
-	return ByTitle(ByWatch(BySpoken(done, spoken), p, watch), query)
+	return ByTitle(ByWatch(BySpoken(done, spoken), p, watch), query, works)
 }
 
 func Find(items []Film, key string) (Film, bool) {

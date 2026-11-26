@@ -150,6 +150,13 @@ type App interface {
 	Furthest(path string) time.Duration
 	// Selection is the done films selected on the page, which the app keeps so the menu bar acts on them too (Selection).
 	Selection() *Selection
+	// Works is the open library's works (Works), whose films the page folds into one card each. WorkApart reports whether the user split w apart, its films showing a card each; SetWorkApart splits it or folds it again, and keeps that with the library.
+	Works() WorkIndex
+	WorkApart(w *Work) bool
+	SetWorkApart(w *Work, apart bool)
+	// OpenWork is the key of the work the page shows the films of, opened from its card, "" while it shows the library's; ShowWork opens the work keyed key, "" going back to the library.
+	OpenWork() string
+	ShowWork(key string)
 	// PosterFocus asks the first poster of the grid for the keyboard focus once, as Return in the sidebar's search field does when it leaves several films; the grid sets it back to false when its first poster has taken the focus, or when it shows no poster.
 	PosterFocus() *bool
 	// Notice is the message bar under the top bar.
@@ -271,6 +278,7 @@ func (v View) Render(cx *core.Scope) core.Node {
 		Children: []core.Node{
 			content,
 			selectionKeys(cx, a, func() []Film { return model().done }),
+			workKeys(cx, a, func() bool { return model().work != nil }),
 			topBar{a: a, source: source},
 			core.Show{When: dragging.Get, Then: func(*core.Scope) core.Node { return dropZone{} }},
 			newLibrary{a},
@@ -295,6 +303,9 @@ type shelfModel struct {
 	// heroShown is whether the hero shows, hero being its film.
 	heroShown bool
 	done      []Film
+	// cards is the cards of done, a work's films folded into one (fold); done is their films in the cards' order. work is the work the page shows the films of (App.OpenWork), nil while it shows the library's: its cards are a film's each, in the work's order.
+	cards []card
+	work  *Work
 	// list is whether the done films show as a list (ViewList), which leaves the hero out.
 	list bool
 	// empty is the page of a library that holds no film yet; emptySource that of a source no film comes from; emptySpoken the language, whisper's code, that none of the source's done films was heard in, "" when one was or no language is chosen; emptyWatch the watch state none of the films of the source and the language is in, "" when one is or none is chosen; emptyCategory the row of the sidebar's 分类 section, category.None or a category's ID, that holds none of the source's done films, "" when one does or 全部 is chosen; query the search no done film matched, "" when it matched one or there is none.
@@ -306,7 +317,8 @@ type shelfModel struct {
 }
 
 func (m shelfModel) equal(o shelfModel) bool {
-	return slices.Equal(m.queue, o.queue) && m.hero == o.hero && m.heroShown == o.heroShown && slices.Equal(m.done, o.done) && m.list == o.list &&
+	sameWork := (m.work == nil) == (o.work == nil) && (m.work == nil || m.work.Key == o.work.Key && m.work.Name == o.work.Name && slices.Equal(m.work.Films, o.work.Films))
+	return slices.Equal(m.queue, o.queue) && m.hero == o.hero && m.heroShown == o.heroShown && slices.Equal(m.done, o.done) && slices.EqualFunc(m.cards, o.cards, card.equal) && sameWork && m.list == o.list &&
 		m.empty == o.empty && m.emptySource == o.emptySource && m.emptySpoken == o.emptySpoken && m.emptyWatch == o.emptyWatch && m.emptyCategory == o.emptyCategory && m.noMatch == o.noMatch
 }
 
@@ -319,7 +331,8 @@ func newShelfModel(a App, source, tag string) shelfModel {
 		m.empty = true
 		return m
 	}
-	done := Shown(items, a, source, sidebar.SpokenAll, sidebar.WatchAll, "")
+	works := a.Works()
+	done := Shown(items, a, works, source, sidebar.SpokenAll, sidebar.WatchAll, "")
 	if len(m.queue) == 0 && len(done) == 0 {
 		m.emptySource = true
 		return m
@@ -347,15 +360,46 @@ func newShelfModel(a App, source, tag string) shelfModel {
 	query := strings.TrimSpace(*a.Query())
 	m.list = a.LibraryView() == ViewList
 	// The list is a table to scan and to sort, as Finder's is, and its own columns say what was watched last; the hero is the posters' opening.
-	if query == "" && source == sidebar.SourceAll && group == category.All && spoken == sidebar.SpokenAll && watch == sidebar.WatchAll && !m.list {
+	open := a.OpenWork()
+	if open != "" {
+		if w, ok := workShown(works, open); ok {
+			// A work's page is its films alone: 处理中 is the library's, and stays on its page.
+			m.work, m.queue = w, nil
+		}
+	}
+	if query == "" && source == sidebar.SourceAll && group == category.All && spoken == sidebar.SpokenAll && watch == sidebar.WatchAll && !m.list && m.work == nil {
 		m.hero, m.heroShown = HeroFilm(a, done)
 	}
-	done = ByTitle(seen, query)
-	m.done = Sorted(done, a.LibrarySort(), tag, a.PlayedAt, a.Duration)
+	done = ByTitle(seen, query, works)
+	order := a.LibrarySort()
+	if m.work != nil {
+		// A work's page shows its films in the order they play, whatever order the library is in.
+		var films []Film
+		for _, key := range m.work.Films {
+			if f, ok := Find(done, key); ok {
+				films = append(films, f)
+				m.cards = append(m.cards, card{Key: f.Key, Film: f})
+			}
+		}
+		m.done = films
+	} else {
+		m.cards = fold(Sorted(done, order, tag, a.PlayedAt, a.Duration), items, works, a.WorkApart, a, order, tag)
+		m.done = cardFilms(m.cards)
+	}
 	if len(done) == 0 && query != "" {
 		m.noMatch = query
 	}
 	return m
+}
+
+// workShown is the work keyed key among works, the one a page shows the films of (App.OpenWork).
+func workShown(works WorkIndex, key string) (*Work, bool) {
+	for _, w := range works {
+		if w.Key == key {
+			return w, true
+		}
+	}
+	return nil, false
 }
 
 // listed reports whether the page shows the done films as a list: the list was chosen and there are films to list. Otherwise the page shows the posters or what to do when there are none.
@@ -386,6 +430,9 @@ func (s shelf) Render(cx *core.Scope) core.Node {
 		return !heroFits(page.Height, max(heroTop.Get(), contentTop), queueHeight.Get(), grid)
 	}
 	return core.Group{
+		core.Show{When: func() bool { return model().work != nil }, Then: func(*core.Scope) core.Node {
+			return workHeader{a: a, model: model}
+		}},
 		core.Show{When: func() bool { return model().heroShown }, Then: func(*core.Scope) core.Node {
 			return hero{a: a, item: func() Film { return model().hero }, compact: compact, placed: func(b core.Bounds) { heroTop.Set(b.Origin.Y) }}
 		}},
@@ -407,7 +454,7 @@ func (s shelf) Render(cx *core.Scope) core.Node {
 			return emptyWatch{a: a, state: func() string { return model().emptyWatch }}
 		}},
 		core.Show{When: func() bool { return len(model().done) > 0 }, Then: func(*core.Scope) core.Node {
-			return grid{a: a, done: func() []Film { return model().done }, placed: cards.Set}
+			return grid{a: a, done: func() []Film { return model().done }, cards: func() []card { return model().cards }, placed: cards.Set}
 		}},
 		core.Show{When: func() bool { return model().noMatch != "" }, Then: func(*core.Scope) core.Node {
 			return noMatch{a: a, query: func() string { return model().noMatch }}
@@ -429,17 +476,21 @@ func (l listPage) Render(cx *core.Scope) core.Node {
 		core.View{Style: core.Style{Width: core.Pct(100)}, Children: []core.Node{
 			notice{a},
 			handoffBar{a},
+			core.Show{When: func() bool { return model().work != nil }, Then: func(*core.Scope) core.Node {
+				return workHeader{a: a, model: model}
+			}},
 			core.Show{When: func() bool { return len(model().queue) > 0 }, Then: func(*core.Scope) core.Node {
 				return queueSection{a: a, source: l.source, queue: func() []Film { return model().queue }}
 			}},
 		}},
 	}}
 	done := func() []Film { return model().done }
+	cards := func() []card { return model().cards }
 	return core.View{Style: core.Style{FlexGrow: 1, MinHeight: core.Pt(0), Padding: core.Edges{Top: contentTop, Right: PagePadX, Bottom: 12, Left: PagePadX}}, Children: []core.Node{
 		above,
 		core.View{Style: core.Style{FlexGrow: 1, MinHeight: core.Pt(0), Margin: core.Edges{Top: 26}, Gap: 10}, Children: []core.Node{
 			doneHeading{a: a, done: done},
-			filmList{a: a, done: done},
+			filmList{a: a, done: done, cards: cards},
 		}},
 	}}
 }

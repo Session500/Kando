@@ -23,10 +23,11 @@ func gridTracks(min core.Points) core.GridTracks {
 	return core.GridTracks(fmt.Sprintf("repeat(auto-fill, minmax(%gpx, 1fr))", min))
 }
 
-// grid is the films that are done, as 16:9 posters across the page under their heading (doneHeading), in the order chosen (done is in that order already).
+// grid is the films that are done, as 16:9 posters across the page under their heading (doneHeading), in the order chosen (done is in that order already): a card a film, or a work's (cards, fold).
 type grid struct {
-	a    App
-	done func() []Film
+	a     App
+	done  func() []Film
+	cards func() []card
 	// placed hears where the posters are under the grid's heading and how wide they are, as they are laid out.
 	placed func(core.Bounds)
 }
@@ -39,8 +40,12 @@ func (g grid) Render(cx *core.Scope) core.Node {
 	a := g.a
 	cards := core.View{TestID: "films-grid", OnLayout: g.placed,
 		Style: core.Style{Display: core.DisplayGrid, GridTemplateColumns: gridTracks(CardMinWidth), ColumnGap: CardGapX, RowGap: CardGapY, AlignItems: core.AlignStart},
-		Children: []core.Node{core.Each(g.done, func(item Film) string { return item.Key }, func(cx *core.Scope, item func() Film, index func() int) core.Node {
-			return doneCard{a: a, item: item, done: g.done, index: index}
+		Children: []core.Node{core.Each(g.cards, func(c card) string { return c.Key }, func(cx *core.Scope, c func() card, index func() int) core.Node {
+			// A card's key says whether it is a film's or a work's, so which it is stays as long as the card does.
+			if core.Untracked(cx, func() bool { return c().Work != nil }) {
+				return workCard{a: a, card: c, done: g.done, index: index}
+			}
+			return doneCard{a: a, item: func() Film { return c().Film }, done: g.done, index: index}
 		})}}
 	// A request for the first poster's focus that finds no poster is dropped, so a poster does not take the focus when it shows later.
 	cx.Effect(func() {
@@ -314,6 +319,7 @@ func filmMenu(cx *core.Scope, a App, item Film) []nsdesktop.MenuItem {
 		}
 	}
 	items = append(items, a.CategoryMenu(cx, item)...)
+	items = append(items, workJoinMenu(cx, a, item)...)
 	if move := a.MoveFilmMenu(cx, item); len(move) > 0 {
 		items = append(items, nsdesktop.MenuItem{Label: locales.FilmsMoveToLibrary(cx), Items: move})
 	}
@@ -356,8 +362,9 @@ type moreButton struct {
 	a      App
 	item   func() Film
 	testID string
-	// menu is the menu it opens, the film's own (filmMenu) when nil.
-	menu func() []nsdesktop.MenuItem
+	// menu is the menu it opens, the film's own (filmMenu) when nil. label names what it is the menu of, the film's name when nil.
+	menu  func() []nsdesktop.MenuItem
+	label func() string
 }
 
 // Render implements core.Node.
@@ -381,11 +388,16 @@ func (m moreButton) Render(cx *core.Scope) core.Node {
 		nsdesktop.PopupMenu(cx, items, at, func() { open.Set(false) })
 	}
 	button := base.Button{
-		TestID:    m.testID,
-		LabelFunc: func() string { return locales.FilmsMoreActions(cx, filmName(m.item())) },
-		Expanded:  open.Get,
-		OnPress:   press,
-		Style:     core.Style{Width: core.Pt(26), Height: core.Pt(26), CornerRadius: 13, FlexShrink: 0, AlignItems: core.AlignCenter, JustifyContent: core.JustifyCenter, Cursor: core.CursorDefault, FocusVisible: ui.FocusRing(cx, -2)},
+		TestID: m.testID,
+		LabelFunc: func() string {
+			if m.label != nil {
+				return locales.FilmsMoreActions(cx, m.label())
+			}
+			return locales.FilmsMoreActions(cx, filmName(m.item()))
+		},
+		Expanded: open.Get,
+		OnPress:  press,
+		Style:    core.Style{Width: core.Pt(26), Height: core.Pt(26), CornerRadius: 13, FlexShrink: 0, AlignItems: core.AlignCenter, JustifyContent: core.JustifyCenter, Cursor: core.CursorDefault, FocusVisible: ui.FocusRing(cx, -2)},
 		StyleFunc: func() core.Style {
 			return core.Style{Hover: &core.Style{Background: k.Shade(0.06)}, Active: &core.Style{Background: k.Shade(0.08)}}
 		},

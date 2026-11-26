@@ -41,6 +41,44 @@ func (s *Selection) Toggle(key string) {
 	s.Anchor, s.lead = key, key
 }
 
+// HasAll reports whether every film of keys is selected, as a work's card is while its films are; false for no films.
+func (s Selection) HasAll(keys []string) bool {
+	if len(keys) == 0 {
+		return false
+	}
+	for _, key := range keys {
+		if !s.Has(key) {
+			return false
+		}
+	}
+	return true
+}
+
+// ToggleAll selects the films of keys, a work's, or leaves them all out when they are all selected, as a ⌘-click on its card does; the next ⇧-click selects from its last film.
+func (s *Selection) ToggleAll(keys []string) {
+	if len(keys) == 0 {
+		return
+	}
+	if s.HasAll(keys) {
+		s.Keys = slices.DeleteFunc(slices.Clone(s.Keys), func(k string) bool { return slices.Contains(keys, k) })
+	} else {
+		s.Add(keys)
+	}
+	last := keys[len(keys)-1]
+	s.Anchor, s.lead = last, last
+}
+
+// Add selects the films of keys too, those not selected yet after the others.
+func (s *Selection) Add(keys []string) {
+	out := slices.Clone(s.Keys)
+	for _, key := range keys {
+		if !slices.Contains(out, key) {
+			out = append(out, key)
+		}
+	}
+	s.Keys = out
+}
+
 // Extend adds to the selection the films from the anchor to the one with key, in order, the keys of the films the page shows in the order it shows them, as a ⇧-click does. Without an anchor among them it selects that film alone.
 func (s *Selection) Extend(order []string, key string) {
 	from, to := slices.Index(order, s.Anchor), slices.Index(order, key)

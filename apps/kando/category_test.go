@@ -44,7 +44,7 @@ func categoryLibrary(t *testing.T) (a *app, tt *nsgotest.App, station, episode s
 // shownFilms is the keys of the done films the library page shows, in its order.
 func shownFilms(a *app) []string {
 	var keys []string
-	for _, item := range a.InCategories(films.Shown(a.films(), a, a.side.filter, a.SpokenFilter(), a.side.watch, a.side.query)) {
+	for _, item := range a.InCategories(films.Shown(a.films(), a, a.libraryWorks(), a.side.filter, a.SpokenFilter(), a.side.watch, a.side.query)) {
 		keys = append(keys, item.Key)
 	}
 	slices.Sort(keys)

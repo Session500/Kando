@@ -30,7 +30,7 @@ func (a *app) libraryShownFilms() []films.Film {
 	if a.page == pageYouTube {
 		source = sidebar.SourceYouTube
 	}
-	return a.InCategories(films.Shown(a.films(), a, source, a.SpokenFilter(), a.side.watch, a.side.query))
+	return a.InCategories(films.Shown(a.films(), a, a.libraryWorks(), source, a.SpokenFilter(), a.side.watch, a.side.query))
 }
 
 // libraryFollowSelection leaves out of the selection the films the library page no longer shows, as when a filter or the search hides them, they went into 处理中 to be processed again, or they left the library, as Finder lets go of what leaves a window; libraryHooks empties it as another library opens. It runs after every change (libraryAfterChange) and reports whether it changed it.

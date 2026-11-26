@@ -693,6 +693,15 @@ var Parameters = map[string][]string{
 	"FilmsSpokenEmpty":                         {"language"},
 	"FilmsTranslateAll":                        {"count"},
 	"FilmsUntranslated":                        {"count"},
+	"FilmsWorkUnwatched":                       {"count"},
+	"FilmsWorkLabel":                           {"name", "count"},
+	"FilmsWorkEpisodes":                        {"count"},
+	"FilmsWorkVideos":                          {"count"},
+	"FilmsWorkContinue":                        {"number"},
+	"FilmsWorkMenuHeader":                      {"name", "count"},
+	"FilmsWorkJoin":                            {"name"},
+	"FilmsWorkWatched":                         {"count", "watched"},
+	"FilmsWorkProgress":                        {"watched", "count"},
 	"GlossaryMetaLocked":                       {"scope"},
 	"GlossaryMetaPack":                         {"scope"},
 	"GlossaryScopeLabel":                       {"scope", "next"},
@@ -1496,6 +1505,15 @@ type Translation struct {
 	FilmsSpokenEmpty                         func(language string) string
 	FilmsTranslateAll                        func(count int) string
 	FilmsUntranslated                        func(count int) string
+	FilmsWorkUnwatched                       func(count int) string
+	FilmsWorkLabel                           func(name string, count int) string
+	FilmsWorkEpisodes                        func(count int) string
+	FilmsWorkVideos                          func(count int) string
+	FilmsWorkContinue                        func(number int) string
+	FilmsWorkMenuHeader                      func(name string, count int) string
+	FilmsWorkJoin                            func(name string) string
+	FilmsWorkWatched                         func(count int, watched int) string
+	FilmsWorkProgress                        func(watched int, count int) string
 	GlossaryMetaLocked                       func(scope string) string
 	GlossaryMetaPack                         func(scope string) string
 	GlossaryScopeLabel                       func(scope string, next string) string
@@ -2713,6 +2731,11 @@ const (
 	textFilmsWatchEmptyWatched
 	textFilmsWatchShowAll
 	textFilmsWatched
+	textFilmsWorkOpen
+	textFilmsWorkStart
+	textFilmsWorkAgain
+	textFilmsWorkSplit
+	textFilmsWorkBack
 	textGlossaryIntro
 	textGlossaryEmpty
 	textGlossaryScopeFilm
@@ -4664,6 +4687,11 @@ var keyOfText = [numTexts]string{
 	"filmsWatchEmptyWatched",
 	"filmsWatchShowAll",
 	"filmsWatched",
+	"filmsWorkOpen",
+	"filmsWorkStart",
+	"filmsWorkAgain",
+	"filmsWorkSplit",
+	"filmsWorkBack",
 	"glossaryIntro",
 	"glossaryEmpty",
 	"glossaryScopeFilm",
@@ -6613,6 +6641,11 @@ var textsEn = i18n.NewTexts(""+
 	"No watched films here yet."+
 	"Show All Films"+
 	"Watched"+
+	"Open"+
+	"Play Episode 1"+
+	"Watch Again from Episode 1"+
+	"Show Episodes Separately"+
+	"Library"+
 	"Terms apply at once. A locked term is translated exactly as written here, and no machine pass changes it."+
 	"This film has no terms yet."+
 	"This Film"+
@@ -8558,6 +8591,11 @@ var textsEn = i18n.NewTexts(""+
 		24,
 		26,
 		14,
+		7,
+		4,
+		14,
+		26,
+		24,
 		7,
 		105,
 		27,
@@ -10508,6 +10546,11 @@ var textsJa = i18n.NewTexts(""+
 	"ここにはまだ視聴済みの動画はありません。"+
 	"すべての動画を表示"+
 	"視聴済み"+
+	"開く"+
+	"第 1 話から見る"+
+	"第 1 話からもう一度見る"+
+	"各話を別々に表示"+
+	"ライブラリ"+
 	"用語はすぐに反映されます。ロックした用語は常にここに書いたとおりに訳され、機械が書き換えることはありません。"+
 	"この作品にはまだ用語がありません。"+
 	"この作品"+
@@ -12454,6 +12497,11 @@ var textsJa = i18n.NewTexts(""+
 		60,
 		27,
 		12,
+		6,
+		21,
+		33,
+		24,
+		15,
 		162,
 		51,
 		12,
@@ -14403,6 +14451,11 @@ var textsKo = i18n.NewTexts(""+
 	"여기에는 아직 시청 완료한 영상이 없습니다."+
 	"모든 영상 보기"+
 	"시청 완료"+
+	"열기"+
+	"1화부터 보기"+
+	"1화부터 다시 보기"+
+	"회차를 따로 표시"+
+	"보관함"+
 	"용어는 바로 적용됩니다. 잠근 용어는 항상 여기 적힌 대로 번역되며, 기계가 바꾸지 않습니다."+
 	"이 영상에는 아직 용어가 없습니다."+
 	"이 영상"+
@@ -16349,6 +16402,11 @@ var textsKo = i18n.NewTexts(""+
 		60,
 		20,
 		13,
+		6,
+		17,
+		24,
+		23,
+		9,
 		126,
 		47,
 		10,
@@ -18298,6 +18356,11 @@ var textsZhHans = i18n.NewTexts(""+
 	"这里还没有看完的影片。"+
 	"显示全部影片"+
 	"已看完"+
+	"打开"+
+	"从第 1 集看"+
+	"从第 1 集重看"+
+	"分开显示每一集"+
+	"资料库"+
 	"术语立即生效。锁定的条目一律照这里的写法翻译，机器不会改写。"+
 	"这部片还没有术语。"+
 	"本片"+
@@ -20243,6 +20306,11 @@ var textsZhHans = i18n.NewTexts(""+
 		30,
 		33,
 		18,
+		9,
+		6,
+		15,
+		18,
+		21,
 		9,
 		90,
 		27,
@@ -22193,6 +22261,11 @@ var textsZhHant = i18n.NewTexts(""+
 	"這裡還沒有看完的影片。"+
 	"顯示全部影片"+
 	"已看完"+
+	"打開"+
+	"從第 1 集看"+
+	"從第 1 集重看"+
+	"分開顯示每一集"+
+	"資料庫"+
 	"術語立即生效。鎖定的條目一律照這裡的寫法翻譯，機器不會改寫。"+
 	"這部片還沒有術語。"+
 	"本片"+
@@ -24138,6 +24211,11 @@ var textsZhHant = i18n.NewTexts(""+
 		30,
 		33,
 		18,
+		9,
+		6,
+		15,
+		18,
+		21,
 		9,
 		90,
 		27,
@@ -26155,6 +26233,33 @@ func Supply(lang string, t Translation) {
 	}
 	if t.FilmsUntranslated != nil {
 		s.FilmsUntranslated = t.FilmsUntranslated
+	}
+	if t.FilmsWorkUnwatched != nil {
+		s.FilmsWorkUnwatched = t.FilmsWorkUnwatched
+	}
+	if t.FilmsWorkLabel != nil {
+		s.FilmsWorkLabel = t.FilmsWorkLabel
+	}
+	if t.FilmsWorkEpisodes != nil {
+		s.FilmsWorkEpisodes = t.FilmsWorkEpisodes
+	}
+	if t.FilmsWorkVideos != nil {
+		s.FilmsWorkVideos = t.FilmsWorkVideos
+	}
+	if t.FilmsWorkContinue != nil {
+		s.FilmsWorkContinue = t.FilmsWorkContinue
+	}
+	if t.FilmsWorkMenuHeader != nil {
+		s.FilmsWorkMenuHeader = t.FilmsWorkMenuHeader
+	}
+	if t.FilmsWorkJoin != nil {
+		s.FilmsWorkJoin = t.FilmsWorkJoin
+	}
+	if t.FilmsWorkWatched != nil {
+		s.FilmsWorkWatched = t.FilmsWorkWatched
+	}
+	if t.FilmsWorkProgress != nil {
+		s.FilmsWorkProgress = t.FilmsWorkProgress
 	}
 	if t.GlossaryMetaLocked != nil {
 		s.GlossaryMetaLocked = t.GlossaryMetaLocked
@@ -41401,6 +41506,392 @@ func FilmsWatched(cx *core.Scope) string { return For(cx).FilmsWatched() }
 
 // FilmsWatched is the package's FilmsWatched in the language of msgs.
 func (msgs Messages) FilmsWatched() string { return msgs.text(textFilmsWatched) }
+
+// FilmsWorkUnwatched says "{count, plural, one {# episode not watched} other {# episodes not watched}}"
+// in the language the app shows under cx.
+//
+// Accessible name of the number in the corner of a work's card on the library page (a show, a course or a playlist shown as one card): how many of its episodes were not watched to their end.
+func FilmsWorkUnwatched(cx *core.Scope, count int) string { return For(cx).FilmsWorkUnwatched(count) }
+
+// FilmsWorkUnwatched is the package's FilmsWorkUnwatched in the language of msgs.
+func (msgs Messages) FilmsWorkUnwatched(count int) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.FilmsWorkUnwatched(count))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].FilmsWorkUnwatched; f != nil {
+			return f(count)
+		}
+		switch lang {
+		case "", "en":
+			var b strings.Builder
+			switch i18n.Cardinal("en", float64(count)) {
+			case i18n.One:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+				b.WriteString(" episode not watched")
+			default:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+				b.WriteString(" episodes not watched")
+			}
+			return b.String()
+		case "ja":
+			return "未視聴 " + i18n.FormatNumber("ja", float64(count)) + " 話"
+		case "ko":
+			return "안 본 회차 " + i18n.FormatNumber("ko", float64(count)) + "개"
+		case "zh-Hans":
+			return i18n.FormatNumber("zh-Hans", float64(count)) + " 集未看"
+		case "zh-Hant":
+			return i18n.FormatNumber("zh-Hant", float64(count)) + " 集未看"
+		}
+	}
+}
+
+// FilmsWorkLabel says "{name}, {count, plural, one {# episode} other {# episodes}}"
+// in the language the app shows under cx.
+//
+// Accessible name of a work's card on the library page, and its row in the list: the work's name and how many of its episodes the card holds.
+func FilmsWorkLabel(cx *core.Scope, name string, count int) string {
+	return For(cx).FilmsWorkLabel(name, count)
+}
+
+// FilmsWorkLabel is the package's FilmsWorkLabel in the language of msgs.
+func (msgs Messages) FilmsWorkLabel(name string, count int) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.FilmsWorkLabel(name, count))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].FilmsWorkLabel; f != nil {
+			return f(name, count)
+		}
+		switch lang {
+		case "", "en":
+			var b strings.Builder
+			b.WriteString(msgs.arg(name))
+			b.WriteString(", ")
+			switch i18n.Cardinal("en", float64(count)) {
+			case i18n.One:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+				b.WriteString(" episode")
+			default:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+				b.WriteString(" episodes")
+			}
+			return b.String()
+		case "ja":
+			return name + "、" + i18n.FormatNumber("ja", float64(count)) + " 話"
+		case "ko":
+			return name + ", " + i18n.FormatNumber("ko", float64(count)) + "화"
+		case "zh-Hans":
+			return name + "，" + i18n.FormatNumber("zh-Hans", float64(count)) + " 集"
+		case "zh-Hant":
+			return name + "，" + i18n.FormatNumber("zh-Hant", float64(count)) + " 集"
+		}
+	}
+}
+
+// FilmsWorkEpisodes says "{count, plural, one {# episode} other {# episodes}}"
+// in the language the app shows under cx.
+//
+// Under a work's name on its card, after where it comes from: how many episodes or lessons of a show or a course the card holds.
+func FilmsWorkEpisodes(cx *core.Scope, count int) string { return For(cx).FilmsWorkEpisodes(count) }
+
+// FilmsWorkEpisodes is the package's FilmsWorkEpisodes in the language of msgs.
+func (msgs Messages) FilmsWorkEpisodes(count int) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.FilmsWorkEpisodes(count))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].FilmsWorkEpisodes; f != nil {
+			return f(count)
+		}
+		switch lang {
+		case "", "en":
+			var b strings.Builder
+			switch i18n.Cardinal("en", float64(count)) {
+			case i18n.One:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+				b.WriteString(" episode")
+			default:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+				b.WriteString(" episodes")
+			}
+			return b.String()
+		case "ja":
+			return i18n.FormatNumber("ja", float64(count)) + " 話"
+		case "ko":
+			return i18n.FormatNumber("ko", float64(count)) + "화"
+		case "zh-Hans":
+			return i18n.FormatNumber("zh-Hans", float64(count)) + " 集"
+		case "zh-Hant":
+			return i18n.FormatNumber("zh-Hant", float64(count)) + " 集"
+		}
+	}
+}
+
+// FilmsWorkVideos says "{count, plural, one {# video} other {# videos}}"
+// in the language the app shows under cx.
+//
+// Under a playlist's name on its card, after the site: how many of its videos the card holds.
+func FilmsWorkVideos(cx *core.Scope, count int) string { return For(cx).FilmsWorkVideos(count) }
+
+// FilmsWorkVideos is the package's FilmsWorkVideos in the language of msgs.
+func (msgs Messages) FilmsWorkVideos(count int) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.FilmsWorkVideos(count))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].FilmsWorkVideos; f != nil {
+			return f(count)
+		}
+		switch lang {
+		case "", "en":
+			var b strings.Builder
+			switch i18n.Cardinal("en", float64(count)) {
+			case i18n.One:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+				b.WriteString(" video")
+			default:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+				b.WriteString(" videos")
+			}
+			return b.String()
+		case "ja":
+			return i18n.FormatNumber("ja", float64(count)) + " 本の動画"
+		case "ko":
+			return "동영상 " + i18n.FormatNumber("ko", float64(count)) + "개"
+		case "zh-Hans":
+			return i18n.FormatNumber("zh-Hans", float64(count)) + " 个视频"
+		case "zh-Hant":
+			return i18n.FormatNumber("zh-Hant", float64(count)) + " 部影片"
+		}
+	}
+}
+
+// FilmsWorkOpen says "Open"
+// in the language the app shows under cx.
+//
+// Item of the menu of a work's card: shows the work's page, its episodes.
+func FilmsWorkOpen(cx *core.Scope) string { return For(cx).FilmsWorkOpen() }
+
+// FilmsWorkOpen is the package's FilmsWorkOpen in the language of msgs.
+func (msgs Messages) FilmsWorkOpen() string { return msgs.text(textFilmsWorkOpen) }
+
+// FilmsWorkContinue says "Continue Episode {number}"
+// in the language the app shows under cx.
+//
+// Button on a work's page and item of its card's menu: plays the episode the work goes on with, by its place in the work.
+func FilmsWorkContinue(cx *core.Scope, number int) string { return For(cx).FilmsWorkContinue(number) }
+
+// FilmsWorkContinue is the package's FilmsWorkContinue in the language of msgs.
+func (msgs Messages) FilmsWorkContinue(number int) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.FilmsWorkContinue(number))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].FilmsWorkContinue; f != nil {
+			return f(number)
+		}
+		switch lang {
+		case "", "en":
+			return "Continue Episode " + msgs.arg(i18n.FormatNumber("en", float64(number)))
+		case "ja":
+			return "第 " + i18n.FormatNumber("ja", float64(number)) + " 話から続ける"
+		case "ko":
+			return i18n.FormatNumber("ko", float64(number)) + "화부터 이어 보기"
+		case "zh-Hans":
+			return "继续 第 " + i18n.FormatNumber("zh-Hans", float64(number)) + " 集"
+		case "zh-Hant":
+			return "繼續 第 " + i18n.FormatNumber("zh-Hant", float64(number)) + " 集"
+		}
+	}
+}
+
+// FilmsWorkStart says "Play Episode 1"
+// in the language the app shows under cx.
+//
+// Button on a work's page and item of its card's menu, when none of its episodes was watched yet: plays the first.
+func FilmsWorkStart(cx *core.Scope) string { return For(cx).FilmsWorkStart() }
+
+// FilmsWorkStart is the package's FilmsWorkStart in the language of msgs.
+func (msgs Messages) FilmsWorkStart() string { return msgs.text(textFilmsWorkStart) }
+
+// FilmsWorkAgain says "Watch Again from Episode 1"
+// in the language the app shows under cx.
+//
+// Button on a work's page and item of its card's menu, when every episode was watched: plays the first from its start.
+func FilmsWorkAgain(cx *core.Scope) string { return For(cx).FilmsWorkAgain() }
+
+// FilmsWorkAgain is the package's FilmsWorkAgain in the language of msgs.
+func (msgs Messages) FilmsWorkAgain() string { return msgs.text(textFilmsWorkAgain) }
+
+// FilmsWorkMenuHeader says "{count, plural, one {# episode of “{name}”} other {# episodes of “{name}”}}"
+// in the language the app shows under cx.
+//
+// Dimmed first row of the part of a work's card's menu that acts on its episodes: how many it acts on, and of which work.
+func FilmsWorkMenuHeader(cx *core.Scope, name string, count int) string {
+	return For(cx).FilmsWorkMenuHeader(name, count)
+}
+
+// FilmsWorkMenuHeader is the package's FilmsWorkMenuHeader in the language of msgs.
+func (msgs Messages) FilmsWorkMenuHeader(name string, count int) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.FilmsWorkMenuHeader(name, count))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].FilmsWorkMenuHeader; f != nil {
+			return f(name, count)
+		}
+		switch lang {
+		case "", "en":
+			var b strings.Builder
+			switch i18n.Cardinal("en", float64(count)) {
+			case i18n.One:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+				b.WriteString(" episode of “")
+				b.WriteString(msgs.arg(name))
+				b.WriteString("”")
+			default:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+				b.WriteString(" episodes of “")
+				b.WriteString(msgs.arg(name))
+				b.WriteString("”")
+			}
+			return b.String()
+		case "ja":
+			return "「" + name + "」の " + i18n.FormatNumber("ja", float64(count)) + " 話"
+		case "ko":
+			return "\"" + name + "\"의 " + i18n.FormatNumber("ko", float64(count)) + "화"
+		case "zh-Hans":
+			return "「" + name + "」的 " + i18n.FormatNumber("zh-Hans", float64(count)) + " 集"
+		case "zh-Hant":
+			return "「" + name + "」的 " + i18n.FormatNumber("zh-Hant", float64(count)) + " 集"
+		}
+	}
+}
+
+// FilmsWorkSplit says "Show Episodes Separately"
+// in the language the app shows under cx.
+//
+// Last item of the menu of a work's card: shows its episodes as a card each, as before; they still play one after another.
+func FilmsWorkSplit(cx *core.Scope) string { return For(cx).FilmsWorkSplit() }
+
+// FilmsWorkSplit is the package's FilmsWorkSplit in the language of msgs.
+func (msgs Messages) FilmsWorkSplit() string { return msgs.text(textFilmsWorkSplit) }
+
+// FilmsWorkJoin says "Show as One Card: “{name}”"
+// in the language the app shows under cx.
+//
+// Item of the menu of an episode of a work the user showed separately: folds its episodes into one card again.
+func FilmsWorkJoin(cx *core.Scope, name string) string { return For(cx).FilmsWorkJoin(name) }
+
+// FilmsWorkJoin is the package's FilmsWorkJoin in the language of msgs.
+func (msgs Messages) FilmsWorkJoin(name string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.FilmsWorkJoin(name))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].FilmsWorkJoin; f != nil {
+			return f(name)
+		}
+		switch lang {
+		case "", "en":
+			return "Show as One Card: “" + msgs.arg(name) + "”"
+		case "ja":
+			return "1 枚のカードにまとめる：「" + name + "」"
+		case "ko":
+			return "카드 하나로 묶기: \"" + name + "\""
+		case "zh-Hans":
+			return "合成一张卡片：「" + name + "」"
+		case "zh-Hant":
+			return "合成一張卡片：「" + name + "」"
+		}
+	}
+}
+
+// FilmsWorkBack says "Library"
+// in the language the app shows under cx.
+//
+// Button over a work's page, with a back arrow before it: goes back to the library's films.
+func FilmsWorkBack(cx *core.Scope) string { return For(cx).FilmsWorkBack() }
+
+// FilmsWorkBack is the package's FilmsWorkBack in the language of msgs.
+func (msgs Messages) FilmsWorkBack() string { return msgs.text(textFilmsWorkBack) }
+
+// FilmsWorkWatched says "{count, plural, one {# episode} other {# episodes}} · {watched} watched"
+// in the language the app shows under cx.
+//
+// Under a work's name on its page: how many episodes it has and how many were watched to their end.
+func FilmsWorkWatched(cx *core.Scope, count int, watched int) string {
+	return For(cx).FilmsWorkWatched(count, watched)
+}
+
+// FilmsWorkWatched is the package's FilmsWorkWatched in the language of msgs.
+func (msgs Messages) FilmsWorkWatched(count int, watched int) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.FilmsWorkWatched(count, watched))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].FilmsWorkWatched; f != nil {
+			return f(count, watched)
+		}
+		switch lang {
+		case "", "en":
+			var b strings.Builder
+			switch i18n.Cardinal("en", float64(count)) {
+			case i18n.One:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+				b.WriteString(" episode")
+			default:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+				b.WriteString(" episodes")
+			}
+			b.WriteString(" · ")
+			b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(watched))))
+			b.WriteString(" watched")
+			return b.String()
+		case "ja":
+			return i18n.FormatNumber("ja", float64(count)) + " 話 · " + i18n.FormatNumber("ja", float64(watched)) + " 話視聴済み"
+		case "ko":
+			return i18n.FormatNumber("ko", float64(count)) + "화 · " + i18n.FormatNumber("ko", float64(watched)) + "화 시청"
+		case "zh-Hans":
+			return i18n.FormatNumber("zh-Hans", float64(count)) + " 集 · 已看 " + i18n.FormatNumber("zh-Hans", float64(watched))
+		case "zh-Hant":
+			return i18n.FormatNumber("zh-Hant", float64(count)) + " 集 · 已看 " + i18n.FormatNumber("zh-Hant", float64(watched))
+		}
+	}
+}
+
+// FilmsWorkProgress says "{watched}/{count}"
+// in the language the app shows under cx.
+//
+// A work's row in the list, in the column of how far films were watched: how many of the episodes the row holds were watched to their end, of how many.
+func FilmsWorkProgress(cx *core.Scope, watched int, count int) string {
+	return For(cx).FilmsWorkProgress(watched, count)
+}
+
+// FilmsWorkProgress is the package's FilmsWorkProgress in the language of msgs.
+func (msgs Messages) FilmsWorkProgress(watched int, count int) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.FilmsWorkProgress(watched, count))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].FilmsWorkProgress; f != nil {
+			return f(watched, count)
+		}
+		switch lang {
+		case "", "en":
+			return msgs.arg(i18n.FormatNumber("en", float64(watched))) + "/" + msgs.arg(i18n.FormatNumber("en", float64(count)))
+		case "ja":
+			return i18n.FormatNumber("ja", float64(watched)) + "/" + i18n.FormatNumber("ja", float64(count))
+		case "ko":
+			return i18n.FormatNumber("ko", float64(watched)) + "/" + i18n.FormatNumber("ko", float64(count))
+		case "zh-Hans":
+			return i18n.FormatNumber("zh-Hans", float64(watched)) + "/" + i18n.FormatNumber("zh-Hans", float64(count))
+		case "zh-Hant":
+			return i18n.FormatNumber("zh-Hant", float64(watched)) + "/" + i18n.FormatNumber("zh-Hant", float64(count))
+		}
+	}
+}
 
 // GlossaryIntro says "Terms apply at once. A locked term is translated exactly as written here, and no machine pass changes it."
 // in the language the app shows under cx.

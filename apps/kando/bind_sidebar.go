@@ -139,7 +139,7 @@ func (a *app) SetWatchFilter(state string) {
 
 // WatchCounts is how many done films are in each watch state among those the library page shows for the source, the language, the category and the search chosen (films.Shown, InCategories), so a row's count is how many films choosing it shows.
 func (a *app) WatchCounts() sidebar.WatchCounts {
-	return films.WatchCounts(a.InCategories(films.Shown(a.films(), a, a.side.filter, a.SpokenFilter(), sidebar.WatchAll, a.side.query)), a)
+	return films.WatchCounts(a.InCategories(films.Shown(a.films(), a, a.libraryWorks(), a.side.filter, a.SpokenFilter(), sidebar.WatchAll, a.side.query)), a)
 }
 
 func (a *app) Query() *string { return &a.side.query }
@@ -163,7 +163,7 @@ func (a *app) SubmitQuery() {
 	if query == "" {
 		return
 	}
-	found := a.InCategories(films.Shown(a.films(), a, a.side.filter, a.SpokenFilter(), a.side.watch, query))
+	found := a.InCategories(films.Shown(a.films(), a, a.libraryWorks(), a.side.filter, a.SpokenFilter(), a.side.watch, query))
 	if len(found) > 1 && a.page == pageFilms && a.LibraryView() == films.ViewGrid {
 		a.side.posterFocus = true
 	}

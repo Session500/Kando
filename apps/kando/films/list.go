@@ -185,23 +185,36 @@ func listDate(m locales.Messages, at, now time.Time) string {
 type filmList struct {
 	a    App
 	done func() []Film
+	// cards is the rows: a film's, or a work's films the page shows folded into one (fold), which a double click or Return opens the page of (App.ShowWork), and which is selected while all its films are.
+	cards func() []card
 }
 
 // Render implements core.Node.
 func (l filmList) Render(cx *core.Scope) core.Node {
-	a, done := l.a, l.done
+	a, done, cards := l.a, l.done, l.cards
 	colors, k := ui.ColorsOf(cx), theme.Of(cx)
 	width := core.NewSignal(cx, core.Points(0))
 	shown := core.NewMemoFunc(cx, func() []string { return listFits(width.Get()) }, slices.Equal[[]string]).Get
 	// The table selects several rows (MultiSelect), clicks, ⌘-clicks, ⇧-clicks and ⇧-arrows as Finder's list does; Kando keeps the films selected by key, so the selection stays with them as they move, and the table's rows follow it (SelectedRows).
 	sel := a.Selection()
 	ref := &datatable.Ref{}
-	itemAt := func(row int) (Film, bool) {
-		items := done()
+	cardAt := func(row int) (card, bool) {
+		items := cards()
 		if row < 0 || row >= len(items) {
-			return Film{}, false
+			return card{}, false
 		}
 		return items[row], true
+	}
+	// itemAt is the film of a row, the one a work's goes on with (card.Film).
+	itemAt := func(row int) (Film, bool) {
+		c, ok := cardAt(row)
+		return c.Film, ok
+	}
+	rowKeys := func(c card) []string {
+		if c.Work != nil {
+			return Keys(c.Films)
+		}
+		return []string{c.Key}
 	}
 	keyOf := func(column int) string {
 		keys := shown()
@@ -226,11 +239,15 @@ func (l filmList) Render(cx *core.Scope) core.Node {
 	}
 	text := func(row, column int) string {
 		a.Track()
-		item, ok := itemAt(row)
+		c, ok := cardAt(row)
 		if !ok {
 			return ""
 		}
+		item := c.Film
 		m := locales.For(cx)
+		if c.Work != nil {
+			return workListText(m, a, c, keyOf(column))
+		}
 		switch keyOf(column) {
 		case colName:
 			return filmName(item)
@@ -256,8 +273,9 @@ func (l filmList) Render(cx *core.Scope) core.Node {
 	// listTip is a cell's tooltip: the name's says what the mark of a video on a storage location means, under the film's name, as the poster's tooltip does (storedTip); the other cells and the name of a film without the mark have none.
 	listTip := func(row, column int) string {
 		a.Track()
-		item, ok := itemAt(row)
-		if !ok || keyOf(column) != colName {
+		c, ok := cardAt(row)
+		item := c.Film
+		if !ok || c.Work != nil || keyOf(column) != colName {
 			return ""
 		}
 		m := locales.For(cx)
@@ -285,38 +303,51 @@ func (l filmList) Render(cx *core.Scope) core.Node {
 			a.SetLibrarySort(current.Then(order))
 		}
 	})
-	rowOf := func(key string) int { return slices.IndexFunc(done(), func(item Film) bool { return item.Key == key }) }
 	selected := live.Func(a, func() []string { return sel.Keys })
+	// A row is selected while each of its films is, a work's all of them.
 	selectedRows := func() []int {
+		selected()
 		var rows []int
-		for _, key := range selected() {
-			if row := rowOf(key); row >= 0 {
+		for row, c := range cards() {
+			if sel.HasAll(rowKeys(c)) {
 				rows = append(rows, row)
 			}
 		}
-		slices.Sort(rows)
 		return rows
 	}
 	// What the user selects in the table, by click or by key, becomes the selection, an empty one after Escape.
 	selectRows := live.On(a, func(rows []int) {
-		items := done()
-		keys := make([]string, 0, len(rows))
+		items := cards()
+		var keys []string
 		for _, row := range rows {
 			if row >= 0 && row < len(items) {
-				keys = append(keys, items[row].Key)
+				keys = append(keys, rowKeys(items[row])...)
 			}
 		}
 		sel.Keys = keys
 	})
-	// The film Return opens is the selected one the table's keyboard is on, else the one selected last.
-	open := live.Do(a, func() {
-		items := core.Untracked(cx, done)
-		key := sel.Lead()
-		if row := ref.Selection().Row; row >= 0 && row < len(items) && sel.Has(items[row].Key) {
-			key = items[row].Key
+	// openRow opens a row's film, or a work's page.
+	openRow := func(c card) {
+		if c.Work != nil {
+			sel.Clear()
+			a.ShowWork(c.Work.Key)
+			return
 		}
-		if item, ok := Find(items, key); ok && key != "" {
-			a.Open(item)
+		a.Open(c.Film)
+	}
+	// The row Return opens is the selected one the table's keyboard is on, else the one of the film selected last.
+	open := live.Do(a, func() {
+		items := core.Untracked(cx, cards)
+		key := sel.Lead()
+		if row := ref.Selection().Row; row >= 0 && row < len(items) && sel.HasAll(rowKeys(items[row])) {
+			openRow(items[row])
+			return
+		}
+		for _, c := range items {
+			if key != "" && slices.Contains(rowKeys(c), key) {
+				openRow(c)
+				return
+			}
 		}
 	})
 	// Return opens the film selected last, as it does in Finder's list; a field or a button with the keyboard keeps its own Return.
@@ -341,15 +372,16 @@ func (l filmList) Render(cx *core.Scope) core.Node {
 	cell := func(cx *core.Scope, cell func() datatable.Cell) core.Node {
 		key := core.NewMemo(cx, func() string { return cell().Key }).Get
 		item := func() Film { f, _ := itemAt(cell().Row); return f }
+		work := core.NewMemo(cx, func() bool { c, _ := cardAt(cell().Row); return c.Work != nil }).Get
 		return core.Dynamic(func(cx *core.Scope) core.Node {
-			switch key() {
-			case colName:
+			switch {
+			case key() == colName:
 				return listNameCell(cx, a, item, func() string { return cell().Text })
-			case colProgress:
+			case key() == colProgress && !work():
 				return listProgressCell(cx, a, item, func() string { return cell().Text })
 			}
 			style := core.Style{FontSize: 12}
-			if key() == colDuration {
+			if key() == colDuration || key() == colProgress {
 				style.FontVariant = core.FontTabularNums
 			}
 			return core.Text{ContentFunc: func() string { return cell().Text }, MaxLines: 1, EllipsizeMode: core.EllipsizeTail, Style: style, StyleFunc: ui.Colored(colors.Muted)}
@@ -360,7 +392,7 @@ func (l filmList) Render(cx *core.Scope) core.Node {
 		Ref:                  ref,
 		LabelFunc:            func() string { return locales.FilmsViewList(cx) },
 		Columns:              columns,
-		RowCount:             func() int { return len(done()) },
+		RowCount:             func() int { return len(cards()) },
 		Text:                 text,
 		CellTooltip:          listTip,
 		RowHeight:            listRowHeight,
@@ -379,16 +411,20 @@ func (l filmList) Render(cx *core.Scope) core.Node {
 		StylesFunc:           styles,
 		RenderCell:           cell,
 		OnDoublePress: func(row, _ int) {
-			if item, ok := itemAt(row); ok {
-				live.Do(a, func() { a.Open(item) })()
+			if c, ok := cardAt(row); ok {
+				live.Do(a, func() { openRow(c) })()
 			}
 		},
-		OnContextMenu: func(c datatable.ContextMenu) {
-			item, ok := itemAt(c.Row)
+		OnContextMenu: func(e datatable.ContextMenu) {
+			c, ok := cardAt(e.Row)
 			if !ok {
 				return
 			}
-			nsdesktop.PopupMenu(cx, menuOf(cx, a, item, core.Untracked(cx, done), true), c.At, nil)
+			if c.Work != nil {
+				nsdesktop.PopupMenu(cx, workMenu(cx, a, c, core.Untracked(cx, done)), e.At, nil)
+				return
+			}
+			nsdesktop.PopupMenu(cx, menuOf(cx, a, c.Film, core.Untracked(cx, done), true), e.At, nil)
 		},
 		Style:    core.Style{FlexGrow: 1, MinHeight: core.Pt(listRowHeight * 2)},
 		OnLayout: func(b core.Bounds) { width.Set(b.Size.Width) },
@@ -428,4 +464,39 @@ func listProgressCell(cx *core.Scope, a App, item func() Film, words func() stri
 		bar,
 		core.Text{ContentFunc: words, MaxLines: 1, Style: core.Style{FontSize: 12, FontVariant: core.FontTabularNums}, StyleFunc: ui.Colored(colors.Muted)},
 	}}
+}
+
+// workListText is what a work's row says in the column keyed key, in the language of m: its name and how many films the row holds, how long they play together, how many of them were watched, where they come from and the language heard in its first, and when one of them played last.
+func workListText(m locales.Messages, a App, c card, key string) string {
+	switch key {
+	case colName:
+		return m.FilmsWorkLabel(c.Work.Name, len(c.Films))
+	case colDuration:
+		var total time.Duration
+		for _, f := range c.Films {
+			d := a.Duration(f.VideoPath)
+			if d <= 0 {
+				return ""
+			}
+			total += d
+		}
+		return Clock(total)
+	case colProgress:
+		return m.FilmsWorkProgress(len(c.Films)-unwatched(a, c.Films), len(c.Films))
+	case colSpoken:
+		if heard := Heard(c.Films[0]); heard != "" {
+			return subtitle.SpokenLanguageNameIn(m, heard)
+		}
+	case colSource:
+		return SourceLabel(m, c.Films[0])
+	case colWatched:
+		var last time.Time
+		for _, f := range c.Films {
+			if at := a.PlayedAt(f.VideoPath); at.After(last) {
+				last = at
+			}
+		}
+		return listDate(m, last, time.Now())
+	}
+	return ""
 }

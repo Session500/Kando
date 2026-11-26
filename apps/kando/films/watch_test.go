@@ -65,7 +65,7 @@ func TestWatchStateFollowsWhatThePosterShows(t *testing.T) {
 	// The grid's films are those of every filter at once.
 	items[2].Source, items[3].Source = "https://youtu.be/c", "https://youtu.be/d"
 	items[3].Name = "Delta"
-	if got := keysOf(Shown(items, p, sidebar.SourceYouTube, sidebar.SpokenAll, sidebar.WatchWatched, "delta")); got != "d" {
+	if got := keysOf(Shown(items, p, nil, sidebar.SourceYouTube, sidebar.SpokenAll, sidebar.WatchWatched, "delta")); got != "d" {
 		t.Fatalf("shown %s", got)
 	}
 }
