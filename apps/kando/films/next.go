@@ -95,7 +95,7 @@ func sequence(all []Film, item Film, tag string) []Film {
 	}
 	col := collate.New(language.Make(tag), collate.Numeric)
 	slices.SortStableFunc(seq, func(a, b Film) int {
-		if c := byNumber(col, filepath.Base(filepath.Dir(a.VideoPath)), filepath.Base(filepath.Dir(b.VideoPath))); c != 0 {
+		if c := byFolder(col, filepath.Base(filepath.Dir(a.VideoPath)), filepath.Base(filepath.Dir(b.VideoPath))); c != 0 {
 			return c
 		}
 		return byNumber(col, seqName(a), seqName(b))
@@ -139,4 +139,32 @@ func byNumber(col *collate.Collator, a, b string) int {
 		}
 	}
 	return col.CompareString(a, b)
+}
+
+// byFolder orders the folders of a show's films: those whose names number them, as 第2节, Season 3 or 第二季, first by their numbers, then the others as col orders them. Ordering a numbered folder against an unnumbered one by name, as byNumber would, makes the order depend on the order the films came in.
+func byFolder(col *collate.Collator, a, b string) int {
+	as, ae, aok := folderNumber(a)
+	bs, be, bok := folderNumber(b)
+	switch {
+	case aok && bok:
+		if as != bs {
+			return as - bs
+		}
+		if ae != be {
+			return ae - be
+		}
+	case aok:
+		return -1
+	case bok:
+		return 1
+	}
+	return col.CompareString(a, b)
+}
+
+// folderNumber is the season and the number a folder's name gives it: a season or part, as 第二季, or else what core.EpisodeNumber reads, as 第2节 or Season 3.
+func folderNumber(name string) (season, number int, ok bool) {
+	if n, ok := core.SeasonNumber(name); ok {
+		return 0, n, true
+	}
+	return core.EpisodeNumber(name)
 }

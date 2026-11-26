@@ -69,6 +69,22 @@ func EpisodeNumber(name string) (season, episode int, ok bool) {
 	return 0, 0, false
 }
 
+// seasonMark is how a folder's name numbers a season or a part of a show, as 第二季, 第3部 or シーズン2, which EpisodeNumber does not read, since in a film's name 季 comes before the episode's own number.
+var seasonMark = regexp.MustCompile(`(?:第\s*([0-9０-９一二三四五六七八九十百〇零两]+)\s*[季部]|シーズン\s*([0-9０-９]+))`)
+
+// SeasonNumber is the season or part a folder's name numbers, as 第二季 is 2 and シーズン3 is 3; ok is false for a name that numbers none this way.
+func SeasonNumber(name string) (int, bool) {
+	m := seasonMark.FindStringSubmatch(name)
+	if m == nil {
+		return 0, false
+	}
+	digits := m[1]
+	if digits == "" {
+		digits = m[2]
+	}
+	return episodeValue(digits)
+}
+
 // episodeValue is the number s writes: digits, full-width digits, or Chinese numerals up to the hundreds, as 十一, 二十 and 一百零五.
 func episodeValue(s string) (int, bool) {
 	digits := map[rune]int{'〇': 0, '零': 0, '一': 1, '二': 2, '两': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9}

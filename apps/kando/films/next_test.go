@@ -2,6 +2,7 @@ package films
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"kando/packages/core"
@@ -125,6 +126,58 @@ func TestNextsIsNextForEveryFilm(t *testing.T) {
 		want, ok := Next(all, item, "en")
 		if g, has := got[item.Key]; has != ok || g.Key != want.Key {
 			t.Errorf("%s: Nexts %q %v, Next %q %v", item.Key, g.Key, has, want.Key, ok)
+		}
+	}
+}
+
+// A show's folders go in one order whatever order its films come in: the numbered ones first by number, then the others by name, so its films do not interleave folder by folder.
+func TestNextOrdersAShowsFoldersTheSameWhateverTheirOrder(t *testing.T) {
+	root := "/Courses/课"
+	var all []Film
+	for _, folder := range []string{"Basics 2", "10 Advanced", "Advanced"} {
+		for _, lesson := range []string{"Lesson 01", "Lesson 02"} {
+			all = append(all, local(root+"/"+folder+"/"+lesson+".mp4"))
+		}
+	}
+	want := []string{"Basics 2/Lesson 01", "Basics 2/Lesson 02", "10 Advanced/Lesson 01", "10 Advanced/Lesson 02", "Advanced/Lesson 01", "Advanced/Lesson 02"}
+	orders := [][]int{{0, 1, 2, 3, 4, 5}, {5, 4, 3, 2, 1, 0}, {2, 0, 4, 1, 5, 3}, {4, 2, 0, 5, 3, 1}}
+	for _, order := range orders {
+		films := make([]Film, len(all))
+		for i, j := range order {
+			films[i] = all[j]
+			films[i].Key = filepath.Base(filepath.Dir(all[j].VideoPath)) + "/" + strings.TrimSuffix(filepath.Base(all[j].VideoPath), ".mp4")
+		}
+		got := append([]string{"Basics 2/Lesson 01"}, nextKeys(films, "Basics 2/Lesson 01")...)
+		if !equal(got, want) {
+			t.Fatalf("films in order %v play %q, want %q", order, got, want)
+		}
+	}
+}
+
+// A show's seasons in folders named 第一季 … 第十一季 go by number, in every language of the interface, not by how each language sorts Chinese numerals.
+func TestNextGoesOnThroughSeasonsNamedInChinese(t *testing.T) {
+	root := "/剧集/庆余年"
+	seasons := []string{"第十一季", "第二季", "第十季", "第一季", "第四季"}
+	var all []Film
+	for _, season := range seasons {
+		f := local(root + "/" + season + "/庆余年 第01集.mp4")
+		f.Key = season
+		all = append(all, f)
+	}
+	want := []string{"第二季", "第四季", "第十季", "第十一季"}
+	for _, tag := range []string{"zh-Hans", "zh-Hant", "en", "ja", "ko"} {
+		item, _ := Find(all, "第一季")
+		var got []string
+		for {
+			next, ok := Next(all, item, tag)
+			if !ok {
+				break
+			}
+			got = append(got, next.Key)
+			item = next
+		}
+		if !equal(got, want) {
+			t.Fatalf("in %s the seasons play %q, want %q", tag, got, want)
 		}
 	}
 }
