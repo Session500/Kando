@@ -78,6 +78,7 @@ type app struct {
 	subs      subscribeUI   // state_subscribe.go
 	vocab     vocabUI       // state_vocab.go
 	export    subexportUI   // state_subexport.go
+	libexport libexportUI   // state_libexport.go
 	explain   explainUI     // state_explain.go
 	recap     recapUI       // state_recap.go
 	plugins   pluginsUI     // state_plugins.go
@@ -129,6 +130,7 @@ func newApp(pipeline media.Pipeline, update func(fn func())) *app {
 		subs:      newSubscribeUI(),
 		vocab:     newVocabUI(),
 		export:    newSubexportUI(),
+		libexport: newLibexportUI(),
 		explain:   newExplainUI(),
 		recap:     newRecapUI(),
 		plugins:   newPluginsUI(),

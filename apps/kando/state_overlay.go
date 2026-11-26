@@ -39,6 +39,7 @@ func (a *app) overlays(cx *core.Scope) core.Node {
 		a.savedReviewOverlay(cx),
 		a.vocabOverlay(cx),
 		a.subexportOverlay(cx),
+		a.libexportOverlay(cx),
 		a.pluginsOverlay(cx),
 		a.mediaSourceOverlay(cx),
 		a.categoryOverlay(cx),
