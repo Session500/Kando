@@ -58,6 +58,9 @@ type fakeApp struct {
 	retryable, failed                int
 	// untranslatable is whether no AI service is set up (CanTranslate).
 	untranslatable bool
+	// apart is the works split apart, by key, and openWork the work the page shows (ShowWork).
+	apart    map[string]bool
+	openWork string
 }
 
 func newFakeApp() *fakeApp {
@@ -259,10 +262,20 @@ func (f *fakeApp) StoredMark(locales.Messages, Film) (string, bool, bool) { retu
 
 func (f *fakeApp) StoredPlace(Film) string { return "" }
 func (f *fakeApp) Selection() *Selection   { return &f.selection }
-func (f *fakeApp) PosterFocus() *bool      { return &f.posterFocus }
-func (f *fakeApp) UndoMove()               { f.call("undo-move") }
-func (f *fakeApp) CancelMove()             { f.call("cancel-move") }
-func (f *fakeApp) Choose(dir string)       { f.call("choose", dir) }
+func (f *fakeApp) Works() WorkIndex        { return Works(f.items, f.dir, "zh-Hans") }
+func (f *fakeApp) WorkApart(w *Work) bool  { return f.apart[w.Key] }
+func (f *fakeApp) OpenWork() string        { return f.openWork }
+func (f *fakeApp) ShowWork(key string)     { f.openWork = key; f.call("show-work " + key) }
+func (f *fakeApp) SetWorkApart(w *Work, apart bool) {
+	if f.apart == nil {
+		f.apart = map[string]bool{}
+	}
+	f.apart[w.Key] = apart
+}
+func (f *fakeApp) PosterFocus() *bool { return &f.posterFocus }
+func (f *fakeApp) UndoMove()          { f.call("undo-move") }
+func (f *fakeApp) CancelMove()        { f.call("cancel-move") }
+func (f *fakeApp) Choose(dir string)  { f.call("choose", dir) }
 
 // testEnvironment is a Mac desktop in testlocale's language.
 func testEnvironment() ns.Environment {

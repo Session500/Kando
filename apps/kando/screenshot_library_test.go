@@ -61,6 +61,36 @@ func TestScreenshotsLibrary(t *testing.T) {
 			t.Fatal("⋯ opened no menu")
 		}
 	})
+	// Two films of a playlist that is one work fold into one card, its corner counting those not watched; its page lists them, and goes on with the first.
+	asWork := func(a *app) {
+		n := 0
+		for i, job := range a.library.Jobs {
+			if job.LibraryDir == f.lib && job.Stage == core.StageComplete && n < 2 {
+				n++
+				a.library.Jobs[i].List, a.library.Jobs[i].ListIndex, a.library.Jobs[i].ListTitle = "youtube.com/playlist?list=PLwork", n, "日语入门"
+			}
+		}
+	}
+	f.shoot(t, "library-work", func(t *testing.T, a *app, tt *nsgotest.App, _ chan func()) {
+		asWork(a)
+		refresh(tt, a)
+		scrollTo(t, a, tt, "8 部", 315)
+		if !tt.Exists(whole("日语入门")) {
+			t.Fatalf("no work's card: %q", tt.Texts())
+		}
+	})
+	f.shoot(t, "library-work-page", func(t *testing.T, a *app, tt *nsgotest.App, _ chan func()) {
+		asWork(a)
+		refresh(tt, a)
+		for _, w := range a.libraryWorks() {
+			tt.Press("id:work-" + w.Key)
+			break
+		}
+		refresh(tt, a)
+		if !tt.Exists("id:work-name") || !tt.Exists("id:work-continue") {
+			t.Fatalf("no work's page: %q", tt.Texts())
+		}
+	})
 	// ⋯ on a card with Kando knowing a second library, 英语听力: the menu, which the tester lists rather than draws, has 移到资料库 with that library in it.
 	f.shoot(t, "library-move-menu", func(t *testing.T, a *app, tt *nsgotest.App, _ chan func()) {
 		onboarding(a)

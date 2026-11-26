@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -1040,6 +1042,10 @@ func (a *app) remoteFilmOf(item films.Film) remote.Film {
 		f.ResumeMS = a.ResumeAt(item.VideoPath).Milliseconds()
 		f.WatchedMS = a.paletteHorizon(item).Milliseconds()
 		f.VideoLocation = a.storedRemote(item.VideoPath)
+	}
+	if w, ok := a.libraryWorks().Of(item.Key); ok && !a.WorkApart(w) {
+		sum := sha256.Sum256([]byte(w.Key))
+		f.Work, f.WorkTitle = hex.EncodeToString(sum[:6]), w.Name
 	}
 	return f
 }

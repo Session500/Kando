@@ -1,9 +1,11 @@
 package films
 
 import (
+	"bytes"
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 
 	"kando/apps/kando/sidebar"
@@ -259,4 +261,50 @@ func folderName(folder string) string {
 		}
 	}
 	return name
+}
+
+// WorksCache keeps the works Works last gave, so a library's are worked out again only once what they are made of changes: each film's key, video, source, list and place and title in it, and whether it was indexed from a media source, with the library and the language. Its zero value is empty. It is the open library's, on the UI thread; another reader works its own out.
+type WorksCache struct {
+	print []byte
+	works WorkIndex
+}
+
+// Get is the works of all, the films of the library at root, in tag's order (Works), those it gave last when none of what they are made of changed.
+func (c *WorksCache) Get(all []Film, root, tag string) WorkIndex {
+	print := worksPrint(all, root, tag)
+	if c.works != nil && bytes.Equal(print, c.print) {
+		return c.works
+	}
+	c.print, c.works = print, Works(all, root, tag)
+	return c.works
+}
+
+// worksPrint is what the works of all are made of, written out (WorksCache): what Works reads and nothing else, so a job's progress does not count.
+func worksPrint(all []Film, root, tag string) []byte {
+	out := make([]byte, 0, 64*len(all))
+	field := func(s string) {
+		out = append(out, s...)
+		out = append(out, 0)
+	}
+	field(root)
+	field(tag)
+	for _, f := range all {
+		field(f.Key)
+		field(f.VideoPath)
+		field(f.Source)
+		field(f.List)
+		field(strconv.Itoa(f.ListIndex))
+		field(f.ListTitle)
+		field(f.Linked)
+	}
+	return out
+}
+
+// MatchesWork reports whether the film's name holds query (MatchesTitle), or the name of the work it is in among works does, so a search for a show finds its episodes.
+func MatchesWork(item Film, query string, works WorkIndex) bool {
+	if MatchesTitle(item, query) {
+		return true
+	}
+	w, ok := works.Of(item.Key)
+	return ok && strings.Contains(strings.ToLower(w.Name), strings.ToLower(strings.TrimSpace(query)))
 }

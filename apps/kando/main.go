@@ -83,6 +83,7 @@ type app struct {
 	recap     recapUI       // state_recap.go
 	plugins   pluginsUI     // state_plugins.go
 	cats      categoryUI    // state_category.go
+	works     worksUI       // state_works.go
 	drop      dropUI        // state_drop.go
 }
 

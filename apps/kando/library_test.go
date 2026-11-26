@@ -1692,7 +1692,7 @@ func TestSearchFiltersTheShelfByTitle(t *testing.T) {
 	if !shows(tt, "Morning Market") || !shows(tt, "1 部") {
 		t.Fatalf("searching RIVERS left 处理中 or the count out: %q", tt.Texts())
 	}
-	listed := films.ByTitle(a.films(), a.side.query)
+	listed := films.ByTitle(a.films(), a.side.query, a.libraryWorks())
 	if len(listed) != 1 || listed[0].Name != "Rivers of Europe" {
 		t.Fatalf("films.ByTitle(RIVERS) = %+v", listed)
 	}

@@ -28,7 +28,7 @@ func (a *app) CategoryRows() []category.Row {
 	if len(list) == 0 {
 		return nil
 	}
-	shown := films.Shown(a.films(), a, a.side.filter, a.SpokenFilter(), a.side.watch, a.side.query)
+	shown := films.Shown(a.films(), a, a.libraryWorks(), a.side.filter, a.SpokenFilter(), a.side.watch, a.side.query)
 	rows := make([]category.Row, 0, len(list)+1)
 	for _, c := range list {
 		rows = append(rows, category.Row{ID: c.ID, Name: c.Name, Count: len(a.categoryKeep(shown, c.ID))})

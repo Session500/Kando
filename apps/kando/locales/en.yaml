@@ -3004,6 +3004,70 @@ filmsWatchShowAll:
 filmsWatched:
   message: "Watched"
   description: "Accessible name of the check mark over a poster: the film was played to its end."
+filmsWorkUnwatched:
+  message: "{count, plural, one {# episode not watched} other {# episodes not watched}}"
+  description: "Accessible name of the number in the corner of a work's card on the library page (a show, a course or a playlist shown as one card): how many of its episodes were not watched to their end."
+  placeholders:
+    count: { type: "int", example: "9" }
+filmsWorkLabel:
+  message: "{name}, {count, plural, one {# episode} other {# episodes}}"
+  description: "Accessible name of a work's card on the library page, and its row in the list: the work's name and how many of its episodes the card holds."
+  placeholders:
+    name: { type: "String", example: "River Walk" }
+    count: { type: "int", example: "12" }
+filmsWorkEpisodes:
+  message: "{count, plural, one {# episode} other {# episodes}}"
+  description: "Under a work's name on its card, after where it comes from: how many episodes or lessons of a show or a course the card holds."
+  placeholders:
+    count: { type: "int", example: "12" }
+filmsWorkVideos:
+  message: "{count, plural, one {# video} other {# videos}}"
+  description: "Under a playlist's name on its card, after the site: how many of its videos the card holds."
+  placeholders:
+    count: { type: "int", example: "12" }
+filmsWorkOpen:
+  message: "Open"
+  description: "Item of the menu of a work's card: shows the work's page, its episodes."
+filmsWorkContinue:
+  message: "Continue Episode {number}"
+  description: "Button on a work's page and item of its card's menu: plays the episode the work goes on with, by its place in the work."
+  placeholders:
+    number: { type: "int", example: "4" }
+filmsWorkStart:
+  message: "Play Episode 1"
+  description: "Button on a work's page and item of its card's menu, when none of its episodes was watched yet: plays the first."
+filmsWorkAgain:
+  message: "Watch Again from Episode 1"
+  description: "Button on a work's page and item of its card's menu, when every episode was watched: plays the first from its start."
+filmsWorkMenuHeader:
+  message: "{count, plural, one {# episode of “{name}”} other {# episodes of “{name}”}}"
+  description: "Dimmed first row of the part of a work's card's menu that acts on its episodes: how many it acts on, and of which work."
+  placeholders:
+    name: { type: "String", example: "River Walk" }
+    count: { type: "int", example: "12" }
+filmsWorkSplit:
+  message: "Show Episodes Separately"
+  description: "Last item of the menu of a work's card: shows its episodes as a card each, as before; they still play one after another."
+filmsWorkJoin:
+  message: "Show as One Card: “{name}”"
+  description: "Item of the menu of an episode of a work the user showed separately: folds its episodes into one card again."
+  placeholders:
+    name: { type: "String", example: "River Walk" }
+filmsWorkBack:
+  message: "Library"
+  description: "Button over a work's page, with a back arrow before it: goes back to the library's films."
+filmsWorkWatched:
+  message: "{count, plural, one {# episode} other {# episodes}} · {watched} watched"
+  description: "Under a work's name on its page: how many episodes it has and how many were watched to their end."
+  placeholders:
+    count: { type: "int", example: "12" }
+    watched: { type: "int", example: "3" }
+filmsWorkProgress:
+  message: "{watched}/{count}"
+  description: "A work's row in the list, in the column of how far films were watched: how many of the episodes the row holds were watched to their end, of how many."
+  placeholders:
+    watched: { type: "int", example: "3" }
+    count: { type: "int", example: "12" }
 glossaryIntro:
   message: "Terms apply at once. A locked term is translated exactly as written here, and no machine pass changes it."
   description: "Note at the top of the Terms tab of the player's side panel."

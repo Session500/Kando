@@ -349,6 +349,9 @@ type Film struct {
 	// ResumeMS is where the player stopped last time, which the window offers to continue from, 0 when it was not watched or was watched to the end. WatchedMS is the furthest point the video was played to from its start, which UntilWatched cuts at; a seek past it does not move it, but the user marking the film watched moves it to the end, and marking it unwatched back to 0. Both are milliseconds of the video.
 	ResumeMS  int64 `json:"resume_ms"`
 	WatchedMS int64 `json:"watched_ms"`
+	// Work names the work the window shows the film in, its card holding the episodes of a show, the lessons of a course or the videos of a playlist, the same for each of its films; WorkTitle is the card's name. Both are "" for a film shown on a card of its own.
+	Work      string `json:"work,omitempty"`
+	WorkTitle string `json:"work_title,omitempty"`
 }
 
 // Job is a job of the open library, or one the queue runs or will run for another library.

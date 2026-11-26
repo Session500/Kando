@@ -1266,3 +1266,27 @@ func TestRemoteListsThePlugins(t *testing.T) {
 		}
 	}
 }
+
+// The films the window folds into one card, a playlist's here, share a work and its title in kando list; a film on a card of its own has none.
+func TestRemoteFilmsSayTheirWork(t *testing.T) {
+	a, _, updates := newTestApp(t, &fakePipeline{})
+	remoteServe(t, a)
+	dir := remoteLibrary(t, a)
+	for i, id := range []string{"e1", "e2"} {
+		video := filepath.Join(dir, "Cooking "+id, "video.mp4")
+		remoteWriteFile(t, video, "video")
+		a.library.Jobs = append(a.library.Jobs, core.Job{ID: id, Source: "https://www.youtube.com/watch?v=" + id, Title: "Cooking " + id, Language: "简体中文", Stage: core.StageComplete,
+			VideoPath: video, LibraryDir: dir, CompletedAt: time.Now(), List: "youtube.com/playlist?list=PL1", ListIndex: i + 1, ListTitle: "Cooking Basics"})
+	}
+	all, err := remoteCall[[]remote.Film](t, updates, remote.MethodFilms, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	works := map[string]remote.Film{}
+	for _, f := range all {
+		works[f.ID] = f
+	}
+	if works["e1"].Work == "" || works["e1"].Work != works["e2"].Work || works["e1"].WorkTitle != "Cooking Basics" || works["yt"].Work != "" {
+		t.Fatalf("films %+v", all)
+	}
+}

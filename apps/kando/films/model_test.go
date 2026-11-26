@@ -328,10 +328,10 @@ func TestMatchesTitleReadsTheWholeName(t *testing.T) {
 		}
 	}
 	items := []Film{rivers, found}
-	if got := ByTitle(items, " "); len(got) != 2 {
+	if got := ByTitle(items, " ", nil); len(got) != 2 {
 		t.Fatalf("ByTitle with a blank query kept %d films", len(got))
 	}
-	if got := ByTitle(items, "rivers"); len(got) != 1 || got[0].Key != "a" {
+	if got := ByTitle(items, "rivers", nil); len(got) != 1 || got[0].Key != "a" {
 		t.Fatalf("ByTitle(rivers) = %+v", got)
 	}
 }
