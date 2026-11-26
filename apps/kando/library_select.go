@@ -24,13 +24,13 @@ import (
 // Selection is the done films selected on the library page (films.App).
 func (a *app) Selection() *films.Selection { return &a.lib.selection }
 
-// libraryShownFilms is the done films the library page shows, as its grid or its list does (films.Shown): from YouTube on YouTube's page, else from the source the sidebar chose, heard in the language and watched as far as it chose, whose names hold the search.
+// libraryShownFilms is the done films the library page shows, as its grid or its list does (films.Shown): from YouTube on YouTube's page, else from the source the sidebar chose, in the category it shows (InCategories), heard in the language and watched as far as it chose, whose names hold the search.
 func (a *app) libraryShownFilms() []films.Film {
 	source := a.side.filter
 	if a.page == pageYouTube {
 		source = sidebar.SourceYouTube
 	}
-	return films.Shown(a.films(), a, source, a.SpokenFilter(), a.side.watch, a.side.query)
+	return a.InCategories(films.Shown(a.films(), a, source, a.SpokenFilter(), a.side.watch, a.side.query))
 }
 
 // libraryFollowSelection leaves out of the selection the films the library page no longer shows, as when a filter or the search hides them, they went into 处理中 to be processed again, or they left the library, as Finder lets go of what leaves a window; libraryHooks empties it as another library opens. It runs after every change (libraryAfterChange) and reports whether it changed it.
