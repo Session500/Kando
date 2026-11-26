@@ -2,6 +2,12 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.67.0 - 2026-11-26
+
+### Features
+
+- Keep a folder library's films' files in a hidden folder beside each video (#510)
+
 ## 0.66.2 - 2026-11-26
 
 ### Fixes
