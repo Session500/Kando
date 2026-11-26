@@ -181,3 +181,20 @@ func TestNextGoesOnThroughSeasonsNamedInChinese(t *testing.T) {
 		}
 	}
 }
+
+// A fansub's releases, numbered by a tag of their own or with underscores for spaces, go on by number as other episodes do.
+func TestNextGoesOnThroughAFansubsReleases(t *testing.T) {
+	all := []Film{
+		local("/Anime/山海旅人/[字幕组][山海旅人][02][1080P].mkv"),
+		local("/Anime/山海旅人/[字幕组][山海旅人][10][1080P].mkv"),
+		local("/Anime/山海旅人/[字幕组][山海旅人][01][1080P].mkv"),
+		local("/Anime/River/River_Walk_E02_1080p.mkv"),
+		local("/Anime/River/River_Walk_E01_1080p.mkv"),
+	}
+	if got, want := nextKeys(all, "[字幕组][山海旅人][01][1080P].mkv"), []string{"[字幕组][山海旅人][02][1080P].mkv", "[字幕组][山海旅人][10][1080P].mkv"}; !equal(got, want) {
+		t.Fatalf("next %q, want %q", got, want)
+	}
+	if got, want := nextKeys(all, "River_Walk_E01_1080p.mkv"), []string{"River_Walk_E02_1080p.mkv"}; !equal(got, want) {
+		t.Fatalf("next %q, want %q", got, want)
+	}
+}
