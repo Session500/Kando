@@ -61,3 +61,16 @@ func TestEpisodeNumber(t *testing.T) {
 		}
 	}
 }
+
+func TestSeasonNumber(t *testing.T) {
+	for name, want := range map[string]int{"第二季": 2, "第十一季": 11, "第3部": 3, "シーズン2": 2, "庆余年 第二季": 2} {
+		if got, ok := SeasonNumber(name); !ok || got != want {
+			t.Errorf("SeasonNumber(%q) = %d, %v, want %d", name, got, ok, want)
+		}
+	}
+	for _, name := range []string{"Season 2", "第2集", "季", "Extras"} {
+		if got, ok := SeasonNumber(name); ok {
+			t.Errorf("SeasonNumber(%q) = %d, want none", name, got)
+		}
+	}
+}
