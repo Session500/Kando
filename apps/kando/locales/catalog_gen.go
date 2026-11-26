@@ -557,6 +557,14 @@ var Parameters = map[string][]string{
 	"LibraryAdopted":                           {"name"},
 	"LibraryAdoptFailed":                       {"name", "error_"},
 	"LibraryHomeOtherVideo":                    {"name"},
+	"LibexportFilms":                           {"count"},
+	"LibexportRunning":                         {"done", "total"},
+	"LibexportWritten":                         {"count"},
+	"LibexportSame":                            {"count"},
+	"LibexportKept":                            {"count"},
+	"LibexportSkipped":                         {"count"},
+	"LibexportFailed":                          {"count"},
+	"LibexportOld":                             {"count"},
 	"LibraryAddedOnly":                         {"count"},
 	"LibraryDropDisguised":                     {"text", "name", "count"},
 	"LibraryMakingSome":                        {"done", "total", "reason"},
@@ -1352,6 +1360,14 @@ type Translation struct {
 	LibraryAdopted                           func(name string) string
 	LibraryAdoptFailed                       func(name string, error_ string) string
 	LibraryHomeOtherVideo                    func(name string) string
+	LibexportFilms                           func(count int) string
+	LibexportRunning                         func(done int, total int) string
+	LibexportWritten                         func(count int) string
+	LibexportSame                            func(count int) string
+	LibexportKept                            func(count int) string
+	LibexportSkipped                         func(count int) string
+	LibexportFailed                          func(count int) string
+	LibexportOld                             func(count int) string
 	LibraryAddedOnly                         func(count int) string
 	LibraryDropDisguised                     func(text string, name string, count int) string
 	LibraryMakingSome                        func(done int, total int, reason string) string
@@ -2318,6 +2334,24 @@ const (
 	textFilmNotesSoundKept
 	textFilmTabNotes
 	textLibraryFolderGone
+	textLibexportMenu
+	textLibexportTitle
+	textLibexportDescription
+	textLibexportDelay
+	textLibexportDest
+	textLibexportBeside
+	textLibexportFolder
+	textLibexportNoFolder
+	textLibexportPick
+	textLibexportPickTitle
+	textLibexportPickButton
+	textLibexportOldNote
+	textLibexportTrashOld
+	textLibexportTrashed
+	textLibexportTrashFailed
+	textLibexportCancel
+	textLibexportStart
+	textLibexportDone
 	textLibraryDropReading
 	textSettingsAIBatchSize
 	textSettingsAIBatchSizeHint
@@ -4251,6 +4285,24 @@ var keyOfText = [numTexts]string{
 	"filmNotesSoundKept",
 	"filmTabNotes",
 	"libraryFolderGone",
+	"libexportMenu",
+	"libexportTitle",
+	"libexportDescription",
+	"libexportDelay",
+	"libexportDest",
+	"libexportBeside",
+	"libexportFolder",
+	"libexportNoFolder",
+	"libexportPick",
+	"libexportPickTitle",
+	"libexportPickButton",
+	"libexportOldNote",
+	"libexportTrashOld",
+	"libexportTrashed",
+	"libexportTrashFailed",
+	"libexportCancel",
+	"libexportStart",
+	"libexportDone",
 	"libraryDropReading",
 	"settingsAIBatchSize",
 	"settingsAIBatchSizeHint",
@@ -6182,6 +6234,24 @@ var textsEn = i18n.NewTexts(""+
 	"Each line's audio is cut when you save it, so the review does not need the video."+
 	"Notes"+
 	"The library's folder isn't there, as when the disk it's on isn't connected. Connect it, then try again."+
+	"Export Library Subtitles…"+
+	"Export Library Subtitles"+
+	"Exports the subtitles of every film in this library that has them, as the player shows them, with your corrections, named so other players such as Plex find them."+
+	"Move the times by each film's subtitle delay"+
+	"Where"+
+	"Next to Each Video"+
+	"Into a Folder"+
+	"No folder chosen"+
+	"Choose…"+
+	"Export Subtitles Into"+
+	"Export Here"+
+	"Kando keeps its own copy of them. A Kando on another computer that hasn't been updated won't see them anymore."+
+	"Move Them to Trash"+
+	"Moved the old subtitles to the Trash."+
+	"Some old subtitles couldn't be moved to the Trash."+
+	"Cancel"+
+	"Export"+
+	"Done"+
 	"Looking through the folder…"+
 	"Lines per Request"+
 	"More lines take fewer requests; fewer suit a small model."+
@@ -8110,6 +8180,24 @@ var textsEn = i18n.NewTexts(""+
 		81,
 		5,
 		103,
+		27,
+		24,
+		162,
+		44,
+		5,
+		18,
+		13,
+		16,
+		9,
+		21,
+		11,
+		110,
+		18,
+		37,
+		50,
+		6,
+		6,
+		4,
 		29,
 		17,
 		57,
@@ -10041,6 +10129,24 @@ var textsJa = i18n.NewTexts(""+
 	"保存したときにセリフの音声を切り出すので、復習に元の動画は要りません。"+
 	"ノート"+
 	"ライブラリのフォルダが見つかりません。フォルダのあるディスクが接続されていない可能性があります。接続してからもう一度お試しください。"+
+	"ライブラリの字幕を書き出す…"+
+	"ライブラリの字幕を書き出す"+
+	"このライブラリで字幕のあるすべての作品の字幕を、プレーヤーで見えるとおり、あなたの修正を含めて書き出します。Plex などのプレーヤーが見つけられる名前になります。"+
+	"作品ごとの字幕の遅延を時間に反映"+
+	"書き出し先"+
+	"各動画の横"+
+	"フォルダへ"+
+	"フォルダが選ばれていません"+
+	"選択…"+
+	"字幕の書き出し先"+
+	"ここに書き出す"+
+	"Kando は自分用のコピーを持っています。更新していない別のコンピュータの Kando からは見えなくなります。"+
+	"ゴミ箱に入れる"+
+	"古い字幕をゴミ箱に入れました。"+
+	"一部の古い字幕をゴミ箱に入れられませんでした。"+
+	"キャンセル"+
+	"書き出す"+
+	"完了"+
 	"フォルダを確認しています…"+
 	"1 回あたりの行数"+
 	"多いほどリクエストが減ります。小さなモデルには少なめが向いています。"+
@@ -11969,6 +12075,24 @@ var textsJa = i18n.NewTexts(""+
 		105,
 		9,
 		198,
+		42,
+		39,
+		236,
+		48,
+		15,
+		15,
+		15,
+		39,
+		9,
+		24,
+		21,
+		145,
+		21,
+		45,
+		69,
+		15,
+		12,
+		6,
 		39,
 		23,
 		102,
@@ -13900,6 +14024,24 @@ var textsKo = i18n.NewTexts(""+
 	"저장할 때 대사의 원음을 잘라 두므로 복습에 원본 영상이 필요 없습니다."+
 	"노트"+
 	"라이브러리 폴더가 없습니다. 폴더가 있는 디스크가 연결되어 있지 않을 수 있습니다. 연결한 뒤 다시 시도하세요."+
+	"라이브러리 자막 내보내기…"+
+	"라이브러리 자막 내보내기"+
+	"이 라이브러리에서 자막이 있는 모든 영상의 자막을 플레이어에서 보이는 그대로, 수정한 내용까지 포함해 내보냅니다. Plex 같은 플레이어가 찾을 수 있는 이름으로 저장됩니다."+
+	"영상마다의 자막 지연을 시간에 반영"+
+	"위치"+
+	"각 동영상 옆"+
+	"폴더로"+
+	"선택한 폴더가 없습니다"+
+	"선택…"+
+	"자막을 내보낼 위치"+
+	"여기로 내보내기"+
+	"Kando는 자체 사본을 가지고 있습니다. 업데이트하지 않은 다른 컴퓨터의 Kando에서는 더 이상 보이지 않습니다."+
+	"휴지통으로 이동"+
+	"이전 자막을 휴지통으로 옮겼습니다."+
+	"일부 이전 자막을 휴지통으로 옮기지 못했습니다."+
+	"취소"+
+	"내보내기"+
+	"완료"+
 	"폴더를 살펴보는 중…"+
 	"요청당 줄 수"+
 	"많을수록 요청 수가 줄고, 작은 모델에는 적게 두는 편이 좋습니다."+
@@ -15828,6 +15970,24 @@ var textsKo = i18n.NewTexts(""+
 		98,
 		6,
 		152,
+		38,
+		35,
+		235,
+		49,
+		6,
+		17,
+		9,
+		32,
+		9,
+		26,
+		22,
+		145,
+		22,
+		49,
+		66,
+		6,
+		12,
+		6,
 		29,
 		17,
 		89,
@@ -17759,6 +17919,24 @@ var textsZhHans = i18n.NewTexts(""+
 	"存下时就切好这句的原声，以后复习不需要原视频。"+
 	"笔记"+
 	"资料库文件夹不在了，可能是它所在的磁盘没有连接。接上后再试一次。"+
+	"导出资料库的字幕…"+
+	"导出资料库的字幕"+
+	"把这个资料库里所有有字幕的影片的字幕导出，内容和播放器里看到的一样，含你的修正，命名方式让 Plex 等播放器能找到。"+
+	"按每部影片的字幕延迟调整时间"+
+	"位置"+
+	"每个视频旁边"+
+	"导出到文件夹"+
+	"还没有选择文件夹"+
+	"选择…"+
+	"把字幕导出到"+
+	"导出到这里"+
+	"看懂自己留有一份。其他电脑上没有更新的看懂将看不到它们。"+
+	"移到废纸篓"+
+	"旧字幕已移到废纸篓。"+
+	"有些旧字幕没能移到废纸篓。"+
+	"取消"+
+	"导出"+
+	"完成"+
 	"正在查看文件夹…"+
 	"每批句数"+
 	"句数多，请求就少；小模型适合少一些。"+
@@ -19687,6 +19865,24 @@ var textsZhHans = i18n.NewTexts(""+
 		69,
 		6,
 		96,
+		27,
+		24,
+		165,
+		42,
+		6,
+		18,
+		18,
+		24,
+		9,
+		18,
+		15,
+		84,
+		15,
+		30,
+		39,
+		6,
+		6,
+		6,
 		24,
 		12,
 		54,
@@ -21618,6 +21814,24 @@ var textsZhHant = i18n.NewTexts(""+
 	"存下時就切好這句的原聲，以後複習不需要原影片。"+
 	"筆記"+
 	"資料庫資料夾不在了，可能是它所在的磁碟沒有連接。接上後再試一次。"+
+	"匯出資料庫的字幕…"+
+	"匯出資料庫的字幕"+
+	"把這個資料庫裡所有有字幕的影片的字幕匯出，內容和播放器裡看到的一樣，含你的修正，命名方式讓 Plex 等播放器能找到。"+
+	"依每部影片的字幕延遲調整時間"+
+	"位置"+
+	"每個影片旁邊"+
+	"匯出到資料夾"+
+	"還沒有選擇資料夾"+
+	"選擇…"+
+	"把字幕匯出到"+
+	"匯出到這裡"+
+	"看懂自己留有一份。其他電腦上沒有更新的看懂將看不到它們。"+
+	"移到垃圾桶"+
+	"舊字幕已移到垃圾桶。"+
+	"有些舊字幕沒能移到垃圾桶。"+
+	"取消"+
+	"匯出"+
+	"完成"+
 	"正在查看資料夾…"+
 	"每批句數"+
 	"句數多，請求就少；小模型適合少一些。"+
@@ -23546,6 +23760,24 @@ var textsZhHant = i18n.NewTexts(""+
 		69,
 		6,
 		96,
+		27,
+		24,
+		165,
+		42,
+		6,
+		18,
+		18,
+		24,
+		9,
+		18,
+		15,
+		84,
+		15,
+		30,
+		39,
+		6,
+		6,
+		6,
 		24,
 		12,
 		54,
@@ -25515,6 +25747,30 @@ func Supply(lang string, t Translation) {
 	}
 	if t.LibraryHomeOtherVideo != nil {
 		s.LibraryHomeOtherVideo = t.LibraryHomeOtherVideo
+	}
+	if t.LibexportFilms != nil {
+		s.LibexportFilms = t.LibexportFilms
+	}
+	if t.LibexportRunning != nil {
+		s.LibexportRunning = t.LibexportRunning
+	}
+	if t.LibexportWritten != nil {
+		s.LibexportWritten = t.LibexportWritten
+	}
+	if t.LibexportSame != nil {
+		s.LibexportSame = t.LibexportSame
+	}
+	if t.LibexportKept != nil {
+		s.LibexportKept = t.LibexportKept
+	}
+	if t.LibexportSkipped != nil {
+		s.LibexportSkipped = t.LibexportSkipped
+	}
+	if t.LibexportFailed != nil {
+		s.LibexportFailed = t.LibexportFailed
+	}
+	if t.LibexportOld != nil {
+		s.LibexportOld = t.LibexportOld
 	}
 	if t.LibraryAddedOnly != nil {
 		s.LibraryAddedOnly = t.LibraryAddedOnly
@@ -32568,6 +32824,705 @@ func (msgs Messages) LibraryHomeOtherVideo(name string) string {
 		}
 	}
 }
+
+// LibexportMenu says "Export Library Subtitles…"
+// in the language the app shows under cx.
+//
+// File menu item that opens the dialog exporting the subtitles of every film of the open library.
+func LibexportMenu(cx *core.Scope) string { return For(cx).LibexportMenu() }
+
+// LibexportMenu is the package's LibexportMenu in the language of msgs.
+func (msgs Messages) LibexportMenu() string { return msgs.text(textLibexportMenu) }
+
+// LibexportTitle says "Export Library Subtitles"
+// in the language the app shows under cx.
+//
+// Title of the dialog exporting the subtitles of every film of the open library at once.
+func LibexportTitle(cx *core.Scope) string { return For(cx).LibexportTitle() }
+
+// LibexportTitle is the package's LibexportTitle in the language of msgs.
+func (msgs Messages) LibexportTitle() string { return msgs.text(textLibexportTitle) }
+
+// LibexportDescription says "Exports the subtitles of every film in this library that has them, as the player shows them, with your corrections, named so other players such as Plex find them."
+// in the language the app shows under cx.
+//
+// Description under the title of the library subtitle export dialog.
+func LibexportDescription(cx *core.Scope) string { return For(cx).LibexportDescription() }
+
+// LibexportDescription is the package's LibexportDescription in the language of msgs.
+func (msgs Messages) LibexportDescription() string { return msgs.text(textLibexportDescription) }
+
+// LibexportDelay says "Move the times by each film's subtitle delay"
+// in the language the app shows under cx.
+//
+// Switch in the library subtitle export dialog: write each film's own subtitle delay into the times.
+func LibexportDelay(cx *core.Scope) string { return For(cx).LibexportDelay() }
+
+// LibexportDelay is the package's LibexportDelay in the language of msgs.
+func (msgs Messages) LibexportDelay() string { return msgs.text(textLibexportDelay) }
+
+// LibexportDest says "Where"
+// in the language the app shows under cx.
+//
+// Label of the choice of where the library subtitle export writes its files.
+func LibexportDest(cx *core.Scope) string { return For(cx).LibexportDest() }
+
+// LibexportDest is the package's LibexportDest in the language of msgs.
+func (msgs Messages) LibexportDest() string { return msgs.text(textLibexportDest) }
+
+// LibexportBeside says "Next to Each Video"
+// in the language the app shows under cx.
+//
+// Option of the library subtitle export: write each film's subtitles in its video's folder.
+func LibexportBeside(cx *core.Scope) string { return For(cx).LibexportBeside() }
+
+// LibexportBeside is the package's LibexportBeside in the language of msgs.
+func (msgs Messages) LibexportBeside() string { return msgs.text(textLibexportBeside) }
+
+// LibexportFolder says "Into a Folder"
+// in the language the app shows under cx.
+//
+// Option of the library subtitle export: write the subtitles into a folder the user picks, laid out as the library is.
+func LibexportFolder(cx *core.Scope) string { return For(cx).LibexportFolder() }
+
+// LibexportFolder is the package's LibexportFolder in the language of msgs.
+func (msgs Messages) LibexportFolder() string { return msgs.text(textLibexportFolder) }
+
+// LibexportNoFolder says "No folder chosen"
+// in the language the app shows under cx.
+//
+// Shown in place of the folder's path while no folder for the library subtitle export is picked.
+func LibexportNoFolder(cx *core.Scope) string { return For(cx).LibexportNoFolder() }
+
+// LibexportNoFolder is the package's LibexportNoFolder in the language of msgs.
+func (msgs Messages) LibexportNoFolder() string { return msgs.text(textLibexportNoFolder) }
+
+// LibexportPick says "Choose…"
+// in the language the app shows under cx.
+//
+// Button picking the folder the library subtitle export writes into.
+func LibexportPick(cx *core.Scope) string { return For(cx).LibexportPick() }
+
+// LibexportPick is the package's LibexportPick in the language of msgs.
+func (msgs Messages) LibexportPick() string { return msgs.text(textLibexportPick) }
+
+// LibexportPickTitle says "Export Subtitles Into"
+// in the language the app shows under cx.
+//
+// Title of the system's folder panel picking where the library subtitle export writes.
+func LibexportPickTitle(cx *core.Scope) string { return For(cx).LibexportPickTitle() }
+
+// LibexportPickTitle is the package's LibexportPickTitle in the language of msgs.
+func (msgs Messages) LibexportPickTitle() string { return msgs.text(textLibexportPickTitle) }
+
+// LibexportPickButton says "Export Here"
+// in the language the app shows under cx.
+//
+// Button of the system's folder panel picking where the library subtitle export writes.
+func LibexportPickButton(cx *core.Scope) string { return For(cx).LibexportPickButton() }
+
+// LibexportPickButton is the package's LibexportPickButton in the language of msgs.
+func (msgs Messages) LibexportPickButton() string { return msgs.text(textLibexportPickButton) }
+
+// LibexportFilms says "{count, plural, =0 {No film in this library has subtitles yet.} one {# film with subtitles} other {# films with subtitles}}"
+// in the language the app shows under cx.
+//
+// Line in the library subtitle export dialog saying how many films it exports.
+func LibexportFilms(cx *core.Scope, count int) string { return For(cx).LibexportFilms(count) }
+
+// LibexportFilms is the package's LibexportFilms in the language of msgs.
+func (msgs Messages) LibexportFilms(count int) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.LibexportFilms(count))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].LibexportFilms; f != nil {
+			return f(count)
+		}
+		switch lang {
+		case "", "en":
+			var b strings.Builder
+			switch {
+			case count == 0:
+				b.WriteString("No film in this library has subtitles yet.")
+			default:
+				switch i18n.Cardinal("en", float64(count)) {
+				case i18n.One:
+					b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+					b.WriteString(" film with subtitles")
+				default:
+					b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+					b.WriteString(" films with subtitles")
+				}
+			}
+			return b.String()
+		case "ja":
+			var b strings.Builder
+			switch {
+			case count == 0:
+				b.WriteString("このライブラリにはまだ字幕のある作品がありません。")
+			default:
+				switch i18n.Cardinal("ja", float64(count)) {
+				default:
+					b.WriteString("字幕のある作品 ")
+					b.WriteString(i18n.FormatNumber("ja", float64(count)))
+					b.WriteString(" 本")
+				}
+			}
+			return b.String()
+		case "ko":
+			var b strings.Builder
+			switch {
+			case count == 0:
+				b.WriteString("이 라이브러리에는 아직 자막이 있는 영상이 없습니다.")
+			default:
+				switch i18n.Cardinal("ko", float64(count)) {
+				default:
+					b.WriteString("자막이 있는 영상 ")
+					b.WriteString(i18n.FormatNumber("ko", float64(count)))
+					b.WriteString("개")
+				}
+			}
+			return b.String()
+		case "zh-Hans":
+			var b strings.Builder
+			switch {
+			case count == 0:
+				b.WriteString("这个资料库里还没有有字幕的影片。")
+			default:
+				switch i18n.Cardinal("zh-Hans", float64(count)) {
+				default:
+					b.WriteString(i18n.FormatNumber("zh-Hans", float64(count)))
+					b.WriteString(" 部有字幕的影片")
+				}
+			}
+			return b.String()
+		case "zh-Hant":
+			var b strings.Builder
+			switch {
+			case count == 0:
+				b.WriteString("這個資料庫裡還沒有有字幕的影片。")
+			default:
+				switch i18n.Cardinal("zh-Hant", float64(count)) {
+				default:
+					b.WriteString(i18n.FormatNumber("zh-Hant", float64(count)))
+					b.WriteString(" 部有字幕的影片")
+				}
+			}
+			return b.String()
+		}
+	}
+}
+
+// LibexportRunning says "Exporting {done} of {total}…"
+// in the language the app shows under cx.
+//
+// Line in the library subtitle export dialog while it runs.
+func LibexportRunning(cx *core.Scope, done int, total int) string {
+	return For(cx).LibexportRunning(done, total)
+}
+
+// LibexportRunning is the package's LibexportRunning in the language of msgs.
+func (msgs Messages) LibexportRunning(done int, total int) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.LibexportRunning(done, total))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].LibexportRunning; f != nil {
+			return f(done, total)
+		}
+		switch lang {
+		case "", "en":
+			return "Exporting " + msgs.arg(i18n.FormatNumber("en", float64(done))) + " of " + msgs.arg(i18n.FormatNumber("en", float64(total))) + "…"
+		case "ja":
+			return i18n.FormatNumber("ja", float64(total)) + " 本中 " + i18n.FormatNumber("ja", float64(done)) + " 本目を書き出し中…"
+		case "ko":
+			return i18n.FormatNumber("ko", float64(total)) + "개 중 " + i18n.FormatNumber("ko", float64(done)) + "번째 내보내는 중…"
+		case "zh-Hans":
+			return "正在导出第 " + i18n.FormatNumber("zh-Hans", float64(done)) + " 部，共 " + i18n.FormatNumber("zh-Hans", float64(total)) + " 部…"
+		case "zh-Hant":
+			return "正在匯出第 " + i18n.FormatNumber("zh-Hant", float64(done)) + " 部，共 " + i18n.FormatNumber("zh-Hant", float64(total)) + " 部…"
+		}
+	}
+}
+
+// LibexportWritten says "{count, plural, =0 {No file written} one {# file written} other {# files written}}"
+// in the language the app shows under cx.
+//
+// Part of the library subtitle export's result: how many files it wrote.
+func LibexportWritten(cx *core.Scope, count int) string { return For(cx).LibexportWritten(count) }
+
+// LibexportWritten is the package's LibexportWritten in the language of msgs.
+func (msgs Messages) LibexportWritten(count int) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.LibexportWritten(count))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].LibexportWritten; f != nil {
+			return f(count)
+		}
+		switch lang {
+		case "", "en":
+			var b strings.Builder
+			switch {
+			case count == 0:
+				b.WriteString("No file written")
+			default:
+				switch i18n.Cardinal("en", float64(count)) {
+				case i18n.One:
+					b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+					b.WriteString(" file written")
+				default:
+					b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+					b.WriteString(" files written")
+				}
+			}
+			return b.String()
+		case "ja":
+			var b strings.Builder
+			switch {
+			case count == 0:
+				b.WriteString("書き出したファイルはありません")
+			default:
+				switch i18n.Cardinal("ja", float64(count)) {
+				default:
+					b.WriteString(i18n.FormatNumber("ja", float64(count)))
+					b.WriteString(" 個のファイルを書き出しました")
+				}
+			}
+			return b.String()
+		case "ko":
+			var b strings.Builder
+			switch {
+			case count == 0:
+				b.WriteString("쓴 파일이 없습니다")
+			default:
+				switch i18n.Cardinal("ko", float64(count)) {
+				default:
+					b.WriteString("파일 ")
+					b.WriteString(i18n.FormatNumber("ko", float64(count)))
+					b.WriteString("개를 썼습니다")
+				}
+			}
+			return b.String()
+		case "zh-Hans":
+			var b strings.Builder
+			switch {
+			case count == 0:
+				b.WriteString("没有写入文件")
+			default:
+				switch i18n.Cardinal("zh-Hans", float64(count)) {
+				default:
+					b.WriteString("写入了 ")
+					b.WriteString(i18n.FormatNumber("zh-Hans", float64(count)))
+					b.WriteString(" 个文件")
+				}
+			}
+			return b.String()
+		case "zh-Hant":
+			var b strings.Builder
+			switch {
+			case count == 0:
+				b.WriteString("沒有寫入檔案")
+			default:
+				switch i18n.Cardinal("zh-Hant", float64(count)) {
+				default:
+					b.WriteString("寫入了 ")
+					b.WriteString(i18n.FormatNumber("zh-Hant", float64(count)))
+					b.WriteString(" 個檔案")
+				}
+			}
+			return b.String()
+		}
+	}
+}
+
+// LibexportSame says "{count, plural, one {# already up to date} other {# already up to date}}"
+// in the language the app shows under cx.
+//
+// Part of the library subtitle export's result: files it had exported before that already held the same, left as they were.
+func LibexportSame(cx *core.Scope, count int) string { return For(cx).LibexportSame(count) }
+
+// LibexportSame is the package's LibexportSame in the language of msgs.
+func (msgs Messages) LibexportSame(count int) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.LibexportSame(count))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].LibexportSame; f != nil {
+			return f(count)
+		}
+		switch lang {
+		case "", "en":
+			var b strings.Builder
+			switch i18n.Cardinal("en", float64(count)) {
+			case i18n.One:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+				b.WriteString(" already up to date")
+			default:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+				b.WriteString(" already up to date")
+			}
+			return b.String()
+		case "ja":
+			var b strings.Builder
+			switch i18n.Cardinal("ja", float64(count)) {
+			default:
+				b.WriteString(i18n.FormatNumber("ja", float64(count)))
+				b.WriteString(" 個は最新のままです")
+			}
+			return b.String()
+		case "ko":
+			var b strings.Builder
+			switch i18n.Cardinal("ko", float64(count)) {
+			default:
+				b.WriteString(i18n.FormatNumber("ko", float64(count)))
+				b.WriteString("개는 이미 최신입니다")
+			}
+			return b.String()
+		case "zh-Hans":
+			var b strings.Builder
+			switch i18n.Cardinal("zh-Hans", float64(count)) {
+			default:
+				b.WriteString(i18n.FormatNumber("zh-Hans", float64(count)))
+				b.WriteString(" 个已是最新")
+			}
+			return b.String()
+		case "zh-Hant":
+			var b strings.Builder
+			switch i18n.Cardinal("zh-Hant", float64(count)) {
+			default:
+				b.WriteString(i18n.FormatNumber("zh-Hant", float64(count)))
+				b.WriteString(" 個已是最新")
+			}
+			return b.String()
+		}
+	}
+}
+
+// LibexportKept says "{count, plural, one {# file of yours with the same name kept as it is} other {# files of yours with the same names kept as they are}}"
+// in the language the app shows under cx.
+//
+// Part of the library subtitle export's result: files the user has under the names it would write, which it never writes over.
+func LibexportKept(cx *core.Scope, count int) string { return For(cx).LibexportKept(count) }
+
+// LibexportKept is the package's LibexportKept in the language of msgs.
+func (msgs Messages) LibexportKept(count int) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.LibexportKept(count))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].LibexportKept; f != nil {
+			return f(count)
+		}
+		switch lang {
+		case "", "en":
+			var b strings.Builder
+			switch i18n.Cardinal("en", float64(count)) {
+			case i18n.One:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+				b.WriteString(" file of yours with the same name kept as it is")
+			default:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+				b.WriteString(" files of yours with the same names kept as they are")
+			}
+			return b.String()
+		case "ja":
+			var b strings.Builder
+			switch i18n.Cardinal("ja", float64(count)) {
+			default:
+				b.WriteString("同じ名前のあなたのファイル ")
+				b.WriteString(i18n.FormatNumber("ja", float64(count)))
+				b.WriteString(" 個はそのままにしました")
+			}
+			return b.String()
+		case "ko":
+			var b strings.Builder
+			switch i18n.Cardinal("ko", float64(count)) {
+			default:
+				b.WriteString("이름이 같은 사용자 파일 ")
+				b.WriteString(i18n.FormatNumber("ko", float64(count)))
+				b.WriteString("개는 그대로 두었습니다")
+			}
+			return b.String()
+		case "zh-Hans":
+			var b strings.Builder
+			switch i18n.Cardinal("zh-Hans", float64(count)) {
+			default:
+				b.WriteString("保留了你自己的 ")
+				b.WriteString(i18n.FormatNumber("zh-Hans", float64(count)))
+				b.WriteString(" 个同名文件")
+			}
+			return b.String()
+		case "zh-Hant":
+			var b strings.Builder
+			switch i18n.Cardinal("zh-Hant", float64(count)) {
+			default:
+				b.WriteString("保留了你自己的 ")
+				b.WriteString(i18n.FormatNumber("zh-Hant", float64(count)))
+				b.WriteString(" 個同名檔案")
+			}
+			return b.String()
+		}
+	}
+}
+
+// LibexportSkipped says "{count, plural, one {# film's video isn't on this computer, so it can only go into a folder} other {# films' videos aren't on this computer, so they can only go into a folder}}"
+// in the language the app shows under cx.
+//
+// Part of the library subtitle export's result: films not exported next to their videos, as their videos are inside the library, on a NAS or on a media source.
+func LibexportSkipped(cx *core.Scope, count int) string { return For(cx).LibexportSkipped(count) }
+
+// LibexportSkipped is the package's LibexportSkipped in the language of msgs.
+func (msgs Messages) LibexportSkipped(count int) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.LibexportSkipped(count))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].LibexportSkipped; f != nil {
+			return f(count)
+		}
+		switch lang {
+		case "", "en":
+			var b strings.Builder
+			switch i18n.Cardinal("en", float64(count)) {
+			case i18n.One:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+				b.WriteString(" film's video isn't on this computer, so it can only go into a folder")
+			default:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+				b.WriteString(" films' videos aren't on this computer, so they can only go into a folder")
+			}
+			return b.String()
+		case "ja":
+			var b strings.Builder
+			switch i18n.Cardinal("ja", float64(count)) {
+			default:
+				b.WriteString(i18n.FormatNumber("ja", float64(count)))
+				b.WriteString(" 本の作品は動画がこのコンピュータにないため、フォルダへの書き出しのみできます")
+			}
+			return b.String()
+		case "ko":
+			var b strings.Builder
+			switch i18n.Cardinal("ko", float64(count)) {
+			default:
+				b.WriteString("영상 ")
+				b.WriteString(i18n.FormatNumber("ko", float64(count)))
+				b.WriteString("개는 동영상이 이 컴퓨터에 없어 폴더로만 내보낼 수 있습니다")
+			}
+			return b.String()
+		case "zh-Hans":
+			var b strings.Builder
+			switch i18n.Cardinal("zh-Hans", float64(count)) {
+			default:
+				b.WriteString(i18n.FormatNumber("zh-Hans", float64(count)))
+				b.WriteString(" 部影片的视频不在这台电脑上，只能导出到文件夹")
+			}
+			return b.String()
+		case "zh-Hant":
+			var b strings.Builder
+			switch i18n.Cardinal("zh-Hant", float64(count)) {
+			default:
+				b.WriteString(i18n.FormatNumber("zh-Hant", float64(count)))
+				b.WriteString(" 部影片的影片檔不在這台電腦上，只能匯出到資料夾")
+			}
+			return b.String()
+		}
+	}
+}
+
+// LibexportFailed says "{count, plural, one {# film couldn't be exported} other {# films couldn't be exported}}"
+// in the language the app shows under cx.
+//
+// Part of the library subtitle export's result: films whose subtitles could not be read or written.
+func LibexportFailed(cx *core.Scope, count int) string { return For(cx).LibexportFailed(count) }
+
+// LibexportFailed is the package's LibexportFailed in the language of msgs.
+func (msgs Messages) LibexportFailed(count int) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.LibexportFailed(count))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].LibexportFailed; f != nil {
+			return f(count)
+		}
+		switch lang {
+		case "", "en":
+			var b strings.Builder
+			switch i18n.Cardinal("en", float64(count)) {
+			case i18n.One:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+				b.WriteString(" film couldn't be exported")
+			default:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+				b.WriteString(" films couldn't be exported")
+			}
+			return b.String()
+		case "ja":
+			var b strings.Builder
+			switch i18n.Cardinal("ja", float64(count)) {
+			default:
+				b.WriteString(i18n.FormatNumber("ja", float64(count)))
+				b.WriteString(" 本の作品を書き出せませんでした")
+			}
+			return b.String()
+		case "ko":
+			var b strings.Builder
+			switch i18n.Cardinal("ko", float64(count)) {
+			default:
+				b.WriteString("영상 ")
+				b.WriteString(i18n.FormatNumber("ko", float64(count)))
+				b.WriteString("개를 내보내지 못했습니다")
+			}
+			return b.String()
+		case "zh-Hans":
+			var b strings.Builder
+			switch i18n.Cardinal("zh-Hans", float64(count)) {
+			default:
+				b.WriteString(i18n.FormatNumber("zh-Hans", float64(count)))
+				b.WriteString(" 部影片没能导出")
+			}
+			return b.String()
+		case "zh-Hant":
+			var b strings.Builder
+			switch i18n.Cardinal("zh-Hant", float64(count)) {
+			default:
+				b.WriteString(i18n.FormatNumber("zh-Hant", float64(count)))
+				b.WriteString(" 部影片沒能匯出")
+			}
+			return b.String()
+		}
+	}
+}
+
+// LibexportOld says "{count, plural, one {# film still has subtitles an earlier Kando wrote next to its video. Other players may load them instead of the ones just exported.} other {# films still have subtitles an earlier Kando wrote next to their videos. Other players may load them instead of the ones just exported.}}"
+// in the language the app shows under cx.
+//
+// Shown after a library subtitle export next to the videos, when old subtitle files Kando wrote beside them before it kept them in its own folder are still there.
+func LibexportOld(cx *core.Scope, count int) string { return For(cx).LibexportOld(count) }
+
+// LibexportOld is the package's LibexportOld in the language of msgs.
+func (msgs Messages) LibexportOld(count int) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.LibexportOld(count))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].LibexportOld; f != nil {
+			return f(count)
+		}
+		switch lang {
+		case "", "en":
+			var b strings.Builder
+			switch i18n.Cardinal("en", float64(count)) {
+			case i18n.One:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+				b.WriteString(" film still has subtitles an earlier Kando wrote next to its video. Other players may load them instead of the ones just exported.")
+			default:
+				b.WriteString(msgs.arg(i18n.FormatNumber("en", float64(count))))
+				b.WriteString(" films still have subtitles an earlier Kando wrote next to their videos. Other players may load them instead of the ones just exported.")
+			}
+			return b.String()
+		case "ja":
+			var b strings.Builder
+			switch i18n.Cardinal("ja", float64(count)) {
+			default:
+				b.WriteString(i18n.FormatNumber("ja", float64(count)))
+				b.WriteString(" 本の作品の動画の横に、以前の Kando が書いた字幕が残っています。ほかのプレーヤーは、書き出したばかりの字幕ではなくそちらを読み込むことがあります。")
+			}
+			return b.String()
+		case "ko":
+			var b strings.Builder
+			switch i18n.Cardinal("ko", float64(count)) {
+			default:
+				b.WriteString("영상 ")
+				b.WriteString(i18n.FormatNumber("ko", float64(count)))
+				b.WriteString("개의 동영상 옆에 이전 Kando가 쓴 자막이 남아 있습니다. 다른 플레이어가 방금 내보낸 자막 대신 그것을 불러올 수 있습니다.")
+			}
+			return b.String()
+		case "zh-Hans":
+			var b strings.Builder
+			switch i18n.Cardinal("zh-Hans", float64(count)) {
+			default:
+				b.WriteString("还有 ")
+				b.WriteString(i18n.FormatNumber("zh-Hans", float64(count)))
+				b.WriteString(" 部影片的视频旁留着旧版看懂写的字幕，别的播放器可能会加载它们，而不是刚导出的字幕。")
+			}
+			return b.String()
+		case "zh-Hant":
+			var b strings.Builder
+			switch i18n.Cardinal("zh-Hant", float64(count)) {
+			default:
+				b.WriteString("還有 ")
+				b.WriteString(i18n.FormatNumber("zh-Hant", float64(count)))
+				b.WriteString(" 部影片的影片旁留著舊版看懂寫的字幕，別的播放器可能會載入它們，而不是剛匯出的字幕。")
+			}
+			return b.String()
+		}
+	}
+}
+
+// LibexportOldNote says "Kando keeps its own copy of them. A Kando on another computer that hasn't been updated won't see them anymore."
+// in the language the app shows under cx.
+//
+// Note under the offer to move the old subtitle files next to the videos to the Trash.
+func LibexportOldNote(cx *core.Scope) string { return For(cx).LibexportOldNote() }
+
+// LibexportOldNote is the package's LibexportOldNote in the language of msgs.
+func (msgs Messages) LibexportOldNote() string { return msgs.text(textLibexportOldNote) }
+
+// LibexportTrashOld says "Move Them to Trash"
+// in the language the app shows under cx.
+//
+// Button moving the old subtitle files an earlier Kando wrote next to the videos to the Trash.
+func LibexportTrashOld(cx *core.Scope) string { return For(cx).LibexportTrashOld() }
+
+// LibexportTrashOld is the package's LibexportTrashOld in the language of msgs.
+func (msgs Messages) LibexportTrashOld() string { return msgs.text(textLibexportTrashOld) }
+
+// LibexportTrashed says "Moved the old subtitles to the Trash."
+// in the language the app shows under cx.
+//
+// Message bar once the old subtitle files next to the videos went to the Trash.
+func LibexportTrashed(cx *core.Scope) string { return For(cx).LibexportTrashed() }
+
+// LibexportTrashed is the package's LibexportTrashed in the language of msgs.
+func (msgs Messages) LibexportTrashed() string { return msgs.text(textLibexportTrashed) }
+
+// LibexportTrashFailed says "Some old subtitles couldn't be moved to the Trash."
+// in the language the app shows under cx.
+//
+// Message bar when some of the old subtitle files next to the videos could not go to the Trash.
+func LibexportTrashFailed(cx *core.Scope) string { return For(cx).LibexportTrashFailed() }
+
+// LibexportTrashFailed is the package's LibexportTrashFailed in the language of msgs.
+func (msgs Messages) LibexportTrashFailed() string { return msgs.text(textLibexportTrashFailed) }
+
+// LibexportCancel says "Cancel"
+// in the language the app shows under cx.
+//
+// Button closing the library subtitle export dialog without exporting.
+func LibexportCancel(cx *core.Scope) string { return For(cx).LibexportCancel() }
+
+// LibexportCancel is the package's LibexportCancel in the language of msgs.
+func (msgs Messages) LibexportCancel() string { return msgs.text(textLibexportCancel) }
+
+// LibexportStart says "Export"
+// in the language the app shows under cx.
+//
+// Button starting the library subtitle export.
+func LibexportStart(cx *core.Scope) string { return For(cx).LibexportStart() }
+
+// LibexportStart is the package's LibexportStart in the language of msgs.
+func (msgs Messages) LibexportStart() string { return msgs.text(textLibexportStart) }
+
+// LibexportDone says "Done"
+// in the language the app shows under cx.
+//
+// Button closing the library subtitle export dialog once it exported.
+func LibexportDone(cx *core.Scope) string { return For(cx).LibexportDone() }
+
+// LibexportDone is the package's LibexportDone in the language of msgs.
+func (msgs Messages) LibexportDone() string { return msgs.text(textLibexportDone) }
 
 // LibraryAddedOnly says "Added {count, plural, one {# film} other {# films}} to the library. Open one to make its subtitles."
 // in the language the app shows under cx.

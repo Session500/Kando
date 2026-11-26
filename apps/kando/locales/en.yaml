@@ -1142,6 +1142,101 @@ libraryHomeOtherVideo:
   description: "Message bar once, as a film of a folder opened as a library opens whose video file was replaced in Finder by another of the same name (a different size), so its subtitles may belong to the other file."
   placeholders:
     name: { type: "String", example: "Lesson 1" }
+libexportMenu:
+  message: "Export Library Subtitles…"
+  description: "File menu item that opens the dialog exporting the subtitles of every film of the open library."
+libexportTitle:
+  message: "Export Library Subtitles"
+  description: "Title of the dialog exporting the subtitles of every film of the open library at once."
+libexportDescription:
+  message: "Exports the subtitles of every film in this library that has them, as the player shows them, with your corrections, named so other players such as Plex find them."
+  description: "Description under the title of the library subtitle export dialog."
+libexportDelay:
+  message: "Move the times by each film's subtitle delay"
+  description: "Switch in the library subtitle export dialog: write each film's own subtitle delay into the times."
+libexportDest:
+  message: "Where"
+  description: "Label of the choice of where the library subtitle export writes its files."
+libexportBeside:
+  message: "Next to Each Video"
+  description: "Option of the library subtitle export: write each film's subtitles in its video's folder."
+libexportFolder:
+  message: "Into a Folder"
+  description: "Option of the library subtitle export: write the subtitles into a folder the user picks, laid out as the library is."
+libexportNoFolder:
+  message: "No folder chosen"
+  description: "Shown in place of the folder's path while no folder for the library subtitle export is picked."
+libexportPick:
+  message: "Choose…"
+  description: "Button picking the folder the library subtitle export writes into."
+libexportPickTitle:
+  message: "Export Subtitles Into"
+  description: "Title of the system's folder panel picking where the library subtitle export writes."
+libexportPickButton:
+  message: "Export Here"
+  description: "Button of the system's folder panel picking where the library subtitle export writes."
+libexportFilms:
+  message: "{count, plural, =0 {No film in this library has subtitles yet.} one {# film with subtitles} other {# films with subtitles}}"
+  description: "Line in the library subtitle export dialog saying how many films it exports."
+  placeholders:
+    count: { type: "int", example: "12" }
+libexportRunning:
+  message: "Exporting {done} of {total}…"
+  description: "Line in the library subtitle export dialog while it runs."
+  placeholders:
+    done: { type: "int", example: "3" }
+    total: { type: "int", example: "12" }
+libexportWritten:
+  message: "{count, plural, =0 {No file written} one {# file written} other {# files written}}"
+  description: "Part of the library subtitle export's result: how many files it wrote."
+  placeholders:
+    count: { type: "int", example: "10" }
+libexportSame:
+  message: "{count, plural, one {# already up to date} other {# already up to date}}"
+  description: "Part of the library subtitle export's result: files it had exported before that already held the same, left as they were."
+  placeholders:
+    count: { type: "int", example: "2" }
+libexportKept:
+  message: "{count, plural, one {# file of yours with the same name kept as it is} other {# files of yours with the same names kept as they are}}"
+  description: "Part of the library subtitle export's result: files the user has under the names it would write, which it never writes over."
+  placeholders:
+    count: { type: "int", example: "1" }
+libexportSkipped:
+  message: "{count, plural, one {# film's video isn't on this computer, so it can only go into a folder} other {# films' videos aren't on this computer, so they can only go into a folder}}"
+  description: "Part of the library subtitle export's result: films not exported next to their videos, as their videos are inside the library, on a NAS or on a media source."
+  placeholders:
+    count: { type: "int", example: "1" }
+libexportFailed:
+  message: "{count, plural, one {# film couldn't be exported} other {# films couldn't be exported}}"
+  description: "Part of the library subtitle export's result: films whose subtitles could not be read or written."
+  placeholders:
+    count: { type: "int", example: "1" }
+libexportOld:
+  message: "{count, plural, one {# film still has subtitles an earlier Kando wrote next to its video. Other players may load them instead of the ones just exported.} other {# films still have subtitles an earlier Kando wrote next to their videos. Other players may load them instead of the ones just exported.}}"
+  description: "Shown after a library subtitle export next to the videos, when old subtitle files Kando wrote beside them before it kept them in its own folder are still there."
+  placeholders:
+    count: { type: "int", example: "4" }
+libexportOldNote:
+  message: "Kando keeps its own copy of them. A Kando on another computer that hasn't been updated won't see them anymore."
+  description: "Note under the offer to move the old subtitle files next to the videos to the Trash."
+libexportTrashOld:
+  message: "Move Them to Trash"
+  description: "Button moving the old subtitle files an earlier Kando wrote next to the videos to the Trash."
+libexportTrashed:
+  message: "Moved the old subtitles to the Trash."
+  description: "Message bar once the old subtitle files next to the videos went to the Trash."
+libexportTrashFailed:
+  message: "Some old subtitles couldn't be moved to the Trash."
+  description: "Message bar when some of the old subtitle files next to the videos could not go to the Trash."
+libexportCancel:
+  message: "Cancel"
+  description: "Button closing the library subtitle export dialog without exporting."
+libexportStart:
+  message: "Export"
+  description: "Button starting the library subtitle export."
+libexportDone:
+  message: "Done"
+  description: "Button closing the library subtitle export dialog once it exported."
 libraryAddedOnly:
   message: "Added {count, plural, one {# film} other {# films}} to the library. Open one to make its subtitles."
   description: "Message bar after films found in folders dropped were only added to the library, without subtitles."
