@@ -175,7 +175,7 @@ func (a *app) playlistAdd() {
 		a.subscribeAdopt(followed, lists[0].Listing, fresh)
 	}
 	// The films go on one after another in their lists' order (nextKeepLists).
-	a.nextKeepLists(lists)
+	a.nextKeepLists(lists, false)
 	// The films of a playlist are a series, as its site groups them (glossaryPlaylistSeries).
 	if series {
 		a.glossaryPlaylistSeries(lists)

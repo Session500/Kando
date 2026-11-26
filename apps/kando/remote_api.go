@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -555,6 +556,14 @@ func (a *app) remoteAdd(ctx context.Context, p remote.AddParams) (remote.AddResu
 				ids = append(ids, id)
 			}
 		}
+		// The videos added from a list the socket listed go on one after another in its order, as those the playlist dialog adds do (nextKeepLists).
+		if len(ids) > 0 && len(a.remote.lists) > 0 {
+			var listed []playlist.List
+			for _, key := range slices.Sorted(maps.Keys(a.remote.lists)) {
+				listed = append(listed, a.remote.lists[key])
+			}
+			a.nextKeepLists(listed, false)
+		}
 		for _, id := range ids {
 			if job, ok := a.library.Find(id); ok {
 				res.Jobs = append(res.Jobs, a.remoteJobOf(job))
@@ -611,6 +620,7 @@ func (a *app) remoteLists(ctx context.Context, p remote.ListsParams) ([]remote.L
 		return nil, err
 	}
 	lists := make([]remote.List, len(p.Sources))
+	var read []playlist.List
 	for i, source := range p.Sources {
 		lists[i] = remote.List{Source: source, Videos: []remote.ListVideo{}}
 		if folders[i] != "" {
@@ -629,7 +639,7 @@ func (a *app) remoteLists(ctx context.Context, p remote.ListsParams) ([]remote.L
 			lists[i].Error = "not a playlist, a channel link or a folder"
 			continue
 		}
-		read, err := playlist.ReadOne(ctx, got.lister, source)
+		list, err := playlist.ReadOne(ctx, got.lister, source)
 		if err != nil {
 			if ctx.Err() != nil {
 				return nil, ctx.Err()
@@ -637,15 +647,22 @@ func (a *app) remoteLists(ctx context.Context, p remote.ListsParams) ([]remote.L
 			lists[i].Error = err.Error()
 			continue
 		}
-		lists[i].Kind, lists[i].Title = string(core.LinkPlaylist), read.Title
-		if read.Channel {
+		read = append(read, list)
+		lists[i].Kind, lists[i].Title = string(core.LinkPlaylist), list.Title
+		if list.Channel {
 			lists[i].Kind, lists[i].Limit = string(core.LinkChannel), playlist.ChannelLimit
 		}
-		for _, v := range read.Videos {
+		for _, v := range list.Videos {
 			lists[i].Videos = append(lists[i].Videos, remote.ListVideo{URL: v.URL, Title: v.Title, Duration: v.Duration.Seconds()})
 		}
 	}
 	return remote.OnUI(ctx, a.update, func() ([]remote.List, error) {
+		for _, list := range read {
+			if a.remote.lists == nil {
+				a.remote.lists = map[string]playlist.List{}
+			}
+			a.remote.lists[queueSourceKey(list.Source)] = list
+		}
 		for i := range lists {
 			for j, v := range lists[i].Videos {
 				lists[i].Videos[j].InLibrary = a.remoteHas(v.URL)
