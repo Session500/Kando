@@ -252,3 +252,32 @@ func BareEpisode(name string) bool {
 
 // WithoutTags is name without the bracketed tags release names carry, as [1080p], 【字幕组】 or (2024).
 func WithoutTags(name string) string { return strings.Join(strings.Fields(withoutTags(name)), " ") }
+
+// Episode is what a film's name says of it as an episode, read once (ReadEpisode): what EpisodeNumber, EpisodeMark and EpisodeOf each read.
+type Episode struct {
+	Season, Number int
+	// Digits is the number as the name writes it, and Explicit whether a mark says it is an episode's (EpisodeMark).
+	Digits   string
+	Explicit bool
+	// Show and Key are the show's name and key (EpisodeOf), "" for a name that numbers an episode without one.
+	Show, Key string
+}
+
+// ReadEpisode reads at once what EpisodeNumber, EpisodeMark and EpisodeOf read in the film named name, without its file extension, as a library reading every film's name does; ok is false for a name that numbers nothing.
+func ReadEpisode(name string) (e Episode, ok bool) {
+	stripped := withoutTags(name)
+	if e.Season, e.Number, e.Digits, e.Explicit, ok = markIn(stripped); ok {
+		if show, ok := showIn(stripped); ok {
+			e.Show, e.Key = show, strings.ToLower(show)
+		}
+		return e, true
+	}
+	var show string
+	if show, e.Season, e.Number, e.Digits, e.Explicit, ok = fansubMark(name); !ok {
+		return Episode{}, false
+	}
+	if show != "" {
+		e.Show, e.Key = show, strings.ToLower(show)
+	}
+	return e, true
+}

@@ -134,7 +134,7 @@ func TestWorksAreRunsOfASequence(t *testing.T) {
 	}
 }
 
-// A large library's works are had at once: 2000 films, 300 shows of them, in well under the time of a frame's update.
+// A large library's works are had at once: 2000 films, 300 shows of them, in well under the time of a frame's update: about 5 ms on the machine this was written on, 50 at most on a test machine.
 func TestWorksOfALargeLibrary(t *testing.T) {
 	all := largeLibrary()
 	// The quickest of three, so a test machine busy with others does not count.
@@ -145,7 +145,8 @@ func TestWorksOfALargeLibrary(t *testing.T) {
 		works = Works(all, "/Library.kando", "en")
 		took = min(took, time.Since(start))
 	}
-	if took > 50*time.Millisecond {
+	// The race detector makes every step many times slower, so only what Works finds is checked under it.
+	if took > 50*time.Millisecond && !raceOn {
 		t.Fatalf("2000 films' works took %v", took)
 	}
 	if len(works) < 1500 {

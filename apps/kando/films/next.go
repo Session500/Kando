@@ -86,12 +86,12 @@ func sequence(all []Film, item Film, tag string) []Film {
 			}
 		}
 	}
-	sortLocal(seq, collate.New(language.Make(tag), collate.Numeric))
+	sortLocal(seq, collate.New(language.Make(tag), collate.Numeric), nil)
 	return seq
 }
 
-// sortLocal orders the films of a local sequence as col orders names: folder by folder (byFolder), then by number (byNumber). Each film's names are read once, rather than at each comparison.
-func sortLocal(seq []Film, col *collate.Collator) {
+// sortLocal orders the films of a local sequence as col orders names: folder by folder (byFolder), then by number (byNumber). Each film's names are read once, rather than at each comparison; read, when not nil, gives the number a film's name was read as already, as Works has them.
+func sortLocal(seq []Film, col *collate.Collator, read func(Film) (numbered, bool)) {
 	type keyed struct {
 		f            Film
 		folder, name string
@@ -99,12 +99,25 @@ func sortLocal(seq []Film, col *collate.Collator) {
 		num          numbered
 	}
 	keys := make([]keyed, len(seq))
+	// A sequence's films are in few folders, whose names are read once.
+	folders := map[string]numbered{}
 	for i, f := range seq {
 		folder := filepath.Base(filepath.Dir(f.VideoPath))
 		name := seqName(f)
 		k := keyed{f: f, folder: folder, name: name}
-		k.folderNum.season, k.folderNum.number, k.folderNum.ok = folderNumber(folder)
-		k.num.season, k.num.number, k.num.ok = core.EpisodeNumber(name)
+		n, known := folders[folder]
+		if !known {
+			n.season, n.number, n.ok = folderNumber(folder)
+			folders[folder] = n
+		}
+		k.folderNum = n
+		named := false
+		if read != nil {
+			k.num, named = read(f)
+		}
+		if !named {
+			k.num.season, k.num.number, k.num.ok = core.EpisodeNumber(name)
+		}
 		keys[i] = k
 	}
 	slices.SortStableFunc(keys, func(a, b keyed) int {

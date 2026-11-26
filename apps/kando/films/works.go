@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 
+	"kando/apps/kando/sidebar"
 	"kando/packages/core"
 
 	"golang.org/x/text/collate"
@@ -41,8 +42,11 @@ func Works(all []Film, root, tag string) WorkIndex {
 	var listOrder []string
 	shows := map[string][]Film{}
 	var showOrder []string
-	// numbered is the local films each folder holds whose names number them, by the show's key, which tells a folder that holds one show from one that holds several.
-	numbered := map[string]map[string]bool{}
+	// showsIn is the local films each folder holds whose names number them, by the show's key, which tells a folder that holds one show from one that holds several.
+	showsIn := map[string]map[string]bool{}
+	// read is what each local film's name says of it, by its video's path, and folders the folder each folder's films' work is in (workFolder), each read once.
+	read := map[string]localRead{}
+	folders := map[string]string{}
 	for _, f := range all {
 		if f.List != "" {
 			if _, ok := lists[f.List]; !ok {
@@ -51,15 +55,26 @@ func Works(all []Film, root, tag string) WorkIndex {
 			lists[f.List] = append(lists[f.List], f)
 			continue
 		}
-		key, ok := showOf(f)
+		if f.VideoPath == "" || SourceOf(f) != sidebar.SourceLocal {
+			continue
+		}
+		name := seqName(f)
+		e, ok := core.ReadEpisode(name)
 		if !ok {
 			continue
 		}
-		folder := workFolder(f.VideoPath)
-		if numbered[folder] == nil {
-			numbered[folder] = map[string]bool{}
+		key := e.Key
+		dir := nameFolder(f.VideoPath)
+		folder, known := folders[dir]
+		if !known {
+			folder = workFolderOf(dir)
+			folders[dir] = folder
 		}
-		numbered[folder][key] = true
+		read[f.VideoPath] = localRead{episode: e, dir: dir, folder: folder}
+		if showsIn[folder] == nil {
+			showsIn[folder] = map[string]bool{}
+		}
+		showsIn[folder][key] = true
 		bucket := filepath.Dir(filepath.Dir(f.VideoPath)) + "\x00" + key
 		if _, ok := shows[bucket]; !ok {
 			showOrder = append(showOrder, bucket)
@@ -79,9 +94,12 @@ func Works(all []Film, root, tag string) WorkIndex {
 	}
 	for _, bucket := range showOrder {
 		seq := shows[bucket]
-		sortLocal(seq, col)
-		for _, run := range folderRuns(seq) {
-			if w, ok := localWork(run, root, numbered); ok {
+		sortLocal(seq, col, func(f Film) (numbered, bool) {
+			r, ok := read[f.VideoPath]
+			return numbered{r.episode.Season, r.episode.Number, true}, ok
+		})
+		for _, run := range folderRuns(seq, read) {
+			if w, ok := localWork(run, root, showsIn, read); ok {
 				add(w)
 			}
 		}
@@ -117,12 +135,18 @@ func listWork(list string, films []Film) (*Work, bool) {
 	return &Work{Key: "list:" + list, Name: name, List: list, Films: Keys(seq)}, true
 }
 
-// folderRuns cuts a local sequence where the folder its films are in changes (workFolder).
-func folderRuns(seq []Film) [][]Film {
+// localRead is what Works read of a local film: what its name says of it as an episode, the folder its name is in (nameFolder) and the one its work is in (workFolder).
+type localRead struct {
+	episode     core.Episode
+	dir, folder string
+}
+
+// folderRuns cuts a local sequence where the folder its films' work is in changes (workFolder), as read has it.
+func folderRuns(seq []Film, read map[string]localRead) [][]Film {
 	var runs [][]Film
 	start := 0
 	for i := 1; i <= len(seq); i++ {
-		if i == len(seq) || workFolder(seq[i].VideoPath) != workFolder(seq[start].VideoPath) {
+		if i == len(seq) || read[seq[i].VideoPath].folder != read[seq[start].VideoPath].folder {
 			runs = append(runs, seq[start:i])
 			start = i
 		}
@@ -131,16 +155,18 @@ func folderRuns(seq []Film) [][]Film {
 }
 
 // workFolder is the folder a local film's work is in: the one its name is in (nameFolder), or that one's parent for a season's or a part's folder (core.SectionFolder).
-func workFolder(path string) string {
-	folder := nameFolder(path)
+func workFolder(path string) string { return workFolderOf(nameFolder(path)) }
+
+// workFolderOf is workFolder of a film whose name is in folder.
+func workFolderOf(folder string) string {
 	if core.SectionFolder(filepath.Base(folder)) {
 		return filepath.Dir(folder)
 	}
 	return folder
 }
 
-// localWork is the work of run, films of a local sequence in one folder (folderRuns), when it is sure they are one: see Works. numbered is the shows each folder's numbered films are of, which names the work.
-func localWork(run []Film, root string, numbered map[string]map[string]bool) (*Work, bool) {
+// localWork is the work of run, films of a local sequence in one folder (folderRuns), when it is sure they are one: see Works. showsIn is the shows each folder's numbered films are of, which names the work, and read what Works read of each film.
+func localWork(run []Film, root string, showsIn map[string]map[string]bool, read map[string]localRead) (*Work, bool) {
 	if len(run) < 2 {
 		return nil, false
 	}
@@ -153,9 +179,9 @@ func localWork(run []Film, root string, numbered map[string]map[string]bool) (*W
 	marked, padded, width := false, false, -1
 	alike := true
 	for _, f := range run {
-		name := seqName(f)
-		season, episode, _ := core.EpisodeNumber(name)
-		at := place{nameFolder(f.VideoPath), season, episode}
+		r := read[f.VideoPath]
+		episode := r.episode.Number
+		at := place{r.dir, r.episode.Season, episode}
 		if seen[at] {
 			return nil, false
 		}
@@ -164,7 +190,7 @@ func localWork(run []Film, root string, numbered map[string]map[string]bool) (*W
 			least = episode
 		}
 		most = max(most, episode)
-		digits, explicit, _ := core.EpisodeMark(name)
+		digits, explicit := r.episode.Digits, r.episode.Explicit
 		marked = marked || explicit
 		if !explicit {
 			padded = padded || len(digits) > 1 && digits[0] == '0'
@@ -175,10 +201,8 @@ func localWork(run []Film, root string, numbered map[string]map[string]bool) (*W
 		}
 	}
 	first := run[0]
-	key, _ := showOf(first)
-	folder := workFolder(first.VideoPath)
+	key, show, folder := read[first.VideoPath].episode.Key, read[first.VideoPath].episode.Show, read[first.VideoPath].folder
 	top := workTop(folder, root, first)
-	show, _, _ := core.EpisodeOf(seqName(first))
 	if key == "" {
 		// Names that number episodes alone say nothing of what they are of but their numbers: at the top of a library or a source, or numbered 1, 10 and 99, they are films that sit side by side.
 		if top || most-least+1 > 2*len(run) {
@@ -189,7 +213,7 @@ func localWork(run []Film, root string, numbered map[string]map[string]bool) (*W
 		}
 	}
 	name := show
-	if !top && (key == "" || len(numbered[folder]) == 1) {
+	if !top && (key == "" || len(showsIn[folder]) == 1) {
 		name = folderName(folder)
 	}
 	if name == "" {

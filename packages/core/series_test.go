@@ -149,3 +149,16 @@ func TestEpisodeMark(t *testing.T) {
 		t.Error("a name that numbers nothing has a mark")
 	}
 }
+
+// ReadEpisode reads what EpisodeNumber, EpisodeMark and EpisodeOf each read.
+func TestReadEpisodeReadsAsTheOthersDo(t *testing.T) {
+	for _, name := range []string{"Planet Earth S01E02", "地理课 第3集", "01 Opening", "Track 02", "[字幕组][山海旅人][07][1080P]", "River_Walk_E05_1080p", "[07] Opening Night", "Tokyo Story", "Lecture 1 (1)", "第3集"} {
+		e, ok := ReadEpisode(name)
+		season, number, numbered := EpisodeNumber(name)
+		digits, explicit, _ := EpisodeMark(name)
+		show, key, _ := EpisodeOf(name)
+		if ok != numbered || ok && (e.Season != season || e.Number != number || e.Digits != digits || e.Explicit != explicit || e.Show != show || e.Key != key) {
+			t.Errorf("ReadEpisode(%q) = %+v, %v; the others read %d %d %v %q %v %q %q", name, e, ok, season, number, numbered, digits, explicit, show, key)
+		}
+	}
+}
