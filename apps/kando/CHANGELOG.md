@@ -2,6 +2,12 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.72.0 - 2026-11-27
+
+### Features
+
+- A show's new episode joins its categories, and the hero offers the next one (#517)
+
 ## 0.71.0 - 2026-11-27
 
 ### Features
