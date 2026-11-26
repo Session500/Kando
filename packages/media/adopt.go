@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"kando/packages/core"
 	"kando/packages/track"
 )
 
@@ -28,8 +29,24 @@ func CompanionAt(path, from, to string) string {
 	return filepath.Join(filepath.Dir(to), name)
 }
 
+// adoptSource is what the files a film takes with it are named after (AdoptFiles): the video at video, or video.<ext> in its folder of its own files when a folder of the user's opened as a library gave it one (FolderHome).
+func adoptSource(video string) string {
+	if info, err := os.Stat(FolderHome(video)); err == nil && info.IsDir() {
+		return core.FileBase(video, FolderHome(video))
+	}
+	return video
+}
+
 // kandoBeside is the files Kando wrote beside the video at video that a film named after another path takes with it (AdoptFiles), each with where it goes when the film's files are named after base: every one of Companions but the subtitles of the user's that lie there under the name Kando's transcript would take (<video>.srt beside a <video>.kando.srt Kando kept aside, or one Kando did not write, foreignTranscript) and the sound a link's job keeps until its video comes, which a video picked on disk never has and which is no small file to copy. Kando's transcript is <base>.srt, as no file of the user's lies beside base.
 func kandoBeside(video, base string) [][2]string {
+	// A video of a folder of the user's opened as a library keeps its film's files in its folder there (FolderHome): a library it is added to from outside takes them from there, the newer, as what is beside the video is what a Kando before that folder's wrote.
+	if from := adoptSource(video); from != video {
+		var out [][2]string
+		for _, p := range Companions(from) {
+			out = append(out, [2]string{p, CompanionAt(p, from, base)})
+		}
+		return out
+	}
 	user := ""
 	if fileExists(asideTranscriptPath(video)) || foreignTranscript(video) {
 		user = filepath.Clean(transcriptPath(video))
@@ -66,7 +83,7 @@ func AdoptFiles(video, base, device string) (placed map[string]string, undo func
 	if err := os.Mkdir(filepath.Dir(base), 0o755); err != nil && !errors.Is(err, fs.ErrExist) {
 		return nil, nil, err
 	}
-	before, err := track.Read(video)
+	before, err := track.Read(adoptSource(video))
 	if err != nil {
 		return nil, nil, err
 	}

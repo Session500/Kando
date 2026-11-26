@@ -52,6 +52,10 @@ func AloneIn(dir string, videos ...string) bool {
 		return false
 	}
 	for _, entry := range entries {
+		// The hidden folder of the films' files beside them (media.FilesDir) is theirs, not a folder of the user's.
+		if entry.IsDir() && entry.Name() == media.FilesDir {
+			continue
+		}
 		if entry.IsDir() {
 			return false
 		}

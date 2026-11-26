@@ -15,9 +15,9 @@ type Video struct {
 	Path    string
 	Name    string
 	ModTime int64
-	// Subtitles is the bilingual .srt beside the video, named as the pipeline exports it (<video>.bilingual.srt), or "" when its folder holds none. A video no job has processed shows these, as one copied in from another library or kept after its job records were lost.
+	// Subtitles is the bilingual .srt of the video, named as the pipeline exports it (<video>.bilingual.srt): in its folder of its own files when it has one (Home), else beside it; "" when there is none. A video no job has processed shows these, as one copied in from another library or kept after its job records were lost.
 	Subtitles string
-	// Added is when a video kept outside the library was added to it without a job, as a large folder dropped adds its films, which the shelf lists as it lists a video of its folder; zero for a video found in the library's folder. Home is the folder in the library its film's own files are kept in, once it has one (core.Job.Home); "" for any other.
+	// Added is when a video kept outside the library was added to it without a job, as a large folder dropped adds its films, which the shelf lists as it lists a video of its folder; zero for a video found in the library's folder. Home is the folder its film's own files are kept in, once it has one (core.Job.Home): in the library for a video added from outside it, and beside a video of a folder of the user's opened as a library (FolderHome); "" for any other.
 	Added time.Time
 	Home  string
 }
@@ -34,6 +34,7 @@ func ListVideos(directory string, away ...string) ([]Video, error) {
 
 	files := fileNames(entries)
 	first := firstOfName(files, awayIn(directory, away))
+	homes := folderHomes(directory)
 	videos := make([]Video, 0, len(entries))
 	for _, entry := range entries {
 		if strings.HasPrefix(entry.Name(), ".") {
@@ -54,7 +55,8 @@ func ListVideos(directory string, away ...string) ([]Video, error) {
 		if err != nil {
 			return nil, err
 		}
-		videos = append(videos, Video{Path: filepath.Join(directory, entry.Name()), Name: entry.Name(), ModTime: info.ModTime().UnixNano(), Subtitles: bilingualBeside(directory, entry.Name(), files)})
+		home, subtitles := filmFiles(directory, entry.Name(), files, homes)
+		videos = append(videos, Video{Path: filepath.Join(directory, entry.Name()), Name: entry.Name(), ModTime: info.ModTime().UnixNano(), Subtitles: subtitles, Home: home})
 	}
 	sort.SliceStable(videos, func(i, j int) bool {
 		if videos[i].ModTime == videos[j].ModTime {
@@ -65,7 +67,7 @@ func ListVideos(directory string, away ...string) ([]Video, error) {
 	return videos, nil
 }
 
-// LibraryStamp describes the library folder and the files one level down. It changes when a video, subtitle, or folder is added, removed, or rewritten.
+// LibraryStamp describes the library folder and the files one level down, with the films' folders of their own files there (FilesDir). It changes when a video, subtitle, or folder is added, removed, or rewritten.
 func LibraryStamp(dir string) (string, error) {
 	entries, err := os.ReadDir(dir)
 	if os.IsNotExist(err) {
@@ -75,6 +77,7 @@ func LibraryStamp(dir string) (string, error) {
 		return "", err
 	}
 	var b strings.Builder
+	stampHomes(&b, dir)
 	for _, entry := range entries {
 		if strings.HasPrefix(entry.Name(), ".") {
 			continue
@@ -87,6 +90,7 @@ func LibraryStamp(dir string) (string, error) {
 		if err != nil {
 			continue
 		}
+		stampHomes(&b, filepath.Join(dir, entry.Name()))
 		for _, item := range nested {
 			if strings.HasPrefix(item.Name(), ".") {
 				continue
@@ -95,6 +99,20 @@ func LibraryStamp(dir string) (string, error) {
 		}
 	}
 	return b.String(), nil
+}
+
+// stampHomes describes the films' folders in the FilesDir of dir (FolderHome), each of which changes as a file in it is written, as another computer sharing the library writes a film's subtitles there.
+func stampHomes(b *strings.Builder, dir string) {
+	homes, err := os.ReadDir(filepath.Join(dir, FilesDir))
+	if err != nil {
+		return
+	}
+	for _, home := range homes {
+		if home.IsDir() && !strings.HasPrefix(home.Name(), ".") {
+			b.WriteString(FilesDir + "/")
+			writeStamp(b, home)
+		}
+	}
 }
 
 func writeStamp(b *strings.Builder, entry os.DirEntry) {
@@ -148,6 +166,7 @@ func videosIn(dir string, away []string) ([]Video, error) {
 	}
 	files := fileNames(entries)
 	first := firstOfName(files, awayIn(dir, away))
+	homes := folderHomes(dir)
 	videos := make([]Video, 0, 1)
 	for _, entry := range entries {
 		if entry.IsDir() || strings.HasPrefix(entry.Name(), ".") || !filmFile(entry.Name(), first) {
@@ -157,7 +176,8 @@ func videosIn(dir string, away []string) ([]Video, error) {
 		if err != nil {
 			return nil, err
 		}
-		videos = append(videos, Video{Path: filepath.Join(dir, entry.Name()), Name: displayName(dir, entry.Name()), ModTime: info.ModTime().UnixNano(), Subtitles: bilingualBeside(dir, entry.Name(), files)})
+		home, subtitles := filmFiles(dir, entry.Name(), files, homes)
+		videos = append(videos, Video{Path: filepath.Join(dir, entry.Name()), Name: displayName(dir, entry.Name()), ModTime: info.ModTime().UnixNano(), Subtitles: subtitles, Home: home})
 	}
 	return videos, nil
 }

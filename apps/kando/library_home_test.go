@@ -350,7 +350,7 @@ func TestAnAddedVideosFilesGoIntoItsFolder(t *testing.T) {
 	f.wantUserFolderKept(t, "removing a job that never completed")
 }
 
-// Moved to another library bundle, a film of a video kept outside takes the folder of its files there, its video staying where it is; it cannot move to a folder of the user's opened as a library, which would keep them beside the video. Removed from the library, the folder goes to the Trash and the video stays.
+// Moved to another library bundle, a film of a video kept outside takes the folder of its files there, its video staying where it is; moved to a folder of the user's opened as a library, the folder goes into the hidden folder at its top (media.FilesDir), and back. Removed from the library, the folder goes to the Trash and the video stays.
 func TestAnOutsideFilmsFolderMovesAndGoesWithIt(t *testing.T) {
 	f := newHomeFixture(t)
 	a := f.a
@@ -367,14 +367,17 @@ func TestAnOutsideFilmsFolderMovesAndGoesWithIt(t *testing.T) {
 
 	a.MoveFilm(homeFilm(t, a, job.ID), plain)
 	waitUntil(t, f.tt, a, f.updates, func() bool { return a.lib.move.run == nil })
-	if moved, _ := a.library.Find(job.ID); moved.LibraryDir != testVideos {
-		t.Fatalf("the film moved into a folder of the user's: %+v", moved)
+	moved, _ := a.library.Find(job.ID)
+	if moved.LibraryDir != plain || filepath.Dir(moved.Home) != filepath.Join(plain, media.FilesDir) || filepath.Dir(moved.SubtitlePath) != moved.Home || !fileExists(moved.SubtitlePath) {
+		t.Fatalf("moved into a folder of the user's, the job is %+v", moved)
 	}
-	wantText(t, f.tt, testlocale.Messages().LibraryMoveHomeToFolder(films.Name(homeFilm(t, a, job.ID))))
+	f.wantUserFolderKept(t, "moving the film into a folder of the user's")
+	a.Choose(plain)
+	refresh(f.tt, a)
 
 	a.MoveFilm(homeFilm(t, a, job.ID), other)
 	waitUntil(t, f.tt, a, f.updates, func() bool { return a.lib.move.run == nil })
-	moved, _ := a.library.Find(job.ID)
+	moved, _ = a.library.Find(job.ID)
 	if moved.LibraryDir != other || !films.InDir(other, moved.Home) || filepath.Dir(moved.SubtitlePath) != moved.Home || !fileExists(moved.SubtitlePath) || moved.VideoPath != f.fresh {
 		t.Fatalf("moved, the job is %+v", moved)
 	}

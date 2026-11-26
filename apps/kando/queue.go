@@ -1084,7 +1084,8 @@ func (a *app) show(job core.Job) {
 	if was.ID != "" {
 		job.Series = was.Series
 		// So is the folder of the film's files in the library (core.Job.Home), which a move of the library or the film, or one renamed in Finder, changes while the job runs, with the subtitles' path in it: the pipeline's copy, made before, names them where they were.
-		if ran := job.Home; was.Home != ran {
+		// A film the pipeline gave its folder as its video came, in a folder of the user's opened as a library (media.FolderHomeFor), keeps it: the library had none to change it to.
+		if ran := job.Home; was.Home != ran && was.Home != "" {
 			job.Home = was.Home
 			if next, ok := replacePathPrefix(ran, was.Home, job.SubtitlePath); ok && was.Home != "" {
 				job.SubtitlePath = next

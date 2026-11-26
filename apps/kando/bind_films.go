@@ -481,7 +481,7 @@ func (a *app) libraryCloseRemove() {
 // trashItem moves a file or a folder to the Trash, under the scope cx, and calls done once it went or could not. Tests replace it.
 var trashItem = desktop.Trash
 
-// filmFiles is what moving a film to the Trash moves: the folder of a film inside the library root, or, when that folder holds other videos or any folder too, or is the root itself, the video, its subtitles, the hidden files a job keeps beside it (media.Companions) and the media files of its name, its own sound (media.SameNamed), so none is left behind in the folder. A video outside the library has only the folder of its files in the library (films.Film.Home), when that is there and holds no video, sound or folder, which are none of Kando's; the video stays where it is.
+// filmFiles is what moving a film to the Trash moves, with the folder of its files beside it in a folder of the user's opened as a library (media.FolderHome): the folder of a film inside the library root, or, when that folder holds other videos or any folder too, or is the root itself, the video, its subtitles, the hidden files a job keeps beside it (media.Companions) and the media files of its name, its own sound (media.SameNamed), so none is left behind in the folder. A video outside the library has only the folder of its files in the library (films.Film.Home), when that is there and holds no video, sound or folder, which are none of Kando's; the video stays where it is.
 func filmFiles(root string, item films.Film, away []string) []string {
 	video := item.VideoPath
 	if video != "" && item.Home != "" && !films.InDir(root, video) {
@@ -507,7 +507,18 @@ func filmFiles(root string, item films.Film, away []string) []string {
 			files = append(files, sub)
 		}
 	}
+	// In a folder of the user's opened as a library, the folder of its files beside it goes with it (media.FolderHome), its subtitles in it.
+	if home := media.FolderHome(video); libraryDirAt(home) {
+		files = slices.DeleteFunc(files, func(path string) bool { return films.InDir(home, path) })
+		files = append(files, home)
+	}
 	return files
+}
+
+// libraryDirAt reports whether a folder is at path.
+func libraryDirAt(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
 }
 
 // films is the open library's films, none while it is locked (lockShut).

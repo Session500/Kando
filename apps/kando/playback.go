@@ -409,6 +409,10 @@ func (a *app) readFilmInfo(path string) {
 	// The film's own files are named after base (core.FileBase), its video or video.<ext> in its folder in the library.
 	base := kcore.FileBase(path, a.player.home)
 	dir := filepath.Dir(base)
+	// The folder beside a video of a folder of the user's opened as a library is hidden, Kando's: the tab lists the video's own folder.
+	if filepath.Clean(a.player.home) == filepath.Clean(media.FolderHome(path)) {
+		dir = filepath.Dir(path)
+	}
 	a.player.film.infoFor, a.player.film.infoBase = path, base
 	update := a.update
 	ffmpeg := a.ffmpegPath()
