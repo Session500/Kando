@@ -2,6 +2,13 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.63.0 - 2026-11-26
+
+### Features
+
+- Choose all, and import a folder whole (#493)
+- Install an official source plugin from the add dialog (#494)
+
 ## 0.62.0 - 2026-11-26
 
 ### Features
