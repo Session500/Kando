@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"io/fs"
 	"net/url"
 	"os"
@@ -526,5 +527,213 @@ func TestAHomeComesBackAndFollowsTheLibrary(t *testing.T) {
 	job, _ = a.library.Find("0123456789abcdef")
 	if job.Home != filepath.Join(renamed, "old talk [01234567]") || job.SubtitlePath != filepath.Join(job.Home, "video.bilingual.srt") {
 		t.Fatalf("after the library's folder was renamed the job is %+v", job)
+	}
+}
+
+// A job of a video kept outside a library bundle whose folder is not there as the job starts, as one on a disk taken out while the job waited, fails rather than writing the film's files beside the video; so does one of a library that is locked.
+func TestAnOutsideFilmOfALibraryGoneIsNotMade(t *testing.T) {
+	f := newHomeFixture(t)
+	a := f.a
+	gone := filepath.Join(t.TempDir(), "away"+media.LibraryExt)
+	if err := os.Mkdir(gone, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	a.edit(func(s *session) { s.Libraries = append(s.Libraries, gone) })
+	if err := os.Remove(gone); err != nil {
+		t.Fatal(err)
+	}
+	job, err := a.newJob(core.FileURL(f.fresh))
+	if err != nil {
+		t.Fatal(err)
+	}
+	job.LibraryDir = gone
+	a.queueAdd(job)
+	waitUntil(t, f.tt, a, f.updates, func() bool {
+		got, _ := a.library.Find(job.ID)
+		return got.Stage.Done() && a.queue.active == ""
+	})
+	if got, _ := a.library.Find(job.ID); got.Stage == core.StageComplete || got.Home != "" {
+		t.Fatalf("the job of a library that is gone ended %s with the folder %q", got.Stage, got.Home)
+	}
+	f.wantUserFolderKept(t, "the job of a library that is gone")
+}
+
+// A video whose name is too long for a folder's, with the [id] its folder takes, still has one in the library, and is made.
+func TestAnOutsideFilmOfALongNameHasAFolder(t *testing.T) {
+	f := newHomeFixture(t)
+	long := filepath.Join(f.user, strings.Repeat("a", 250)+".mp4")
+	if err := os.WriteFile(long, []byte("v"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	f.before = folderHashes(t, f.user)
+	job := f.queue(t, long)
+	if job.Home == "" || filepath.Dir(job.SubtitlePath) != job.Home {
+		t.Fatalf("the film of a long name has the folder %q, its subtitles %q", job.Home, job.SubtitlePath)
+	}
+	f.wantUserFolderKept(t, "making the film of a long name")
+}
+
+// failingLocalPipeline is localPipeline whose speech recognition fails, as a film's first making does that is broken or cancelled partway through; with a gate, only once the test closes it.
+type failingLocalPipeline struct {
+	localPipeline
+	gate chan struct{}
+}
+
+func (p *failingLocalPipeline) Hear(ctx context.Context, _ string, _, _ time.Duration, _ func(core.Segment)) (string, error) {
+	if p.gate != nil {
+		select {
+		case <-p.gate:
+		case <-ctx.Done():
+			return "", ctx.Err()
+		}
+	}
+	return "", errors.New("the speech recognition broke")
+}
+
+// An added video opened, given terms and then made for the first time, whose making fails, keeps the folder it was given as it opened, with the terms in it, and the film open on it goes on writing there; so does one whose job made a folder of its own and failed while the film was open on it, which is given its folder again as the film goes back to the added video.
+func TestAnOpenFilmKeepsWritingIntoTheLibraryAsItsJobFails(t *testing.T) {
+	f := newHomeFixture(t)
+	a := f.a
+	trashed := fakeTrash(t)
+	second := filepath.Join(f.user, "lesson two.mp4")
+	if err := os.WriteFile(second, []byte("v"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	f.before = folderHashes(t, f.user)
+	if a.library.AddVideos(testVideos, time.Now(), f.fresh, second) != 2 {
+		t.Fatal("the videos were not added")
+	}
+	a.refreshLibrary()
+	refresh(f.tt, a)
+	a.prefs.language = "简体中文"
+	openAdded := func(video string) {
+		t.Helper()
+		a.Open(homeFilm(t, a, video))
+		waitUntil(t, f.tt, a, f.updates, func() bool { return a.player.subs.ready && a.gloss.filmRead })
+	}
+	wantInLibrary := func(after string) {
+		t.Helper()
+		if !films.InDir(testVideos, a.player.subs.base) || !films.InDir(testVideos, a.player.film.infoBase) || !films.InDir(testVideos, a.glossaryBase()) {
+			t.Fatalf("%s, the film open names its files after %q, %q and %q", after, a.player.subs.base, a.player.film.infoBase, a.glossaryBase())
+		}
+		if !a.glossaryPut(core.Term{Source: "after", Target: "之后", Scope: core.ScopeFilm, Origin: core.OriginUser}) {
+			t.Fatal("the term was not written")
+		}
+		a.SetFilmChapterUse(core.ChaptersEven)
+		f.wantUserFolderKept(t, after)
+	}
+
+	// Opened first, it has its folder before its job does, and the job shares it.
+	openAdded(f.fresh)
+	home := a.library.AddedIn(testVideos)[f.fresh].Home
+	if home == "" || !a.glossaryPut(core.Term{Source: "before", Target: "之前", Scope: core.ScopeFilm, Origin: core.OriginUser}) {
+		t.Fatalf("the added video opened has the folder %q", home)
+	}
+	a.pipeline = &failingLocalPipeline{}
+	a.startFilm(homeFilm(t, a, f.fresh))
+	waitUntil(t, f.tt, a, f.updates, func() bool { return a.queue.active == "" && len(a.library.Jobs) == 0 })
+	a.refreshLibrary()
+	refresh(f.tt, a)
+	if got := a.library.AddedIn(testVideos)[f.fresh].Home; got != home || slices.Contains(*trashed, home) {
+		t.Fatalf("after its making failed, the added video's folder is %q, trashed %v", got, *trashed)
+	}
+	if terms, _ := media.LoadTerms(media.TermsPath(core.FileBase(f.fresh, home))); len(terms) != 1 {
+		t.Fatalf("the terms written before the making are %v", terms)
+	}
+	waitUntil(t, f.tt, a, f.updates, func() bool { return a.gloss.filmRead })
+	wantInLibrary("writing to an added video whose making failed")
+	a.closeFilm()
+
+	// Never opened, its job makes a folder of its own; the film opened on the job goes back to the added video as the job fails.
+	gate := make(chan struct{})
+	a.pipeline = &failingLocalPipeline{gate: gate}
+	id, msg, _ := a.queueFromFolderChecked(homeFilm(t, a, second))
+	if msg != "" {
+		t.Fatal(msg)
+	}
+	waitUntil(t, f.tt, a, f.updates, func() bool { return a.queue.active == id })
+	a.Open(homeFilm(t, a, id))
+	refresh(f.tt, a)
+	close(gate)
+	waitUntil(t, f.tt, a, f.updates, func() bool { return a.queue.active == "" && len(a.library.Jobs) == 0 })
+	a.refreshLibrary()
+	refresh(f.tt, a)
+	if item, ok := a.openFilm(); !ok || item.Key != second || item.Home == "" {
+		t.Fatalf("after its job failed the film open is %+v", item)
+	}
+	waitUntil(t, f.tt, a, f.updates, func() bool { return a.player.subs.ready && a.gloss.filmRead })
+	wantInLibrary("writing to an added video whose job failed while it was open")
+}
+
+// A film that opened without being given its folder, as one beside whose video a file cannot be read, and that a paired phone then gives it, reads its files there from then on: what is corrected on the desktop is written there, and kept as it opens again.
+func TestAnOpenFilmFollowsTheFolderItIsGiven(t *testing.T) {
+	f := newHomeFixture(t)
+	a := f.a
+	reference := media.ReferencePath(f.old)
+	if err := os.WriteFile(reference, []byte(homeOldLine), 0); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.ReadFile(reference); err == nil {
+		t.Skip("a file of no permissions is read here")
+	}
+	const id = "0123456789abcdef"
+	a.library.Jobs = append(a.library.Jobs, core.Job{ID: id, Source: core.FileURL(f.old), Language: "简体中文", Stage: core.StageComplete, CompletedAt: time.Now(), VideoPath: f.old, SubtitlePath: media.BilingualPath(f.old), LibraryDir: testVideos})
+	refresh(f.tt, a)
+	item := f.open(t, id)
+	if item.Home != "" {
+		t.Fatalf("the film was given the folder %q", item.Home)
+	}
+	if err := os.Chmod(reference, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	f.before = folderHashes(t, f.user)
+	phone := phoneFilmOf(item, phoneShelf{})
+	// A phone's call runs on the engine's goroutine (phoneStateCall), which lets the areas follow what it changed.
+	if _, err := a.phoneStateCorrect(testVideos, phone, homePhoneEdit(phone.ID, "手机改的"), nil, false); err != nil {
+		t.Fatal(err)
+	}
+	refresh(f.tt, a)
+	job, _ := a.library.Find(id)
+	if job.Home == "" {
+		t.Fatal("the phone did not give the film its folder")
+	}
+	waitUntil(t, f.tt, a, f.updates, func() bool { return a.correctLoaded() && a.player.subs.path == job.SubtitlePath })
+	if a.player.subs.base != job.FileBase() || a.player.film.infoBase != job.FileBase() || a.glossaryBase() != job.FileBase() {
+		t.Fatalf("the film open names its files after %q, %q and %q, not %q", a.player.subs.base, a.player.film.infoBase, a.glossaryBase(), job.FileBase())
+	}
+	// What the desktop writes is the film's corrections as it read them, the phone's among them, and its own.
+	if !a.correctWrite(append(slices.Clone(a.player.subs.edits), core.Correction{Span: core.Span{Start: 4 * time.Second, End: 5 * time.Second}, Translation: ptr("桌面改的")})) {
+		t.Fatal("the correction was not written")
+	}
+	f.wantUserFolderKept(t, "correcting the film once a phone gave it its folder")
+	a.closeFilm()
+	f.open(t, id)
+	var kept []string
+	for _, edit := range a.player.subs.edits {
+		if edit.Translation != nil {
+			kept = append(kept, *edit.Translation)
+		}
+	}
+	if !slices.Contains(kept, "桌面改的") || !slices.Contains(kept, "手机改的") {
+		t.Fatalf("opened again, the film's corrections are %q", kept)
+	}
+}
+
+// A film's folder renamed in Finder before the library was read again is followed as the film is next written to, not made again by its old name.
+func TestARenamedHomeIsFollowedBeforeTheLibraryIsReadAgain(t *testing.T) {
+	f := newHomeFixture(t)
+	a := f.a
+	job := f.queue(t, f.fresh)
+	renamed := filepath.Join(testVideos, "My Lesson ["+job.ID[:8]+"]")
+	if err := os.Rename(job.Home, renamed); err != nil {
+		t.Fatal(err)
+	}
+	item := f.open(t, job.ID)
+	if _, err := os.Stat(job.Home); err == nil {
+		t.Fatal("the folder was made again by its old name")
+	}
+	got, _ := a.library.Find(job.ID)
+	if got.Home != renamed || item.Home != renamed || got.SubtitlePath != filepath.Join(renamed, "video.bilingual.srt") || a.player.subs.path != got.SubtitlePath {
+		t.Fatalf("opened after the rename, the job is %+v, the film's subtitles %q", got, a.player.subs.path)
 	}
 }

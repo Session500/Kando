@@ -78,10 +78,10 @@ func (a *app) glossaryWrite(store glossary.Store) bool {
 func (a *app) glossaryFollow() bool {
 	video, base := "", ""
 	if a.openKey != "" {
-		video, base = a.player.film.video, a.player.film.video
-		// A video kept outside the library keeps its terms in its folder there (core.Job.Home).
-		if item, ok := a.openFilm(); ok && video != "" {
-			base = core.FileBase(video, item.Home)
+		video = a.player.film.video
+		// A video kept outside the library keeps its terms in its folder there (core.Job.Home), the player's.
+		if video != "" {
+			base = core.FileBase(video, a.player.home)
 		}
 	}
 	g := &a.gloss

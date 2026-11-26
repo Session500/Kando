@@ -186,6 +186,7 @@ func (a *app) Open(item films.Film) {
 	a.openKey = item.Key
 	// A video kept outside the library has its folder there before any of its files is read or written, so the film open is never one whose files move under it (library_home.go).
 	item = a.libraryAdoptFilm(item)
+	a.player.home = item.Home
 	a.loadSubtitles(item.Key, core.FileBase(play.VideoPath, item.Home), item.SubtitlePath)
 	a.startPlayback(play.VideoPath)
 }

@@ -15,6 +15,9 @@ var ErrEmptySource = errors.New("video source is empty")
 // ErrLibrarySwitched is the error of a job that was stopped because another library was opened while it ran. Kando no longer stops a job then; the error stays so library.json rows written by versions that did read back as the same error.
 var ErrLibrarySwitched = errors.New("stopped because another library was opened")
 
+// ErrLibraryGone is the error of a job, or of a write to a film, of a video kept outside its library whose files go into a folder of the library's (Job.Home) while the library's folder is not there, as on a disk taken out, or is locked: nothing of the film is written, and its library's folder is not made again.
+var ErrLibraryGone = errors.New("the library's folder is not there")
+
 type Stage string
 
 const (

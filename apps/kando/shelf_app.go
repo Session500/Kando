@@ -637,7 +637,9 @@ func (a *app) refreshLibrary() {
 			return
 		}
 	}
-	if a.retargetLibrary(moved) || a.relocateMissing() || a.retargetRenamed() || a.retargetHomes() || a.dropMissing() {
+	// The folders of films' files renamed in Finder are followed whatever else this read follows, as a collection point would otherwise make one again by its old name before the next read (libraryHomeAt).
+	homes := a.retargetHomes()
+	if a.retargetLibrary(moved) || a.relocateMissing() || a.retargetRenamed() || a.dropMissing() || homes {
 		if err := a.library.Save(); err != nil {
 			a.saveErr = a.shelfSaveErr(err, a.messages().LibraryShelfSaveFailed)
 		}
