@@ -19,7 +19,7 @@ import (
 // onPicture is the text over a poster or the hero, which are a picture or a dark color in either theme.
 var onPicture = ns.RGB(0xFFFFFF)
 
-// HeroFilm is the film the hero shows: the one played last that can be continued (ResumeFrom), so a learner coming back is one click from where they were; else the newest one a job finished that was never played; else the newest one a job finished. items is newest first, as the shelf lists them, and a film still in 处理中 is never the hero.
+// HeroFilm is the film the hero shows: the one played last that can be continued (ResumeFrom), so a learner coming back is one click from where they were; else, when the one played last was watched to its end and its work (Works) has an episode after it not watched yet, that one, done, as the Apple TV app offers a show's next episode; else the newest one a job finished that was never played; else the newest one a job finished. items is newest first, as the shelf lists them, and a film still in 处理中 is never the hero.
 func HeroFilm(a App, items []Film) (Film, bool) {
 	var continued Film
 	var at time.Time
@@ -38,6 +38,9 @@ func HeroFilm(a App, items []Film) (Film, bool) {
 	}
 	if found {
 		return continued, true
+	}
+	if next, ok := heroNextEpisode(a, items); ok {
+		return next, true
 	}
 	var newest Film
 	found = false
@@ -254,4 +257,30 @@ func filmName(item Film) string {
 		return item.Name
 	}
 	return item.Title
+}
+
+// heroNextEpisode is the episode after the film of items played last, when that one was watched to its end and its work goes on with a later one (Continue, GoOnNext) that is done and among items; false otherwise.
+func heroNextEpisode(a App, items []Film) (Film, bool) {
+	var last Film
+	var at time.Time
+	for _, item := range items {
+		if played := a.PlayedAt(item.VideoPath); !played.IsZero() && played.After(at) {
+			last, at = item, played
+		}
+	}
+	if at.IsZero() || !watchedOf(a, last).end {
+		return Film{}, false
+	}
+	w, ok := a.Works().Of(last.Key)
+	if !ok {
+		return Film{}, false
+	}
+	next, how := Continue(a, w, a.Films())
+	if how != GoOnNext || next.Stage != core.StageComplete || InQueue(next) {
+		return Film{}, false
+	}
+	if _, ok := Find(items, next.Key); !ok {
+		return Film{}, false
+	}
+	return next, true
 }

@@ -1,7 +1,11 @@
 package main
 
 import (
+	"slices"
+
+	"kando/apps/kando/category"
 	"kando/apps/kando/films"
+	kcore "kando/packages/core"
 	"kando/packages/study"
 )
 
@@ -48,4 +52,44 @@ func (a *app) SetWorkApart(w *films.Work, apart bool) {
 		return
 	}
 	a.categoryWrite()
+}
+
+// worksInherit puts job's film, the new episode of a work its job has just made, into the categories every episode of its work before it that is done is in, as a show's new episode joins 动漫 with the rest: only the categories they all share, so one lesson put in 难点 alone does not take the ones after it there. A film of no work, the first of its work, or of a library other than the one open, whose films are not at hand, goes into none; nor does one of a library whose categories cannot be changed now, as a locked one. It is done once, as the film is made, so a film the user takes out of a category stays out.
+func (a *app) worksInherit(job kcore.Job) {
+	root := a.snap().LibraryDir
+	if root == "" || !films.InLibrary(root, job) || a.lockFilesAway(root) {
+		return
+	}
+	book, ok := a.categoryBook()
+	if !ok {
+		return
+	}
+	all := a.films()
+	w, ok := a.libraryWorks().Of(job.ID)
+	if !ok {
+		return
+	}
+	var shared []string
+	first := true
+	for _, key := range w.Films[:slices.Index(w.Films, job.ID)] {
+		f, ok := films.Find(all, key)
+		if !ok || f.Stage != kcore.StageComplete || f.VideoPath == "" {
+			continue
+		}
+		in := book.Of(f.VideoPath)
+		if first {
+			shared, first = slices.Clone(in), false
+			continue
+		}
+		shared = slices.DeleteFunc(shared, func(id string) bool { return !slices.Contains(in, id) })
+	}
+	changed := false
+	for _, id := range shared {
+		changed = book.Put(id, true, job.VideoPath) || changed
+	}
+	if changed {
+		if err := book.Save(); err != nil && err != category.ErrUnread {
+			a.saveErr = a.messages().CategorySaveFailed(err.Error())
+		}
+	}
 }

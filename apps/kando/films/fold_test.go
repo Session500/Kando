@@ -171,3 +171,21 @@ func TestAWorkIsARowOfTheList(t *testing.T) {
 	w, _ := a.Works().Of(eps[0].Key)
 	wantCalls(t, a, "show-work "+w.Key)
 }
+
+// Once the episode played last was watched to its end, the hero offers the next one of its work, as the Apple TV app does; the newest film never played comes after that.
+func TestHeroOffersAWorksNextEpisode(t *testing.T) {
+	a := newFakeApp()
+	eps := withShow(a)
+	for _, ep := range eps {
+		a.durations[ep.VideoPath] = time.Minute
+	}
+	a.played[eps[0].VideoPath], a.furthest[eps[0].VideoPath] = time.Now(), time.Minute
+	if hero, ok := HeroFilm(a, a.items); !ok || hero.Key != eps[1].Key {
+		t.Fatalf("the hero is %q, not the next episode", hero.Key)
+	}
+	// Not one stopped partway, which is continued itself.
+	a.furthest[eps[0].VideoPath], a.resume[eps[0].VideoPath] = 20*time.Second, 20*time.Second
+	if hero, _ := HeroFilm(a, a.items); hero.Key != eps[0].Key {
+		t.Fatalf("the hero is %q, not the episode stopped partway", hero.Key)
+	}
+}
