@@ -128,3 +128,34 @@ func TestALinkWaitingPlaysItsSoundUntilItsVideoComes(t *testing.T) {
 		t.Fatalf("the sound is left beside the video: %v", err)
 	}
 }
+
+// A link playing its sound reads the lines made of it so far as they come, from the document named after the path it goes by until its video comes (media.SoundVideo), as Make writes it: its subtitles showing up while it plays do not leave it reading a document of no film's.
+func TestALinkPlayingItsSoundReadsItsLinesAsTheyCome(t *testing.T) {
+	p := &comingPipeline{preferPipeline: preferPipeline{makerPipeline: makerPipeline{length: 90 * time.Second, released: make(chan struct{})}}, video: make(chan struct{})}
+	a, tt, updates := newTestApp(t, p)
+	link := "https://www.youtube.com/watch?v=jNQXAC9IVRw"
+	if err := a.Enqueue(link); err != nil {
+		t.Fatal(err)
+	}
+	refresh(tt, a)
+	linkID := jobIDs(a)[link]
+	queueUntilState(t, updates, func() bool { return stageOf(t, a, linkID).SoundPath != "" })
+	refresh(tt, a)
+	item, ok := films.Find(a.films(), linkID)
+	if !ok {
+		t.Fatal("the link is not on the shelf")
+	}
+	apply(tt, a, func() { a.Open(item) })
+	goesBy := media.SoundVideo(stageOf(t, a, linkID).SoundPath)
+	queueUntilState(t, updates, func() bool { return stageOf(t, a, linkID).SubtitlePath != "" })
+	refresh(tt, a)
+	if job := stageOf(t, a, linkID); job.VideoPath != "" {
+		t.Fatalf("the video came before the lines: %+v", job)
+	}
+	if a.player.subs.key != linkID || a.player.subs.base != goesBy {
+		t.Fatalf("the film reads its lines by %q (key %q), want %q", a.player.subs.base, a.player.subs.key, goesBy)
+	}
+	close(p.video)
+	close(p.released)
+	settle(t, a, tt, updates)
+}
