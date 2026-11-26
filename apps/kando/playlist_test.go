@@ -258,6 +258,24 @@ func TestRemoteListsAPlaylist(t *testing.T) {
 	}
 }
 
+// A video the control socket adds from a playlist it listed goes on in the playlist's order, and folds under its title, as one the playlist dialog adds does.
+func TestRemoteAddPlacesAListsVideos(t *testing.T) {
+	p := newListingPipeline(map[string]media.Listing{testPlaylist: testListing})
+	a, _, updates := newTestApp(t, p)
+	remoteServe(t, a)
+	if _, err := remoteCall[[]remote.List](t, updates, remote.MethodLists, remote.ListsParams{Sources: []string{testPlaylist}}); err != nil {
+		t.Fatal(err)
+	}
+	added, err := remoteCall[remote.AddResult](t, updates, remote.MethodAdd, remote.AddParams{Sources: []string{testListing.Videos[1].URL}})
+	if err != nil || len(added.Jobs) != 1 {
+		t.Fatalf("added %+v, %v", added, err)
+	}
+	job, _ := a.library.Find(added.Jobs[0].ID)
+	if job.List != queueSourceKey(testPlaylist) || job.ListIndex != 2 || job.ListTitle != "French in Action" {
+		t.Fatalf("the added video is in list %q at %d, titled %q", job.List, job.ListIndex, job.ListTitle)
+	}
+}
+
 // A channel's dialog asks how many of its most recent videos to add now, the latest 3 at first: Add queues those of them the library does not have, in the channel's order; the latest 10 queues every one it holds, and none leaves only subscribing, which waits for the switch.
 func TestPlaylistChannelAddsItsLatest(t *testing.T) {
 	var videos []media.ListedVideo

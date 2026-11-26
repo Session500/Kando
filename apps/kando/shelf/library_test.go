@@ -25,7 +25,7 @@ func TestLibraryRoundTrip(t *testing.T) {
 	}
 	lib.Upsert(core.Job{ID: "a", Source: "https://example.com/a", Language: "简体中文", Stage: core.StageComplete, VideoPath: "/v/a.mp4", SubtitlePath: "/v/a.bilingual.srt"})
 	lib.Upsert(core.Job{ID: "b", Source: "https://example.com/b", Stage: core.StageFailed, Err: context.Canceled})
-	lib.Upsert(core.Job{ID: "a", Source: "https://example.com/a", Stage: core.StageComplete, SubtitlePath: "/v/a.bilingual.srt"})
+	lib.Upsert(core.Job{ID: "a", Source: "https://example.com/a", Stage: core.StageComplete, SubtitlePath: "/v/a.bilingual.srt", List: "list", ListIndex: 2, ListTitle: "Cooking Basics"})
 	if err := lib.Save(); err != nil {
 		t.Fatal(err)
 	}
@@ -34,7 +34,7 @@ func TestLibraryRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(loaded.Jobs) != 2 || loaded.Jobs[0].ID != "b" || loaded.Jobs[1].SubtitlePath != "/v/a.bilingual.srt" {
+	if len(loaded.Jobs) != 2 || loaded.Jobs[0].ID != "b" || loaded.Jobs[1].SubtitlePath != "/v/a.bilingual.srt" || loaded.Jobs[1].List != "list" || loaded.Jobs[1].ListIndex != 2 || loaded.Jobs[1].ListTitle != "Cooking Basics" {
 		t.Fatalf("jobs = %#v", loaded.Jobs)
 	}
 	if !errors.Is(loaded.Jobs[0].Err, context.Canceled) {

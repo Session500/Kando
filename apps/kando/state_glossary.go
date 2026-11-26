@@ -444,11 +444,11 @@ type glossaryEpisode struct {
 	ok        bool
 }
 
-// glossaryEpisodeOf is the show the film of job is an episode of, as its name says (core.EpisodeOf): its site's title, or its video's file name.
+// glossaryEpisodeOf is the show the film of job is an episode of, as its name says (core.EpisodeOf): its site's title, or its video's file name, its folder's for a video.<ext> the library keeps in a folder of its own (films.VideoName).
 func (a *app) glossaryEpisodeOf(job core.Job) glossaryEpisode {
 	name := strings.TrimSpace(job.Title)
 	if name == "" && job.VideoPath != "" {
-		name = strings.TrimSuffix(filepath.Base(job.VideoPath), filepath.Ext(job.VideoPath))
+		name = films.VideoName(job.VideoPath)
 	}
 	if name == "" {
 		return glossaryEpisode{}

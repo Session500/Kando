@@ -6,6 +6,7 @@ import (
 	"log"
 
 	"kando/apps/kando/locales"
+	"kando/apps/kando/playlist"
 	"kando/apps/kando/remote"
 
 	ns "github.com/nsgo-dev/nsgo/core"
@@ -18,6 +19,8 @@ type remoteUI struct {
 	cancel context.CancelFunc
 	// en is the scope the socket says the window's words under, in English (remoteScope), made on first use.
 	en *ns.Scope
+	// lists is the playlists and channels the socket listed (remoteLists), by the key of each's link, which the videos it then adds from them are placed in (nextKeepLists), as the playlist dialog places those it adds.
+	lists map[string]playlist.List
 }
 
 func newRemoteUI() remoteUI {

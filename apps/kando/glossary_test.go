@@ -371,3 +371,12 @@ func TestFilmsNamedAsEpisodesAreNotAskedAgainOnceTurnedDown(t *testing.T) {
 		}
 	}
 }
+
+// A video the library keeps as video.<ext> in a folder of its own is named by its folder, as the shelf names it, so its name can say it is an episode.
+func TestAVideoInAFolderOfItsOwnIsNamedByItsFolder(t *testing.T) {
+	a, _, _ := newTestApp(t, &fakePipeline{})
+	e := a.glossaryEpisodeOf(core.Job{VideoPath: filepath.Join(t.TempDir(), "地理课 第3集", "video.mp4")})
+	if !e.ok || e.show != "地理课" {
+		t.Fatalf("the video's show is %+v", e)
+	}
+}

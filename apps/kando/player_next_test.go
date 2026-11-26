@@ -203,20 +203,22 @@ func TestListsPlaceTheirFilms(t *testing.T) {
 		return out
 	}
 	playlistSource := "https://www.youtube.com/playlist?list=PL1"
-	a.nextKeepLists([]playlist.List{{Source: playlistSource, Listing: listed("b", "a", "c")}})
+	a.nextKeepLists([]playlist.List{{Source: playlistSource, Listing: listed("b", "a", "c")}}, false)
 	if got := places("b", "a", "c"); !slices.Equal(got, []int{1, 2, 3}) {
 		t.Fatalf("playlist places %v", got)
 	}
-	a.nextKeepLists([]playlist.List{{Source: playlistSource, Listing: listed("a", "b", "c")}})
+	cooking := listed("a", "b", "c")
+	cooking.Title = "Cooking Basics"
+	a.nextKeepLists([]playlist.List{{Source: playlistSource, Listing: cooking}}, false)
 	if got := places("a", "b", "c"); !slices.Equal(got, []int{1, 2, 3}) {
 		t.Fatalf("playlist read again places %v", got)
 	}
 	channel := "https://www.youtube.com/@river"
-	a.nextKeepLists([]playlist.List{{Source: channel, Channel: true, Listing: listed("n2", "n1")}})
+	a.nextKeepLists([]playlist.List{{Source: channel, Channel: true, Listing: listed("n2", "n1")}}, false)
 	if got := places("n1", "n2"); !slices.Equal(got, []int{1, 2}) {
 		t.Fatalf("channel places %v", got)
 	}
-	a.nextKeepLists([]playlist.List{{Source: channel, Channel: true, Listing: listed("n3", "n2")}})
+	a.nextKeepLists([]playlist.List{{Source: channel, Channel: true, Listing: listed("n3", "n2")}}, false)
 	if got := places("n1", "n2", "n3"); !slices.Equal(got, []int{1, 2, 3}) {
 		t.Fatalf("channel read again places %v", got)
 	}
@@ -227,5 +229,30 @@ func TestListsPlaceTheirFilms(t *testing.T) {
 	}
 	if j, _ := a.library.Find("n4"); j.List != queueSourceKey(channel) {
 		t.Fatalf("the subscription's video is in list %q", j.List)
+	}
+	// A playlist is one work, and its films take its title, which the library folds them under; a channel's videos are not, until the user says the subscription is a series, and not once they say it is not.
+	titles := func(ids ...string) []string {
+		var out []string
+		for _, id := range ids {
+			j, _ := a.library.Find(id)
+			out = append(out, j.ListTitle)
+		}
+		return out
+	}
+	if got := titles("a", "b", "c"); !slices.Equal(got, []string{"Cooking Basics", "Cooking Basics", "Cooking Basics"}) {
+		t.Fatalf("the playlist's films are titled %q", got)
+	}
+	if got := titles("n1", "n4"); !slices.Equal(got, []string{"", ""}) {
+		t.Fatalf("a channel's videos are titled %q", got)
+	}
+	sub.Name, sub.Series = "River Talks", true
+	a.nextKeepSubscribed(sub, nil)
+	if got := titles("n1", "n2", "n3", "n4"); !slices.Equal(got, []string{"River Talks", "River Talks", "River Talks", "River Talks"}) {
+		t.Fatalf("a series' videos are titled %q", got)
+	}
+	sub.Series = false
+	a.nextKeepSubscribed(sub, nil)
+	if got := titles("n1", "n4"); !slices.Equal(got, []string{"", ""}) {
+		t.Fatalf("videos of a channel no longer a series are titled %q", got)
 	}
 }

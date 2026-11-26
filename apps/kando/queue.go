@@ -1092,7 +1092,7 @@ func (a *app) show(job core.Job) {
 			}
 		}
 		// So is the list it was added from (core.Job.List), which the app writes once the queue has the job.
-		job.List, job.ListIndex = was.List, was.ListIndex
+		job.List, job.ListIndex, job.ListTitle = was.List, was.ListIndex, was.ListTitle
 		// A film indexed from a media source that was copied into the library while the job ran (linkedCopied) is the library's from then on: the running pipeline's copy, made before, does not make it indexed again.
 		if !was.Linked {
 			job.Linked = false

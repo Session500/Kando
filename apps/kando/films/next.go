@@ -70,14 +70,7 @@ func sequence(all []Film, item Film, tag string) []Film {
 				seq = append(seq, f)
 			}
 		}
-		// A film of the list with no place yet, as one added before its list was read, comes after those with one.
-		place := func(f Film) int {
-			if f.ListIndex <= 0 {
-				return int(^uint(0) >> 1)
-			}
-			return f.ListIndex
-		}
-		slices.SortStableFunc(seq, func(a, b Film) int { return place(a) - place(b) })
+		slices.SortStableFunc(seq, func(a, b Film) int { return listPlace(a) - listPlace(b) })
 		return seq
 	}
 	key, ok := showOf(item)
@@ -93,14 +86,63 @@ func sequence(all []Film, item Film, tag string) []Film {
 			}
 		}
 	}
-	col := collate.New(language.Make(tag), collate.Numeric)
-	slices.SortStableFunc(seq, func(a, b Film) int {
-		if c := byFolder(col, filepath.Base(filepath.Dir(a.VideoPath)), filepath.Base(filepath.Dir(b.VideoPath))); c != 0 {
+	sortLocal(seq, collate.New(language.Make(tag), collate.Numeric), nil)
+	return seq
+}
+
+// sortLocal orders the films of a local sequence as col orders names: folder by folder (byFolder), then by number (byNumber). Each film's names are read once, rather than at each comparison; read, when not nil, gives the number a film's name was read as already, as Works has them.
+func sortLocal(seq []Film, col *collate.Collator, read func(Film) (numbered, bool)) {
+	type keyed struct {
+		f            Film
+		folder, name string
+		folderNum    numbered
+		num          numbered
+	}
+	keys := make([]keyed, len(seq))
+	// A sequence's films are in few folders, whose names are read once.
+	folders := map[string]numbered{}
+	for i, f := range seq {
+		folder := filepath.Base(filepath.Dir(f.VideoPath))
+		name := seqName(f)
+		k := keyed{f: f, folder: folder, name: name}
+		n, known := folders[folder]
+		if !known {
+			n.season, n.number, n.ok = folderNumber(folder)
+			folders[folder] = n
+		}
+		k.folderNum = n
+		named := false
+		if read != nil {
+			k.num, named = read(f)
+		}
+		if !named {
+			k.num.season, k.num.number, k.num.ok = core.EpisodeNumber(name)
+		}
+		keys[i] = k
+	}
+	slices.SortStableFunc(keys, func(a, b keyed) int {
+		if c := byFolder(col, a.folder, b.folder, a.folderNum, b.folderNum); c != 0 {
 			return c
 		}
-		return byNumber(col, seqName(a), seqName(b))
+		return byNumber(col, a.name, b.name, a.num, b.num)
 	})
-	return seq
+	for i, k := range keys {
+		seq[i] = k.f
+	}
+}
+
+// numbered is the season and the number a name gives, as core.EpisodeNumber or folderNumber reads them; ok is false for a name that numbers nothing.
+type numbered struct {
+	season, number int
+	ok             bool
+}
+
+// listPlace is where a film of a list is in its order, one of the list with no place yet, as one added before its list was read, after those with one.
+func listPlace(f Film) int {
+	if f.ListIndex <= 0 {
+		return int(^uint(0) >> 1)
+	}
+	return f.ListIndex
 }
 
 // showOf is the show a local film's name numbers it as an episode of, its key as core.EpisodeOf gives it, "" for a name that numbers it without a show, as a disc's "01 Opening"; false for a film that is not local or whose name numbers it as nothing.
@@ -116,49 +158,57 @@ func showOf(f Film) (string, bool) {
 	return key, true
 }
 
-// seqName is the name a film's file gives it, without its extension: its folder's for a video named video.<ext> in a folder of its own, as the library keeps one.
-func seqName(f Film) string {
-	base := filepath.Base(f.VideoPath)
+// seqName is the name a film's file gives it (VideoName).
+func seqName(f Film) string { return VideoName(f.VideoPath) }
+
+// VideoName is the name the file of the video at path gives it, without its extension: its folder's for a video named video.<ext> in a folder of its own, as the library keeps one.
+func VideoName(path string) string {
+	base := filepath.Base(path)
 	name := strings.TrimSuffix(base, filepath.Ext(base))
 	if name == "video" {
-		return filepath.Base(filepath.Dir(f.VideoPath))
+		return filepath.Base(filepath.Dir(path))
 	}
 	return name
 }
 
-// byNumber orders two names by the season and episode they number, then as col orders them, numbers by value.
-func byNumber(col *collate.Collator, a, b string) int {
-	as, ae, aok := core.EpisodeNumber(a)
-	bs, be, bok := core.EpisodeNumber(b)
-	if aok && bok {
-		if as != bs {
-			return as - bs
-		}
-		if ae != be {
-			return ae - be
-		}
+// nameFolder is the folder whose name a film's file gives it (VideoName): its video's, or the one above for a video named video.<ext> in a folder of its own.
+func nameFolder(path string) string {
+	dir := filepath.Dir(path)
+	if strings.TrimSuffix(filepath.Base(path), filepath.Ext(path)) == "video" {
+		return filepath.Dir(dir)
 	}
-	return col.CompareString(a, b)
+	return dir
 }
 
-// byFolder orders the folders of a show's films: those whose names number them, as 第2节, Season 3 or 第二季, first by their numbers, then the others as col orders them. Ordering a numbered folder against an unnumbered one by name, as byNumber would, makes the order depend on the order the films came in.
-func byFolder(col *collate.Collator, a, b string) int {
-	as, ae, aok := folderNumber(a)
-	bs, be, bok := folderNumber(b)
+// byNumber orders two names by the season and episode they number (a, b), then as col orders them, numbers by value.
+func byNumber(col *collate.Collator, as, bs string, a, b numbered) int {
+	if a.ok && b.ok {
+		if a.season != b.season {
+			return a.season - b.season
+		}
+		if a.number != b.number {
+			return a.number - b.number
+		}
+	}
+	return col.CompareString(as, bs)
+}
+
+// byFolder orders the folders of a show's films by the numbers their names give them (a, b, folderNumber): those whose names number them, as 第2节, Season 3 or 第二季, first by their numbers, then the others as col orders them. Ordering a numbered folder against an unnumbered one by name, as byNumber would, makes the order depend on the order the films came in.
+func byFolder(col *collate.Collator, as, bs string, a, b numbered) int {
 	switch {
-	case aok && bok:
-		if as != bs {
-			return as - bs
+	case a.ok && b.ok:
+		if a.season != b.season {
+			return a.season - b.season
 		}
-		if ae != be {
-			return ae - be
+		if a.number != b.number {
+			return a.number - b.number
 		}
-	case aok:
+	case a.ok:
 		return -1
-	case bok:
+	case b.ok:
 		return 1
 	}
-	return col.CompareString(a, b)
+	return col.CompareString(as, bs)
 }
 
 // folderNumber is the season and the number a folder's name gives it: a season or part, as 第二季, or else what core.EpisodeNumber reads, as 第2节 or Season 3.

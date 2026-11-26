@@ -2,6 +2,7 @@ package main
 
 import (
 	"slices"
+	"strings"
 	"time"
 
 	"kando/apps/kando/film"
@@ -17,8 +18,8 @@ import (
 
 // What plays after the open film (films.Next): the list a film was added from, kept on its job (core.Job.List), and the card that plays the next once the film ends.
 
-// nextKeepLists notes, on the jobs of the open library whose links are videos of lists, as the playlist dialog read them, the list each came from and its place in it (core.Job.List): a playlist's own order, which a playlist read again writes anew, as its owner may have moved its videos; a channel's from its oldest video, which a channel lists last, its videos already placed keeping their places and its new ones placed after them.
-func (a *app) nextKeepLists(lists []playlist.List) {
+// nextKeepLists notes, on the jobs of the open library whose links are videos of lists, as the playlist dialog read them, the list each came from and its place in it (core.Job.List): a playlist's own order, which a playlist read again writes anew, as its owner may have moved its videos; a channel's from its oldest video, which a channel lists last, its videos already placed keeping their places and its new ones placed after them. A list that is one work, a playlist, or a channel series says is (as the user said a list they subscribed to is a series), gives its jobs its title too (core.Job.ListTitle), so the library shows them as one card; a channel's videos are a channel's, not one work, and keep none.
+func (a *app) nextKeepLists(lists []playlist.List, series bool) {
 	root := a.snap().LibraryDir
 	changed := false
 	for _, list := range lists {
@@ -39,12 +40,24 @@ func (a *app) nextKeepLists(lists []playlist.List) {
 				place[queueSourceKey(v.URL)] = i + 1
 			}
 		}
+		title := ""
+		if !list.Channel || series {
+			title = strings.TrimSpace(list.Title)
+		}
 		for _, job := range a.library.Jobs {
-			at, ok := place[queueSourceKey(job.Source)]
-			if !ok || !films.InLibrary(root, job) || job.List == key && job.ListIndex == at {
+			if !films.InLibrary(root, job) {
 				continue
 			}
-			job.List, job.ListIndex = key, at
+			at, ok := place[queueSourceKey(job.Source)]
+			switch {
+			case ok && (job.List != key || job.ListIndex != at || job.ListTitle != title):
+				job.List, job.ListIndex, job.ListTitle = key, at, title
+			// A video of a channel placed before keeps its place, and takes the title the list has now.
+			case !ok && job.List == key && job.ListTitle != title:
+				job.ListTitle = title
+			default:
+				continue
+			}
 			a.library.Upsert(job)
 			changed = true
 		}
@@ -54,10 +67,14 @@ func (a *app) nextKeepLists(lists []playlist.List) {
 	}
 }
 
-// nextKeepSubscribed notes, on the jobs of sub's library for videos it has just queued, oldest first, the list they came from, sub's, and their places in it, after those of the list's videos placed already, as a subscription adds what comes out after.
+// nextKeepSubscribed notes, on the jobs of sub's library for videos it has just queued, oldest first, the list they came from, sub's, and their places in it, after those of the list's videos placed already, as a subscription adds what comes out after. Every job of the list takes the subscription's name as its title when the list is one work, a playlist's or a collection's, or a channel the user said is a series (core.Job.ListTitle), and none once the user says it is not, so the library folds its films into one card as long as it is.
 func (a *app) nextKeepSubscribed(sub *subscribe.Sub, queued []subscribe.Video) {
 	key := queueSourceKey(sub.Source)
 	last := a.nextLastPlace(sub.Library, key)
+	title := ""
+	if !sub.Channel() || sub.Series {
+		title = strings.TrimSpace(sub.Name)
+	}
 	changed := false
 	for _, v := range queued {
 		video := queueSourceKey(v.URL)
@@ -70,6 +87,13 @@ func (a *app) nextKeepSubscribed(sub *subscribe.Sub, queued []subscribe.Video) {
 			a.library.Upsert(job)
 			changed = true
 			break
+		}
+	}
+	for _, job := range a.library.Jobs {
+		if job.List == key && job.ListTitle != title && films.InLibrary(sub.Library, job) {
+			job.ListTitle = title
+			a.library.Upsert(job)
+			changed = true
 		}
 	}
 	if changed {

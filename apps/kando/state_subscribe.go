@@ -772,7 +772,7 @@ func (a *app) subscribeAskJustAdd() {
 	a.queue.stamp = subscribeStamp(rules, a.subscribeChoiceStamp(c))
 	a.libraryEnqueue(sources...)
 	a.queue.stamp = nil
-	a.nextKeepLists(lists)
+	a.nextKeepLists(lists, c.Series)
 	if c.Series && link.Kind != kcore.LinkChannel {
 		a.glossaryPlaylistSeries(lists)
 	}

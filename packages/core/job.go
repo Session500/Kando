@@ -142,6 +142,8 @@ type Job struct {
 	// List is the playlist or channel the film was added from, as the key of its link the queue matches links by, and ListIndex its place in it from 1, in the order it is watched: a playlist's own, a channel's from its oldest video. Playing goes on from a film to the next of its list. Both are empty for a film added from no list; they stay when the job is run again.
 	List      string
 	ListIndex int
+	// ListTitle is the name of the list, as its site or its subscription calls it, for a list that is one work, a playlist or a subscription the user said is a series, whose films the library shows as one card; "" for a channel's videos, and for a film added from no list.
+	ListTitle string
 	// ResumeAt is where the user was in the video in the browser the link came from (the extension's or the bookmarklet's playback time, or the link's own t=, StartAt), so the film opens there once it is done: the app keeps it as the film's resume position as the job completes, unless the film has one already, and clears it then. 0 for none.
 	ResumeAt time.Duration
 	// ChapterUse is whether the film is cut at its site's chapters or evenly by time, as the user chose it on the Add sheet before it was downloaded; the download keeps it beside the video with the chapters it finds (media.FilmChapters.Use), where the player reads it. Empty follows the setting 导入平台章节.
