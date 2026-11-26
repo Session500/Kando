@@ -2,6 +2,16 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.64.0 - 2026-11-26
+
+### Features
+
+- Choose a run of rows with Shift, filter the folder, ⌘A (#499)
+- Sign in to Plex instead of copying a token from View XML (#495)
+- Say how many videos of each folder are imported (#497)
+- Import the remembered way without the dialog (#498)
+- List the media sources in the sidebar (#500)
+
 ## 0.63.0 - 2026-11-26
 
 ### Features
