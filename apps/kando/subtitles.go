@@ -161,6 +161,15 @@ func (a *app) subtitlesFollowRedo() bool {
 	return subs.redo.kind != kind
 }
 
+// subtitlesBaseOf is what the lines of job's film are read by (core.FileBase), as the player opens it (films.PlayPath): its video, or until its video comes the path the film goes by while its sound plays (media.SoundVideo), which media.Make names the film's document after then, in its folder in the library for a video kept outside it.
+func subtitlesBaseOf(job core.Job) string {
+	video := job.VideoPath
+	if video == "" && job.SoundPath != "" {
+		video = media.SoundVideo(job.SoundPath)
+	}
+	return core.FileBase(video, job.Home)
+}
+
 // loadSubtitles reads the lines of the film whose files are named after base (core.FileBase) off the engine's goroutine: its subtitle document, with path, the subtitle file it shows, taken in where it changed (media.ReadTrack), and the user's corrections of the film (media.LoadCorrections), and the frames of the 片段 its lines cut the film into once read (loadClipFrames). An empty path means this film has no subtitle yet; a file that is gone or cannot be read says so, as the film's lines come from that file until its subtitles are made into the document itself.
 func (a *app) loadSubtitles(key, base, path string) {
 	if a.player.subs.key == key && a.player.subs.path == path {

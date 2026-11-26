@@ -120,7 +120,7 @@ func (a *app) RetryOpen(id string) {
 		a.Retry(id)
 		if a.queue.job != nil {
 			a.openKey = a.queue.job.ID
-			a.loadSubtitles(a.queue.job.ID, a.queue.job.FileBase(), a.queue.job.SubtitlePath)
+			a.loadSubtitles(a.queue.job.ID, subtitlesBaseOf(*a.queue.job), a.queue.job.SubtitlePath)
 		}
 	}
 }
