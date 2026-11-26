@@ -2,6 +2,12 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.70.0 - 2026-11-27
+
+### Features
+
+- Work out which films are one work, and keep a list's title when it is one (#515)
+
 ## 0.69.0 - 2026-11-26
 
 ### Features
