@@ -733,12 +733,21 @@ func (a *app) retargetRenamed() bool {
 		if !(job.SubtitlesOnly || a.storedHas(job)) || job.VideoPath == "" {
 			continue
 		}
-		if next, ok := media.RetargetRenamedFolder(root, job.SubtitlePath); ok {
+		// In a folder of the user's opened as a library its subtitles are in the folder of its files beside where its video was (media.FolderHome): the folder renamed is the one that holds that.
+		sub, inner := job.SubtitlePath, ""
+		if within, ok := libraryInFolderHome(job.Home, sub); ok {
+			sub, inner = filepath.Join(filepath.Dir(filepath.Dir(job.Home)), filepath.Base(sub)), within
+		}
+		if next, ok := media.RetargetRenamedFolder(root, sub); ok {
 			if moved == nil {
 				moved = map[string]string{}
 			}
+			dir := filepath.Dir(next)
+			if inner != "" {
+				next = filepath.Join(dir, inner)
+			}
 			moved[job.SubtitlePath] = next
-			moved[job.VideoPath] = filepath.Join(filepath.Dir(next), filepath.Base(job.VideoPath))
+			moved[job.VideoPath] = filepath.Join(dir, filepath.Base(job.VideoPath))
 		}
 	}
 	return a.retargetLibrary(moved)
@@ -756,6 +765,14 @@ func (a *app) retargetLibrary(moved map[string]string) bool {
 	for i, job := range a.library.Jobs {
 		if next, ok := moved[job.VideoPath]; ok {
 			a.library.Jobs[i].VideoPath = next
+			// The folder of its files beside its video, in a folder of the user's opened as a library, went with the video's folder (media.FolderHome), and its subtitles in it.
+			if job.Home != "" && filepath.Clean(job.Home) == filepath.Clean(media.FolderHome(job.VideoPath)) {
+				home := media.FolderHome(next)
+				if sub, ok := replacePathPrefix(job.Home, home, job.SubtitlePath); ok {
+					a.library.Jobs[i].SubtitlePath = sub
+				}
+				a.library.Jobs[i].Home = home
+			}
 			changed = true
 		}
 		if next, ok := moved[job.SubtitlePath]; ok {
@@ -764,6 +781,18 @@ func (a *app) retargetLibrary(moved map[string]string) bool {
 		}
 	}
 	return changed
+}
+
+// libraryInFolderHome is the path of the file at path within the folder of a film's files beside its video (media.FolderHome), from the folder that holds the video, as .kando-files/video/video.bilingual.srt: ok is false for a home that is no such folder, or a path outside it.
+func libraryInFolderHome(home, path string) (string, bool) {
+	if home == "" || path == "" || filepath.Base(filepath.Dir(home)) != media.FilesDir {
+		return "", false
+	}
+	rel, err := filepath.Rel(filepath.Dir(filepath.Dir(home)), path)
+	if err != nil || strings.HasPrefix(rel, "..") || !strings.HasPrefix(rel, media.FilesDir+string(filepath.Separator)) {
+		return "", false
+	}
+	return rel, true
 }
 
 // dropMissing drops the finished jobs of the open library whose video is gone from its folder, or for a film that keeps no video its subtitles (shelfKept). library.json holds the jobs of every library, and another library's videos may be on a disk that is not mounted or in a folder moved away for now, so only the open library's jobs are looked at, and none while the library folder itself cannot be found. A video kept outside the library where it was picked is never dropped: it is the user's, renamed or moved in Finder or on a drive that is not connected as often as deleted, and dropping its film would lose its place, its title and what was learned from it; its film stays, marked as missing (goneOutside), for the user to take off the shelf.

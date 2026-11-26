@@ -2,6 +2,8 @@ package main
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -11,6 +13,7 @@ import (
 	"kando/apps/kando/settings"
 	"kando/apps/kando/sidebar"
 	"kando/packages/core"
+	"kando/packages/media"
 
 	ns "github.com/nsgo-dev/nsgo/core"
 	nsdesktop "github.com/nsgo-dev/nsgo/desktop"
@@ -135,7 +138,12 @@ func (a *app) libraryTrashIn(root string, items []films.Film, m locales.Messages
 			switch {
 			case err == nil:
 				// A video outside the library stays where it is, though the folder of its files there went (films.Film.Home): its film only left the library.
-				trashed = trashed || (len(files) > 0 && unit.Items[0].Home == "")
+				item := unit.Items[0]
+				trashed = trashed || (len(files) > 0 && (item.Home == "" || filepath.Clean(item.Home) == filepath.Clean(media.FolderHome(item.VideoPath))))
+				// The hidden folder of the films' files beside it goes once it holds none (media.FilesDir).
+				if unit.Folder == "" && item.VideoPath != "" {
+					os.Remove(filepath.Join(filepath.Dir(item.VideoPath), media.FilesDir))
+				}
 				gone = append(gone, unit.Items...)
 			case reason == "":
 				name := films.Name(unit.Items[0])

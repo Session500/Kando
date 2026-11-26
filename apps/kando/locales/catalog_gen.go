@@ -556,6 +556,7 @@ var Parameters = map[string][]string{
 	"FilmNotesWords":                           {"count"},
 	"LibraryAdopted":                           {"name"},
 	"LibraryAdoptFailed":                       {"name", "error_"},
+	"LibraryHomeOtherVideo":                    {"name"},
 	"LibraryAddedOnly":                         {"count"},
 	"LibraryDropDisguised":                     {"text", "name", "count"},
 	"LibraryMakingSome":                        {"done", "total", "reason"},
@@ -699,7 +700,6 @@ var Parameters = map[string][]string{
 	"LibraryMovedSome":                         {"done", "total", "library", "reason"},
 	"LibraryMoveFailed":                        {"name", "library", "error_"},
 	"LibraryMoveLinesUnread":                   {"library"},
-	"LibraryMoveHomeToFolder":                  {"name"},
 	"LibraryMoveNoVideo":                       {"name"},
 	"LibraryMoveOutFailed":                     {"error_"},
 	"LibraryMoveProcessing":                    {"name"},
@@ -1351,6 +1351,7 @@ type Translation struct {
 	FilmNotesWords                           func(count int) string
 	LibraryAdopted                           func(name string) string
 	LibraryAdoptFailed                       func(name string, error_ string) string
+	LibraryHomeOtherVideo                    func(name string) string
 	LibraryAddedOnly                         func(count int) string
 	LibraryDropDisguised                     func(text string, name string, count int) string
 	LibraryMakingSome                        func(done int, total int, reason string) string
@@ -1494,7 +1495,6 @@ type Translation struct {
 	LibraryMovedSome                         func(done int, total int, library string, reason string) string
 	LibraryMoveFailed                        func(name string, library string, error_ string) string
 	LibraryMoveLinesUnread                   func(library string) string
-	LibraryMoveHomeToFolder                  func(name string) string
 	LibraryMoveNoVideo                       func(name string) string
 	LibraryMoveOutFailed                     func(error_ string) string
 	LibraryMoveProcessing                    func(name string) string
@@ -25513,6 +25513,9 @@ func Supply(lang string, t Translation) {
 	if t.LibraryAdoptFailed != nil {
 		s.LibraryAdoptFailed = t.LibraryAdoptFailed
 	}
+	if t.LibraryHomeOtherVideo != nil {
+		s.LibraryHomeOtherVideo = t.LibraryHomeOtherVideo
+	}
 	if t.LibraryAddedOnly != nil {
 		s.LibraryAddedOnly = t.LibraryAddedOnly
 	}
@@ -25941,9 +25944,6 @@ func Supply(lang string, t Translation) {
 	}
 	if t.LibraryMoveLinesUnread != nil {
 		s.LibraryMoveLinesUnread = t.LibraryMoveLinesUnread
-	}
-	if t.LibraryMoveHomeToFolder != nil {
-		s.LibraryMoveHomeToFolder = t.LibraryMoveHomeToFolder
 	}
 	if t.LibraryMoveNoVideo != nil {
 		s.LibraryMoveNoVideo = t.LibraryMoveNoVideo
@@ -32536,6 +32536,38 @@ func LibraryFolderGone(cx *core.Scope) string { return For(cx).LibraryFolderGone
 
 // LibraryFolderGone is the package's LibraryFolderGone in the language of msgs.
 func (msgs Messages) LibraryFolderGone() string { return msgs.text(textLibraryFolderGone) }
+
+// LibraryHomeOtherVideo says "“{name}” isn't the file its subtitles were made for anymore. If they don't match, make them again."
+// in the language the app shows under cx.
+//
+// Message bar once, as a film of a folder opened as a library opens whose video file was replaced in Finder by another of the same name (a different size), so its subtitles may belong to the other file.
+func LibraryHomeOtherVideo(cx *core.Scope, name string) string {
+	return For(cx).LibraryHomeOtherVideo(name)
+}
+
+// LibraryHomeOtherVideo is the package's LibraryHomeOtherVideo in the language of msgs.
+func (msgs Messages) LibraryHomeOtherVideo(name string) string {
+	if i18n.IsPseudo(msgs.lang) {
+		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.LibraryHomeOtherVideo(name))
+	}
+	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
+		if f := supplied[lang].LibraryHomeOtherVideo; f != nil {
+			return f(name)
+		}
+		switch lang {
+		case "", "en":
+			return "“" + msgs.arg(name) + "” isn't the file its subtitles were made for anymore. If they don't match, make them again."
+		case "ja":
+			return "「" + name + "」は字幕を作ったときのファイルではなくなっています。字幕が合わない場合は作り直してください。"
+		case "ko":
+			return "‘" + name + "’은(는) 자막을 만들 때의 파일이 아닙니다. 자막이 맞지 않으면 다시 만드세요."
+		case "zh-Hans":
+			return "「" + name + "」已经不是生成字幕时的那个文件了。如果字幕对不上，请重新生成。"
+		case "zh-Hant":
+			return "「" + name + "」已經不是產生字幕時的那個檔案了。如果字幕對不上，請重新產生。"
+		}
+	}
+}
 
 // LibraryAddedOnly says "Added {count, plural, one {# film} other {# films}} to the library. Open one to make its subtitles."
 // in the language the app shows under cx.
@@ -41200,38 +41232,6 @@ func (msgs Messages) LibraryMoveLinesUnread(library string) string {
 			return "无法读取「" + library + "」收藏的句子，所以什么都没有移动。"
 		case "zh-Hant":
 			return "無法讀取「" + library + "」收藏的句子，所以什麼都沒有移動。"
-		}
-	}
-}
-
-// LibraryMoveHomeToFolder says "“{name}” can't move to a library that's a folder of your own: its video is outside the library, so Kando keeps its subtitles in the library, which only a .kando library can hold."
-// in the language the app shows under cx.
-//
-// Error when a film whose video is kept outside the library (Kando keeps its subtitles inside the .kando library) is to be moved to a library that is an ordinary folder opened as a library; Kando does not move it.
-func LibraryMoveHomeToFolder(cx *core.Scope, name string) string {
-	return For(cx).LibraryMoveHomeToFolder(name)
-}
-
-// LibraryMoveHomeToFolder is the package's LibraryMoveHomeToFolder in the language of msgs.
-func (msgs Messages) LibraryMoveHomeToFolder(name string) string {
-	if i18n.IsPseudo(msgs.lang) {
-		return i18n.Pseudo(msgs.lang, Messages{lang: Source, mark: true}.LibraryMoveHomeToFolder(name))
-	}
-	for lang := msgs.lang; ; lang = i18n.Parent(lang) {
-		if f := supplied[lang].LibraryMoveHomeToFolder; f != nil {
-			return f(name)
-		}
-		switch lang {
-		case "", "en":
-			return "“" + msgs.arg(name) + "” can't move to a library that's a folder of your own: its video is outside the library, so Kando keeps its subtitles in the library, which only a .kando library can hold."
-		case "ja":
-			return "「" + name + "」は普通のフォルダのライブラリには移動できません。動画がライブラリの外にあるため字幕はライブラリ内に保存しており、それができるのは .kando ライブラリだけです。"
-		case "ko":
-			return "‘" + name + "’은(는) 일반 폴더 라이브러리로 옮길 수 없습니다. 동영상이 라이브러리 밖에 있어 자막을 라이브러리 안에 보관하는데, 이는 .kando 라이브러리만 할 수 있습니다."
-		case "zh-Hans":
-			return "「" + name + "」不能移到普通文件夹资料库：它的视频在资料库外，看懂把它的字幕存在资料库里，只有 .kando 资料库能存放。"
-		case "zh-Hant":
-			return "「" + name + "」不能移到一般資料夾資料庫：它的影片在資料庫外，看懂把它的字幕存在資料庫裡，只有 .kando 資料庫能存放。"
 		}
 	}
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"io/fs"
 	"log"
 	"os"
 	"path/filepath"
@@ -365,11 +366,6 @@ func (a *app) libraryMoveUnitStart(run *libraryMoveRun, unit films.Unit) (bool, 
 		if err := a.libraryMoveCheck(m, item, from); err != nil {
 			return false, err
 		}
-		// A video kept outside the library has its files in its folder there (core.Job.Home), which only a library bundle keeps: a folder of the user's would have them beside the video.
-		if item.Home != "" && !shelfBundle(to) {
-			itemName := films.Name(item)
-			return false, a.libraryMoveRefusal(m, remote.CodeInvalid, func(m locales.Messages) string { return m.LibraryMoveHomeToFolder(itemName) })
-		}
 	}
 	source, err := a.libraryMoveBook(from)
 	if err != nil {
@@ -387,10 +383,16 @@ func (a *app) libraryMoveUnitStart(run *libraryMoveRun, unit films.Unit) (bool, 
 	case films.InDir(from, first.VideoPath):
 		p := libraryMovePlan(from, to, first, a.awayPaths())
 		plan = &p
-	// A video kept outside the library stays where it is, and the folder of its files in the library moves to the other one.
+	// A video kept outside the library stays where it is, and the folder of its files in the library moves to the other one's: the bundle itself, or the hidden folder at the top of a folder of the user's (media.FilesDir).
 	case first.Home != "" && films.InDir(from, first.Home):
 		if _, err := os.Stat(first.Home); err == nil {
-			p := media.PlanFilmMove([]string{first.Home}, true, to)
+			store, err := libraryMoveStore(to)
+			if err != nil {
+				return false, a.libraryMoveRefusal(m, remote.CodeFailed, func(m locales.Messages) string {
+					return m.LibraryMoveFailed(name, a.libraryMoveLabel(m, to), err.Error())
+				})
+			}
+			p := media.PlanFilmMove([]string{first.Home}, true, store)
 			plan = &p
 		}
 	}
@@ -481,11 +483,78 @@ func libraryMovePlan(from, to string, item films.Film, away []string) media.Film
 	if dir := filepath.Dir(video); films.InDir(from, dir) && films.AloneAmong(dir, away, video) {
 		return media.PlanFilmMove([]string{dir}, true, to)
 	}
+	// A film of a folder of the user's opened as a library that has its folder beside it takes the files there (media.FolderHome), the newer, and leaves what a Kando before wrote beside the video where it is.
+	if home := media.FolderHome(video); libraryDirAt(home) {
+		sources := append([]string{video}, media.SameNamed(video)...)
+		return media.PlanFilmMove(append(sources, media.Companions(core.FileBase(video, home))...), false, to)
+	}
 	sources := append(append([]string{video}, media.Companions(video)...), media.SameNamed(video)...)
 	if sub := item.SubtitlePath; sub != "" && filepath.Dir(sub) == filepath.Dir(video) && fileExists(sub) && !slices.Contains(sources, sub) {
 		sources = append(sources, sub)
 	}
 	return media.PlanFilmMove(sources, false, to)
+}
+
+// libraryMoveStore is the folder a library keeps the folders of the films' files of the videos kept outside it in (core.Job.Home): a library bundle itself, or the hidden folder at the top of a folder of the user's opened as a library (media.FilesDir), made when it is not there.
+func libraryMoveStore(to string) (string, error) {
+	if shelfBundle(to) {
+		return to, nil
+	}
+	store := filepath.Join(to, media.FilesDir)
+	if err := os.Mkdir(store, 0o755); err != nil && !errors.Is(err, fs.ErrExist) {
+		return "", err
+	}
+	return store, nil
+}
+
+// libraryMoveSettle lays out the files of the film of the video at video, moved to the library to with what plan moved (move), as to keeps them, once they are there, and returns its folder of its own files and its subtitles then: a library bundle keeps them beside the video, so those in the folder beside it the film had in a folder of the user's (media.FolderHome) come out of it; a folder of the user's keeps them in that folder, so those beside the video go into it. ok is false for a film whose files need no change, as one whose video stayed outside both.
+func libraryMoveSettle(video, home, subtitles, to string, move func(string) (string, bool)) (nextHome, nextSubtitles string, ok bool) {
+	next, moved := move(video)
+	if !moved || !films.InDir(to, next) {
+		return "", "", false
+	}
+	nextSubtitles = subtitles
+	if moved, ok := move(subtitles); ok {
+		nextSubtitles = moved
+	}
+	besideHome := home != "" && filepath.Clean(home) == filepath.Clean(media.FolderHome(video))
+	if shelfBundle(to) {
+		// Moved with its whole folder, the folder of its files is in the bundle now, beside the video: its files come out of it beside the video, named after it, over the copies a Kando before wrote there.
+		if landed, ok := move(home); besideHome && ok && libraryDirAt(landed) {
+			base := core.FileBase(next, landed)
+			for _, file := range media.Companions(base) {
+				os.Rename(file, media.CompanionAt(file, base, next))
+			}
+			if sub, ok := replacePathPrefix(landed, filepath.Dir(next), nextSubtitles); ok {
+				nextSubtitles = media.CompanionAt(sub, base, next)
+			}
+			media.DropEmptyFolderHome(landed)
+		}
+		return "", nextSubtitles, true
+	}
+	nextHome = media.FolderHome(next)
+	if landed, ok := move(home); besideHome && ok && filepath.Clean(landed) == filepath.Clean(nextHome) {
+		return nextHome, nextSubtitles, true
+	}
+	// Its files came beside the video, from a bundle or from the folder of its files the move left: they go into the folder beside it.
+	if err := os.MkdirAll(nextHome, 0o755); err != nil {
+		return "", nextSubtitles, true
+	}
+	media.HideFilesDir(filepath.Dir(nextHome))
+	base := core.FileBase(next, nextHome)
+	for _, file := range media.Companions(next) {
+		os.Rename(file, media.CompanionAt(file, next, base))
+	}
+	for _, file := range media.Companions(core.FileBase(next, filepath.Dir(next))) {
+		if filepath.Base(file) != filepath.Base(next) {
+			os.Rename(file, filepath.Join(nextHome, filepath.Base(file)))
+		}
+	}
+	_ = media.KeepFolderVideo(nextHome, next)
+	if nextSubtitles != "" && filepath.Dir(nextSubtitles) == filepath.Dir(next) {
+		nextSubtitles = filepath.Join(nextHome, filepath.Base(media.CompanionAt(nextSubtitles, next, base)))
+	}
+	return nextHome, nextSubtitles, true
 }
 
 // libraryMoveBusy reports whether item is being processed: its job, or another job of its video, is waiting or running.
@@ -514,6 +583,13 @@ func (a *app) libraryMoveCommit(items []films.Film, from, to string, plan *media
 		return plan.Path(path)
 	}
 	jobs := map[string]bool{}
+	type settled struct{ home, subtitles string }
+	layout := map[string]settled{}
+	for _, item := range items {
+		if home, sub, ok := libraryMoveSettle(item.VideoPath, item.Home, item.SubtitlePath, to, move); ok {
+			layout[item.VideoPath] = settled{home, sub}
+		}
+	}
 	for _, item := range items {
 		a.libraryMoveLines(source, dest, item.VideoPath, move)
 		key := item.Key
@@ -526,6 +602,9 @@ func (a *app) libraryMoveCommit(items []films.Film, from, to string, plan *media
 		} else if !item.Added.IsZero() {
 			// A video added without a job is the other library's added video from now on, with the folder of its files there.
 			home, _ := move(item.Home)
+			if l, ok := layout[item.VideoPath]; ok {
+				home = l.home
+			}
 			a.library.MoveAddedVideo(from, to, item.VideoPath, home)
 		}
 	}
@@ -540,8 +619,12 @@ func (a *app) libraryMoveCommit(items []films.Film, from, to string, plan *media
 		if next, ok := move(job.SubtitlePath); ok {
 			a.library.Jobs[i].SubtitlePath = next
 		}
-		// The folder of the film's files moves with its subtitles, and is always in the job's library (core.Job.Home); one that was not there to move is given again in the other library when the film is next written to (libraryAdopt).
+		// The folder of the film's files moves with its subtitles, and is always in the job's library (core.Job.Home); one that was not there to move is given again in the other library when the film is next written to (libraryAdopt). A film whose video moved into the other library has its files laid out as that one keeps them (libraryMoveSettle).
 		home, _ := move(job.Home)
+		if l, ok := layout[job.VideoPath]; ok {
+			home = l.home
+			a.library.Jobs[i].SubtitlePath = l.subtitles
+		}
 		a.library.Jobs[i].Home = home
 		a.library.Jobs[i].LibraryDir = to
 	}
@@ -550,6 +633,14 @@ func (a *app) libraryMoveCommit(items []films.Film, from, to string, plan *media
 	}
 	if copied {
 		left = plan.RemoveSources() != nil
+	}
+	// The folder of a film's files beside its video, in a folder of the user's opened as a library, goes once its files moved out of it, and the hidden folder that held it once it holds none (media.FilesDir).
+	for _, item := range items {
+		if item.VideoPath != "" {
+			media.DropEmptyFolderHome(media.FolderHome(item.VideoPath))
+		}
+	}
+	if copied {
 		a.libraryMoveRefresh(from, to)
 	}
 	return keys, left

@@ -35,7 +35,8 @@ const talkSubtitles = "1\n00:00:01,000 --> 00:00:02,500\n你好。\nHello.\n\n2\
 // playerFilm is a library at a temporary folder holding the film "talk": its video, a placeholder the fake ffmpeg plays as a clip of seconds, and its bilingual subtitles, as a finished job made them. It returns the app showing the library, its window and its background updates, and the film.
 func playerFilm(t *testing.T, seconds int, p media.Pipeline, opts ...nsgotest.Option) (*app, *nsgotest.App, chan func(), films.Film) {
 	t.Helper()
-	dir := t.TempDir()
+	// A library bundle, whose films keep their files beside their videos; a folder of the user's keeps them in the folder beside each (library_folder_test.go).
+	dir := filepath.Join(t.TempDir(), "player"+media.LibraryExt)
 	video := filepath.Join(dir, "talk", "talk.mp4")
 	writeFakeClip(t, video, seconds, "202020", "101010")
 	srt := filepath.Join(dir, "talk", "talk.bilingual.srt")

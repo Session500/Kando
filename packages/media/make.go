@@ -241,6 +241,16 @@ func Make(ctx context.Context, p Pipeline, job core.Job, language, device string
 			coming <- downloaded{path: path, err: err}
 		}()
 	}
+	// A video a folder of the user's opened as a library holds keeps its film's files in its folder beside it (FolderHome), not beside it: one downloaded into such a library is given it as it comes, as the app gives a video already there its folder before its job runs. The job keeps it (core.Job.Home).
+	if job.Home == "" && device != "" {
+		if home := FolderHomeFor(job.LibraryDir, video); home != "" {
+			if _, _, err := AdoptInto(video, home, device); err != nil {
+				return fail(StageCheck, err)
+			}
+			job.Home = home
+			report(job)
+		}
+	}
 	// base is what the film's own files are named after: its video, or video.<ext> in the folder Kando keeps them in for a video outside the library (core.Job.Home), which is never written beside.
 	base := core.FileBase(video, job.Home)
 	// A local film marks its chapters in its file, if anywhere, as an audiobook does; its titles are translated as a site's are.

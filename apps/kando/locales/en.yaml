@@ -1137,6 +1137,11 @@ libraryAdoptFailed:
 libraryFolderGone:
   message: "The library's folder isn't there, as when the disk it's on isn't connected. Connect it, then try again."
   description: "Why a film of a video kept outside its library could not be made or written to: the library's folder, where Kando keeps the film's subtitles, is missing, as on a disk that is not connected. Shown as a failed job's reason, and in the message bar as a film opens."
+libraryHomeOtherVideo:
+  message: "“{name}” isn't the file its subtitles were made for anymore. If they don't match, make them again."
+  description: "Message bar once, as a film of a folder opened as a library opens whose video file was replaced in Finder by another of the same name (a different size), so its subtitles may belong to the other file."
+  placeholders:
+    name: { type: "String", example: "Lesson 1" }
 libraryAddedOnly:
   message: "Added {count, plural, one {# film} other {# films}} to the library. Open one to make its subtitles."
   description: "Message bar after films found in folders dropped were only added to the library, without subtitles."
@@ -3068,11 +3073,6 @@ libraryMoveLinesUnread:
   description: "Message bar when a film is to be moved between libraries but one library's saved lines file (study.json, or saved-lines.json before it) cannot be read; writing it would lose what is in it, so Kando moves nothing."
   placeholders:
     library: { type: "String", example: "English Listening" }
-libraryMoveHomeToFolder:
-  message: "“{name}” can't move to a library that's a folder of your own: its video is outside the library, so Kando keeps its subtitles in the library, which only a .kando library can hold."
-  description: "Error when a film whose video is kept outside the library (Kando keeps its subtitles inside the .kando library) is to be moved to a library that is an ordinary folder opened as a library; Kando does not move it."
-  placeholders:
-    name: { type: "String", example: "Learn Rust" }
 libraryMoveNoVideo:
   message: "“{name}” has no video to move yet."
   description: "Error when a film whose video has not been downloaded yet is to be moved to another library."
