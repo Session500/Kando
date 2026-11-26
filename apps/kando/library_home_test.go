@@ -688,9 +688,11 @@ func TestAnOpenFilmFollowsTheFolderItIsGiven(t *testing.T) {
 	}
 	f.before = folderHashes(t, f.user)
 	phone := phoneFilmOf(item, phoneShelf{})
+	// A phone's call runs on the engine's goroutine (phoneStateCall), which lets the areas follow what it changed.
 	if _, err := a.phoneStateCorrect(testVideos, phone, homePhoneEdit(phone.ID, "手机改的"), nil, false); err != nil {
 		t.Fatal(err)
 	}
+	refresh(f.tt, a)
 	job, _ := a.library.Find(id)
 	if job.Home == "" {
 		t.Fatal("the phone did not give the film its folder")
