@@ -263,3 +263,28 @@ func TestCategoryDialogsFollowTheLanguageInPlace(t *testing.T) {
 	}
 	apply(tt, a, a.CloseDeleteCategory)
 }
+
+// TestShowingACategoryLeavesTheFilmsItHidesOutOfTheSelection selects both films, then shows a category holding one: the other leaves the selection, as a search hiding it does, so File › 从资料库移除 and the other rows act on the film the page shows alone.
+func TestShowingACategoryLeavesTheFilmsItHidesOutOfTheSelection(t *testing.T) {
+	a, tt, station, episode := categoryLibrary(t)
+	apply(tt, a, func() {
+		a.categoryPutNamed("动漫", episode)
+		a.Selection().All(films.Keys(a.libraryShownFilms()))
+	})
+	if a.Selection().Len() != 2 {
+		t.Fatalf("selected %v", a.Selection().Keys)
+	}
+	anime, _ := a.cats.book.Named("动漫")
+	tt.Press("id:category-" + anime.ID)
+	refresh(tt, a)
+	if got := shownFilms(a); !slices.Equal(got, []string{"episode"}) {
+		t.Fatalf("动漫 shows %v", got)
+	}
+	var selected []string
+	for _, item := range a.librarySelected() {
+		selected = append(selected, item.VideoPath)
+	}
+	if !slices.Equal(a.Selection().Keys, []string{"episode"}) || !slices.Equal(selected, []string{episode}) {
+		t.Fatalf("after showing 动漫 the selection is %v, File's rows act on %v; %s is hidden", a.Selection().Keys, selected, station)
+	}
+}
