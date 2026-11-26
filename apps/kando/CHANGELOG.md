@@ -2,6 +2,16 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.65.0 - 2026-11-26
+
+### Features
+
+- Follow a folder and import its new videos by themselves (#503)
+
+### Fixes
+
+- Require Kando 0.64.0 for kando.plex 1.1.0 (#502)
+
 ## 0.64.0 - 2026-11-26
 
 ### Features
