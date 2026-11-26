@@ -16,7 +16,7 @@ import (
 
 // Terms suggested for the glossary: once a job translates a film, it asks the AI service for the names and terms its lines come back to (media.WithTermSuggestions), unless offline mode keeps it from a service off this computer, and keeps them beside the video (media.SuggestionsPath). The open film's 术语 tab lists those its glossary does not hold yet, each added to the film's own terms with a press, as a step Undo takes back (glossaryChange), or dismissed, which keeps it from being suggested again. A script plugin granted kando.glossary.suggest proposes terms for the open film as well (glossarySuggestFromPlugin), which the same list shows under the plugin's name until another film is open, after the AI service's.
 
-// glossarySuggest is the open film's suggestions: video is the film's video, mod when its subtitles were read as they were when the suggestions were last read, read whether they have been, so a job translating the film again has them read again; list is what the file holds once read (ok false for a file that could not be read, which is then not written over), gen telling a read from one of a film opened before; plugin is what script plugins proposed for the film since it was opened, kept in memory alone, at most plugins.SuggestHeld.
+// glossarySuggest is the open film's suggestions: video is what the film's files are named after (glossaryUI.base), mod when its subtitles were read as they were when the suggestions were last read, read whether they have been, so a job translating the film again has them read again; list is what the file holds once read (ok false for a file that could not be read, which is then not written over), gen telling a read from one of a film opened before; plugin is what script plugins proposed for the film since it was opened, kept in memory alone, at most plugins.SuggestHeld.
 type glossarySuggest struct {
 	video  string
 	mod    time.Time
@@ -37,7 +37,8 @@ type glossaryPluginTerm struct {
 // glossarySuggestFollow reads the open film's suggestions off the engine's goroutine once another film is open, and again once its subtitles are read again after a job rewrote them, keeping the ones it holds until then, and reports whether it dropped them for another film's.
 func (a *app) glossarySuggestFollow() bool {
 	g := &a.gloss.suggest
-	video := a.gloss.video
+	// The suggestions are named after the film's files (core.FileBase), its video's path or its folder's in the library.
+	video := a.glossaryBase()
 	dropped := false
 	if video != g.video {
 		dropped = len(g.list.Terms) > 0 || len(g.plugin) > 0

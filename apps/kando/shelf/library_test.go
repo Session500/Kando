@@ -1004,7 +1004,7 @@ func TestAddedVideosRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := back.AddedIn("/films/日语学习.kando")
-	if len(got) != 3 || !got["/videos/a.mp4"].Equal(first) || !got["/videos/c.mp4"].Equal(first.Add(time.Hour)) {
+	if len(got) != 3 || !got["/videos/a.mp4"].At.Equal(first) || !got["/videos/c.mp4"].At.Equal(first.Add(time.Hour)) {
 		t.Fatalf("read back %v", got)
 	}
 	if !back.Unadd("/films/日语学习.kando", "/videos/b.mp4") || back.Unadd("/films/日语学习.kando", "/videos/b.mp4") {

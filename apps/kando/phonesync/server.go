@@ -39,6 +39,8 @@ type Film struct {
 	Duration time.Duration
 	// Video is its video file, Poster its poster's file, "" for none yet. For a film that keeps no video (SubtitlesOnly, core.Job.SubtitlesOnly) Video is where its sound was, which its subtitles are named after, and no file.
 	Video, Poster string
+	// Base is what its own files are named after (core.FileBase): Video, or video.<ext> in the folder of the library a video kept outside it keeps them in (core.Job.Home); "" names them after Video.
+	Base          string
 	SubtitlesOnly bool
 	// Sound is a film of sound alone, as a podcast's mp3 (media.IsSoundFile), served only to a phone that asks for such films (psync.WithSound).
 	Sound bool

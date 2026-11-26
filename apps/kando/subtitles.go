@@ -86,8 +86,9 @@ func playerErrTextIn(m locales.Messages, id string) string {
 
 // subtitleView is the subtitle file open on the film page. err is one of the player's error IDs, or "".
 type subtitleView struct {
-	key, video string
-	path       string
+	// base is what the film's own files are named after (core.FileBase): its video, or video.<ext> in the folder Kando keeps them in for a video outside the library (core.Job.Home).
+	key, base string
+	path      string
 	// machine is the file's cues as the pipeline wrote them, and edits the user's corrections of them, kept in the film's corrections file (media.CorrectionsPath); editsErr is set when that file could not be read, which is then not written over. cues are the lines as they show, the corrections laid over the machine's and those marked as no speech left out (core.CorrectSegments), and from the corrected line each of them comes from, index for index.
 	machine []core.Segment
 	// machineDrafts are the spans of the machine's lines that are drafts, not proofread as a whole yet (media.DraftSpans); drafts says, cue for cue, which of cues come from one.
@@ -160,12 +161,12 @@ func (a *app) subtitlesFollowRedo() bool {
 	return subs.redo.kind != kind
 }
 
-// loadSubtitles reads the lines of the film whose video is at video off the engine's goroutine: its subtitle document, with path, the subtitle file it shows, taken in where it changed (media.ReadTrack), and the user's corrections of the film (media.LoadCorrections), and the frames of the 片段 its lines cut the film into once read (loadClipFrames). An empty path means this film has no subtitle yet; a file that is gone or cannot be read says so, as the film's lines come from that file until its subtitles are made into the document itself.
-func (a *app) loadSubtitles(key, video, path string) {
+// loadSubtitles reads the lines of the film whose files are named after base (core.FileBase) off the engine's goroutine: its subtitle document, with path, the subtitle file it shows, taken in where it changed (media.ReadTrack), and the user's corrections of the film (media.LoadCorrections), and the frames of the 片段 its lines cut the film into once read (loadClipFrames). An empty path means this film has no subtitle yet; a file that is gone or cannot be read says so, as the film's lines come from that file until its subtitles are made into the document itself.
+func (a *app) loadSubtitles(key, base, path string) {
 	if a.player.subs.key == key && a.player.subs.path == path {
 		return
 	}
-	a.player.subs = subtitleView{key: key, video: video, path: path}
+	a.player.subs = subtitleView{key: key, base: base, path: path}
 	if path == "" {
 		a.player.subs.ready = true
 		return
@@ -181,7 +182,7 @@ func (a *app) loadSubtitles(key, video, path string) {
 // subtitlesRead reads the open subtitle file's lines off the engine's goroutine, and shows them once read. A read again of lines already shown (subtitleView.reading) keeps the line on screen as it was (subtitlesHold).
 func (a *app) subtitlesRead() {
 	subs := &a.player.subs
-	key, video, path, update := subs.key, subs.video, subs.path, a.update
+	key, base, path, update := subs.key, subs.base, subs.path, a.update
 	// A read of the open film's subtitles again knows what showed before it, so the line on screen is kept as it was.
 	var was []core.Segment
 	if subs.ready && subs.err == "" {
@@ -212,7 +213,7 @@ func (a *app) subtitlesRead() {
 			} else {
 				msg = playerErrSubsUnreadable
 			}
-		} else if doc, err := media.ReadTrack(video, path, subtitlesTranscript(video)); err != nil {
+		} else if doc, err := media.ReadTrack(base, path, subtitlesTranscript(base)); err != nil {
 			msg = playerErrSubsUnreadable
 		} else {
 			cues = track.Bilingual(doc.Redoing(redo.gen, redo.keep))
@@ -318,12 +319,12 @@ func (a *app) subtitlesLetGo() bool {
 	return true
 }
 
-// subtitlesTranscript is the .srt of the speech alone beside the video at video (media.TranscriptOf), by which a film's bilingual subtitles are split into each line's original and translation; "" for a film without a video.
-func subtitlesTranscript(video string) string {
-	if video == "" {
+// subtitlesTranscript is the .srt of the speech alone of the film whose files are named after base (media.TranscriptOf), by which a film's bilingual subtitles are split into each line's original and translation; "" for a film without a video.
+func subtitlesTranscript(base string) string {
+	if base == "" {
 		return ""
 	}
-	return media.TranscriptOf(video)
+	return media.TranscriptOf(base)
 }
 
 // reloadOpenSubtitles reads the open subtitle again when the file on disk was rewritten or removed, the lines read before showing until it lands (subtitleView.reading).

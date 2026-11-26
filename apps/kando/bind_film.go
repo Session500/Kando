@@ -120,7 +120,7 @@ func (a *app) RetryOpen(id string) {
 		a.Retry(id)
 		if a.queue.job != nil {
 			a.openKey = a.queue.job.ID
-			a.loadSubtitles(a.queue.job.ID, a.queue.job.VideoPath, a.queue.job.SubtitlePath)
+			a.loadSubtitles(a.queue.job.ID, a.queue.job.FileBase(), a.queue.job.SubtitlePath)
 		}
 	}
 }
@@ -164,7 +164,17 @@ func (a *app) ErrText(cx *ns.Scope, id string) string { return a.playerErrText(l
 func (a *app) OpeningText(cx *ns.Scope) string { return a.playerRemuxText(locales.For(cx)) }
 
 // PosterFile is the file of the poster the library keeps for the video at path, which the player shows while the picture opens; the image is read off the engine's goroutine when it is shown, and a video without one shows the black stage.
-func (a *app) PosterFile(path string) string { return posterDest(a.lib.posterDir, path) }
+func (a *app) PosterFile(path string) string {
+	return posterFor(a.lib.posterDir, path, a.playerHomeOf(path))
+}
+
+// playerHomeOf is the folder in the library of the files of the open film, when its video is at path and kept outside the library (films.Film.Home), "" otherwise.
+func (a *app) playerHomeOf(path string) string {
+	if item, ok := a.openFilm(); ok && item.VideoPath == path {
+		return item.Home
+	}
+	return ""
+}
 
 func (a *app) PlayHead() time.Duration {
 	if a.player.play == nil {
@@ -353,7 +363,7 @@ func (a *app) SetFilmChapterUse(use core.ChapterUse) {
 	if path == "" || len(info.Chapters) < 2 || !use.Known() || info.ChapterUse == use {
 		return
 	}
-	_ = media.SetChapterUse(path, use)
+	_ = media.SetChapterUse(a.player.film.infoBase, use)
 	info.ChapterUse = use
 	a.loadClipFrames()
 }

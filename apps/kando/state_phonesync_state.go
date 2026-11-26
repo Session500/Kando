@@ -56,7 +56,7 @@ func phoneStateReadDisk(lib phonesync.Library, films []phonesync.Film) phoneStat
 	d := phoneStateDisk{edits: map[string][]core.Correction{}}
 	d.book, d.bookErr = saved.Load(lib.Dir)
 	for _, f := range films {
-		if edits, err := media.LoadCorrections(media.CorrectionsPath(f.Video)); err == nil {
+		if edits, err := media.LoadCorrections(f.Corrections); err == nil {
 			d.edits[f.ID] = edits
 		}
 	}
@@ -227,7 +227,7 @@ func (a *app) phoneStateOpenFilm(films map[string]phonesync.Film) (string, bool)
 	}
 	open := media.CorrectionsPath(a.player.subs.path)
 	for id, f := range films {
-		if media.CorrectionsPath(f.Video) == open {
+		if f.Corrections == open {
 			return id, true
 		}
 	}
@@ -372,7 +372,7 @@ func (a *app) phoneStateKeep(st *phoneStateLib, records []psync.Record) error {
 			continue
 		}
 		have, read := st.edits[film]
-		edits, err := a.phoneStateCorrect(f.Video, recs, have, read)
+		edits, err := a.phoneStateCorrect(st.lib.Dir, f, recs, have, read)
 		if err != nil {
 			return err
 		}
@@ -399,16 +399,19 @@ func (a *app) phoneStateSetPosition(path string, at time.Duration, played time.T
 	}
 }
 
-// phoneStateCorrect lays records, corrections of the film whose video is at video, over its corrections, have as the call read them (read false for a file it could not read, which is read again), and returns them as kept. The open film's go through the player (correctWrite), which shows them, and stay out of its Undo, as they are not the user's own steps there; another film's are written to its file.
-func (a *app) phoneStateCorrect(video string, records []psync.Record, have []core.Correction, read bool) ([]core.Correction, error) {
-	path := media.CorrectionsPath(video)
+// phoneStateCorrect lays records, corrections of the film f of the library at dir, over its corrections, have as the call read them (read false for a file it could not read, which is read again), and returns them as kept. The open film's go through the player (correctWrite), which shows them, and stay out of its Undo, as they are not the user's own steps there; another film's are written to its file, once a video kept outside the library has its folder there (phoneAdopt).
+func (a *app) phoneStateCorrect(dir string, f phonesync.Film, records []psync.Record, have []core.Correction, read bool) ([]core.Correction, error) {
+	base, err := a.phoneAdopt(dir, f.ID, f.Video)
+	if err != nil {
+		return nil, err
+	}
+	path := media.CorrectionsPath(base)
 	open := a.correctLoaded() && media.CorrectionsPath(a.player.subs.path) == path
 	edits := have
 	switch {
 	case open:
 		edits = a.player.subs.edits
 	case !read:
-		var err error
 		if edits, err = media.LoadCorrections(path); err != nil {
 			return nil, err
 		}

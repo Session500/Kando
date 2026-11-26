@@ -339,6 +339,8 @@ type Film struct {
 	SpokenLanguage string `json:"spoken_language,omitempty"`
 	SpeechLanguage string `json:"speech_language,omitempty"`
 	VideoPath      string `json:"video_path,omitempty"`
+	// FileBase is what the film's own files are named after (core.FileBase): VideoPath, or video.<ext> in the folder of the library a video kept outside it keeps them in. It is the app's own, not sent.
+	FileBase string `json:"-"`
 	// VideoLocation is where the video is when it was moved out of the library's folder to a storage location, nil for a video in the folder; VideoPath is then the path it had there, which the film is still known by and its subtitles are named after.
 	VideoLocation *VideoLocation `json:"video_location,omitempty"`
 	// Subtitles is the bilingual .srt, "" until the film is done; OriginalSubtitles the .srt of the speech alone.

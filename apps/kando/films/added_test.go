@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	kandoshelf "kando/apps/kando/shelf"
 	"kando/packages/core"
 	"kando/packages/media"
 )
@@ -27,7 +28,7 @@ func TestAddedVideosAreListedWhereTheyWereAdded(t *testing.T) {
 		{ID: "held", Stage: core.StageComplete, LibraryDir: root, CompletedAt: noon.Add(-time.Hour), VideoPath: held, Source: core.FileURL(held)},
 		{ID: "done-early", Stage: core.StageComplete, LibraryDir: root, VideoPath: filepath.Join(root, "y", "video.mp4")},
 	}
-	videos := AddedVideos(root, jobs, nil, map[string]time.Time{newer: noon.Add(time.Hour), older: noon.Add(-90 * time.Minute), held: noon})
+	videos := AddedVideos(root, jobs, nil, map[string]kandoshelf.Added{newer: {At: noon.Add(time.Hour)}, older: {At: noon.Add(-90 * time.Minute)}, held: {At: noon}})
 	videos = append(videos, media.Video{Path: filepath.Join(root, "found.mp4"), Name: "found.mp4"})
 	name := func(core.Job) string { return "" }
 	items := List(root, jobs, videos, nil, name, name)
@@ -58,7 +59,7 @@ func TestAddedVideoIsNotHiddenByAnotherLibrarysJob(t *testing.T) {
 	root, other, outside := filepath.Join(t.TempDir(), "a.kando"), filepath.Join(t.TempDir(), "b.kando"), t.TempDir()
 	video := filepath.Join(outside, "talk.mp4")
 	jobs := []core.Job{{ID: "other", Stage: core.StageComplete, LibraryDir: other, VideoPath: video, Source: core.FileURL(video)}}
-	added := map[string]time.Time{video: time.Date(2026, 11, 20, 12, 0, 0, 0, time.UTC)}
+	added := map[string]kandoshelf.Added{video: {At: time.Date(2026, 11, 20, 12, 0, 0, 0, time.UTC)}}
 	name := func(core.Job) string { return "" }
 
 	items := List(root, jobs, AddedVideos(root, jobs, nil, added), nil, name, name)

@@ -241,15 +241,17 @@ func Make(ctx context.Context, p Pipeline, job core.Job, language, device string
 			coming <- downloaded{path: path, err: err}
 		}()
 	}
+	// base is what the film's own files are named after: its video, or video.<ext> in the folder Kando keeps them in for a video outside the library (core.Job.Home), which is never written beside.
+	base := core.FileBase(video, job.Home)
 	// A local film marks its chapters in its file, if anywhere, as an audiobook does; its titles are translated as a site's are.
 	if ec, ok := p.(EmbeddedChapterer); ok && local && len(chapters) == 0 {
 		chapters = ec.EmbeddedChapters(ctx, hearFrom)
 	}
 	if len(chapters) > 0 {
-		keepChapters(video, chapters, job.ChapterUse)
+		keepChapters(base, chapters, job.ChapterUse)
 	}
 	length := p.Length(ctx, hearFrom)
-	doc, err := track.Read(video)
+	doc, err := track.Read(base)
 	switch {
 	case err == nil && doc.Newer:
 		err = track.ErrNewer
@@ -271,12 +273,12 @@ func Make(ctx context.Context, p Pipeline, job core.Job, language, device string
 	}
 	// A redo keeps showing the film as its files hold it until it is done: what they hold that the document does not is taken in first, as the film it redoes.
 	if job.Redo != "" {
-		if events, err := trackFiles(doc, job.SubtitlePath, TranscriptOf(video)); err == nil && len(events) > 0 {
-			written, _ := track.Append(video, device, events...)
+		if events, err := trackFiles(doc, job.SubtitlePath, TranscriptOf(base)); err == nil && len(events) > 0 {
+			written, _ := track.Append(base, device, events...)
 			doc.Events = append(doc.Events, written...)
 		}
 	}
-	m := &making{ctx: ctx, p: p, job: &job, video: video, hearFrom: hearFrom, streamed: streamed, soundOnly: soundOnly, redo: job.Redo != "", device: device, doc: doc, report: report, coming: coming}
+	m := &making{ctx: ctx, p: p, job: &job, video: video, base: base, hearFrom: hearFrom, streamed: streamed, soundOnly: soundOnly, redo: job.Redo != "", device: device, doc: doc, report: report, coming: coming}
 	if _, fetches := p.(PlatformSubtitler); !fetches || local || job.SubtitleSource != core.SubtitlesPlatform {
 		m.siteState = siteNone
 	}
@@ -378,6 +380,8 @@ type making struct {
 	p       Pipeline
 	job     *core.Job
 	video   string
+	// base is what the film's own files are named after (core.FileBase): video, or video.<ext> in the job's Home for a video kept outside the library, which Kando does not write beside.
+	base string
 	// hearFrom is the file the speech is heard from: the video, or the sound of a link whose video is still coming, or that keeps none (soundOnly).
 	hearFrom string
 	// streamed is a film indexed from a media source, whose hearFrom is the address the app serves its video at, which is no file to remove.
@@ -471,11 +475,11 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 	if m.redo {
 		job.RedoGen = gen
 	}
-	m.transcript = TranscriptOf(m.video)
-	if _, onDisk := localVideoPath(job.Source); (onDisk || IsSourceRef(job.Source)) && !job.Transcribed && foreignTranscript(m.video) {
-		m.transcript = asideTranscriptPath(m.video)
+	m.transcript = TranscriptOf(m.base)
+	if _, onDisk := localVideoPath(job.Source); (onDisk || IsSourceRef(job.Source)) && !job.Transcribed && foreignTranscript(m.base) {
+		m.transcript = asideTranscriptPath(m.base)
 	}
-	m.bilingual = strings.TrimSuffix(m.video, filepath.Ext(m.video)) + ".bilingual.srt"
+	m.bilingual = BilingualPath(m.base)
 
 	// spoken is the language the film is heard in, which a redo keeps to itself until it is done, so a redo that fails leaves the film's as it was.
 	spoken := job.SpokenLanguage
@@ -788,7 +792,7 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 	// Terms are suggested for the film's glossary once it is translated, when the job asks for them (WithTermSuggestions), and kept before its subtitles are written whole, whose change has the window read them again (state_glossary_suggest.go), so it reads these with them. A film not translated, or whose missing lines alone are translated (fillMissing), keeps the suggestions it had, and so does one whose request failed; a making stopped while it asks stops.
 	if notTranslated == "" && !same {
 		if terms, ok := suggest(m.ctx, m.p, track.Originals(lines), track.Translations(lines), filmTitle(*job), language); ok {
-			_ = KeepSuggestions(m.video, terms)
+			_ = KeepSuggestions(m.base, terms)
 		}
 		if err := m.ctx.Err(); err != nil {
 			return m.fail(StageTranslate, err)
@@ -849,7 +853,7 @@ func (m *making) run(length time.Duration, language string, watch Watcher) core.
 	}
 	// The chapters' titles are translated as the lines are; a film not translated has their earlier translations cleared (translateChapters).
 	if notTranslated == "" {
-		if err := translateChapters(m.ctx, m.p, m.video, language, same); err != nil {
+		if err := translateChapters(m.ctx, m.p, m.base, language, same); err != nil {
 			return m.fail(StageTranslate, err)
 		}
 	}
@@ -1164,7 +1168,8 @@ func translateAgain(ctx context.Context, p Pipeline, job *core.Job, language, de
 	if device == "" {
 		return failed(StageCheck, track.ErrDevice)
 	}
-	doc, err := track.Read(job.VideoPath)
+	base := job.FileBase()
+	doc, err := track.Read(base)
 	if err == nil && doc.Newer {
 		err = track.ErrNewer
 	}
@@ -1172,14 +1177,14 @@ func translateAgain(ctx context.Context, p Pipeline, job *core.Job, language, de
 		return failed(StageTranslate, err)
 	}
 	// A film whose document holds no line is read from its files, which need the transcript: the bilingual subtitles alone cannot tell a translation from an original line of two rows.
-	transcript := TranscriptOf(job.VideoPath)
+	transcript := TranscriptOf(base)
 	if len(doc.View()) == 0 && !fileExists(transcript) {
 		return failed(StageTranslate, ErrNoTranscript)
 	}
 	if events, err := trackFiles(doc, job.SubtitlePath, transcript); err != nil {
 		return failed(StageTranslate, err)
 	} else if len(events) > 0 {
-		written, err := track.Append(job.VideoPath, device, events...)
+		written, err := track.Append(base, device, events...)
 		doc.Events = append(doc.Events, written...)
 		if err != nil {
 			return failed(StageExport, err)
@@ -1192,7 +1197,7 @@ func translateAgain(ctx context.Context, p Pipeline, job *core.Job, language, de
 	if watch == nil {
 		watch = From(job.ResumeAt)
 	}
-	m := &making{ctx: ctx, p: p, job: job, video: job.VideoPath, hearFrom: job.VideoPath, redo: true, copied: true, siteState: siteNone, reference: referenceKept, device: device, doc: doc, report: report}
+	m := &making{ctx: ctx, p: p, job: job, video: job.VideoPath, base: base, hearFrom: job.VideoPath, redo: true, copied: true, siteState: siteNone, reference: referenceKept, device: device, doc: doc, report: report}
 	// The film is as long as its lines reach: the line that ends last, which need not be the one that starts last.
 	var length time.Duration
 	for _, l := range lines {
@@ -1216,7 +1221,8 @@ func fillMissing(ctx context.Context, p Pipeline, job *core.Job, language, devic
 	if device == "" {
 		return failed(StageCheck, track.ErrDevice)
 	}
-	video := job.VideoPath
+	// video is what the film's files are named after (core.Job.FileBase): this neither reads nor hears the video.
+	video := job.FileBase()
 	doc, err := track.Read(video)
 	if err == nil && doc.Newer {
 		err = track.ErrNewer
@@ -1259,7 +1265,7 @@ func fillMissing(ctx context.Context, p Pipeline, job *core.Job, language, devic
 			missing = append(missing, i)
 		}
 	}
-	bilingual := strings.TrimSuffix(video, filepath.Ext(video)) + ".bilingual.srt"
+	bilingual := BilingualPath(video)
 	project := func() error {
 		files, err := projectTrack(doc, doc.Lines(gen), transcript, bilingual)
 		if err != nil {
@@ -1417,7 +1423,7 @@ const makeSource = "make"
 
 // append writes events to the device's log and keeps them in the document.
 func (m *making) append(events ...track.Event) error {
-	written, err := track.Append(m.video, m.device, events...)
+	written, err := track.Append(m.base, m.device, events...)
 	m.doc.Events = append(m.doc.Events, written...)
 	if err != nil && m.writeErr == nil {
 		m.writeErr = err
@@ -2074,7 +2080,7 @@ func (m *making) commitFinal(d drafted) {
 	}
 	start, _ := d.in.units[0].Span()
 	end := start + track.Block*track.Cell
-	path := ProofsPath(m.video)
+	path := ProofsPath(m.base)
 	kept, err := LoadProofs(path)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return
@@ -2102,7 +2108,7 @@ func (m *making) keepProofs(gen string, last track.Plan) {
 		}
 	}
 	slices.SortFunc(proofs, func(a, b core.Proof) int { return int(a.Span.Start - b.Span.Start) })
-	_ = SaveProofs(ProofsPath(m.video), proofs)
+	_ = SaveProofs(ProofsPath(m.base), proofs)
 }
 
 // progress reports how far the film is made: hearing while cells are left to hear, then translating, or, for a film whose drafts only proofread (proofreads, track.Making.Proofread), proofreading, which says how many of its lines are drafted.
@@ -2183,7 +2189,7 @@ func (m *making) spawn(work func()) {
 
 // reread reads the film's logs again, so what was written beside the making, as the user's decision on a change of the final proofread (DecideProofs), is written out too and not lost.
 func (m *making) reread() {
-	if doc, err := track.Read(m.video); err == nil && len(doc.Events) >= len(m.doc.Events) {
+	if doc, err := track.Read(m.base); err == nil && len(doc.Events) >= len(m.doc.Events) {
 		m.doc = doc
 	}
 }

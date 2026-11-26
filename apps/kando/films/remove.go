@@ -13,7 +13,9 @@ import (
 type removeLook struct {
 	name            string
 	outside, folder bool
-	count           int
+	// home is set for a video outside the library whose own files Kando keeps in a folder of the library (Film.Home), which goes to the Trash.
+	home  bool
+	count int
 	// stored names the storage location the film's video is on, whose copy there is deleted too (Film.Stored), "" for a video in the library's folder; of several films, one of those whose video is on one.
 	stored string
 }
@@ -42,7 +44,7 @@ func (r removeDialog) Render(cx *core.Scope) core.Node {
 			return l
 		}
 		item := items[0]
-		return removeLook{name: filmName(item), outside: !InDir(a.LibraryDir(), item.VideoPath), folder: folder, count: 1, stored: a.StoredPlace(item)}
+		return removeLook{name: filmName(item), outside: !InDir(a.LibraryDir(), item.VideoPath), home: item.Home != "", folder: folder, count: 1, stored: a.StoredPlace(item)}
 	})
 	cancel := live.Do(a, a.CloseRemove)
 	trash := live.Do(a, func() {
@@ -69,6 +71,8 @@ func (r removeDialog) Render(cx *core.Scope) core.Node {
 				return locales.FilmsRemoveManyMessage(cx)
 			case l.stored != "":
 				return locales.FilmsRemoveStored(cx, l.stored)
+			case l.outside && l.home:
+				return locales.FilmsRemoveOutsideHome(cx)
 			case l.outside:
 				return locales.FilmsRemoveOutside(cx)
 			case l.folder:

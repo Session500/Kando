@@ -19,6 +19,7 @@ import (
 	"kando/apps/kando/playlist"
 	"kando/apps/kando/plugins"
 	"kando/apps/kando/remote"
+	"kando/apps/kando/shelf"
 	"kando/apps/kando/sidebar"
 	"kando/apps/kando/sites/catalog"
 	"kando/apps/kando/toolhealth"
@@ -177,7 +178,7 @@ func (a *app) remotePlugins(ctx context.Context) ([]remote.Plugin, error) {
 // remoteStatus is what the app is and whether a job can start: the sidebar's status line, the tools the pipeline runs, the queue as the open library's 处理中 shows it (remoteQueue), and the libraries the app knows, with how many films each holds, read off the UI thread for those that are not open (remoteCountLibraries), but for a locked one, which says only that it is.
 func (a *app) remoteStatus(ctx context.Context) (remote.Status, error) {
 	var jobs []core.Job
-	var added map[string]map[string]time.Time
+	var added map[string]map[string]shelf.Added
 	s, err := remote.OnUI(ctx, a.update, func() (remote.Status, error) {
 		ready := a.readiness()
 		running, waiting, _ := a.remoteQueue()
@@ -226,7 +227,7 @@ func (a *app) remoteStatus(ctx context.Context) (remote.Status, error) {
 }
 
 // remoteCountLibraries counts the films of each library that is not open, as countLibraries does for the library switcher, with jobs, the shelf's: those the shelf keeps for it, the videos in its folder, and those added to it without a job (added, shelf.Library.Added). A library whose folder cannot be read is missing.
-func remoteCountLibraries(libs []remote.Library, jobs []core.Job, added map[string]map[string]time.Time) {
+func remoteCountLibraries(libs []remote.Library, jobs []core.Job, added map[string]map[string]shelf.Added) {
 	noName := func(core.Job) string { return "" }
 	for i := range libs {
 		if libs[i].Open || libs[i].Locked {
@@ -345,7 +346,7 @@ func remoteFilmCues(f remote.Film) ([]remote.Cue, error) {
 	if !fileExists(subtitles) {
 		subtitles = ""
 	}
-	doc, err := media.ReadTrack(f.VideoPath, subtitles, f.OriginalSubtitles)
+	doc, err := media.ReadTrack(f.FileBase, subtitles, f.OriginalSubtitles)
 	if err != nil {
 		return nil, remote.Errorf(remote.CodeFailed, "read the subtitles of %q: %v", f.Title, err)
 	}
@@ -1040,6 +1041,7 @@ func remoteFilmOfIn(m locales.Messages, item films.Film) remote.Film {
 		SpokenLanguage: item.Spoken,
 		SpeechLanguage: item.SpeechLanguage,
 		VideoPath:      item.VideoPath,
+		FileBase:       item.FileBase(),
 		Subtitles:      item.SubtitlePath,
 	}
 	switch {
@@ -1059,12 +1061,12 @@ func remoteFilmOfIn(m locales.Messages, item films.Film) remote.Film {
 	return f
 }
 
-// remoteFilmFiles fills in what f's files on disk tell: the original subtitles beside its video, the transcript Kando made of it (media.TranscriptOf). Its bilingual subtitles are the film's own (remoteFilmOf), which for a video no job has processed are the ones the library scan found beside it (media.Video.Subtitles), so the window and the socket show the same.
+// remoteFilmFiles fills in what f's files on disk tell: the original subtitles, the transcript Kando made of it (media.TranscriptOf), beside its video or in its folder in the library (remote.Film.FileBase). Its bilingual subtitles are the film's own (remoteFilmOf), which for a video no job has processed are the ones the library scan found beside it (media.Video.Subtitles), so the window and the socket show the same.
 func remoteFilmFiles(f *remote.Film) {
 	if f.VideoPath == "" {
 		return
 	}
-	if original := media.TranscriptOf(f.VideoPath); fileExists(original) {
+	if original := media.TranscriptOf(f.FileBase); fileExists(original) {
 		f.OriginalSubtitles = original
 	}
 }

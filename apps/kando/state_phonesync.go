@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -357,7 +358,7 @@ type phoneSource struct{ a *app }
 type phoneShelf struct {
 	jobs []core.Job
 	// added is the videos added to the library without a job (shelf.Library.Added).
-	added     map[string]time.Time
+	added     map[string]shelf.Added
 	names     map[string]string
 	durations map[string]time.Duration
 	posterDir string
@@ -426,7 +427,7 @@ func (s phoneSource) Films(ctx context.Context, lib phonesync.Library) ([]phones
 // phoneFilmOf is item, a done film of a library, as Phone Sync serves it, with what shelf holds of it and its files.
 func phoneFilmOf(item films.Film, shelf phoneShelf) phonesync.Film {
 	f := phonesync.Film{ID: phoneFilmID(item), Title: remoteFilmTitle(item), Source: films.SourceOf(item), Spoken: films.Heard(item), Untranslated: item.Untranslated,
-		Duration: shelf.durations[item.VideoPath], Video: item.VideoPath, SubtitlesOnly: item.SubtitlesOnly, Sound: !item.SubtitlesOnly && media.IsSoundFile(item.VideoPath), Subtitles: item.SubtitlePath, Transcript: media.TranscriptOf(item.VideoPath), Corrections: media.CorrectionsPath(item.VideoPath)}
+		Duration: shelf.durations[item.VideoPath], Video: item.VideoPath, Base: item.FileBase(), SubtitlesOnly: item.SubtitlesOnly, Sound: !item.SubtitlesOnly && media.IsSoundFile(item.VideoPath), Subtitles: item.SubtitlePath, Transcript: media.TranscriptOf(item.FileBase()), Corrections: media.CorrectionsPath(item.FileBase())}
 	// A film that was not translated, as one heard in the language its subtitles are for, names no translation.
 	if item.TranslationErr == "" && !item.SameLanguage {
 		f.Translation = item.Language
@@ -452,7 +453,7 @@ func phoneFilmOf(item films.Film, shelf phoneShelf) phonesync.Film {
 		}
 	}
 	f.SourceKey = phoneSourceKey(item, shelf)
-	if dest := posterDest(shelf.posterDir, item.VideoPath); dest != "" && fileExists(dest) {
+	if dest := posterFor(shelf.posterDir, item.VideoPath, item.Home); dest != "" && fileExists(dest) {
 		f.Poster = dest
 	}
 	if films.WatchState(shelf, item) == sidebar.WatchWatched {
@@ -553,8 +554,9 @@ func (s phoneSource) Making(ctx context.Context, lib phonesync.Library) ([]phone
 			f.ComingSound = item.SoundPath
 		}
 		if at != "" {
-			f.Transcript, f.Corrections = media.TranscriptOf(at), media.CorrectionsPath(at)
-			if dest := posterDest(shelf.posterDir, at); dest != "" && fileExists(dest) {
+			f.Base = core.FileBase(at, item.Home)
+			f.Transcript, f.Corrections = media.TranscriptOf(f.Base), media.CorrectionsPath(f.Base)
+			if dest := posterFor(shelf.posterDir, at, item.Home); dest != "" && fileExists(dest) {
 				f.Poster = dest
 			}
 		}
@@ -568,7 +570,7 @@ func (s phoneSource) Making(ctx context.Context, lib phonesync.Library) ([]phone
 
 // Cues are f's subtitles as the control socket reads them (remoteFilmCues): its lines as its subtitle document holds them, each original split from its translation by the original .srt. A film without subtitles is not found.
 func (s phoneSource) Cues(_ context.Context, f phonesync.Film) ([]psync.Cue, error) {
-	rf := remote.Film{Title: f.Title, VideoPath: f.Video, Subtitles: f.Subtitles}
+	rf := remote.Film{Title: f.Title, VideoPath: f.Video, FileBase: cmp.Or(f.Base, f.Video), Subtitles: f.Subtitles}
 	if fileExists(f.Transcript) {
 		rf.OriginalSubtitles = f.Transcript
 	}

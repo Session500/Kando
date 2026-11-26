@@ -240,6 +240,11 @@ func (a *app) retargetLibraryPrefix(oldRoot, newRoot string) {
 			a.library.Jobs[i].SubtitlePath = next
 			changed = true
 		}
+		// The folder of the film's files is in the library's folder, and moved with it, its subtitles in it (core.Job.Home).
+		if next, ok := replacePathPrefix(oldRoot, newRoot, job.Home); ok {
+			a.library.Jobs[i].Home = next
+			changed = true
+		}
 	}
 	if changed {
 		if err := a.library.Save(); err != nil {
@@ -626,12 +631,13 @@ func (a *app) refreshLibrary() {
 	if shelfBundle(dir) {
 		// A video moved to a storage location, or indexed from a media source, still belongs where it was: its folder is not taken as the folder of a video left in it, and no file is renamed to its path (state_stored.go, state_mediasource_import.go).
 		var err error
-		if moved, err = media.GatherVideos(dir, a.awayPaths()); err != nil {
+		// Nor is the folder of the files of a film whose video is kept outside the library (libraryHomeBases).
+		if moved, err = media.GatherVideos(dir, slices.Concat(a.awayPaths(), a.libraryHomeBases())); err != nil {
 			a.saveErr = err.Error()
 			return
 		}
 	}
-	if a.retargetLibrary(moved) || a.relocateMissing() || a.retargetRenamed() || a.dropMissing() {
+	if a.retargetLibrary(moved) || a.relocateMissing() || a.retargetRenamed() || a.retargetHomes() || a.dropMissing() {
 		if err := a.library.Save(); err != nil {
 			a.saveErr = a.shelfSaveErr(err, a.messages().LibraryShelfSaveFailed)
 		}

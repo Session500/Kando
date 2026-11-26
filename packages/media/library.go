@@ -17,8 +17,9 @@ type Video struct {
 	ModTime int64
 	// Subtitles is the bilingual .srt beside the video, named as the pipeline exports it (<video>.bilingual.srt), or "" when its folder holds none. A video no job has processed shows these, as one copied in from another library or kept after its job records were lost.
 	Subtitles string
-	// Added is when a video kept outside the library was added to it without a job, as a large folder dropped adds its films, which the shelf lists as it lists a video of its folder; zero for a video found in the library's folder.
+	// Added is when a video kept outside the library was added to it without a job, as a large folder dropped adds its films, which the shelf lists as it lists a video of its folder; zero for a video found in the library's folder. Home is the folder in the library its film's own files are kept in, once it has one (core.Job.Home); "" for any other.
 	Added time.Time
+	Home  string
 }
 
 // ListVideos is the films' files directly in directory and directly in each folder in it (filmFile), newest first. away are the paths of films that belong under directory but are not on disk now, as those moved to a storage location: a file of the same name beside one of them is its companion, not a film of its own.
@@ -497,6 +498,35 @@ func RetargetRenamedFolder(root, missing string) (string, bool) {
 	return hit, hit != ""
 }
 
+// RenamedFolder is where the folder at folder, directly under root, went when it was renamed in Finder: the one other folder directly under root that keeps its [id], as Kando names the folder of a film's own files for a video kept outside the library (core.Job.Home). A folder that is still there, one without an [id], or an [id] that more than one folder keeps, pairs nothing.
+func RenamedFolder(root, folder string) (string, bool) {
+	if root == "" || folder == "" || filepath.Clean(filepath.Dir(folder)) != filepath.Clean(root) {
+		return "", false
+	}
+	if _, err := os.Stat(folder); err == nil {
+		return "", false
+	}
+	id := folderID(filepath.Base(folder))
+	if id == "" {
+		return "", false
+	}
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return "", false
+	}
+	hit := ""
+	for _, entry := range entries {
+		if !entry.IsDir() || strings.HasPrefix(entry.Name(), ".") || folderID(entry.Name()) != id {
+			continue
+		}
+		if hit != "" {
+			return "", false
+		}
+		hit = filepath.Join(root, entry.Name())
+	}
+	return hit, hit != ""
+}
+
 func folderID(name string) string {
 	start := strings.LastIndex(name, "[")
 	end := strings.LastIndex(name, "]")
@@ -574,16 +604,15 @@ func normalizeItem(folder string, held map[string]bool) (map[string]string, erro
 	return moved, nil
 }
 
-// itemRenames are the files of the film's file name in dir that go with it when it becomes video.<ext>, each as its name and the name it takes: its subtitles, the user's corrections of its lines and the media files of its name (SameNamed).
+// itemRenames are the files of the film's file name in dir that go with it when it becomes video.<ext>, each as its name and the name it takes: every file Kando names after it (Companions), its subtitles, its document's logs and the other files kept beside it, and the media files of its name (SameNamed).
 func itemRenames(dir, name string) [][2]string {
-	base := strings.TrimSuffix(name, filepath.Ext(name))
-	out := [][2]string{
-		{base + ".srt", "video.srt"},
-		{base + ".kando.srt", "video.kando.srt"},
-		{base + ".bilingual.srt", "video.bilingual.srt"},
-		{"." + base + ".edits.json", ".video.edits.json"},
+	video := filepath.Join(dir, name)
+	renamed := filepath.Join(dir, "video"+filepath.Ext(name))
+	var out [][2]string
+	for _, path := range Companions(video) {
+		out = append(out, [2]string{filepath.Base(path), filepath.Base(CompanionAt(path, video, renamed))})
 	}
-	for _, path := range SameNamed(filepath.Join(dir, name)) {
+	for _, path := range SameNamed(video) {
 		out = append(out, [2]string{filepath.Base(path), "video" + filepath.Ext(path)})
 	}
 	return out
@@ -757,3 +786,17 @@ var exportedClipName = regexp.MustCompile(`^kando-[0-9a-f]{16}\.m4a$`)
 
 // exportedClip reports whether name is a clip of Kando's own export (ClipName), which an export into the library's folder leaves there: the library does not take it as a film, nor gather it into a folder of its own, which would break the notes that play it.
 func exportedClip(name string) bool { return exportedClipName.MatchString(strings.ToLower(name)) }
+
+// HoldsMedia reports whether the folder at dir holds a video, a sound file or a folder directly in it, or cannot be read, as the folder of a film's own files kept for a video outside the library holds none (core.Job.Home): one that does is not Kando's alone to move to the Trash.
+func HoldsMedia(dir string) bool {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return true
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || mediaRank(entry.Name()) >= 0 {
+			return true
+		}
+	}
+	return false
+}

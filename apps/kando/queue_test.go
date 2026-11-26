@@ -3769,7 +3769,8 @@ func TestAFilmIsWatchedWhileItIsMade(t *testing.T) {
 	id := a.library.Jobs[0].ID
 	queueUntilState(t, updates, func() bool { return stageOf(t, a, id).SubtitlePath != "" })
 	job := stageOf(t, a, id)
-	if job.Stage.Done() || !strings.HasSuffix(job.SubtitlePath, "talk.bilingual.srt") {
+	// A video outside the library has its subtitles in its folder there, named as a film the library holds (core.Job.Home).
+	if job.Stage.Done() || job.SubtitlePath != filepath.Join(job.Home, "video.bilingual.srt") || !films.InDir(testVideos, job.Home) {
 		t.Fatalf("job %s shows %q, want its bilingual subtitles while it is made", job.Stage, job.SubtitlePath)
 	}
 	item, ok := films.Find(a.films(), id)
@@ -3917,7 +3918,7 @@ func TestTheFilmOpenedIsMadeFirst(t *testing.T) {
 	if at < 0 || !slices.Contains(runs[:at], "first") || !slices.Contains(runs[at:], "first") {
 		t.Fatalf("runs %v, want the first, then the second, then the first again", runs)
 	}
-	doc, err := track.Read(first)
+	doc, err := track.Read(stageOf(t, a, firstID).FileBase())
 	if err != nil || len(doc.View()) != 9 {
 		t.Fatalf("the first film shows %d lines (%v), want each once", len(doc.View()), err)
 	}

@@ -1123,6 +1123,17 @@ filmNotesWords:
 filmTabNotes:
   message: "Notes"
   description: "Side panel tab listing the film's saved lines and the words looked up in it, with the review."
+libraryAdopted:
+  message: "Kando now keeps the subtitles of “{name}” in the library. The subtitle files beside its video won't be updated; to use them in another player, choose Export Subtitles… › Export to the Film’s Folder."
+  description: "Message bar, once per film, when Kando first copies the subtitles and other files it had written beside a video kept outside the library into the library, where it writes them from then on. The files beside the video are left as they were."
+  placeholders:
+    name: { type: "String", example: "Lesson 1" }
+libraryAdoptFailed:
+  message: "Couldn't move the subtitles of “{name}” into the library, so they stay beside its video: {error}"
+  description: "Message bar when copying a film's subtitles from beside its video into the library failed as the film opened; the film opens with the subtitles beside its video."
+  placeholders:
+    name: { type: "String", example: "Lesson 1" }
+    error: { type: "String", example: "permission denied" }
 libraryAddedOnly:
   message: "Added {count, plural, one {# film} other {# films}} to the library. Open one to make its subtitles."
   description: "Message bar after films found in folders dropped were only added to the library, without subtitles."
@@ -2716,6 +2727,9 @@ filmsRemoveFromLibrary:
 filmsRemoveOutside:
   message: "The video isn't in the library folder. It stays where it is and no longer appears in the library."
   description: "What removing a film does when its video is outside the library folder."
+filmsRemoveOutsideHome:
+  message: "The video isn't in the library folder. It stays where it is; its subtitles and the other files Kando keeps for it in the library will be moved to the Trash, where you can get them back."
+  description: "What removing a film does when its video is outside the library folder and Kando keeps its subtitles in a folder of the library: that folder goes to the Trash, the video stays."
 filmsRename:
   message: "Rename…"
   description: "Menu item that opens the dialog giving a film the title Kando shows for it."
@@ -3051,6 +3065,11 @@ libraryMoveLinesUnread:
   description: "Message bar when a film is to be moved between libraries but one library's saved lines file (study.json, or saved-lines.json before it) cannot be read; writing it would lose what is in it, so Kando moves nothing."
   placeholders:
     library: { type: "String", example: "English Listening" }
+libraryMoveHomeToFolder:
+  message: "“{name}” can't move to a library that's a folder of your own: its video is outside the library, so Kando keeps its subtitles in the library, which only a .kando library can hold."
+  description: "Error when a film whose video is kept outside the library (Kando keeps its subtitles inside the .kando library) is to be moved to a library that is an ordinary folder opened as a library; Kando does not move it."
+  placeholders:
+    name: { type: "String", example: "Learn Rust" }
 libraryMoveNoVideo:
   message: "“{name}” has no video to move yet."
   description: "Error when a film whose video has not been downloaded yet is to be moved to another library."

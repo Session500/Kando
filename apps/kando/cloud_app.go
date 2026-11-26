@@ -18,6 +18,7 @@ import (
 	"kando/apps/kando/films"
 	"kando/apps/kando/locales"
 	"kando/apps/kando/sidebar"
+	"kando/packages/media"
 )
 
 func (a *app) SignInGoogle() {
@@ -153,7 +154,8 @@ func (a *app) BeginUpload(item films.Film) {
 	if item.SubtitlePath != "" {
 		if st, err := os.Stat(item.SubtitlePath); err == nil && !st.IsDir() {
 			files = append(files, cloud.File{
-				Key:         cloud.SiblingKey(videoKey, item.SubtitlePath),
+				// Named after the video, as the subtitles of a video kept outside the library are named after video.<ext> in its folder there (films.Film.FileBase).
+				Key:         cloud.SiblingKey(videoKey, media.CompanionAt(item.SubtitlePath, item.FileBase(), item.VideoPath)),
 				Path:        item.SubtitlePath,
 				ContentType: cloud.ContentType(item.SubtitlePath),
 			})
