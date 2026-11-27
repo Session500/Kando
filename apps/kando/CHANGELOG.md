@@ -2,6 +2,12 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.73.0 - 2026-11-27
+
+### Features
+
+- Tell the phones which work each film is folded into (#518)
+
 ## 0.72.0 - 2026-11-27
 
 ### Features
