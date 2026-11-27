@@ -2,6 +2,12 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.75.0 - 2026-11-27
+
+### Features
+
+- Show and unlock password-protected libraries on mobile (#522)
+
 ## 0.74.0 - 2026-11-27
 
 ### Features
