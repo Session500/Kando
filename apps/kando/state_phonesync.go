@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"hash/fnv"
 	"log"
 	"maps"
 	"net/netip"
@@ -16,6 +17,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"kando/apps/kando/category"
 	"kando/apps/kando/films"
 	"kando/apps/kando/mediasource"
 	"kando/apps/kando/phonesync"
@@ -69,6 +71,8 @@ type phoneUI struct {
 	ledgers   map[string]*phoneLedger
 	priming   map[string]bool
 	stateSign uint64
+	// watchedSign sums up which videos were watched to their end as phones were last told (phoneSyncPublishWatched).
+	watchedSign uint64
 	// activity is what the phones did since Kando opened, the latest first (phoneLog); handoffClosed names the place a phone left a film whose offer to continue here the user closed (phoneHandoffClose); readOnlyErr and resolveErr are why the last change of a phone's read-only switch, or the last conflict settled on the page, failed (state_phonesync_linked.go).
 	activity                []settings.PhoneActivity
 	handoffClosed           string
@@ -98,7 +102,7 @@ func (s *savedPhoneSync) clean() {
 	}
 }
 
-// phoneSyncHooks: the switch, the port and what to do with a phone's links are saved and taken back; a switch left on starts the server once the window is ready, and the server stops as the app quits. After each change the code on offer follows the page (phoneSyncFollow), and the server is told the jobs phones follow (phoneSyncPublish) and whether the open library's learning state changed (phoneSyncPublishState).
+// phoneSyncHooks: the switch, the port and what to do with a phone's links are saved and taken back; a switch left on starts the server once the window is ready, and the server stops as the app quits. After each change the code on offer follows the page (phoneSyncFollow), and the server is told the jobs phones follow (phoneSyncPublish) whether the open library's learning state changed (phoneSyncPublishState), and whether a film was watched to its end (phoneSyncPublishWatched).
 func (a *app) phoneSyncHooks() areaHooks {
 	return areaHooks{
 		save: func(saved *savedSettings) {
@@ -117,11 +121,36 @@ func (a *app) phoneSyncHooks() areaHooks {
 		afterChange: func() bool {
 			a.phoneSyncPublish()
 			a.phoneSyncPublishState()
+			a.phoneSyncPublishWatched()
 			a.phoneClockArm()
 			stopped := a.phoneRelayFollow()
 			return a.phoneSyncFollow() || stopped
 		},
 		quitting: a.phoneSyncStop,
+	}
+}
+
+// phoneSyncPublishWatched tells the phones waiting for events to list the open library's films again once a video was watched to its end, or is no longer (films.WatchState), as a phone goes on with a work at the film after one watched here (psync.Film.Watched), and the learning state's positions drop a film watched to its end. Where a film stopped changes nothing here; the learning state tells that. It runs after every change of the app's state, and changes nothing the window reads.
+func (a *app) phoneSyncPublishWatched() {
+	srv := a.phone.server
+	if srv == nil {
+		return
+	}
+	var sign uint64
+	for path := range a.palette.furthest {
+		if films.WatchState(a, films.Film{VideoPath: path}) == sidebar.WatchWatched {
+			h := fnv.New64a()
+			_, _ = h.Write([]byte(path))
+			// Each video is summed apart, so the map's order does not count.
+			sign += h.Sum64()
+		}
+	}
+	if sign == a.phone.watchedSign {
+		return
+	}
+	a.phone.watchedSign = sign
+	if dir := a.snap().LibraryDir; dir != "" && !a.lockShut() && !a.lockFilesAway(dir) {
+		srv.PublishFilms(phoneLibraryID(dir))
 	}
 }
 
@@ -381,6 +410,10 @@ type phoneShelf struct {
 	nexts map[string]films.Film
 	// redo is the jobs that process or translate a done film again (core.Job.Redo), by ID.
 	redo map[string]bool
+	// works is the library's works (films.Works), worked out only as its films are listed (phoneSource.Films), and apart its categories, which keep the works the user split apart (category.Book.Apart): the open library's as the app holds them when apartRead, else read from its folder as the films are listed.
+	works     films.WorkIndex
+	apart     category.Book
+	apartRead bool
 }
 
 // Duration, ResumeAt and Furthest are the shelf as films.Progress, for films.WatchState: where a film stopped does not tell whether it was watched to its end.
@@ -408,16 +441,27 @@ func (s phoneSource) Libraries(ctx context.Context) ([]phonesync.Library, error)
 
 // Films are lib's films that are done, as its done grid shows them, with their files (phoneSource.items), those that keep no video among them (films.Film.SubtitlesOnly), which the server serves by their subtitles. A library locked since it was listed, or whose folder cannot be read, is not found.
 func (s phoneSource) Films(ctx context.Context, lib phonesync.Library) ([]phonesync.Film, error) {
-	items, shelf, err := s.items(ctx, lib)
+	all, shelf, err := s.listed(ctx, lib)
 	if err != nil {
 		return nil, err
 	}
+	// The works are made of all of the library's films, as the library page's are, and worked out here, as only the films are told them, apart from the open library's (WorksCache), which is the UI thread's alone.
+	shelf.works = films.Works(all, lib.Dir, shelf.tag)
+	if !shelf.apartRead {
+		// Categories that cannot be read split no work apart, rather than keep the library from the phones.
+		shelf.apart, _ = category.Load(lib.Dir)
+	}
+	items := phoneDoneOf(all, shelf)
 	var out []phonesync.Film
 	for _, item := range items {
 		f := phoneFilmOf(item, shelf)
 		// The film after it, among all of the library's, made or not, as the player goes on (films.Next); the phone plays it once it keeps it.
 		if next, ok := shelf.nexts[item.Key]; ok {
 			f.Next = phoneFilmID(next)
+		}
+		// The work the library page folds it into, as the control socket names it (remoteFilmOf), so a phone folds the same films; one the user split apart is none.
+		if w, ok := shelf.works.Of(item.Key); ok && !shelf.apart.Apart(w.ApartKey(lib.Dir)) {
+			f.Work, f.WorkTitle, f.WorkIndex = w.ID(lib.Dir), w.Name, slices.Index(w.Films, item.Key)+1
 		}
 		out = append(out, f)
 	}
@@ -456,9 +500,7 @@ func phoneFilmOf(item films.Film, shelf phoneShelf) phonesync.Film {
 	if dest := posterFor(shelf.posterDir, item.VideoPath, item.Home); dest != "" && fileExists(dest) {
 		f.Poster = dest
 	}
-	if films.WatchState(shelf, item) == sidebar.WatchWatched {
-		f.Watched, f.WatchedAt = true, shelf.played[item.VideoPath]
-	}
+	f.Watched, f.PlayedAt = films.WatchState(shelf, item) == sidebar.WatchWatched, shelf.played[item.VideoPath]
 	return f
 }
 
@@ -486,13 +528,18 @@ func (s phoneSource) items(ctx context.Context, lib phonesync.Library) ([]films.
 	if err != nil {
 		return nil, phoneShelf{}, err
 	}
+	return phoneDoneOf(all, shelf), shelf, nil
+}
+
+// phoneDoneOf is those of all that are done (phoneDone).
+func phoneDoneOf(all []films.Film, shelf phoneShelf) []films.Film {
 	var out []films.Film
 	for _, item := range all {
 		if phoneDone(item, shelf) {
 			out = append(out, item)
 		}
 	}
-	return out, shelf, nil
+	return out
 }
 
 // listed is every film of lib as the app files it: the jobs the shelf keeps for it and the videos in its folder (films.List), with what the app holds of them. A library locked since it was listed, or whose folder cannot be read, is not found.
@@ -502,7 +549,12 @@ func (s phoneSource) listed(ctx context.Context, lib phonesync.Library) ([]films
 		if a.libraryLocked(lib.Dir) {
 			return phoneShelf{}, phonesync.ErrNotFound
 		}
-		return phoneShelf{jobs: slices.Clone(a.library.Jobs), added: maps.Clone(a.library.AddedIn(lib.Dir)), names: maps.Clone(a.library.Names), durations: maps.Clone(a.lib.durations), posterDir: a.lib.posterDir,
+		// The open library's categories as the app holds them, which a save that failed may leave apart from its file; another's are read from its file below.
+		apart, open := category.Book{}, a.cats.book.Dir() == lib.Dir
+		if open {
+			apart = a.cats.book
+		}
+		return phoneShelf{apart: apart, apartRead: open, jobs: slices.Clone(a.library.Jobs), added: maps.Clone(a.library.AddedIn(lib.Dir)), names: maps.Clone(a.library.Names), durations: maps.Clone(a.lib.durations), posterDir: a.lib.posterDir,
 			furthest: maps.Clone(a.palette.furthest), played: maps.Clone(a.player.played),
 			stored: maps.Clone(a.library.Stored), targets: a.storedPlayable(), pool: a.stored.pool,
 			linked: maps.Clone(a.library.Linked), sources: a.mediaSourceIDs(), sourceList: slices.Clone(a.sources.list), sourcePool: a.sources.pool, offline: a.privacy.now, localHost: a.sources.localHost, tag: a.prefs.interfaceLanguage}, nil
@@ -510,7 +562,9 @@ func (s phoneSource) listed(ctx context.Context, lib phonesync.Library) ([]films
 	if err != nil {
 		return nil, phoneShelf{}, err
 	}
-	videos, err := films.Videos(lib.Dir, shelf.jobs, nil, shelf.added)
+	// The videos moved to a storage location and those indexed from a media source are the library's as the app files them (awayPaths), so the phone is told the films the library page shows, and the works and the film after each made of them.
+	away := slices.Sorted(slices.Values(slices.Concat(slices.Collect(maps.Keys(shelf.stored)), slices.Collect(maps.Keys(shelf.linked)))))
+	videos, err := films.Videos(lib.Dir, shelf.jobs, away, shelf.added)
 	if err != nil {
 		return nil, phoneShelf{}, phonesync.ErrNotFound
 	}

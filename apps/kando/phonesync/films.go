@@ -403,7 +403,8 @@ func (f *films) persist(errs *[]error) {
 // described is l's film as the phones list it, with when its files last changed.
 func described(l listed) psync.Film {
 	film := l.film
-	p := psync.Film{ID: film.ID, Title: film.Title, Source: film.Source, DurationMS: film.Duration.Milliseconds(), Spoken: film.Spoken, Translation: film.Translation, Untranslated: film.Untranslated, Next: film.Next, SourceKey: film.SourceKey}
+	p := psync.Film{ID: film.ID, Title: film.Title, Source: film.Source, DurationMS: film.Duration.Milliseconds(), Spoken: film.Spoken, Translation: film.Translation, Untranslated: film.Untranslated, Next: film.Next, SourceKey: film.SourceKey,
+		Work: film.Work, WorkTitle: film.WorkTitle, WorkIndex: film.WorkIndex, Watched: film.Watched, PlayedAt: film.PlayedAt.UTC()}
 	var updated time.Time
 	for _, path := range []string{film.Video, film.Subtitles, film.Transcript, film.Corrections} {
 		if info, err := os.Stat(path); path != "" && err == nil && !info.IsDir() && info.ModTime().After(updated) {
@@ -458,7 +459,10 @@ func (f *films) small(ctx context.Context, prefix string, l listed, have map[str
 		cur.Lines, cur.LinesOf = r.Lines, r.LinesOf
 		cur.Poster, cur.PosterSize, cur.PosterAt = r.Poster, r.PosterSize, r.PosterAt
 		cur.Film, cur.Title = film, film.Title
-		cur.Watched, cur.WatchedAt = l.film.Watched, l.film.WatchedAt
+		cur.Watched, cur.WatchedAt = l.film.Watched, time.Time{}
+		if l.film.Watched {
+			cur.WatchedAt = l.film.PlayedAt
+		}
 		if cur.Video == r.Video && r.Video != "" && !videoThere {
 			// Deleted from the bucket by other hands: it goes up again, unless it was cleaned up.
 			cur.Video = ""
@@ -497,7 +501,7 @@ func (f *films) clean(ctx context.Context, prefix string, l listed, policy Films
 	f.mu.Lock()
 	r := *f.record(l)
 	f.mu.Unlock()
-	if policy.CleanAfter <= 0 || r.Video == "" || !l.film.Watched || l.film.WatchedAt.IsZero() || f.s.cfg.Now().Sub(l.film.WatchedAt) < policy.CleanAfter {
+	if policy.CleanAfter <= 0 || r.Video == "" || !l.film.Watched || l.film.PlayedAt.IsZero() || f.s.cfg.Now().Sub(l.film.PlayedAt) < policy.CleanAfter {
 		return false
 	}
 	return f.cleanVideo(ctx, prefix, r.key()) == nil

@@ -464,6 +464,26 @@ func TestAStateEventWakesAPhoneAndKeepsApartFromAJobOfTheSameID(t *testing.T) {
 	}
 }
 
+// A library's films event wakes a phone, and stands apart from its learning state's and from a job of the same ID, the newest of each told.
+func TestAFilmsEventWakesAPhoneApartFromTheStateOfTheSameLibrary(t *testing.T) {
+	j := NewJournal()
+	list := j.List()
+	done := make(chan Events)
+	go func() { done <- j.Wait(context.Background(), list.Epoch, list.Rev, 5*time.Second) }()
+	j.PublishFilms("lib1")
+	got := <-done
+	if len(got.Events) != 1 || got.Events[0].Kind != EventFilms || got.Events[0].ID != "lib1" {
+		t.Fatalf("events = %+v, want the films of library lib1", got.Events)
+	}
+	j.PublishState("lib1")
+	j.PublishFilms("lib1")
+	j.PublishJobs([]Job{{ID: "lib1", State: JobWaiting}})
+	all := j.Wait(context.Background(), list.Epoch, list.Rev, 0)
+	if len(all.Events) != 3 || all.Events[0].Kind != EventState || all.Events[1].Kind != EventFilms || all.Events[2].Kind != EventJob {
+		t.Errorf("events = %+v, want the state's, the films' newest and the job's", all.Events)
+	}
+}
+
 func TestJoinedKeepsBothNotesTheKeptFirst(t *testing.T) {
 	c := Conflict{Kind: KindWord, Field: FieldMeaning, Kept: Field{Value: Value("axes")}, Lost: Field{Value: Value("directions")}}
 	if got := Text(Joined(c)); got != "axes\ndirections" {

@@ -110,6 +110,16 @@ func (j *Journal) List() JobList {
 	return JobList{Epoch: j.epoch, Rev: j.rev, Jobs: append([]Job{}, j.jobs...)}
 }
 
+// PublishFilms records that library's films are listed otherwise (EventFilms), so the phones waiting hear it and list them again, as the storage relay's films do.
+func (j *Journal) PublishFilms(library string) {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	j.rev++
+	j.add(Event{Rev: j.rev, Kind: EventFilms, ID: library})
+	close(j.wake)
+	j.wake = make(chan struct{})
+}
+
 // Learning is, by library ID, the revision at which each library's learning state last changed (PublishState) in the journal's epoch, which the storage relay's state.json tells phones (RelayState.Learning).
 func (j *Journal) Learning() map[string]int64 {
 	j.mu.Lock()
@@ -156,7 +166,7 @@ func (j *Journal) Wait(ctx context.Context, epoch string, since int64, wait time
 	}
 }
 
-// since is the newest event of each job, and of each library's learning state, after revision since, and whether since was not one to count from (Reset). The caller holds mu.
+// since is the newest event of each job, and of each library's learning state and films, after revision since, and whether since was not one to count from (Reset). The caller holds mu.
 func (j *Journal) since(epoch string, since int64) (Events, bool) {
 	out := Events{Epoch: j.epoch, Rev: j.rev, Events: []Event{}}
 	oldest := j.rev + 1
@@ -191,10 +201,10 @@ func (job Job) clone() Job {
 	return job
 }
 
-// about is what e is a change of, which a newer event of takes its place: a job, or a library's learning state.
+// about is what e is a change of, which a newer event of takes its place: a job, or a library's learning state or films.
 func (e Event) about() string {
-	if e.Kind == EventState {
-		return "state/" + e.ID
+	if e.Kind == EventState || e.Kind == EventFilms {
+		return e.Kind + "/" + e.ID
 	}
 	return "job/" + e.ID
 }

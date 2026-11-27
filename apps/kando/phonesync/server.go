@@ -50,9 +50,12 @@ type Film struct {
 	RemoteAt   time.Time
 	// Next is the ID of the film that plays after it (psync.Film.Next), "" for none.
 	Next string
-	// Watched is a film watched to its end, last at WatchedAt, zero when that is not known; the films through the bucket clean up its video after a while (FilmsConfig.CleanAfter).
-	Watched   bool
-	WatchedAt time.Time
+	// Work, WorkTitle and WorkIndex are the work the app shows it in as one card (psync.Film.Work), all empty for none.
+	Work, WorkTitle string
+	WorkIndex       int
+	// Watched is a film watched to its end, and PlayedAt when it last played, zero when it never did; the films through the bucket clean up the video of one watched after a while (FilmsConfig.CleanAfter).
+	Watched  bool
+	PlayedAt time.Time
 	// Subtitles is its bilingual subtitles' file, Transcript its original lines' (media.TranscriptOf) and Corrections the user's corrections of its lines (media.CorrectionsPath), each "" or missing for a film without; their times say when it last changed besides its video's (psync.Film.Updated), so a phone that has the film reads its lines again once the user corrects one.
 	Subtitles, Transcript, Corrections string
 	// Making is a film being made (Source.Making, psync.Film.Making): Video is where its video is or will be, which its lines are named after (films.PlayPath), "" while that is not known; ComingSound is a link's sound, which plays in its video's place until the video comes (core.Job.SoundPath, psync.PlaysSound).
@@ -874,7 +877,8 @@ func playable(films []Film) []served {
 			}
 		}
 		p := psync.Film{ID: f.ID, Title: f.Title, Source: f.Source, DurationMS: f.Duration.Milliseconds(), Spoken: f.Spoken, Translation: f.Translation,
-			Untranslated: f.Untranslated, VideoSize: size, SubtitlesOnly: f.SubtitlesOnly, Sound: f.Sound, Next: f.Next, Updated: updated.UTC(), Making: f.Making, SourceKey: f.SourceKey}
+			Untranslated: f.Untranslated, VideoSize: size, SubtitlesOnly: f.SubtitlesOnly, Sound: f.Sound, Next: f.Next, Updated: updated.UTC(), Making: f.Making, SourceKey: f.SourceKey,
+			Work: f.Work, WorkTitle: f.WorkTitle, WorkIndex: f.WorkIndex, Watched: f.Watched, PlayedAt: f.PlayedAt.UTC()}
 		if f.Poster != "" {
 			if _, err := os.Stat(f.Poster); err == nil {
 				p.Poster = psync.PosterPath(f.ID)
@@ -915,6 +919,9 @@ func (s *Server) PublishJobs(jobs []psync.Job) bool { return s.desk.Journal.Publ
 
 // PublishState tells the phones waiting for events that the learning state of the library of ID lib changed (psync.EventState).
 func (s *Server) PublishState(lib string) { s.desk.Journal.PublishState(lib) }
+
+// PublishFilms tells the phones waiting for events that the films of the library of ID lib are listed otherwise (psync.EventFilms), so they list them again, and has the films through the bucket looked at again.
+func (s *Server) PublishFilms(lib string) { s.desk.Journal.PublishFilms(lib) }
 
 // noJobs is the queue of an app that gives the server none: it says hello, and lists no jobs.
 type noJobs struct{}

@@ -176,3 +176,33 @@ func TestSourceKeyIsAnAddition(t *testing.T) {
 		t.Fatalf("a phone reads %+v, %v", f, err)
 	}
 }
+
+// A film's work and how it was watched on the desktop are an addition to v1: a film of no work, never played there, leaves them out of the JSON, so an older phone reads it as before; an older desktop's film reads as one of no work, not watched; and an older phone reads a newer desktop's film with the fields it knows.
+func TestWorksAreAnAddition(t *testing.T) {
+	data, err := json.Marshal(Film{ID: "f1", Title: "River"})
+	for _, field := range []string{"work", "watched", "played_at"} {
+		if err != nil || strings.Contains(string(data), `"`+field) {
+			t.Fatalf("a film of no work reads %s, %v", data, err)
+		}
+	}
+	var f Film
+	if err := json.Unmarshal([]byte(`{"id":"f1","title":"River","source":"local","duration_ms":0,"spoken":"","translation":"","untranslated":0,"poster":"","video_size":7,"updated":"0001-01-01T00:00:00Z"}`), &f); err != nil || f.Work != "" || f.WorkIndex != 0 || f.Watched || !f.PlayedAt.IsZero() {
+		t.Fatalf("an older desktop's film reads %+v, %v", f, err)
+	}
+	played := time.Date(2026, 11, 27, 9, 0, 0, 0, time.UTC)
+	data, err = json.Marshal(Film{ID: "f1", Title: "River Walk 2", Source: "local", Work: "a1b2c3d4e5f6", WorkTitle: "River Walk", WorkIndex: 2, Watched: true, PlayedAt: played})
+	if err != nil || !strings.Contains(string(data), `"work":"a1b2c3d4e5f6","work_title":"River Walk","work_index":2,"watched":true,"played_at":"2026-11-27T09:00:00Z"`) {
+		t.Fatalf("a film of a work reads %s, %v", data, err)
+	}
+	var older struct {
+		ID     string `json:"id"`
+		Title  string `json:"title"`
+		Source string `json:"source"`
+	}
+	if err := json.Unmarshal(data, &older); err != nil || older.ID != "f1" || older.Title != "River Walk 2" {
+		t.Fatalf("an older phone reads %+v, %v", older, err)
+	}
+	if err := json.Unmarshal(data, &f); err != nil || f.Work != "a1b2c3d4e5f6" || f.WorkTitle != "River Walk" || f.WorkIndex != 2 || !f.Watched || !f.PlayedAt.Equal(played) {
+		t.Fatalf("a phone reads %+v, %v", f, err)
+	}
+}
