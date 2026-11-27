@@ -2,6 +2,17 @@
 
 What changed in each version of Kando, newest first. The app shows the section of a new version when it offers the update.
 
+## 0.74.0 - 2026-11-27
+
+### Features
+
+- Load posters and Plex artwork for indexed films (#507)
+- Fold a show's episodes into one row (with review fixes) (#521)
+
+### Fixes
+
+- Isolate apart keys and seed watchedSign on server start (#520)
+
 ## 0.73.0 - 2026-11-27
 
 ### Features
