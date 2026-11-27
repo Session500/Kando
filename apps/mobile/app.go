@@ -59,6 +59,7 @@ const (
 	sourcesPage
 	sourcePage
 	browsePage
+	workPage
 )
 
 // The tabs, in the order the tab bar and a tablet's sidebar show them.
@@ -70,12 +71,13 @@ const (
 	tabs
 )
 
-// route is a page of a stack and what it shows: the computer and library a film's page is of, and the film; the NAS or server a source's form or folder is of (source, "" for a new one's form), and the folder (dir).
+// route is a page of a stack and what it shows: the computer and library a film's page is of, and the film; the computer a work's page is of, and the work's ID (work); the NAS or server a source's form or folder is of (source, "" for a new one's form), and the folder (dir).
 type route struct {
 	page    page
 	desktop string
 	library sync.Library
 	film    sync.Film
+	work    string
 	source  string
 	dir     string
 }
@@ -309,9 +311,14 @@ func App(cx *core.Scope, cfg session.Config) core.Node {
 				if shell.SystemBar(cx) {
 					jobsButton = openJobs
 				}
-				return films.Page(cx, s, films.Actions{Pair: openPair, Play: play, PlayHeld: playHeld, PlayAt: layer.PlayAt, Add: openAdd, Jobs: jobsButton, OpenJobs: openJobs, PickLibrary: pickLibrary, Searches: searches.Get, Library: library,
+				act := films.Actions{Pair: openPair, Play: play, PlayHeld: playHeld, PlayAt: layer.PlayAt, Add: openAdd, Jobs: jobsButton, OpenJobs: openJobs, PickLibrary: pickLibrary, Searches: searches.Get, Library: library,
 					Subscription: subscription.Set, Film: func(e catalog.Entry) { openFilm(e.Desktop, e.Library, e.Film) },
-					Source: func(id string) { n.Push(route{page: browsePage, source: id}) }})
+					Work:   func(desktop, id string) { n.Push(route{page: workPage, desktop: desktop, work: id}) },
+					Source: func(id string) { n.Push(route{page: browsePage, source: id}) }}
+				if r.page == workPage {
+					return films.WorkPage(cx, s, act, r.desktop, r.work, back)
+				}
+				return films.Page(cx, s, act)
 			})
 			return core.View{Style: core.Style{FlexGrow: 1}, Children: []core.Node{stack, player.MiniBar(cx, layer)}}
 		}

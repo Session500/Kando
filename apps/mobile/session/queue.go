@@ -475,6 +475,8 @@ func (s *Session) followQueue(ctx context.Context, id, device string, c *sync.Cl
 			})
 			s.relayLanded(id)
 			s.sendWaiting(id)
+			// The events are followed from this listing's revision on, so the films are read again once from it: a change of them told before it, after a read begun earlier was answered, as one meanwhile away from the computer's network or before it restarted, is told by no event after.
+			s.catchUp(id)
 			if was {
 				// Back on the computer's network, the learning state and the settings left for the storage go directly.
 				s.SyncLearning()
@@ -516,17 +518,23 @@ func (s *Session) followQueue(ctx context.Context, id, device string, c *sync.Cl
 	}
 }
 
-// applyEvents takes events of desktop id's queue into it.
+// applyEvents takes events of desktop id's queue into it, and reads its films again once it lists a library's otherwise (sync.EventFilms), as when the user showed a work's films apart there or watched one to its end.
 func (s *Session) applyEvents(id string, events []sync.Event) {
 	var changed []sync.Job
 	var gone []string
+	films := false
 	for _, e := range events {
 		switch {
 		case e.Kind == sync.EventJob && e.Job != nil:
 			changed = append(changed, *e.Job)
 		case e.Kind == sync.EventJobGone:
 			gone = append(gone, e.ID)
+		case e.Kind == sync.EventFilms:
+			films = true
 		}
+	}
+	if films {
+		defer s.RefreshDesktop(id)
 	}
 	if len(gone) > 0 {
 		s.setQueue(id, func(q Queue) Queue {

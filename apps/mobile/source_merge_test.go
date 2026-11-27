@@ -357,3 +357,24 @@ func TestAMatchedFilmShowsTheComputersLinesWithTheComputerOff(t *testing.T) {
 		t.Fatalf("the card's translation is %q", got)
 	}
 }
+
+// A film of the NAS matched to the computer's film keeps what the computer lists of that film anew, its work and the film after it among it, so away from the computer it folds and goes on as the computer's film does.
+func TestAMatchedFilmKeepsWhatTheComputerListsOfIt(t *testing.T) {
+	dir := t.TempDir()
+	src := davSource(davFilms(t, false))
+	d := holidayDesktop(t, holidayKey(t, src, "127.0.0.1"))
+	desktop := store.DesktopID(d.Fingerprint)
+	n := keepHoliday(t, dir, src, desktop, true)
+	p := startWithSourceAndDesktop(t, dir, src, d)
+	p.app.WaitFor(filmRow(desktop, "f2"), wait)
+	d.ListFilm("f2", func(f *sync.Film) { f.Work, f.WorkTitle, f.WorkIndex, f.Next = "w1", "Holidays", 1, "f3" })
+	p.app.WaitUntil(wait, func() bool {
+		films, _ := store.Open(dir).Films()
+		for _, f := range films {
+			if f.Key() == n.Key() {
+				return f.Lines != nil && f.Lines.Film.Work == "w1" && f.Lines.Film.WorkTitle == "Holidays" && f.Lines.Film.Next == "f3" && f.Lines.Film.Title == "Holiday on the NAS"
+			}
+		}
+		return false
+	})
+}

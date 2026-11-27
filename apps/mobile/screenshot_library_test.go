@@ -85,3 +85,17 @@ func TestScreenshotsLibraryStorage(t *testing.T) {
 	p.app.WaitFor("id:films-storage", reconnect)
 	shot(p, "films-storage")
 }
+
+// TestScreenshotsLibraryWork renders a show its computer folds into one row (films-work) and the show's page (films-work-page).
+func TestScreenshotsLibraryWork(t *testing.T) {
+	shot := screenshots(t)
+	d := newDesktopWithShow(t)
+	dir := t.TempDir()
+	p := startPhone(t, dir, pairedWith(t, d, dir))
+	id := store.DesktopID(d.Fingerprint)
+	p.app.WaitFor(workRow(id, "w1"), wait)
+	shot(p, "films-work")
+	p.app.Press(workRow(id, "w1"))
+	p.app.WaitFor("id:work-page", wait)
+	shot(p, "films-work-page")
+}

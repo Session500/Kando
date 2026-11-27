@@ -1,4 +1,4 @@
-// Package catalog is the Library tab's films from every paired computer as one library: what a computer lists (Load) with where each film was left on any device, read from the learning state of protocol v2 (yldm-tech/Kando#217); the computers' films and the phone's own merged into one list (Merge); and that list narrowed by library, by source and by a search over titles and the lines kept on the phone (Filter, Search), with the films to go on with (Continue). Nothing here touches the interface.
+// Package catalog is the Library tab's films from every paired computer as one library: what a computer lists (Load) with where each film was left on any device, read from the learning state of protocol v2 (yldm-tech/Kando#217); the computers' films and the phone's own merged into one list (Merge); and that list narrowed by library, by source and by a search over titles and the lines kept on the phone (Filter, Search), with the films to go on with (Continue), and the films of a work folded into one row (Fold, works.go). Nothing here touches the interface.
 package catalog
 
 import (
@@ -260,19 +260,27 @@ type Hit struct {
 	Text string
 }
 
-// Result is a film a search found, with the line that matched where its title did not.
+// Result is a film a search found, with the line that matched where neither its title nor its work's did; ByWork is one found by its work's name (sync.Film.WorkTitle), which the list folds into the work's row (Fold).
 type Result struct {
 	Entry
-	Hit *Hit
+	Hit    *Hit
+	ByWork bool
+	// searched is a film a search found, rather than one listed without a search.
+	searched bool
 }
 
-// Search is the entries whose title has query in it, or one of whose lines kept on the phone, by film key, says it in the original or the translation, ignoring case; the first such line is the result's hit. An empty query finds every entry, without hits.
+// Search is the entries whose title or work's name has query in it, or one of whose lines kept on the phone, by film key, says it in the original or the translation, ignoring case; the first such line is the result's hit. An empty query finds every entry, without hits.
 func Search(entries []Entry, lines map[string][]sync.Cue, query string) []Result {
 	q := strings.ToLower(strings.TrimSpace(query))
 	var out []Result
 	for _, e := range entries {
-		if q == "" || strings.Contains(strings.ToLower(e.Film.Title), q) {
+		if q == "" {
 			out = append(out, Result{Entry: e})
+			continue
+		}
+		byWork := e.Film.WorkTitle != "" && strings.Contains(strings.ToLower(e.Film.WorkTitle), q)
+		if byWork || strings.Contains(strings.ToLower(e.Film.Title), q) {
+			out = append(out, Result{Entry: e, ByWork: byWork, searched: true})
 			continue
 		}
 		for _, c := range lines[e.Key()] {
@@ -285,7 +293,7 @@ func Search(entries []Entry, lines map[string][]sync.Cue, query string) []Result
 			default:
 				continue
 			}
-			out = append(out, Result{Entry: e, Hit: &Hit{At: time.Duration(c.StartMS) * time.Millisecond, Text: text}})
+			out = append(out, Result{Entry: e, Hit: &Hit{At: time.Duration(c.StartMS) * time.Millisecond, Text: text}, searched: true})
 			break
 		}
 	}

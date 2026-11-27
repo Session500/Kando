@@ -58,7 +58,12 @@ func (s *Session) Refresh() {
 }
 
 // RefreshDesktop reads computer id's shelf and its subscriptions again, in place of a read under way, keeping what it last listed until the answer comes.
-func (s *Session) RefreshDesktop(id string) {
+func (s *Session) RefreshDesktop(id string) { s.refreshDesktop(id, false) }
+
+// catchUp reads computer id's shelf again as RefreshDesktop does, for the phone's own sake rather than its user's, as it begins following the computer's events: one that fails keeps what the shelf lists, as the computer's reach is the follower's to tell; a shelf listing nothing yet takes the failure as RefreshDesktop's does.
+func (s *Session) catchUp(id string) { s.refreshDesktop(id, true) }
+
+func (s *Session) refreshDesktop(id string, catchUp bool) {
 	d, ok := s.Desktop(id)
 	c := s.Client(id)
 	if !ok || c == nil {
@@ -82,17 +87,21 @@ func (s *Session) RefreshDesktop(id string) {
 			}
 			delete(s.listings, id)
 			if err != nil {
+				if sh := s.shelves.GetUntracked()[id]; catchUp && sh.Listed {
+					s.setShelf(id, func(sh Shelf) Shelf { sh.Loading = false; return sh })
+					return
+				}
 				// Away from its network, the films it put in the storage stand in for its answer.
 				if sh, ok := s.relayShelf(id); ok && ProblemOf(err) == Unreachable {
 					s.setShelf(id, func(Shelf) Shelf { return sh })
-					s.keepNexts(id, sh.Listing)
+					s.keepListed(id, sh.Listing)
 					return
 				}
 				s.setShelf(id, func(Shelf) Shelf { return Shelf{Err: err} })
 				return
 			}
 			s.setShelf(id, func(Shelf) Shelf { return Shelf{Listing: l, Listed: true} })
-			s.keepNexts(id, l)
+			s.keepListed(id, l)
 		})
 	})
 }

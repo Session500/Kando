@@ -87,6 +87,8 @@ type Desktop struct {
 	films []Film
 	stall int64
 	held  chan struct{}
+	// holding counts the libraries answers waiting on held (HeldLibraries).
+	holding int
 	// pairHeld holds the pairing answers (HoldPairing).
 	pairHeld chan struct{}
 	// off hangs up on every connection, as a computer asleep or with Phone Sync off (SetOff).
@@ -196,6 +198,18 @@ func (d *Desktop) AddFilm(f Film) {
 	}
 }
 
+// ListFilm lists film id as change has it, as the desktop lists a film otherwise for a change no job made (its work, whether it was watched), and tells the phones waiting for events to list the films of its library again (sync.EventFilms).
+func (d *Desktop) ListFilm(id string, change func(*sync.Film)) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	for i := range d.films {
+		if d.films[i].ID == id {
+			change(&d.films[i].Film)
+			d.desk.Journal.PublishFilms(d.films[i].Library)
+		}
+	}
+}
+
 // ReplaceVideo gives film id another video, whose ETag differs from the one before; a film that kept no video keeps this one from now on, as once the desktop downloaded it, and says it changed.
 func (d *Desktop) ReplaceVideo(id string, video []byte) {
 	d.mu.Lock()
@@ -242,6 +256,13 @@ func (d *Desktop) Hold() (release func()) {
 			close(held)
 		})
 	}
+}
+
+// HeldLibraries is how many libraries answers wait on Hold now.
+func (d *Desktop) HeldLibraries() int {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.holding
 }
 
 // HoldPairing makes each pairing answer begun from now on wait, before the desktop takes the code, until release is called or the phone gives up on it, as a desktop slow to answer does.
@@ -384,11 +405,19 @@ func (d *Desktop) authed(next http.HandlerFunc) http.HandlerFunc {
 func (d *Desktop) libraries(w http.ResponseWriter, r *http.Request) {
 	d.mu.Lock()
 	held := d.held
+	if held != nil {
+		d.holding++
+	}
 	d.mu.Unlock()
 	if held != nil {
 		select {
 		case <-held:
 		case <-r.Context().Done():
+		}
+		d.mu.Lock()
+		d.holding--
+		d.mu.Unlock()
+		if r.Context().Err() != nil {
 			return
 		}
 	}

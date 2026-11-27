@@ -830,6 +830,51 @@ filmsWatchedTo:
   description: "Under a film: where it was left."
   placeholders:
     time: { type: "String", example: "1:40" }
+filmsWorkEpisodes:
+  message: "{count, plural, one {# episode} other {# episodes}}"
+  description: "Under a work's name in the Library's list (a show, a course or a playlist its computer shows as one), after where it comes from: how many of its episodes the row holds."
+  placeholders:
+    count: { type: "int", example: "12" }
+filmsWorkVideos:
+  message: "{count, plural, one {# video} other {# videos}}"
+  description: "Under a playlist's name in the Library's list, after the site: how many of its videos the row holds."
+  placeholders:
+    count: { type: "int", example: "12" }
+filmsWorkLabel:
+  message: "{name}, {count, plural, one {# episode} other {# episodes}}"
+  description: "Spoken name of a work's row in the Library's list: the work's name and how many of its episodes the row holds."
+  placeholders:
+    name: { type: "String", example: "River Walk" }
+    count: { type: "int", example: "12" }
+filmsWorkUnwatched:
+  message: "{count, plural, one {# episode not watched} other {# episodes not watched}}"
+  description: "Spoken name of the number at the end of a work's row in the Library's list: how many of its episodes were not watched to their end."
+  placeholders:
+    count: { type: "int", example: "9" }
+filmsWorkAllWatched:
+  message: "All watched"
+  description: "Spoken name of the check at the end of a work's row in the Library's list: every episode of it was watched to its end."
+filmsWorkWatched:
+  message: "{count, plural, one {# episode} other {# episodes}} · {watched} watched"
+  description: "Under a work's name on its page: how many episodes it has on the phone's list and how many were watched to their end."
+  placeholders:
+    count: { type: "int", example: "12" }
+    watched: { type: "int", example: "3" }
+filmsWorkContinue:
+  message: "Continue Episode {number}"
+  description: "Button on a work's page: plays the episode the work goes on with, by its place in the work."
+  placeholders:
+    number: { type: "int", example: "4" }
+filmsWorkStart:
+  message: "Play Episode {number}"
+  description: "Button on a work's page when none of its episodes was played yet: plays the first the phone lists, by its place in the work (mostly 1)."
+  placeholders:
+    number: { type: "int", example: "1" }
+filmsWorkAgain:
+  message: "Watch Again from Episode {number}"
+  description: "Button on a work's page when every episode was watched: plays the first from its start, by its place in the work (mostly 1)."
+  placeholders:
+    number: { type: "int", example: "1" }
 jobsActionFailed:
   message: "{name} couldn't do that. Try again."
   description: "Toast: an action on a job (pause, cancel, retry, update) failed."
