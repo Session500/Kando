@@ -118,6 +118,13 @@ type Film struct {
 	Making bool `json:"making,omitempty"`
 	// SourceKey names the file of a NAS or a server the film was made of, for a film the desktop indexed or copied from one of its media sources of a kind a phone reaches itself (SMB, SFTP, WebDAV): remotefs.SourceKey of the file's place and size, which says neither where the server is nor what the file is called. A phone that reaches the same server computes the same key for the file and takes this film's subtitles and learning state for it while it plays the video from the server itself. "" for any other film. It is an addition to v1, left out of the JSON when empty, so a phone from before it reads the films as before (TestSourceKeyIsAnAddition).
 	SourceKey string `json:"source_key,omitzero"`
+	// Work names the work the desktop shows the film in as one card (a show's episodes, a course's lessons, a playlist that is one): the same for each of its films and for no other film of that desktop, of any of its libraries. WorkTitle is the card's name, and WorkIndex the film's place in the work from 1, in the order it plays, which a phone orders the work's films by, as it lists only those that are done. All empty for a film the desktop shows on a card of its own, as one of a work the user split apart there. An addition to v1, left out of the JSON when empty (TestWorksAreAnAddition).
+	Work      string `json:"work,omitzero"`
+	WorkTitle string `json:"work_title,omitzero"`
+	WorkIndex int    `json:"work_index,omitzero"`
+	// Watched is a film the desktop played to its end, and PlayedAt when it last played there, zero for one it never played; with where each side stopped (the learning state's positions, which the desktop drops for a film watched to its end) they say which of a work's films a phone goes on with. An addition to v1, left out of the JSON when empty.
+	Watched  bool      `json:"watched,omitzero"`
+	PlayedAt time.Time `json:"played_at,omitzero"`
 }
 
 // Films is PathFilms' answer.

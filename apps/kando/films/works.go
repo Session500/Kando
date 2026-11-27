@@ -2,6 +2,8 @@ package films
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -10,6 +12,7 @@ import (
 
 	"kando/apps/kando/sidebar"
 	"kando/packages/core"
+	"kando/packages/study"
 
 	"golang.org/x/text/collate"
 	"golang.org/x/text/language"
@@ -26,6 +29,20 @@ type Work struct {
 	Folder, Show string
 	List         string
 	Films        []string
+}
+
+// ID is w's name beyond the app, as the control socket and the phones give it (remote.Film.Work, psync.Film.Work), w of the library at root: a hash of the library's folder and w's key, so the same list in two libraries is two works, and neither the folder nor its films' paths show.
+func (w *Work) ID(root string) string {
+	sum := sha256.Sum256([]byte(filepath.Clean(root) + "\x00" + w.Key))
+	return hex.EncodeToString(sum[:6])
+}
+
+// ApartKey is what the categories of the library at root keep w by once the user split it apart (category.Book.Apart): its list's, or its folder within the library, as its films are kept there (study.KeyIn), with its show's, so it stays split as the library moves.
+func (w *Work) ApartKey(root string) string {
+	if w.List != "" {
+		return "list\t" + w.List
+	}
+	return "show\t" + study.KeyIn(root, w.Folder) + "\t" + w.Show
 }
 
 // WorkIndex is the works of a library by the key of each of their films; a film in none is not in it.

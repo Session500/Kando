@@ -212,7 +212,7 @@ func TestFilmsGoAsTheirLinesAloneWithVideosOff(t *testing.T) {
 func TestWatchedVideosAreCleanedUp(t *testing.T) {
 	src := newFilmSource(t)
 	watched := time.Now().Add(-10 * 24 * time.Hour)
-	src.change(func(f []Film) []Film { f[0].Watched, f[0].WatchedAt = true, watched; return f })
+	src.change(func(f []Film) []Film { f[0].Watched, f[0].PlayedAt = true, watched; return f })
 	g := startFilms(t, t.TempDir(), &memBucket{}, src, FilmsConfig{Videos: true, Store: "r2/films"})
 	waitFor(t, "the watched film listed", func() bool { return len(g.told().Watched) == 1 })
 	if w := g.told().Watched[0]; w.ID != "talk" || w.Library != "lib1" || w.Title != "Rust Talk" || w.Size != 20 || !w.At.Equal(watched) {
@@ -237,7 +237,7 @@ func TestWatchedVideosAreCleanedUp(t *testing.T) {
 	g.srv.Close()
 
 	src = newFilmSource(t)
-	src.change(func(f []Film) []Film { f[0].Watched, f[0].WatchedAt = true, watched; return f })
+	src.change(func(f []Film) []Film { f[0].Watched, f[0].PlayedAt = true, watched; return f })
 	g = startFilms(t, t.TempDir(), &memBucket{}, src, FilmsConfig{Videos: true, Store: "r2/films", CleanAfter: 30 * 24 * time.Hour})
 	waitFor(t, "the video in the bucket", func() bool { return g.files()["talk"].Video != "" })
 	g.srv.SetFilms(true, 7*24*time.Hour)

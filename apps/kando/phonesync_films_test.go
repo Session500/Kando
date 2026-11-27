@@ -186,8 +186,8 @@ func TestPhoneSourceSaysWhichFilmsWereWatched(t *testing.T) {
 		t.Fatalf("films %v, %v", list, err)
 	}
 	for _, f := range list {
-		if want := f.Video == talk; f.Watched != want || (want && !f.WatchedAt.Equal(played)) {
-			t.Errorf("%s watched %v at %v", f.Title, f.Watched, f.WatchedAt)
+		if want := f.Video == talk; f.Watched != want || (want && !f.PlayedAt.Equal(played)) {
+			t.Errorf("%s watched %v at %v", f.Title, f.Watched, f.PlayedAt)
 		}
 	}
 }

@@ -265,7 +265,7 @@ type Events struct {
 	Events []Event `json:"events"`
 }
 
-// Event is a change: of a job (EventJob, with the job as it is now), a job no longer followed (EventJobGone, with its ID), or of a library's learning state (EventState, with the library's ID).
+// Event is a change: of a job (EventJob, with the job as it is now), a job no longer followed (EventJobGone, with its ID), of a library's learning state (EventState, with the library's ID), or of what a library's films are listed as (EventFilms, with the library's ID). A phone ignores a kind it does not know.
 type Event struct {
 	Rev  int64  `json:"rev"`
 	Kind string `json:"kind"`
@@ -277,6 +277,8 @@ type Event struct {
 const (
 	EventJob     = "job"
 	EventJobGone = "job.gone"
+	// EventFilms is that library ID's films are listed otherwise for a change no job made, as the user showing a work's films a card each on the desktop: the phone lists the desktop's films again. An addition to v2, which a phone from before it ignores.
+	EventFilms = "films"
 )
 
 // The codes of ErrorBody that v2 adds to v1's.
