@@ -476,7 +476,7 @@ func (s *Session) followQueue(ctx context.Context, id, device string, c *sync.Cl
 			s.relayLanded(id)
 			s.sendWaiting(id)
 			// The events are followed from this listing's revision on, so the films are read again once from it: a change of them told before it, after a read begun earlier was answered, as one meanwhile away from the computer's network or before it restarted, is told by no event after.
-			s.RefreshDesktop(id)
+			s.catchUp(id)
 			if was {
 				// Back on the computer's network, the learning state and the settings left for the storage go directly.
 				s.SyncLearning()

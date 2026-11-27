@@ -523,6 +523,28 @@ func TestTheLibrarySaysWhenTheStorageFails(t *testing.T) {
 	}
 }
 
+// The read of a computer's films the phone makes as it begins following its events, which may end as the computer goes, keeps the films the Library lists: the computer's reach is the follower's to tell.
+func TestTheLibraryKeepsItsFilmsWhenTheComputerGoesDuringACatchUp(t *testing.T) {
+	d := newDesktop(t)
+	jobs := d.HoldJobs()
+	dir := t.TempDir()
+	p := startPhone(t, dir, pairedWith(t, d, dir))
+	id := store.DesktopID(d.Fingerprint)
+	p.app.WaitFor(talkRow(id), wait)
+	libraries := d.Hold()
+	defer libraries()
+	jobs()
+	p.app.WaitUntil(wait, func() bool { return d.HeldLibraries() == 1 })
+	d.SetOff(true)
+	p.app.WaitUntil(wait, func() bool { return d.HeldLibraries() == 0 })
+	for end := time.Now().Add(2 * time.Second); time.Now().Before(end); time.Sleep(20 * time.Millisecond) {
+		p.app.Settle()
+		if !p.app.Exists(talkRow(id)) {
+			t.Fatal("the Library drops its films as the computer goes during the phone's read of them")
+		}
+	}
+}
+
 // Before a computer is paired the Library's Add leads to pairing, which a link needs first; the switcher shows only while the phone keeps films, offering their libraries (design 08).
 func TestTheLibrarysAddPairsFirst(t *testing.T) {
 	empty := startPhone(t, t.TempDir())

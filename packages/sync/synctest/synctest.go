@@ -87,6 +87,8 @@ type Desktop struct {
 	films []Film
 	stall int64
 	held  chan struct{}
+	// holding counts the libraries answers waiting on held (HeldLibraries).
+	holding int
 	// pairHeld holds the pairing answers (HoldPairing).
 	pairHeld chan struct{}
 	// off hangs up on every connection, as a computer asleep or with Phone Sync off (SetOff).
@@ -256,6 +258,13 @@ func (d *Desktop) Hold() (release func()) {
 	}
 }
 
+// HeldLibraries is how many libraries answers wait on Hold now.
+func (d *Desktop) HeldLibraries() int {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.holding
+}
+
 // HoldPairing makes each pairing answer begun from now on wait, before the desktop takes the code, until release is called or the phone gives up on it, as a desktop slow to answer does.
 func (d *Desktop) HoldPairing() (release func()) {
 	held := make(chan struct{})
@@ -396,11 +405,19 @@ func (d *Desktop) authed(next http.HandlerFunc) http.HandlerFunc {
 func (d *Desktop) libraries(w http.ResponseWriter, r *http.Request) {
 	d.mu.Lock()
 	held := d.held
+	if held != nil {
+		d.holding++
+	}
 	d.mu.Unlock()
 	if held != nil {
 		select {
 		case <-held:
 		case <-r.Context().Done():
+		}
+		d.mu.Lock()
+		d.holding--
+		d.mu.Unlock()
+		if r.Context().Err() != nil {
 			return
 		}
 	}
