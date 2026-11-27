@@ -125,3 +125,21 @@ func TestThePhoneKeepsTheWorkItsComputerNamed(t *testing.T) {
 		t.Fatal("the work's row stays once its computer shows its films apart")
 	}
 }
+
+// A film its computer lists otherwise between the phone's reads of its films and of its queue, which the phone follows the events from, is told by no event the phone hears: the phone reads the films again once it follows them, so the Library still folds as the computer does.
+func TestTheLibraryFoldsAnewAFilmListedOtherwiseBeforeThePhoneFollowsItsComputer(t *testing.T) {
+	d := newDesktopWithShow(t)
+	release := d.HoldJobs()
+	dir := t.TempDir()
+	p := startPhone(t, dir, pairedWith(t, d, dir))
+	id := store.DesktopID(d.Fingerprint)
+	p.app.WaitFor(workRow(id, "w1"), wait)
+	for _, ep := range []string{"e1", "e2", "e3"} {
+		d.ListFilm(ep, func(f *sync.Film) { f.Work, f.WorkTitle, f.WorkIndex = "", "", 0 })
+	}
+	release()
+	p.app.WaitFor(filmRow(id, "e3"), wait)
+	if p.app.Exists(workRow(id, "w1")) {
+		t.Fatal("the work's row stays once its computer showed its films apart")
+	}
+}

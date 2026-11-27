@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	gosync "sync"
 
 	"kando/packages/sync"
 )
@@ -27,6 +28,27 @@ type queue struct {
 	options  []string
 	asked    []sync.JobOptions
 	readOnly bool
+	// held holds the answers listing the jobs (HoldJobs).
+	held chan struct{}
+}
+
+// HoldJobs makes each answer listing the jobs begun from now on wait until release is called or the phone gives up on it, as a desktop slow to answer does: the revision the phone follows its events from is the one at release.
+func (d *Desktop) HoldJobs() (release func()) {
+	held := make(chan struct{})
+	d.mu.Lock()
+	d.queue.held = held
+	d.mu.Unlock()
+	var once gosync.Once
+	return func() {
+		once.Do(func() {
+			d.mu.Lock()
+			if d.queue.held == held {
+				d.queue.held = nil
+			}
+			d.mu.Unlock()
+			close(held)
+		})
+	}
 }
 
 // SetOptions has the desktop take the job options named (sync.OptionQuality, sync.OptionSubtitles), as Hello.Options lists them; it takes none by default, refusing a link that comes with any.
@@ -127,7 +149,15 @@ func (d *Desktop) call(w http.ResponseWriter, r *http.Request) {
 	if drop {
 		d.queue.drops--
 	}
+	held := d.queue.held
 	d.mu.Unlock()
+	if held != nil && call.Op == sync.OpJobs {
+		select {
+		case <-held:
+		case <-r.Context().Done():
+			return
+		}
+	}
 	caller := sync.Caller{DeviceID: "dev-" + string(token[:min(6, len(token))]), Name: name, ReadOnly: readOnly}
 	if drop {
 		sync.HandleCall(httptest.NewRecorder(), r, d.desk, caller)
