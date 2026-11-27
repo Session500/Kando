@@ -41,7 +41,7 @@ func (s *Session) takeShelf(desktop string, shelf sync.RelayShelf) {
 	}
 	listing := catalog.FromRelay(shelf)
 	s.setShelf(desktop, func(Shelf) Shelf { return Shelf{Listing: listing, Listed: true, Relayed: true} })
-	s.keepNexts(desktop, listing)
+	s.keepListed(desktop, listing)
 }
 
 // relayShelf is the Listing desktop last listed through its storage, false for none.

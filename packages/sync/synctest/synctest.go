@@ -196,6 +196,18 @@ func (d *Desktop) AddFilm(f Film) {
 	}
 }
 
+// ListFilm lists film id as change has it, as the desktop lists a film otherwise for a change no job made (its work, whether it was watched), and tells the phones waiting for events to list the films of its library again (sync.EventFilms).
+func (d *Desktop) ListFilm(id string, change func(*sync.Film)) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	for i := range d.films {
+		if d.films[i].ID == id {
+			change(&d.films[i].Film)
+			d.desk.Journal.PublishFilms(d.films[i].Library)
+		}
+	}
+}
+
 // ReplaceVideo gives film id another video, whose ETag differs from the one before; a film that kept no video keeps this one from now on, as once the desktop downloaded it, and says it changed.
 func (d *Desktop) ReplaceVideo(id string, video []byte) {
 	d.mu.Lock()

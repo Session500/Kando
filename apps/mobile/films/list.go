@@ -27,6 +27,9 @@ func (v *view) results() []catalog.Result {
 	return catalog.Search(catalog.Filter(v.scoped(), nil, v.source.Get()), lines, v.query.Get())
 }
 
+// rows are the list's rows: the results, the films of a work among them folded into one (catalog.Fold).
+func (v *view) rows() []catalog.Row { return catalog.Fold(v.results()) }
+
 // waiting reports whether a computer is being read with nothing of it to show yet.
 func (v *view) waiting() bool {
 	return slices.ContainsFunc(v.s.Desktops(), func(d store.Desktop) bool { return v.s.Shelf(d.ID).Waiting() })
@@ -81,11 +84,19 @@ func (v *view) list(cx *core.Scope) core.Node {
 				}}
 		}},
 		core.Show{When: shown, Then: func(cx *core.Scope) core.Node {
-			each := core.Each(v.results, func(r catalog.Result) string { return r.Key() }, func(cx *core.Scope, r func() catalog.Result, i func() int) core.Node {
-				if look.Tablet(cx) {
-					return v.cell(cx, r)
+			// A work's row is keyed apart from every film's (catalog.Work.Key), so a row stays a work's or a film's for as long as it shows.
+			each := core.Each(v.rows, catalog.Row.Key, func(cx *core.Scope, r func() catalog.Row, i func() int) core.Node {
+				if r().Work != nil {
+					if look.Tablet(cx) {
+						return v.workCell(cx, r)
+					}
+					return v.workRow(cx, r, i)
 				}
-				return v.row(cx, r, i)
+				result := func() catalog.Result { return r().Result }
+				if look.Tablet(cx) {
+					return v.cell(cx, result)
+				}
+				return v.row(cx, result, i)
 			})
 			if look.Tablet(cx) {
 				// A tablet lays the films out in three columns of cards (FP-23).
@@ -216,6 +227,11 @@ func libraryName(cx *core.Scope, lib catalog.Scope) string {
 
 // thumb is a film's poster with what the design draws on it: its length at its corner and, for a film left partway, how far along its foot.
 func (v *view) thumb(cx *core.Scope, e func() catalog.Entry, width core.Points, radius core.Points) core.Node {
+	return v.poster(cx, e, width, radius, true)
+}
+
+// poster is thumb, its length left out unless withLength, as on a work's row, which stands for more than the film it shows.
+func (v *view) poster(cx *core.Scope, e func() catalog.Entry, width core.Points, radius core.Points, withLength bool) core.Node {
 	colors := ui.ColorsOf(cx)
 	length := func() time.Duration { return time.Duration(e().Film.DurationMS) * time.Millisecond }
 	fraction := func() float32 {
@@ -233,7 +249,7 @@ func (v *view) thumb(cx *core.Scope, e func() catalog.Entry, width core.Points, 
 		Children: []core.Node{
 			core.Image{SourceFunc: poster(cx, v.s, e), ResizeMode: core.Cover, ElementsHidden: true,
 				Style: core.Style{Position: core.Absolute, Left: core.Pt(0), Top: core.Pt(0), Right: core.Pt(0), Bottom: core.Pt(0)}},
-			core.Show{When: func() bool { return length() > 0 }, Then: func(cx *core.Scope) core.Node {
+			core.Show{When: func() bool { return withLength && length() > 0 }, Then: func(cx *core.Scope) core.Node {
 				return core.View{Style: core.Style{Position: core.Absolute, Right: core.Pt(4), Bottom: core.Pt(4), Height: core.Pt(16), Padding: core.Symmetric(0, 5), CornerRadius: 5, JustifyContent: core.JustifyCenter,
 					Background: core.RGBA(0x000000, 0.72)},
 					Children: []core.Node{ui.Tabular(core.Text{ContentFunc: func() string { return look.Duration(length()) }, MaxLines: 1,

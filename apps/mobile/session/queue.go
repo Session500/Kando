@@ -516,17 +516,23 @@ func (s *Session) followQueue(ctx context.Context, id, device string, c *sync.Cl
 	}
 }
 
-// applyEvents takes events of desktop id's queue into it.
+// applyEvents takes events of desktop id's queue into it, and reads its films again once it lists a library's otherwise (sync.EventFilms), as when the user showed a work's films apart there or watched one to its end.
 func (s *Session) applyEvents(id string, events []sync.Event) {
 	var changed []sync.Job
 	var gone []string
+	films := false
 	for _, e := range events {
 		switch {
 		case e.Kind == sync.EventJob && e.Job != nil:
 			changed = append(changed, *e.Job)
 		case e.Kind == sync.EventJobGone:
 			gone = append(gone, e.ID)
+		case e.Kind == sync.EventFilms:
+			films = true
 		}
+	}
+	if films {
+		defer s.RefreshDesktop(id)
 	}
 	if len(gone) > 0 {
 		s.setQueue(id, func(q Queue) Queue {

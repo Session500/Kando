@@ -26,8 +26,9 @@ import (
 type Actions struct {
 	// Pair opens pairing.
 	Pair func()
-	// Film opens a film's page.
+	// Film opens a film's page, and Work the page of the work of computer desktop whose ID is id (WorkPage).
 	Film func(catalog.Entry)
+	Work func(desktop, id string)
 	// PlayHeld opens the player of the film kept on the phone under key held where it was left, with the recap of the part watched, as the film's page's Play does; a film's row opens a film on the phone with it (openFilm).
 	PlayHeld func(key string)
 	// Play plays the film kept on the phone under key, from where it was left on the phone, and PlayAt from at.
@@ -67,8 +68,8 @@ type view struct {
 	sheet *core.Signal[optionsSheet]
 }
 
-// Page is the tab's root page.
-func Page(cx *core.Scope, s *session.Session, act Actions) base.NavPage {
+// newView is the state of a page of the tab's films, without a search, a chip or a library chosen.
+func newView(cx *core.Scope, s *session.Session, act Actions) *view {
 	v := &view{cx: cx, s: s, act: act,
 		query:   core.NewSignal(cx, ""),
 		source:  core.NewSignal(cx, ""),
@@ -80,6 +81,12 @@ func Page(cx *core.Scope, s *session.Session, act Actions) base.NavPage {
 	if v.library == nil {
 		v.library = core.NewSignal(cx, catalog.Scope{})
 	}
+	return v
+}
+
+// Page is the tab's root page.
+func Page(cx *core.Scope, s *session.Session, act Actions) base.NavPage {
+	v := newView(cx, s, act)
 	// The lines kept on the phone are read for a search once there is one, and again as the films on the phone change. Both inputs are memos, so typing on or a saved position, which change neither, does not read them again: the resource loads afresh whenever its source reruns.
 	searching := core.NewMemo(cx, func() bool { return v.query.Get() != "" })
 	linesKey := core.NewMemo(cx, s.LinesKey)

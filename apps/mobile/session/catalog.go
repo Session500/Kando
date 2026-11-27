@@ -85,14 +85,14 @@ func (s *Session) RefreshDesktop(id string) {
 				// Away from its network, the films it put in the storage stand in for its answer.
 				if sh, ok := s.relayShelf(id); ok && ProblemOf(err) == Unreachable {
 					s.setShelf(id, func(Shelf) Shelf { return sh })
-					s.keepNexts(id, sh.Listing)
+					s.keepListed(id, sh.Listing)
 					return
 				}
 				s.setShelf(id, func(Shelf) Shelf { return Shelf{Err: err} })
 				return
 			}
 			s.setShelf(id, func(Shelf) Shelf { return Shelf{Listing: l, Listed: true} })
-			s.keepNexts(id, l)
+			s.keepListed(id, l)
 		})
 	})
 }
